@@ -29,6 +29,14 @@
 
 namespace {
 
+constexpr float kPi = 3.14159265358979f;
+constexpr float kGradosARadianes = kPi / 180.f;
+
+// Tope del pitch de la camara (mouse look): sin esto la camara se "da vuelta"
+// al mirar hacia arriba/abajo y el vector "left" degenere (m_up fijo y
+// m_left ortogonal a dir apuntando casi vertical) y la vista hace cosas raras.
+constexpr float kPitchMaxGrados = 89.0f;
+
 // Rota el vector "vec" (0,0,-1) o (0,1,0) segun angulo/eje del Transform;
 // mismo helper que usa LightSystem para derivar la direccion de las luces.
 void rotarVector(const float* vec, float anguloGrados, const float* eje,
@@ -43,7 +51,7 @@ void rotarVector(const float* vec, float anguloGrados, const float* eje,
 
     k[0] /= norma; k[1] /= norma; k[2] /= norma;
 
-    const float radianes = anguloGrados * 3.14159265358979f / 180.f;
+    const float radianes = anguloGrados * kGradosARadianes;
     const float c = std::cos(radianes);
     const float s = std::sin(radianes);
     const float dot = vec[0] * k[0] + vec[1] * k[1] + vec[2] * k[2];
@@ -91,6 +99,11 @@ void CameraComponent::loadComponent(std::ifstream* file) {
     deserializeComponent(file);
 }
 
+void CameraComponent::onLoaded(GameObject& owner) {
+    setUp(&owner);
+    sincronizarConTransform();
+}
+
 Transform* CameraComponent::getLocalTransform() const {
     if (!owner) return nullptr;
     return owner->getComponent<Transform>();
@@ -118,11 +131,15 @@ void CameraComponent::leerDesdeTransform() {
                 &transform->getRotatef()[1], m_up);
 
     // Reconstruir yaw/pitch desde la direccion actual del Transform para que
-    // la navegacion continue donde dejo el gizmo o el inspector.
-    yawX = std::atan2(m_dir[0], -m_dir[2]);
+    // la navegacion continue donde dejo el gizmo o el inspector. TODO se
+    // maneja en GRADOS (el mouse y su tope usan grados); los atan2/asin de
+    // abajo salen en radianes y se convierten.
+    yawX = std::atan2(m_dir[0], -m_dir[2]) / kGradosARadianes;
     float yDir = m_dir[1] > 1.f ? 1.f : m_dir[1];
     yDir = yDir < -1.f ? -1.f : yDir;
-    yawY = std::asin(-yDir);
+    yawY = std::asin(-yDir) / kGradosARadianes;
+    if (yawY > kPitchMaxGrados) yawY = kPitchMaxGrados;
+    if (yawY < -kPitchMaxGrados) yawY = -kPitchMaxGrados;
 
     m_left[0] = m_up[1] * m_dir[2] - m_up[2] * m_dir[1];
     m_left[1] = m_up[2] * m_dir[0] - m_up[0] * m_dir[2];
@@ -148,8 +165,11 @@ void CameraComponent::escribirATransform() {
     mat = glm::translate(mat, glm::vec3(m_pos[0], m_pos[1], m_pos[2]));
     // R = RY(-yawX) * RX(-yawY), misma convencion que la dir FPS:
     // dir = (+sin yawX cos yawY, -sin yawY, -cos yawX cos yawY).
-    mat = glm::rotate(mat, -yawX, glm::vec3(axisY[0], axisY[1], axisY[2]));
-    mat = glm::rotate(mat, -yawY, glm::vec3(axisX[0], axisX[1], axisX[2]));
+    // yawX/yawY se conservan en grados; glm::rotate espera radianes.
+    mat = glm::rotate(mat, -yawX * kGradosARadianes,
+                      glm::vec3(axisY[0], axisY[1], axisY[2]));
+    mat = glm::rotate(mat, -yawY * kGradosARadianes,
+                      glm::vec3(axisX[0], axisX[1], axisX[2]));
     mat = glm::scale(mat, glm::vec3(scale[0], scale[1], scale[2]));
 
     const float* ptr = glm::value_ptr(mat);
@@ -159,8 +179,8 @@ void CameraComponent::escribirATransform() {
 }
 
 void CameraComponent::calculardireccion() {
-    const float radX = yawX * 3.14159265358979f / 180.f;
-    const float radY = yawY * 3.14159265358979f / 180.f;
+    const float radX = yawX * kGradosARadianes;
+    const float radY = yawY * kGradosARadianes;
     m_dir[0] = std::sin(radX) * std::cos(radY);
     m_dir[1] = -std::sin(radY);
     m_dir[2] = -std::cos(radX) * std::cos(radY);
@@ -237,14 +257,59 @@ void CameraComponent::backLeft(float dt) {
     escribirATransform();
 }
 
+void CameraComponent::moverDireccion(const float direccion[3], float dt) {
+    leerDesdeTransform();
+    // direccion = [x: derecho, y: arriba, z: adelante]; "derecho" = -left.
+    const float v = speed * dt;
+    m_pos[0] += (-m_left[0] * direccion[0] + m_up[0] * direccion[1] +
+                 m_dir[0] * direccion[2]) * v;
+    m_pos[1] += (-m_left[1] * direccion[0] + m_up[1] * direccion[1] +
+                 m_dir[1] * direccion[2]) * v;
+    m_pos[2] += (-m_left[2] * direccion[0] + m_up[2] * direccion[1] +
+                 m_dir[2] * direccion[2]) * v;
+    escribirATransform();
+}
+
 void CameraComponent::updateYaw(float dYawX, float dYawY) {
     leerDesdeTransform();
     yawX += dYawX;
     yawY += dYawY;
-    if (yawY > 89.0f) yawY = 89.0f;
-    if (yawY < -89.0f) yawY = -89.0f;
+    if (yawY > kPitchMaxGrados) yawY = kPitchMaxGrados;
+    if (yawY < -kPitchMaxGrados) yawY = -kPitchMaxGrados;
     calculardireccion();
     escribirATransform();
+}
+
+float CameraComponent::orbitAround(const float* origen, float radio, float dYawX, float dYawY) {
+    leerDesdeTransform();
+
+    // Clamp radio a limites.
+    if (radio < radioMin) radio = radioMin;
+    if (radio > radioMax) radio = radioMax;
+
+    // Orbita horizontal: solo yawX (rotacion en plano XZ).
+    // La altura (Y) se mantiene fija; el radio se pasa como parametro
+    // (ajustable con la rueda del mouse durante la orbita).
+    yawX += dYawX;
+    // yawY NO cambia: orbita puramente horizontal, sin pitch.
+    calculardireccion();
+
+    // Direccion horizontal pura (yawY=0) para posicionar en el circulo XZ.
+    const float radX = yawX * kGradosARadianes;
+    float horizDir[3] = {
+        std::sin(radX),
+        0.f,
+        -std::cos(radX)
+    };
+
+    // Nueva posicion en el circulo horizontal (misma Y, radio constante).
+    // Usamos origen - horizDir * radio para que la camara mire HACIA el origen.
+    m_pos[0] = origen[0] - horizDir[0] * radio;
+    // m_pos[1] se mantiene igual (altura fija)
+    m_pos[2] = origen[2] - horizDir[2] * radio;
+
+    escribirATransform();
+    return radio;
 }
 
 void CameraComponent::getViewMatrix(float* outMatrix) const {

@@ -19,6 +19,12 @@
 #ifndef VENTANA_H
 #define VENTANA_H
 
+// _HAS_STD_BYTE=0 DEBE ir ANTES de cualquier include de stdlib en Windows
+// para evitar colision con typedef 'byte' de rpcndr.h vs std::byte (C++17)
+#ifdef _WIN32
+#define _HAS_STD_BYTE 0
+#endif
+
 // Solo el tipo GLFWwindow; el contexto/estado GL vive en el backend.
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>

@@ -178,6 +178,11 @@ public:
     // --- Primitivas inmediatas (en el espacio local del modelo actual) -------
     // vertices planos; cada par consecutivo [0..1], [2..3], ... es un segmento.
     virtual void drawLinePairs(const float* vertices, int vertexCount) = 0;
+    // Pares de lineas (GL_LINES) con COLOR POR VERTICE: cada vertice son 7
+    // floats (xyz + rgba). Permite difuminados por vertice (p.ej. la grilla que
+    // se funde en el horizonte por distancia a la camara). El color actual de
+    // glColor queda sobrescrito por el de cada vertice.
+    virtual void drawLinePairsRGBA(const float* vertices, int vertexCount) = 0;
     // Lineas por indices: edges es un arreglo de edgeCount*2 ints.
     virtual void drawIndexedLines(const float* vertices, int vertexCount,
                                   const int* edgeIndices, int edgeCount) = 0;

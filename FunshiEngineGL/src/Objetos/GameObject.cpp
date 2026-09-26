@@ -18,6 +18,7 @@
 */
 #include "GameObject.h"
 #include "Componentes/ComponentFactory.h"
+#include "Componentes/CameraComponent.h"
 
 #include <cmath>
 #include <algorithm>
@@ -80,6 +81,47 @@ void GameObject::deleteComponent(Component* component) {
         ),
         componentOwners.end()
     );
+}
+
+
+std::unique_ptr<Component> GameObject::extractComponent(Component* component) {
+    if (component == nullptr || !components ||
+        !components->isElement(component))
+        return nullptr;
+
+    components->deleteByElement(component);
+
+    for (auto it = componentOwners.begin(); it != componentOwners.end();
+         ++it) {
+        if (it->get() == component) {
+            auto result = std::move(*it);
+            componentOwners.erase(it);
+            return result;
+        }
+    }
+    return nullptr;
+}
+
+
+Component* GameObject::getComponentByName(const std::string& typeName) {
+    if (!components || components->isEmpty()) return nullptr;
+    Position<Component*>* position = components->first();
+    while (position != nullptr) {
+        Component* comp = position->getElement();
+        if (comp) {
+            std::string name = demangle(typeid(*comp).name());
+            if (name == typeName) return comp;
+        }
+        position = (position != components->last())
+                       ? components->next(position)
+                       : nullptr;
+    }
+    return nullptr;
+}
+
+
+bool GameObject::hasComponent(const std::string& typeName) {
+    return getComponentByName(typeName) != nullptr;
 }
 
 
@@ -377,6 +419,23 @@ void GameObject::deserializeTransformOrigin() {
         sizeof(size_t)
     );
 
+    // Misma cota de sanidad que en deserializeEntityComponents: un length
+    // absurdo delata un stream corrupto o desalineado y no debe abortar el
+    // proceso al construir el string.
+    if (length == 0 || length > 256) {
+
+        std::cerr
+            << "Nombre de tipo invalido en el binario (len "
+            << length
+            << "); se descarta el TransformOrigin\n";
+
+        ownedTransformOrigin.reset();
+
+        transformOrigin = nullptr;
+
+        return;
+    }
+
     std::string typeName(
         length,
         '\0'
@@ -484,6 +543,20 @@ void GameObject::deserializeEntityComponents() {
             sizeof(size_t)
         );
 
+        // Cota de sanidad: los nombres de tipo de los componentes son cortos.
+        // Un length mayor delata un stream corrupto o desalineado y construir
+        // el string con ese valor lanzaria std::length_error, abortando el
+        // proceso. Se corta la lectura del objeto con un error claro.
+        if (length == 0 || length > 256) {
+
+            std::cerr
+                << "Nombre de componente invalido en el binario (len "
+                << length
+                << "); se corta la lectura del objeto\n";
+
+            return;
+        }
+
         std::string typeName(
             length,
             '\0'
@@ -504,18 +577,15 @@ void GameObject::deserializeEntityComponents() {
 
             component->loadComponent(file);
 
+            // Post-carga polimorfica: cada componente aplica su estado al dueno
+            // (p. ej. CameraComponent vincula su dueno y deriva la vista del
+            // Transform; Color refleja su valor en auxColor para el inspector).
+            // Sin dispatch manual por nombre de tipo aqui.
+            component->onLoaded(*this);
+
             addComponent(
                 std::move(component)
             );
-
-            if (typeName == "Color") {
-
-                const float* c =
-                    getComponent<Color>()->getColor();
-
-                for (int j = 0; j < 4; ++j)
-                    auxColor[j] = c[j];
-            }
 
         }
         else {

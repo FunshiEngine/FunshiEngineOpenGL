@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "../../Herramientas/PathUtils.h"
+#include "../../Events/EditorEventBus.h"
 #include "../../FileManager/FileManager.h"
 #include "../../FileManager/FileSelection.h"
 #include "../../GestorDeArchivos/Carpeta.h"
@@ -103,6 +104,10 @@ TreeFilesInterface::TreeFilesInterface(bool stateGUI, FileManager* fileManager)
 
 void TreeFilesInterface::setIconosGUI(IconosGUI* iconosG) { iconosGUI = iconosG; }
 
+void TreeFilesInterface::setEditorEventBus(EditorEventBus* bus) noexcept {
+    eventoArchivos_ = bus;
+}
+
 TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen) {
     Carpeta* folderRoot = dynamic_cast<Carpeta*>(element);
     if (!folderRoot) return {};
@@ -156,6 +161,15 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
                                 rutaNueva + sel->rutaVisible.substr(rutaVieja.size());
                         }
                         trasladarPrefijoEnPaths(openPaths, rutaVieja, rutaNueva);
+                        // Referencias de la escena bajo la ruta vieja (mallas,
+                        // texturas, scripts): main las reescribe y persiste.
+                        if (eventoArchivos_ != nullptr) {
+                            EditorEvent ev;
+                            ev.type = EditorEventType::ArchivosReubicados;
+                            ev.rutaAnterior = rutaVieja;
+                            ev.rutaNueva = rutaNueva;
+                            eventoArchivos_->publish(ev);
+                        }
                         // Rescaneo del arbol (refleja el nombre nuevo).
                         sel->contadorCambios++;
                     }
@@ -224,7 +238,10 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
 }
 
 void TreeFilesInterface::initGUI() {
-    ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
+    // Usa dockAlive_ (siempre true) para que la ventana exista en g.Windows
+    // cada frame y ImGui pueda re-aplicar su DockId al restaurar el ini.
+    // stateGUI controla solo la visibilidad visual (usuario cierra con X).
+    ImGui::Begin(getNameGui().c_str(), &dockAlive_, getFlagGui());
 
     if (confirmarEliminar && !carpetaAConfirmar.empty()) {
         ImGui::OpenPopup("ConfirmarEliminar");
@@ -366,11 +383,14 @@ void TreeFilesInterface::contentGUI() {
 void TreeFilesInterface::endGUI() { ImGui::End(); }
 
 void TreeFilesInterface::printGUI() {
+    // La ventana SIEMPRE existe en g.Windows (initGUI/endGUI cada frame)
+    // para que ImGui pueda re-aplicar su DockId al restaurar el ini.
+    // El contenido solo se dibuja si stateGUI (visibilidad).
+    initGUI();
     if (stateGUI) {
-        initGUI();
         contentGUI();
-        endGUI();
     }
+    endGUI();
 }
 
 void TreeFilesInterface::solicitarActualizacion() { actualizar = true; }

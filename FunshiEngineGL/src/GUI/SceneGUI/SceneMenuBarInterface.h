@@ -21,8 +21,11 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include <memory>
 #include "../ObjetosGUI/SettingsObjectInterface.h"
 #include "../../Events/EditorEventBus.h"
+#include "../../Exportador/GameExporter.h"
+#include "../Export/ExportDialog.h"
 #include <imgui.h>
 
 using namespace std;
@@ -30,23 +33,24 @@ using namespace std;
 class SceneMenuBarInterface : public GeneralUserInterface {
 protected:
     bool* toggleBool = nullptr;
+    bool* gizmoGlobal = nullptr;
     bool cargarScripts = false;
-    // Canal de GUI interna: el menu "Ventanas" publica VentanaEstadoCambio y
-    // main/GUIManager aplican y persisten la visibilidad de cada panel.
     EditorEventBus* busEditor = nullptr;
-    // Ultimos estados conocidos de las ventanas persistentes del editor
-    // (etiqueta por WindowName). La alimenta GUIManager cada frame para que
-    // las casillas del menu reflejen el estado real (incluido el cierre con X).
     std::map<std::string, bool> ventanas_;
+    std::unique_ptr<ExportDialog> exportDialog_;
+    bool mostrarExportDialog_ = false;
+    std::string proyectoActual_;
 
 public:
     SceneMenuBarInterface(bool stateGUI);
     void setActivador(bool* targetBool);
     bool* getActivador();
+    void setGizmoGlobal(bool* target);
     bool getCargarScripts();
     void setCargarScripts(bool value);
     void setEditorEventBus(EditorEventBus* bus);
     void setVentanas(const std::map<std::string, bool>& estados);
+    void setProyectoActual(const std::string& proyecto);
     virtual void initGUI() override;
     virtual void contentGUI() override;
     virtual void endGUI() override;

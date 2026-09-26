@@ -68,6 +68,17 @@ public:
     bool deleteObjectByID(int id);
     bool reparent(GameObject* object, GameObject* parent);
     void clear();
+
+    // Operaciones de undo/redo: desacoplan ownership del GameObject de la
+    // estructura de arbol. take* devuelven los unique_ptr que poseia el registro
+    // (y desconectan los nodos del arbol) para que un comando los conserve y
+    // los restaure con restore*. No se permite desacoplar la raiz (id 0).
+    GameObject* getObjectByID(int id) const;
+    std::unique_ptr<GameObject> takeObject(GameObject* object);
+    std::vector<std::unique_ptr<GameObject>> takeSubtree(GameObject* object);
+    std::vector<std::unique_ptr<GameObject>> takeAllNonRoot();
+    GameObject* restoreSubtree(std::vector<std::unique_ptr<GameObject>> objects,
+                               GameObject* parent);
 };
 
 #endif

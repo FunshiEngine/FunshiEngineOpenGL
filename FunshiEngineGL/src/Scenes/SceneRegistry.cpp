@@ -23,6 +23,7 @@
 
 #include "../Objetos/GameObject.h"
 #include "../Objetos/Modelos3D.h"
+#include "../Objetos/ObjetoEscena.h"
 #include "../Objetos/Componentes/Transform.h"
 
 SceneRegistry::SceneRegistry() { createDefaultRoot(); }
@@ -35,7 +36,13 @@ SceneRegistry::~SceneRegistry() {
 
 void SceneRegistry::createDefaultRoot() {
     viewDirty = true;
-    auto root = std::make_unique<Modelos3D>();
+    // La raiz de la escena es el GameObject "Scene": un contenedor sin
+    // geometria que agrupa como hijos a todas las entidades (objetos y
+    // camaras). Queda excluida de la vista plana (refreshGameObjectView) y no
+    // se dibuja; solo estructura la jerarquia. Es compatible con escenas
+    // viejas: al cargar un binario raiz que habia guardado malla, los bytes
+    // sobrantes quedan sin leer (EOF) y no rompen el formato.
+    auto root = std::make_unique<ObjetoEscena>();
     root->setId(0);
     root->setParentEntity(nullptr);
     GameObject* rootRaw = root.get();
@@ -206,4 +213,243 @@ void SceneRegistry::clear() {
     while (!entitys.isEmpty()) entitys.deleteRoot();
     ownedGameObjects.clear();
     createDefaultRoot();
+}
+
+GameObject* SceneRegistry::getObjectByID(int id) const {
+    for (const auto& object : ownedGameObjects) {
+        if (object && object->getId() == id) {
+            return object.get();
+        }
+    }
+    return nullptr;
+}
+
+std::unique_ptr<GameObject> SceneRegistry::takeObject(GameObject* object) {
+    if (!object || object == getRoot() || !contains(object)) {
+        return nullptr;
+    }
+    Position<GameObject*>* position = nullptr;
+    try {
+        position = entitys.whatIsPositionOf(object);
+    } catch (...) {
+        return nullptr;
+    }
+    if (!position) {
+        return nullptr;
+    }
+
+    viewDirty = true;
+    try {
+        entitys.deleteNode(position);
+    } catch (...) {
+        return nullptr;
+    }
+
+    for (auto it = ownedGameObjects.begin(); it != ownedGameObjects.end(); ++it) {
+        if (it->get() == object) {
+            auto result = std::move(*it);
+            ownedGameObjects.erase(it);
+            refreshGameObjectView();
+            return result;
+        }
+    }
+
+    refreshGameObjectView();
+    return nullptr;
+}
+
+std::vector<std::unique_ptr<GameObject>> SceneRegistry::takeSubtree(GameObject* object) {
+    if (!object || object == getRoot() || !contains(object)) {
+        return {};
+    }
+
+    Position<GameObject*>* objPosition = nullptr;
+    try {
+        objPosition = entitys.whatIsPositionOf(object);
+    } catch (...) {
+        return {};
+    }
+    if (!objPosition) {
+        return {};
+    }
+
+    std::vector<GameObject*> subtreeObjects;
+    std::function<void(Position<GameObject*>*)> collectSubtree =
+        [&](Position<GameObject*>* pos) {
+            if (!pos) return;
+            GameObject* go = pos->getElement();
+            if (!go) return;
+            subtreeObjects.push_back(go);
+
+            ListaDE<Position<GameObject*>*>* children = nullptr;
+            try {
+                children = entitys.childsOf(pos);
+            } catch (...) {
+                return;
+            }
+            if (children && !children->isEmpty()) {
+                Position<Position<GameObject*>*>* child = children->first();
+                while (child) {
+                    collectSubtree(child->getElement());
+                    child = (child != children->last())
+                                  ? children->next(child)
+                                  : nullptr;
+                }
+            }
+            delete children;
+        };
+    collectSubtree(objPosition);
+
+    viewDirty = true;
+
+    for (auto rit = subtreeObjects.rbegin(); rit != subtreeObjects.rend();
+         ++rit) {
+        try {
+            Position<GameObject*>* pos = entitys.whatIsPositionOf(*rit);
+            if (pos) {
+                entitys.deleteNode(pos);
+            }
+        } catch (...) {
+        }
+    }
+
+    std::vector<std::unique_ptr<GameObject>> result;
+    for (GameObject* go : subtreeObjects) {
+        for (auto it = ownedGameObjects.begin(); it != ownedGameObjects.end();
+             ++it) {
+            if (it->get() == go) {
+                result.push_back(std::move(*it));
+                ownedGameObjects.erase(it);
+                break;
+            }
+        }
+    }
+
+    refreshGameObjectView();
+    return result;
+}
+
+std::vector<std::unique_ptr<GameObject>> SceneRegistry::takeAllNonRoot() {
+    if (entitys.isEmpty()) {
+        return {};
+    }
+    GameObject* root = getRoot();
+    if (!root) {
+        return {};
+    }
+
+    std::vector<GameObject*> toTake;
+    for (const auto& object : ownedGameObjects) {
+        if (object && object->getId() != 0) {
+            toTake.push_back(object.get());
+        }
+    }
+
+    if (toTake.empty()) {
+        return {};
+    }
+
+    viewDirty = true;
+
+    for (auto rit = toTake.rbegin(); rit != toTake.rend(); ++rit) {
+        try {
+            Position<GameObject*>* pos = entitys.whatIsPositionOf(*rit);
+            if (pos) {
+                entitys.deleteNode(pos);
+            }
+        } catch (...) {
+        }
+    }
+
+    std::vector<std::unique_ptr<GameObject>> result;
+    for (GameObject* go : toTake) {
+        for (auto it = ownedGameObjects.begin(); it != ownedGameObjects.end();
+             ++it) {
+            if (it->get() == go) {
+                result.push_back(std::move(*it));
+                ownedGameObjects.erase(it);
+                break;
+            }
+        }
+    }
+
+    refreshGameObjectView();
+    return result;
+}
+
+GameObject* SceneRegistry::restoreSubtree(
+    std::vector<std::unique_ptr<GameObject>> objects,
+    GameObject* parent) {
+    if (objects.empty()) {
+        return nullptr;
+    }
+
+    GameObject* restoreParent = parent ? parent : getRoot();
+    if (!restoreParent || !contains(restoreParent)) {
+        return nullptr;
+    }
+
+    Position<GameObject*>* parentPosition = nullptr;
+    try {
+        parentPosition = entitys.whatIsPositionOf(restoreParent);
+    } catch (...) {
+        return nullptr;
+    }
+    if (!parentPosition) {
+        return nullptr;
+    }
+
+    viewDirty = true;
+
+    std::vector<GameObject*> restoredObjects;
+    for (auto& obj : objects) {
+        if (!obj) continue;
+        if (obj->getId() == 0) continue;
+        if (contains(obj.get())) continue;
+
+        restoredObjects.push_back(obj.get());
+        ownedGameObjects.emplace_back(std::move(obj));
+    }
+
+    bool added = true;
+    while (added && !restoredObjects.empty()) {
+        added = false;
+        for (GameObject* obj : restoredObjects) {
+            Position<GameObject*>* pos = nullptr;
+            try {
+                pos = entitys.whatIsPositionOf(obj);
+            } catch (...) {
+                pos = nullptr;
+            }
+            if (pos) continue;
+
+            GameObject* objParent = static_cast<GameObject*>(obj->getParentEntity());
+            GameObject* treeParent = objParent;
+
+            if (!treeParent ||
+                std::find(restoredObjects.begin(), restoredObjects.end(),
+                          treeParent) == restoredObjects.end()) {
+                treeParent = restoreParent;
+            }
+
+            Position<GameObject*>* treeParentPos = nullptr;
+            try {
+                treeParentPos = entitys.whatIsPositionOf(treeParent);
+            } catch (...) {
+                treeParentPos = nullptr;
+            }
+            if (!treeParentPos) continue;
+
+            entitys.addNodeChildOf(treeParentPos, obj);
+            obj->setParentEntity(treeParent);
+            added = true;
+        }
+    }
+
+    refreshGameObjectView();
+
+    for (GameObject* obj : restoredObjects) {
+        if (obj) return obj;
+    }
+    return nullptr;
 }

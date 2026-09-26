@@ -19,8 +19,16 @@
 #ifndef FILEMANAGER_H
 #define FILEMANAGER_H
 
+// _HAS_STD_BYTE=0 DEBE ir ANTES de cualquier include de stdlib en Windows
+// para evitar colision con typedef 'byte' de rpcndr.h vs std::byte (C++17)
+#ifdef _WIN32
+#define _HAS_STD_BYTE 0
+#endif
+
+#include <filesystem>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "../GestorDeArchivos/GestorDeArchivos.h"
 #include "FileSelection.h"
@@ -31,11 +39,21 @@ class FileSystemWatcher;
 // Fachada del explorador de archivos (mismo patron que EditorController y la
 // fachada MenuGUI): es DUENA del modelo (GestorDeArchivos) y del estado de
 // navegacion compartido (FileSelection). Expone las operaciones de dominio
-// (crear, copiar, eliminar) que antes estaban inline en las vistas con
-// system()/popen()/ifstream. Las vistas solo conversan con esta fachada,
-// nunca con GestorDeArchivos ni con el Filesystem directamente.
+// (crear, copiar, eliminar) y las operaciones nativas del sistema (dialogos de
+// seleccion, abrir con la app predeterminada, listado de un directorio y
+// plantillas de scripts) que antes estaban inline en las vistas con
+// system()/popen()/ifstream/ShellExecute*. Las vistas solo conversan con esta
+// fachada, nunca con GestorDeArchivos ni con el Filesystem directamente.
 class FileManager {
 public:
+    // Entrada de un listado de directorio (el grid del explorador la dibuja).
+    struct EntradaDirectorio {
+        std::string nombre;
+        std::string ruta;
+        bool esCarpeta = false;
+        std::string extension;
+    };
+
     explicit FileManager(const std::string& pathProyect, const std::string& rootName = "MotorGrafico");
     ~FileManager();
 
@@ -71,6 +89,36 @@ public:
     // doble clic). Devuelve nullptr si la ruta ya no existe (carpeta borrada
     // en otro lugar).
     Carpeta* buscarCarpetaPorRuta(const std::string& ruta);
+
+    // ---- Operaciones nativas del sistema (sin estado; static) ----
+
+    // Dialogo nativo de seleccion de carpeta (BROWSEINFO en Windows, zenity en
+    // Linux). Devuelve la ruta elegida o vacio si el usuario cancelo.
+    static std::string seleccionarCarpetaSistema();
+    // Dialogo nativo de seleccion de archivo.
+    static std::string seleccionarArchivoSistema();
+
+    // Abre la ruta con la aplicacion predeterminada del sistema (doble clic
+    // sobre un archivo del grid). fork+exec sin shell en Linux (los nombres
+    // pueden tener metacaracteres; system() no debe tocar mas shells).
+    static bool abrirConAppPredeterminada(const std::string& ruta);
+
+    // Lista una carpeta (sin seguir symlinks) rellenando `salida` con una
+    // entrada por item. Devuelve false si la carpeta no se puede leer.
+    static bool listarDirectorio(const std::string& path,
+                                 std::vector<EntradaDirectorio>& salida);
+
+    // Momento de ultima escritura de un directorio, para cachear el grid
+    // (una carpeta cambia su mtime al agregar/quitar entradas).
+    static std::filesystem::file_time_type mtimeDirectorio(const std::string& path);
+
+    // Dice si la ruta es un directorio en disco (false si no existe o es
+    // archivo).
+    static bool esDirectorio(const std::string& path);
+
+    // Plantilla de script para el explorador: `.cpp` (backend C++ con
+    // REFLECT_*) o `.java` (backend JNI). `clase` es el nombre sin extension.
+    static std::string plantillaScript(const std::string& clase, bool esJava);
 
 private:
     std::string pathProyect;

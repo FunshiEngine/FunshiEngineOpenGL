@@ -18,12 +18,14 @@
 */
 #include "ComponentFactory.h"
 
+#include "AudioSource.h"
 #include "Colliders/CubeCollider.h"
 #include "Colliders/EsfereCollider.h"
 #include "Colliders/MallaCollider.h"
 #include "CameraComponent.h"
 #include "Color.h"
 #include "Grid.h"
+#include "InterfaceComponent.h"
 #include "Light.h"
 #include "Material.h"
 #include "Model.h"
@@ -72,6 +74,9 @@ std::unique_ptr<Component> ComponentFactory::create(const std::string& typeName,
         if (collider) return std::make_unique<RigidBody>(collider, 1.0f);
     }
     if (nombre == "Script") return std::make_unique<Script>();
+    if (nombre == "AudioSource") return std::make_unique<AudioSource>();
+    if (nombre == "InterfaceComponent")
+        return std::make_unique<InterfaceComponent>();
     if (nombre == "Model") return std::make_unique<Model>();
     if (nombre == "Grid") return std::make_unique<Grid>();
 

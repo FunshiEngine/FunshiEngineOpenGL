@@ -44,11 +44,22 @@ private:
     GLFWwindow* window;
     // Buffer de edicion del nombre del proyecto. Vive en la vista porque es
     // estado de UI (la vista avisa al modelo del cambio, no al reves).
-    char nombreProyectoBuffer[128];
+    char nombreProyectoBuffer[256];
     // Indica que el buffer tiene cambios sin confirmar (el usuario escribio
     // en el InputText pero aun no presiono "Confirmar"). La creacion de la
     // carpeta y la notificacion al modelo solo ocurren al confirmar.
     bool nombreProyectoPendiente = false;
+    // Modal de renombre: proyecto original en edicion y bandera que pide abrir
+    // el modal ("Renombrar", con InputText propio + Confirmar/Cancelar). Igual
+    // que ContentFolderInterface (abrirPopupRenombrar), se abre un frame
+    // despues de pedirlo para que ImGui lo registre correctamente.
+    std::string proyectoRenombrando;
+    bool abrirModalRenombrar = false;
+    char nombreRenombrarBuffer[256] = "";
+    // Modal de eliminacion: proyecto a eliminar y bandera que pide abrir el
+    // modal ("EliminarProyecto": aviso irreversible + Eliminar/Cancelar).
+    std::string proyectoEliminando;
+    bool abrirModalEliminar = false;
 
     void renderizarPrincipal();
     void renderizarListaProyectos();

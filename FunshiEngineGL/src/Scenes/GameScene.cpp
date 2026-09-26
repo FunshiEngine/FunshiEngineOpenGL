@@ -30,11 +30,9 @@
 #include "../Objetos/Componentes/Grid.h"
 #include "../Objetos/Modelos3D.h"
 #include "../Objetos/SimpleObject.h"
-#include "../Objetos/Componentes/Colliders/EsfereCollider.h"
-#include "../Objetos/Componentes/Colliders/CubeCollider.h"
-#include "../Objetos/Componentes/Colliders/Collider.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "EditorController.h"
+#include "ManifiestoAssets.h"
 #include "SceneRegistry.h"
 #include "SceneSerializer.h"
 #include "../Assets/AssetManager.h"
@@ -44,29 +42,20 @@
 #include "../Rendering/Backend/IRenderBackend.h"
 #include "../Rendering/RenderTarget.h"
 #include "../Rendering/SceneRenderer.h"
-#include "ImGuizmo.h"
+#include "../Audio/AudioEngine.h"
+#include "../Audio/MiniAudioBackend.h"
+#include "../GUI/CreadorUI/CreadorDeInterfaces.h"
+#include "../GUI/CreadorUI/CanvasInterface.h"
+#include "../Objetos/Componentes/AudioSource.h"
+#include "../Objetos/Componentes/InterfaceComponent.h"
+#include "../Configuracion/EditorConfig.h"
+#include "GizmoController.h"
 #include <cmath>
 #include <imgui.h>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/matrix_decompose.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
-// True si la matriz 4x4 tiene algun elemento no finito (NaN/Inf). El gizmo
-// nunca debe operar ni escribir matrices no finitas: al tocar un gizmo con
-// una matriz corrupta, todo el transform quedaria en -nan y el objeto
-// desapareceria de la escena.
-static bool matrizNoFinita(glm::mat4 m) {
-    const float* p = glm::value_ptr(m);
-    for (int i = 0; i < 16; ++i) {
-        if (!std::isfinite(p[i])) return true;
-    }
-    return false;
-}
 
 // Duracion minima del overlay de carga de scripts: aunque la compilacion venga
 // de cache (instantanea) la barra se ve un instante, y al terminar deja un
@@ -89,11 +78,23 @@ GameScene::GameScene(GUIManager* manager)
       sceneSerializer(
           std::make_unique<SceneSerializer>(sceneRegistry.get(),
                                              editorController.get(),
-                                             assetManager.get())) {
+                                             assetManager.get())),
+      // El backend real es miniaudio; si no hay device de audio, iniciar()
+      // devuelve false y el motor queda en modo mudo (todos los reproducir
+      // devuelven -1), sin romper nada: los clips existen pero no suenan.
+      audioEngine(
+          std::make_unique<AudioEngine>(std::make_unique<MiniAudioBackend>())) {
     selecteableGUI = managerGUI->getSelecteableGUI();
+    gizmoController_ = std::make_unique<GizmoController>(editorController.get(),
+                                                         sceneRegistry.get(),
+                                                         selecteableGUI);
     managerGUI->bindScene(sceneRegistry.get(), editorController.get(), &events);
+    managerGUI->setAudioEngine(audioEngine.get());
     asegurarGrilla();
     menuBarGUI = managerGUI->getMenuBarGUI(&start);
+    // El menu del editor alterna LOCAL/GLOBAL del gizmo editando este mismo
+    // bool (mismo patron que el boton play/stop con toggleBool).
+    if (menuBarGUI) menuBarGUI->setGizmoGlobal(gizmoController_->direccionGizmoGlobal());
     // El renderer resuelve la textura de cada Material con el cache de imagenes
     // de la escena (un solo decode por archivo, imagen compartida).
     sceneRenderer->setTextureManager(textureManager.get());
@@ -107,6 +108,49 @@ GameScene::~GameScene() {
     if (sceneRenderer) sceneRenderer->destruir();
     if (editorController) editorController->clearScene();
     if (selecteableGUI) selecteableGUI->bindScene(nullptr, nullptr, nullptr);
+}
+
+void GameScene::configurarProyecto(const std::string& nombreProyecto) {
+    EditorConfig::asegurarEstructuraProyecto(nombreProyecto);
+    // Re-escanea Sonidos/ del proyecto: limpia el registro y lo repuebla por
+    // nombre (los widgets de AudioSource/interfaces hablan por nombre, no ruta).
+    clipsAudio.configurarCarpeta(EditorConfig::directorioSonidos(nombreProyecto),
+                                 audioEngine.get());
+    // El creador apunta a Memory/Interfaces del nuevo proyecto.
+    if (managerGUI) {
+        CreadorDeInterfaces* creador = managerGUI->getCreadorInterfacesGUI();
+        if (creador) creador->configurarProyecto(
+            EditorConfig::directorioInterfaces(nombreProyecto));
+    }
+}
+
+AudioEngine* GameScene::getAudioEngine() const noexcept {
+    return audioEngine.get();
+}
+
+// Reproduce o detiene los AudioSource de la escena segun la transicion de
+// modo play. Al ENTRAR en play: inyecta el motor y dispara los de reproduccion
+// automatica. Al SALIR de play: detiene todo (evita colas de audio en el
+// editor). El motor se inyecta siempre, para que el inspector pueda probar.
+void GameScene::sincronizarAudioPlay(bool entrarEnPlay) {
+    auto* gameObjects = getGameObjectsScene();
+    if (!gameObjects || gameObjects->isEmpty()) return;
+    Position<GameObject*>* pos = gameObjects->first();
+    while (pos && pos->getElement()) {
+        AudioSource* source = pos->getElement()->getComponent<AudioSource>();
+        if (!source) {
+            pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
+            continue;
+        }
+        source->setMotor(audioEngine.get());
+        if (entrarEnPlay) {
+            if (source->isReproduccionAutomatica() && !source->isReproduciendo())
+                source->reproducir();
+        } else {
+            source->detener();
+        }
+        pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
+    }
 }
 
 ListaDE<GameObject*>* GameScene::getGameObjectsScene() {
@@ -162,9 +206,27 @@ void GameScene::asegurarGrilla() {
 
 void GameScene::saveScene(const std::string& filename) {
     if (sceneSerializer) sceneSerializer->save(filename);
+    // Manifiesto de assets (add-on): se regenera en CADA guardado, asi el
+    // JSON centraliza siempre el estado vigente de las rutas (mover/renombrar
+    // assets lo renueva de paso). Es independiente del .db binario.
+    ManifiestoAssets::guardar(filename + "SceneAssets.json",
+                              getGameObjectsScene());
 }
 
 bool GameScene::isStart() { return start; }
+
+// La maquina de estados (orquestador) es la fuente de verdad de la simulacion:
+// EditorInput la refleja aca en el path de F5/F7 (F5 -> true, F7 -> false),
+// comparte flag con el boton Activar/Detener del menu de escena.
+void GameScene::setStart(bool activo) noexcept { start = activo; }
+
+bool GameScene::isSimulacionPausada() const noexcept { return simulacionPausada; }
+
+// Pausa (F6): congela la simulacion SIN salir de play; al reanudar se retoma
+// desde donde quedo (fisica y scripts solo avanzan con !pausada).
+void GameScene::setSimulacionPausada(bool pausada) noexcept {
+    simulacionPausada = pausada;
+}
 
 void GameScene::loadScene(const std::string& pathTxt, const std::string& semiPath) {
     if (sceneSerializer) {
@@ -181,6 +243,20 @@ void GameScene::loadScene(const std::string& pathTxt, const std::string& semiPat
         // Las escenas viejas no guardan el objeto "Grilla": se crea sobre la
         // marcha si falta, conservando la visibilidad por defecto.
         asegurarGrilla();
+
+        // Manifiesto de assets (add-on de la serializacion binaria): si
+        // existe, sus rutas tienen precedencia sobre las que dejo el .db.
+        // El pathTxt es <prefijo>BBDDObjetos.txt; el manifiesto comparte el
+        // prefijo con nombre SceneAssets.json.
+        const std::string sufijoBBDD = "BBDDObjetos.txt";
+        if (pathTxt.size() >= sufijoBBDD.size() &&
+            pathTxt.compare(pathTxt.size() - sufijoBBDD.size(),
+                            sufijoBBDD.size(), sufijoBBDD) == 0) {
+            const std::string prefijo =
+                pathTxt.substr(0, pathTxt.size() - sufijoBBDD.size());
+            ManifiestoAssets::cargar(prefijo + "SceneAssets.json",
+                                     getGameObjectsScene());
+        }
     }
 }
 
@@ -351,6 +427,46 @@ void GameScene::GUI() {
     if (menuBarGUI->getCargarScripts()) {
         menuBarGUI->setCargarScripts(false);
     }
+
+    // Sistema de audio + creador de interfaces: el catalogo de clips se
+    // refresca por frame (tolerante y barato), el canvas refleja la interfaz
+    // activa y cambia su presentacion segun el modo play.
+    if (managerGUI) {
+        CreadorDeInterfaces* creador = managerGUI->getCreadorInterfacesGUI();
+        CanvasInterface* canvas = managerGUI->getCanvasGUI();
+        if (creador) {
+            creador->setClipNames(audioEngine->nombresClips());
+            creador->printGUI();
+        }
+        if (canvas) {
+            canvas->setAudioEngine(audioEngine.get());
+            canvas->setModoPlay(start);
+            UserInterfaceCustom* uiParaCanvas = nullptr;
+            if (start && creador) {
+                // En modo play: buscar objeto con InterfaceComponent y activar
+                // su interfaz a pantalla completa (HUD del juego).
+                auto* objs = getGameObjectsScene();
+                if (objs && !objs->isEmpty()) {
+                    Position<GameObject*>* pos = objs->first();
+                    while (pos && pos->getElement()) {
+                        if (auto* ic =
+                                pos->getElement()->getComponent<InterfaceComponent>()) {
+                            const std::string& nombre = ic->getInterfaz();
+                            if (!nombre.empty())
+                                uiParaCanvas = creador->activarInterfaz(nombre);
+                            break; // la primera gana
+                        }
+                        pos = (pos != objs->last()) ? objs->next(pos) : nullptr;
+                    }
+                }
+            } else if (creador) {
+                // En editor: usar la interfaz activa del creador (prueba manual).
+                uiParaCanvas = creador->getInterfazActiva();
+            }
+            canvas->setUI(uiParaCanvas);
+            canvas->printGUI();
+        }
+    }
 }
 
 void GameScene::pintarViewportsGUI() {
@@ -362,10 +478,17 @@ void GameScene::pintarViewportsGUI() {
         GameObject* objeto = objetos[index];
         if (!target || !objeto) continue;
 
-        char title[64];
-        std::snprintf(title, sizeof(title), "Vista previa: %s",
+        char title[96];
+        // "##<id camara>" oculta el sufijo del id de la ventana (el titulo se
+        // ve "Vista previa: <nombre>") y da un ID ESTABLE a ImGui: renombrar la
+        // camara o tener dos con el mismo nombre ya no crea una ventana nueva
+        // ni pierde la posicion/dock guardados en el imgui.ini del proyecto
+        // (antes, "Vista previa: %s" hacia que cada rename mudara el id y la
+        // ventana saltara de lugar).
+        std::snprintf(title, sizeof(title), "Vista previa: %s##%d",
                       objeto->inputName[0] != '\0' ? objeto->inputName
-                                                   : "Camara");
+                                                   : "Camara",
+                      static_cast<int>(objeto->getId()));
 
         ImGui::SetNextWindowSize(
             ImVec2(static_cast<float>(target->getWidth()) + 16.f,
@@ -511,6 +634,15 @@ void GameScene::update(float value) {
             }
         }
 
+        // Audio: inyectar el motor y disparar los AudioSource automaticos.
+        sincronizarAudioPlay(true);
+
+        // Scripts: cablear los servicios de escena (audio, busqueda, teclado)
+        // a la tabla que consultan los comportamientos via `servicios->...`.
+        MotorScript::inyectarServiciosScript(audioEngine.get(),
+                                             sceneRegistry.get(),
+                                             &inputScripts);
+
         // Todos los scripts que necesitan (re)compilarse entran a la cola: su
         // progreso se ve en la barra "Estado" antes de bloquear con g++/javac.
         encolarScriptsIniciales();
@@ -520,6 +652,11 @@ void GameScene::update(float value) {
     // (onStop) y conservar los valores editados en play mode para la GUI.
     if (previousStart && !start) {
         limpiarColaCompilacion();
+        // Scripts: desconectar los servicios (los comportamientos deben
+        // tolerar servicios == nullptr / tablas inoperativas al salir).
+        MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
+        // Audio: detener los AudioSource (no dejar sonando en el editor).
+        sincronizarAudioPlay(false);
         auto* gameObjects = getGameObjectsScene();
         if (!gameObjects->isEmpty()) {
             Position<GameObject*>* pos = gameObjects->first();
@@ -534,12 +671,16 @@ void GameScene::update(float value) {
     }
     previousStart = start;
 
-    if (phisics && start && !gizmoInUse()) phisics->stepSimulation(value);
+    // La fisica y los scripts SOLO avanzan en modo play (start==true) y sin
+    // pausa (F6): con simulacionPausada congelada se congela el motor pero la
+    // GUI/editor sigue, para reanudar desde el mismo frame.
+    if (phisics && start && !gizmoInUse() && !simulacionPausada)
+        phisics->stepSimulation(value);
 
     // Sincronizar la fisica de vuelta a los GameObjects del mundo
     // (GameObject::update escribe en los Transforms via RigidBody).
     procesarColaCompilacion();
-    if (start && !gizmoInUse()) {
+    if (start && !gizmoInUse() && !simulacionPausada) {
         auto* gameObjects = getGameObjectsScene();
         if (!gameObjects->isEmpty()) {
             Position<GameObject*>* pos = gameObjects->first();
@@ -705,122 +846,10 @@ void GameScene::descargarScripts() {
     }
 }
 
-static bool intersectRayAABB(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
-                             const glm::vec3& boxMin, const glm::vec3& boxMax,
-                             float& tHit) {
-    float tmin = -1e30f;
-    float tmax = 1e30f;
-
-    for (int i = 0; i < 3; ++i) {
-        if (std::abs(rayDir[i]) < 1e-7f) {
-            if (rayOrigin[i] < boxMin[i] || rayOrigin[i] > boxMax[i])
-                return false;
-        } else {
-            float invD = 1.0f / rayDir[i];
-            float t1 = (boxMin[i] - rayOrigin[i]) * invD;
-            float t2 = (boxMax[i] - rayOrigin[i]) * invD;
-            if (t1 > t2) std::swap(t1, t2);
-            tmin = std::max(tmin, t1);
-            tmax = std::min(tmax, t2);
-            if (tmin > tmax) return false;
-        }
-    }
-    if (tmax < 0.0f) return false;
-    tHit = (tmin < 0.0f) ? 0.0f : tmin;
-    return true;
-}
-
 GameObject* GameScene::pickObject(float mouseX, float mouseY) {
-    auto* gameObjects = getGameObjectsScene();
-    CameraComponent* camara = getActiveCamera();
-    if (!gameObjects || gameObjects->isEmpty() || !camara) return nullptr;
-
-    ImGuiIO& io = ImGui::GetIO();
-    float screenW = io.DisplaySize.x;
-    float screenH = io.DisplaySize.y;
-    if (screenW <= 0.0f || screenH <= 0.0f) return nullptr;
-
-    float x = (2.0f * mouseX) / screenW - 1.0f;
-    float y = 1.0f - (2.0f * mouseY) / screenH;
-
-    float view[16], projection[16];
-    camara->getViewMatrix(view);
-    camara->getProjectionMatrix(projection, screenW / screenH);
-
-    glm::mat4 viewMat = glm::make_mat4(view);
-    glm::mat4 projMat = glm::make_mat4(projection);
-    glm::mat4 invVP = glm::inverse(projMat * viewMat);
-
-    glm::vec4 rayStartClip(x, y, -1.0f, 1.0f);
-    glm::vec4 rayEndClip(x, y, 1.0f, 1.0f);
-
-    glm::vec4 rayStartWorld = invVP * rayStartClip;
-    if (std::abs(rayStartWorld.w) < 1e-6f) return nullptr;
-    rayStartWorld /= rayStartWorld.w;
-
-    glm::vec4 rayEndWorld = invVP * rayEndClip;
-    if (std::abs(rayEndWorld.w) < 1e-6f) return nullptr;
-    rayEndWorld /= rayEndWorld.w;
-
-    glm::vec3 rayOrigin = glm::vec3(rayStartWorld);
-    glm::vec3 rayDir = glm::normalize(glm::vec3(rayEndWorld - rayStartWorld));
-
-    GameObject* closestObject = nullptr;
-    float minDistance = 1e30f;
-
-    Position<GameObject*>* pos = gameObjects->first();
-    while (pos && pos->getElement()) {
-        GameObject* obj = pos->getElement();
-        Transform* transform = obj->getGlobalTransform();
-        if (transform) {
-            float modelArr[16];
-            buildMatrixFromTransform(transform, modelArr);
-            glm::mat4 modelMat = glm::make_mat4(modelArr);
-            glm::mat4 invModel = glm::inverse(modelMat);
-
-            glm::vec3 localRayOrigin = glm::vec3(invModel * glm::vec4(rayOrigin, 1.0f));
-            glm::vec3 localRayDir = glm::normalize(glm::vec3(invModel * glm::vec4(rayDir, 0.0f)));
-
-            glm::vec3 boxMin(-1.0f, -1.0f, -1.0f);
-            glm::vec3 boxMax(1.0f, 1.0f, 1.0f);
-
-            if (auto* m3d = dynamic_cast<Modelos3D*>(obj)) {
-                vec3 bMin, bMax;
-                if (m3d->getBoundingBox(bMin, bMax)) {
-                    boxMin = glm::vec3(bMin.x, bMin.y, bMin.z);
-                    boxMax = glm::vec3(bMax.x, bMax.y, bMax.z);
-                }
-            } else if (auto* sc = obj->getComponent<EsfereCollider>()) {
-                float r = sc->getRadio();
-                boxMin = glm::vec3(-r, -r, -r);
-                boxMax = glm::vec3(r, r, r);
-            } else if (auto* cc = obj->getComponent<CubeCollider>()) {
-                float r = cc->getRadio();
-                boxMin = glm::vec3(-r, -r, -r);
-                boxMax = glm::vec3(r, r, r);
-            }
-
-            for (int i = 0; i < 3; ++i) {
-                if (boxMax[i] - boxMin[i] < 0.4f) {
-                    boxMin[i] -= 0.2f;
-                    boxMax[i] += 0.2f;
-                }
-            }
-
-            float tHit = 0.0f;
-            if (intersectRayAABB(localRayOrigin, localRayDir, boxMin, boxMax, tHit)) {
-                glm::vec3 hitPointWorld = glm::vec3(modelMat * glm::vec4(localRayOrigin + localRayDir * tHit, 1.0f));
-                float dist = glm::length(hitPointWorld - rayOrigin);
-                if (glm::dot(hitPointWorld - rayOrigin, rayDir) > 0.0f && dist < minDistance) {
-                    minDistance = dist;
-                    closestObject = obj;
-                }
-            }
-        }
-        pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
-    }
-
-    return closestObject;
+    if (!gizmoController_) return nullptr;
+    return gizmoController_->pickObject(mouseX, mouseY, getActiveCamera(),
+                                        getGameObjectsScene());
 }
 
 void GameScene::gameScene() {
@@ -855,243 +884,53 @@ void GameScene::gameScene() {
     // capa de Rendering.
     sceneRenderer->render(ctx, activeCameraObject, camara);
 
-    // Matrices de la vista activa: las necesita el gizmo (la pasada principal
-    // ya las aplico por su cuenta; aca se recalculan para ImGuizmo).
-    float view[16], projection[16];
-    camara->getViewMatrix(view);
-    camara->getProjectionMatrix(projection,
-                                static_cast<float>(fbW) /
-                                    static_cast<float>(fbH));
-
-    ImGuizmo::SetOrthographic(false);
-    ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList());
-    ImGuizmo::SetRect(0.0f, 0.0f, io.DisplaySize.x, io.DisplaySize.y);
-    ImGuizmo::BeginFrame();
-
-    // Selección de objetos con clic en la escena 3D: siempre activa, es el
-    // disparador que enciende las interfaces de edición (el mismo sistema que
-    // activa el gizmo). Clic en zona vacía deselecciona y vuelve a la
-    // navegación libre (gizmo e interfaces se ocultan).
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-        if (!io.WantCaptureMouse && !isGizmoCapturingInput()) {
-            GameObject* clicked = pickObject(io.MousePos.x, io.MousePos.y);
-            if (clicked) {
-                if (selecteableGUI) selecteableGUI->setReturnableEntity(clicked);
-                if (gizmoOperation == 0) gizmoOperation = ImGuizmo::TRANSLATE;
-            } else {
-                clearSelection();
-            }
-        }
-    }
+    // Seleccion por clic + gizmo en su modulo: la fase de seleccion corre
+    // siempre (encender/apagar las interfaces); el dibujado del gizmo solo con
+    // el editor activo (ver el guard debajo).
+    gizmoController_->procesarSeleccion(io, camara, getGameObjectsScene());
 
     /*
      * Navegación libre (sin E y sin objeto seleccionado): el sistema de
      * ventanas y el gizmo no se dibujan, solo la escena 3D.
      */
     if (!isEditorActivo()) {
-        gizmoReady = false;
+        gizmoController_->apagar();
         return;
     }
 
     GUI();
 
-    gizmoReady = false;
-    GameObject* selected = selecteableGUI ? selecteableGUI->getReturnableEntity() : nullptr;
+    gizmoController_->dibujarYRastrear(io, camara);
+}
 
-    // Gizmo generico: se edita el Transform que diga el GizmoTarget activo.
-    // Default: el Transform del objeto seleccionado con el global de su padre
-    // como contexto. Un GizmoTarget externo (SettingsCollider*) tiene
-    // prioridad. Si no hay target externo, el transfor del collider con su
-    // gizmo habilitado toma prioridad sobre el del objeto: asi el checkbox
-    // "Gizmo activo" del transform del collider (via SettingsTransform)
-    // activa/dormita el gizmo del offset del collider cuando quieras.
-    GizmoTarget target;
-    if (editorController && editorController->hasGizmoTarget()) {
-        target = editorController->getGizmoTarget();
-        // Refrescar el contexto global del duenio cada frame: si el objeto o
-        // sus ancestros se movieron, el parentGlobal almacenado quedaria
-        // desactualizado y el offset local se recompondria contra una base
-        // vieja (el puntero en si es estable: globalTransformCache del owner).
-        if (target.owner)
-            target.parentGlobal = target.owner->getGlobalTransform();
-    } else if (selected) {
-        // Collider offset primero: si su transform local tiene el gizmo
-        // encendido se edita el offset; si no, el transform del objeto.
-        if (Collider* collider = selected->getComponent<Collider>()) {
-            Transform* colliderTransform = collider->getTransform();
-            if (colliderTransform && colliderTransform->gizmoHabilitado) {
-                target.local = colliderTransform;
-                target.parentGlobal = selected->getGlobalTransform();
-                target.owner = selected;
-            }
-        }
-        if (!target.local) {
-            Transform* objectTransform = selected->getComponent<Transform>();
-            if (objectTransform && objectTransform->gizmoHabilitado) {
-                target.local = objectTransform;
-                Entity* parentEnt = selected->getParentEntity();
-                target.parentGlobal =
-                    parentEnt ? parentEnt->getGlobalTransform() : nullptr;
-                target.owner = selected;
-            }
-        }
-    }
-
-    if (target.local && gizmoOperation != 0) {
-        // Matriz que maniula el gizmo: parentGlobal * local. Para translate y
-        // rotate ImGuizmo EXPLOTA con matrices escaladas (no-ortonormales):
-        // con el objeto o su padre escalado, el objeto sale disparado al usar
-        // el gizmo. Por eso se desescala antes de pasarla y se reinserta la
-        // escala al leer el resultado.
-        float scaleVec[3] = {1.0f, 1.0f, 1.0f};
-        const bool sinEscala = gizmoOperation != ImGuizmo::SCALE;
-
-        float localArr[16];
-        buildMatrixFromTransform(target.local, localArr);
-        glm::mat4 mFull = glm::make_mat4(localArr);
-        if (target.parentGlobal) {
-            float parentArr[16];
-            buildMatrixFromTransform(target.parentGlobal, parentArr);
-            mFull = glm::make_mat4(parentArr) * mFull;
-        }
-
-        // Si la matriz de entrada ya es no finita (transform del objeto o de
-        // algun ancestro corrupto), NO se opera el gizmo con ella: un drag la
-        // escribiria tal cual y quedaria -nan en el transform. Se sigue con el
-        // resto del frame con el gizmo apagado (es seguro: solo se dibuja).
-        if (matrizNoFinita(mFull)) {
-            gizmoReady = false;
-            return;
-        }
-
-        if (sinEscala) {
-            // Ortonormalizar zoom: guardar escala por columna y normalizar.
-            glm::vec4 c0 = mFull[0];
-            glm::vec4 c1 = mFull[1];
-            glm::vec4 c2 = mFull[2];
-            scaleVec[0] = glm::length(c0);
-            scaleVec[1] = glm::length(c1);
-            scaleVec[2] = glm::length(c2);
-            // Ojo: el guard < 0.0001 NO atrapa NaN (toda comparacion con NaN
-            // es false). Sin isfinite, una escala NaN se divide por si misma y
-            // contamina toda la matriz.
-            for (int i = 0; i < 3; ++i) {
-                if (!std::isfinite(scaleVec[i]) || scaleVec[i] < 0.0001f)
-                    scaleVec[i] = 1.0f;
-            }
-            mFull[0] = c0 / scaleVec[0];
-            mFull[1] = c1 / scaleVec[1];
-            mFull[2] = c2 / scaleVec[2];
-        }
-
-        float matrix[16];
-        const float* ptr = glm::value_ptr(mFull);
-        for (int i = 0; i < 16; ++i) matrix[i] = ptr[i];
-
-        static ImGuizmo::MODE mode = ImGuizmo::LOCAL;
-        ImGuizmo::Manipulate(view, projection,
-                             static_cast<ImGuizmo::OPERATION>(gizmoOperation),
-                             mode, matrix, nullptr,
-                             nullptr, nullptr, nullptr);
-        gizmoReady = true;
-        if (ImGuizmo::IsUsing()) {
-            // Reinsertar la escala que quitamos: M = M' * diag(scale).
-            glm::mat4 mManip = glm::make_mat4(matrix);
-            if (sinEscala) {
-                glm::mat4 sMat = glm::scale(
-                    glm::mat4(1.0f), glm::vec3(scaleVec[0], scaleVec[1], scaleVec[2]));
-                mManip = mManip * sMat;
-            }
-
-            // Escribir de vuelta AL local: newLocal = inv(parentGlobal) * matrix
-            Transform* localTransform = target.local;
-            glm::mat4 newLocal = mManip;
-            if (target.parentGlobal) {
-                float parentGlobalArr[16];
-                buildMatrixFromTransform(target.parentGlobal, parentGlobalArr);
-                glm::mat4 invParentGlobal = glm::inverse(glm::make_mat4(parentGlobalArr));
-                // glm::inverse de una matriz singular/no finita produce Inf/NaN.
-                if (matrizNoFinita(glm::make_mat4(parentGlobalArr)) ||
-                    matrizNoFinita(invParentGlobal)) {
-                    return;
-                }
-                newLocal = invParentGlobal * mManip;
-            }
-
-            // El resultado del drag no debe corromper el transform con -nan:
-            // si la matriz manipulada quedo no finita, se descarta este frame.
-            if (matrizNoFinita(mManip) || matrizNoFinita(newLocal)) return;
-            float localMatArr[16];
-            const float* ptr2 = glm::value_ptr(newLocal);
-            for (int i = 0; i < 16; ++i) localMatArr[i] = ptr2[i];
-            decomposeMatrixToTransform(localMatArr, localTransform);
-
-            // Congelar hijos SOLO al editar el transform de un objeto; el
-            // offset local de un componente (collider) no arrastra hijos.
-            const bool esObjeto =
-                target.owner && target.owner->getComponent<Transform>() == target.local;
-            bool freeze = false;
-            if (esObjeto && target.local) freeze = target.local->childsFreeze;
-
-            std::vector<std::pair<Entity*, glm::mat4>> childSnapshots;
-            if (freeze && target.owner) {
-                for (auto* child : target.owner->getChildEntities()) {
-                    if (child && child->getComponent<Transform>()) {
-                        float m[16];
-                        buildMatrixFromTransform(child->getGlobalTransform(), m);
-                        childSnapshots.push_back({child, glm::make_mat4(m)});
-                    }
-                }
-            }
-
-            if (freeze && !childSnapshots.empty() && target.owner) {
-                float pM[16];
-                buildMatrixFromTransform(target.owner->getGlobalTransform(), pM);
-                glm::mat4 invParent = glm::inverse(glm::make_mat4(pM));
-                for (auto& snap : childSnapshots) {
-                    glm::mat4 newLocal = invParent * snap.second;
-                    float localArr2[16];
-                    const float* ptr = glm::value_ptr(newLocal);
-                    for (int i = 0; i < 16; ++i) localArr2[i] = ptr[i];
-                    decomposeMatrixToTransform(localArr2, snap.first->getComponent<Transform>());
-                }
-            }
-
-            // El gizmo movio el transform del target: empujarlo hacia el
-            // cuerpo fisico para que la simulacion parta de donde quedo
-            // visualmente (INCLUYE los hijos con RigidBody).
-            if (target.owner) {
-                if (RigidBody* body = target.owner->getComponent<RigidBody>())
-                    body->syncGameObjectToPhysics();
-                for (auto* child : target.owner->getChildEntities()) {
-                    if (child && child->getComponent<RigidBody>())
-                        child->getComponent<RigidBody>()->syncGameObjectToPhysics();
-                }
-            }
-        }
-    }
+void GameScene::mostrarMensaje(const std::string& mensaje) {
+    if (!managerGUI) return;
+    if (StatusBarInterface* barra = managerGUI->getStatusBarGUI())
+        barra->mostrarMensaje(mensaje);
 }
 
 void GameScene::setGizmoOperation(int operation) {
-    if (operation == ImGuizmo::TRANSLATE ||
-        operation == ImGuizmo::ROTATE ||
-        operation == ImGuizmo::SCALE ||
-        operation == ImGuizmo::UNIVERSAL ||
-        operation == 0) {
-        gizmoOperation = operation;
-    }
+    if (gizmoController_) gizmoController_->setGizmoOperation(operation);
 }
 
 int GameScene::getGizmoOperation() const {
-    return gizmoOperation;
+    return gizmoController_ ? gizmoController_->getGizmoOperation() : 7;
+}
+
+bool GameScene::isGizmoGlobal() const noexcept {
+    return gizmoController_ && gizmoController_->isGizmoGlobal();
+}
+
+void GameScene::setGizmoGlobal(bool global) noexcept {
+    if (gizmoController_) gizmoController_->setGizmoGlobal(global);
 }
 
 bool GameScene::isGizmoCapturingInput() const {
-    return gizmoReady && (ImGuizmo::IsOver() || ImGuizmo::IsUsing());
+    return gizmoController_ && gizmoController_->isCapturingInput();
 }
 
 bool GameScene::gizmoInUse() const {
-    return gizmoReady && ImGuizmo::IsUsing();
+    return gizmoController_ && gizmoController_->gizmoInUse();
 }
 
 void GameScene::toggleEditorInterfaces() {
@@ -1118,6 +957,14 @@ float GameScene::getSensibilidadCamara() const noexcept {
 
 void GameScene::setSensibilidadCamara(float sensibilidad) noexcept {
     if (sensibilidad > 0.0f) sensibilidadCamara = sensibilidad;
+}
+
+float GameScene::getSensibilidadMovimientoCamara() const noexcept {
+    return sensibilidadMovimientoCamara;
+}
+
+void GameScene::setSensibilidadMovimientoCamara(float sensibilidad) noexcept {
+    if (sensibilidad > 0.0f) sensibilidadMovimientoCamara = sensibilidad;
 }
 
 const Apariencia& GameScene::getApariencia() const noexcept {

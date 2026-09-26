@@ -50,6 +50,9 @@ private:
     // Ultimo estado publicado en el bus (evita republicar en cada frame);
     // se inicializa con el estado de fabrica para no notificar la restauracion.
     bool estadoPublicado_ = false;
+    // Mensaje temporal para feedback (p. ej. exportacion).
+    std::string mensajeTemporal_;
+    float temporizadorMensaje_ = 0.0f;
     // Canal de GUI interna (lo posee GUIManager; puntero NO propietario).
     EditorEventBus* busEditor = nullptr;
 
@@ -68,6 +71,8 @@ public:
         std::size_t total,
         const std::vector<ScriptRuntime::ResultadoCarga>& resultados,
         bool overlayProgreso, bool overlayResultado);
+    // Muestra un mensaje temporal en la barra de estado (p. ej. resultado de exportacion).
+    void mostrarMensaje(const std::string& mensaje);
 
     void contentGUI() override;
     void printGUI() override;

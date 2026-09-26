@@ -18,6 +18,8 @@
 */
 #include "Color.h"
 
+#include "../../Objetos/GameObject.h"
+
 #include <iostream>
 
 Color::Color() {
@@ -70,4 +72,12 @@ void Color::setColor(float r, float g, float b) {
     range[1] = f2;
     range[2] = f3;
     range[3] = 1.0f;
+}
+
+void Color::onLoaded(GameObject& owner) {
+    // El color recien deserializado se refleja en el auxColor del objeto: con
+    // el hook, el objeto no tiene que saber "si es Color" para ofrecerle el
+    // color al inspector.
+    const float* fuente = getColor();
+    for (int i = 0; i < 4; ++i) owner.auxColor[i] = fuente[i];
 }

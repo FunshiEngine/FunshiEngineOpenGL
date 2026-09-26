@@ -40,7 +40,7 @@ OutputBaseFilename=FunshiEngineGL-{#MiVersion}-{#MiCanal}-setup
 ; x64 solamente: el proyecto usa Assimp/Bullet/GLFW de 64 bits (vcpkg x64-windows).
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; El editor guarda escena y configuracion en C:\MotorGraficoArchivos (raiz).
+; El editor guarda escena y configuracion en {app}\MotorGrafico (junto al exe).
 ; Crear ese directorio y subcarpetas requiere permisos de administrador.
 PrivilegesRequired=admin
 SetupLogging=yes
@@ -56,33 +56,24 @@ Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; Group
 Source: "{#MiExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Imagenes\*"; DestDir: "{app}\Imagenes"; Flags: ignoreversion recursesubdirs
-Source: "MotorGrafico\*"; DestDir: "{app}\MotorGrafico"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 Source: "..\..\..\LICENSE"; DestDir: "{app}\licencia"; Flags: ignoreversion
 Source: "..\..\..\NOTICE"; DestDir: "{app}\licencia"; Flags: ignoreversion
 Source: "..\..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\licencia"; Flags: ignoreversion
 
 ; ============================================================================
-; Estructura del proyecto del usuario (donde el motor guarda escena + config al
-; salir y donde arrastra assets). Se pre-crea vacia para que el primer arranque
-; no falle al escribir SceneBBDDObjetos.txt ni los ObjectN#.db (SceneSerializer
-; NO crea directorios por su cuenta).
+; MotorGrafico solo contiene lo que el usuario crea: sus proyectos
+; (<nombre>\Memory\Binarios\Scene y <nombre>\src<nombre>) y la configuracion
+; (Configuracion.json + imgui.ini). No se pre-crean Modelos/Texturas/Imagenes:
+; eso lo decide el editor al crear cada proyecto (EditorConfig.cpp).
+; Se crea la raiz vacia para que el primer arranque no falle al escribir
+; Configuracion.json (SceneSerializer NO crea directorios por su cuenta).
 ; ============================================================================
 [Dirs]
 Name: "{app}\MotorGrafico"
-Name: "{app}\MotorGrafico\Modelos"
-Name: "{app}\MotorGrafico\Texturas"
-Name: "{app}\MotorGrafico\Imagenes"
-; Carpetas de la "raiz del motor" en Windows (ver EditorConfig.cpp):
-;   - Escena y configuracion -> C:/MotorGraficoArchivos/...
-Name: "C:\MotorGraficoArchivos\Binarios\Scene"
-Name: "C:\MotorGraficoArchivos\Binarios"
-Name: "C:\MotorGraficoArchivos\Modelos"
-Name: "C:\MotorGraficoArchivos\Texturas"
-Name: "C:\MotorGraficoArchivos\Imagenes"
 
 [Icons]
 Name: "{group}\{#MiNombre} {#MiVersion} ({#MiCanal})"; Filename: "{app}\{#MiExe}"; WorkingDir: "{app}"
-Name: "{group}\Carpeta del proyecto (MotorGrafico)"; Filename: "C:\MotorGraficoArchivos"; WorkingDir: "{app}"
+Name: "{group}\Carpeta del proyecto (MotorGrafico)"; Filename: "{app}\MotorGrafico"; WorkingDir: "{app}"
 Name: "{autodesktop}\{#MiNombre} {#MiVersion} ({#MiCanal})"; Filename: "{app}\{#MiExe}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]

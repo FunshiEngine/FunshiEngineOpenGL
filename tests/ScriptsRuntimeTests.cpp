@@ -32,6 +32,7 @@
 #include <thread>
 #include <vector>
 
+#include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Behaviour/Reflection/BehaviourReflection.h"
 #include "../FunshiEngineGL/src/Behaviour/ScriptRuntime.h"
 
@@ -152,10 +153,11 @@ int main() {
         return 77;
     }
 
-    // 1. Escribir el fuente en un directorio temporal.
-    const fs::path dir = fs::temp_directory_path() / "funshi_scripts_runtime_test";
+    // 1. Escribir el fuente en un directorio temporal (unico por proceso,
+    // limpieza automatica al salir); `ec` lo usan los remove_all posteriores.
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_scripts_runtime_test");
+    const fs::path dir = carpetaDir.ruta();
     std::error_code ec;
-    fs::create_directories(dir, ec);
     const std::string fuente = (dir / "MiPrueba.cpp").string();
     std::string error;
 

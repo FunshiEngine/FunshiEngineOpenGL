@@ -42,6 +42,10 @@ public:
     void setColor(const color cor);
     void setColor(float r, float g, float b);
 
+    // Post-carga: refleja el color leido del binario en el auxColor del dueno
+    // (el buffer que usa el inspector). Reemplaza el dispatch por nombre.
+    void onLoaded(GameObject& owner) override;
+
     // Devuelve directamente el puntero interno al arreglo RGBA
     const float* getColor() const {
         return range;

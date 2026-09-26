@@ -24,7 +24,11 @@
 
 class Model : public Component {
  private:
-  char filePath[100];
+  char filePath[4096] = ""; // path completo del asset; los demas buffers de
+                            // path del editor usan 4096 (ver commit "buffers de
+                            // path ampliados"). El payload de drag&drop
+                            // "ARCHIVO_PATH" lleva un path de longitud
+                            // arbitraria.
 
  public:
   void setPath(std::string path);

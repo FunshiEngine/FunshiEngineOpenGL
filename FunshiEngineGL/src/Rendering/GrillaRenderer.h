@@ -21,41 +21,45 @@
 
 #include <vector>
 
-// Render de la grilla del editor con cache de geometria CPU.
+// Render de la grilla del editor (gris infinita con difuminado en el horizonte).
 //
-// Extraido de GameScene (Fase 1 del desacoplamiento de OpenGL): concentra en
-// Rendering la geometria de la grilla (lineas principales cada 5 unidades,
-// secundarias cada 'sep' y ejes X/Z de colores) precalculada en vectores CPU
-// de pares de segmentos que se reutilizan mientras no cambien tamano,
-// separacion o color efectivo. En la Fase 2 las display lists desaparecieron:
-// la geometria se envia al backend en cada frame (drawLinePairs), porque en un
-// backend moderno (Vulkan) no existe el concepto de call list. El color
-// efectivo se calcula afuera (AparienciaUtil::grillaEfectiva), aqui solo se
-// dibuja. El ancho de linea se aplica en cada parte (wireframe plano, sin la
-// restriction de las display lists).
+// La grilla ya NO tiene tamano ni densidad configurables (diseño): es un plano
+// azulejado con separacion FIJA (secundarias cada 1 unidad, principales cada
+// 5) que se recorta a un CIRCULO horizonte de radio fijo centrado en la camara
+// sobre el plano del suelo (constantes privadas en GrillaRenderer.cpp). Ese
+// circulo es el LIMITE DE DIBUJADO: fuera de el no se pinta nada (da la ilusion
+// de que la grilla continua mas lejos) y persigue a la camara, asi que moverse
+// pinta grilla nueva por delante y deja de pintar lo que queda atras.
+//
+// El difuminado es radial y POR VERTICE: cada linea se recorta a su trozo
+// interior al circulo y se subdivide; cada vertice lleva su propio alpha (7
+// floats: xyz + rgba) via IRenderBackend::drawLinePairsRGBA, opaco cerca de la
+// camara y transparente en el borde. El color efectivo se calcula afuera
+// (AparienciaUtil::grillaEfectiva); los ejes X/Z/Y se pintan con colores de
+// base (rojo, verde, amarillo) ajustados por contraste contra ese color
+// (AparienciaUtil::ejeContraste). El ancho de linea distingue secundarias
+// (1px), principales (2px) y ejes (3px).
 class GrillaRenderer {
 public:
     ~GrillaRenderer() { destruir(); }
 
-    // Dibuja la grilla en la posicion 'model' con tam/sep del componente Grid
-    // y el color efectivo. Recompila los vectores CPU solo si cambian esos
-    // datos.
-    void dibujar(const float model[16], const float colorGrilla[3], float tam,
-                 float sep);
+    // Dibuja la grilla infinita en el espacio local del objeto "Grilla" (la
+    // matriz model del componente, aplicada como pushMatrix/multMatrix), con el
+    // color efectivo y la posicion de la camara EN EL MUNDO (se transforma a
+    // local aqui) para extender el plano y calcular el difuminado.
+    void dibujar(const float model[16], const float colorGrilla[3],
+                 const float camaraMundo[3]);
 
     // Descarta los vectores CPU cacheados (higiene defensiva).
     void destruir();
 
 private:
-    void recompilarGrilla(const float colorGrilla[3]);
-
+    // Vectores intercalados xyz+rgba, reutilizados frame a frame.
     std::vector<float> minorVertices_;
     std::vector<float> majorVertices_;
-    float ejeX_[6] = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f};
-    float ejeZ_[6] = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f};
-    float tam_ = 0.0f;
-    float sep_ = 0.0f;
-    float color_[3] = {0.0f, 0.0f, 0.0f};
+    std::vector<float> ejeXVertices_;
+    std::vector<float> ejeZVertices_;
+    std::vector<float> ejeYVertices_;
 };
 
 #endif

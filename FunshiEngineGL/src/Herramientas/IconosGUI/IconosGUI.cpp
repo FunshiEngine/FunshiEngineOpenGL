@@ -16,6 +16,16 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
+
+// Windows.h ANTES del header propio y de la stdlib, para que
+// _HAS_STD_BYTE=0 surta efecto antes de que la stdlib defina std::byte.
+#ifdef _WIN32
+#define _HAS_STD_BYTE 0
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 #include "IconosGUI.h"
 #include <fstream>
 #include <iostream>
@@ -23,12 +33,6 @@
 #include <cstring>
 #include <string>
 #include <vector>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <unistd.h>
-#endif
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -41,9 +45,9 @@ namespace {
 // segun quien corriera el exe se veian las imagenes de una carpeta u otra.
 std::string directorioEjecutable() {
 #ifdef _WIN32
-    char exe[MAX_PATH] = {};
-    DWORD n = GetModuleFileNameA(nullptr, exe, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return "";
+    char exe[4096] = {};
+    DWORD n = GetModuleFileNameA(nullptr, exe, sizeof(exe));
+    if (n == 0 || n >= sizeof(exe)) return "";
     const std::string path(exe, static_cast<std::size_t>(n));
     const std::size_t sep = path.find_last_of("\\/");
     return (sep == std::string::npos) ? "" : path.substr(0, sep + 1);
@@ -67,11 +71,11 @@ IconosGUI::~IconosGUI() {
     // en vez de repetir el bloque destroyTexture2D para cada miembro.
     Rendering::Backend::Handle* iconos[] = {
         &iconoCarpeta, &iconoArchivo, &iconoCpp, &iconoHpp, &iconoJava,
-        &iconoGameObject, &iconoBlend, &iconoCsv, &iconoExr, &iconoFbx,
-        &iconoHdr, &iconoJpeg, &iconoJpg, &iconoJson, &iconoMax, &iconoMaya,
-        &iconoMp3, &iconoObj, &iconoOgg, &iconoOtf, &iconoPng, &iconoPsd,
-        &iconoRs, &iconoTga, &iconoTtf, &iconoWav, &iconoXml, &iconoDb,
-        &iconoMtl, &iconoRar, &iconoZip,
+        &iconoGameObject, &iconoLogo, &iconoBlend, &iconoCsv, &iconoExr,
+        &iconoFbx, &iconoHdr, &iconoJpeg, &iconoJpg, &iconoJson, &iconoMax,
+        &iconoMaya, &iconoMp3, &iconoObj, &iconoOgg, &iconoOtf, &iconoPng,
+        &iconoPsd, &iconoRs, &iconoTga, &iconoTtf, &iconoWav, &iconoXml,
+        &iconoDb, &iconoMtl, &iconoRar, &iconoZip,
     };
     for (Rendering::Backend::Handle* icono : iconos) {
         if (*icono != Rendering::Backend::kInvalidHandle) {
@@ -89,6 +93,11 @@ void IconosGUI::init() {
     iconoHpp = cargarPNG("hpp.png");
     iconoJava = cargarPNG("java.png");
     iconoGameObject = cargarPNG("cubo.png");
+    // El logo guarda sus dimensiones para que los consumidores respeten la
+    // proporcion del asset a cualquier alto de pantalla.
+    iconoLogo = cargarPNG("FunshiEngineGL_Isotipo_Blanco.png", &anchoLogo,
+                          &altoLogo);
+    if (altoLogo < 1) altoLogo = 1;
     // Iconos por extension de asset/formato (mismo nombre que el archivo en Imagenes/).
     iconoBlend = cargarPNG("blend.png");
     iconoCsv = cargarPNG("csv.png");
@@ -129,6 +138,12 @@ ImTextureID IconosGUI::aImTexture(Rendering::Backend::Handle handle) {
 }
 
 Rendering::Backend::Handle IconosGUI::cargarPNG(const char* nombrePNG) {
+    int ancho = 0, alto = 0;
+    return cargarPNG(nombrePNG, &ancho, &alto);
+}
+
+Rendering::Backend::Handle IconosGUI::cargarPNG(const char* nombrePNG,
+                                                int* ancho, int* alto) {
     // Orden de busqueda:
     //  1) Relativo al directorio del ejecutable (determinista): los vectores
     //     de build activo suelen quedar junto al binario o un nivel arriba
@@ -164,19 +179,22 @@ Rendering::Backend::Handle IconosGUI::cargarPNG(const char* nombrePNG) {
         return Rendering::Backend::kInvalidHandle;
     }
 
-    int ancho = 0, alto = 0, canales = 0;
-    unsigned char* pixeles = stbi_load(rutaEncontrada.c_str(), &ancho, &alto, &canales, 4);
+    int anchoLocal = 0, altoLocal = 0, canales = 0;
+    unsigned char* pixeles =
+        stbi_load(rutaEncontrada.c_str(), &anchoLocal, &altoLocal, &canales, 4);
     if (!pixeles) {
         std::cerr << "[IconosGUI] stbi_load fallo en: " << rutaEncontrada << "\n";
         return Rendering::Backend::kInvalidHandle;
     }
+    if (ancho) *ancho = anchoLocal;
+    if (alto) *alto = altoLocal;
 
     // La textura se crea por el backend (con mipmaps trilineales para que la
     // minificacion a tamanos chicos no produzca "dientes"/alias) y la GUI
     // recibe el descriptor opaco cuando la pinta. Ningun GL aca.
     Rendering::Backend::Image2D gpuImage;
-    gpuImage.width = ancho;
-    gpuImage.height = alto;
+    gpuImage.width = anchoLocal;
+    gpuImage.height = altoLocal;
     gpuImage.pixels = pixeles;
     gpuImage.generateMipmaps = true;
     const Rendering::Backend::Handle textura =
@@ -189,7 +207,7 @@ Rendering::Backend::Handle IconosGUI::cargarPNG(const char* nombrePNG) {
         return Rendering::Backend::kInvalidHandle;
     }
     std::cout << "[IconosGUI] Textura cargada: " << rutaEncontrada
-              << " (" << ancho << "x" << alto << ")\n";
+              << " (" << anchoLocal << "x" << altoLocal << ")\n";
     return textura;
 }
 

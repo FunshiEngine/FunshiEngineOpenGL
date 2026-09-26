@@ -23,7 +23,11 @@
 
 // Grilla del suelo de la escena. Es un componente mas: vive en el Transform
 // de su objeto (por eso se puede mover/escalar/rotar como cualquier otro) y
-// expone visible/color/tamano/separacion que la GUI edita en sus settings.
+// expone visible/color que la GUI edita en sus settings. Desde el rediseno,
+// la grilla es INFINITA con densidad FIJA de lineas (secundarias cada 1
+// unidad, principales cada 5) y difuminado en el horizonte: los campos
+// tam/separacion ya NO se usan para dibujar y solo se conservan para que las
+// escenas viejas serializadas sigan leyendose con el mismo layout.
 class Grid : public Component {
 private:
     bool visible = true;

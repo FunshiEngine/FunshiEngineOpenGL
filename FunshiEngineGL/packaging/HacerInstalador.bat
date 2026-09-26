@@ -66,17 +66,14 @@ if errorlevel 1 (
 )
 
 REM --------------------------------------------------------------------------
-REM  5. Montar packaging/dist: exe + dlls + Imagenes + assets opcionales
+REM  5. Montar packaging/dist: exe + dlls + Imagenes (sin assets demo: el
+REM     MotorGrafico del usuario solo contiene sus proyectos y configs).
 REM --------------------------------------------------------------------------
 echo [5/5] Montando packaging/dist...
-REM Uso: HacerInstalador.bat [-demo]  -> con -demo se incluyen tus assets
-REM (Modelos/Texturas/Imagenes) dentro de dist\MotorGrafico p/ el arbol.
-set "EXTRA="
-if /i "%~1"=="-demo" set "EXTRA=-ConAssets"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PKG_DIR%stage_dist_win.ps1" ^
     -ProjectDir "%PROJ_DIR%" ^
     -BuildDir "%PROJ_DIR%\build-win\Release" ^
-    -VcpkgInstalled "%VCPKG_ROOT%\installed\%TRIPLET%" %EXTRA%
+    -VcpkgInstalled "%VCPKG_ROOT%\installed\%TRIPLET%"
 if errorlevel 1 exit /b 1
 
 REM --------------------------------------------------------------------------

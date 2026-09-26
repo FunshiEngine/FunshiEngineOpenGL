@@ -104,8 +104,10 @@ private:
                              const float projection[16]);
     void dibujarMarcadorLuz(GameObject* object);
     void dibujarMarcadorCamara(GameObject* object);
-    void dibujarGrillaEditor(const FrameContext& ctx);
-    void dibujarGrilla(const FrameContext& ctx, GameObject* object);
+    void dibujarGrillaEditor(const FrameContext& ctx,
+                             const float camaraMundo[3]);
+    void dibujarGrilla(const FrameContext& ctx, GameObject* object,
+                       const float camaraMundo[3]);
 
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;

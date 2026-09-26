@@ -23,35 +23,28 @@
 #include <string>
 #include <vector>
 
+#include "../../FileManager/FileManager.h"
 #include "../GeneralUserInterface.h"
 
-class FileManager;
 class IconosGUI;
+class EditorEventBus;
 
 // Panel "ShowFolder": muestra el contenido de la carpeta seleccionada en el
 // arbol. Ya no se enlaza al arbol por puntero ni le pide el contenido: lee
 // cada frame la seleccion compartida (FileSelection), se muestra a si mismo
 // cuando hay carpeta (y se oculta si no) y notifica su navegacion por doble
 // clic dejando la ruta pendiente en la seleccion (R3). Las operaciones de
-// Filesystem van a la fachada FileManager, nunca a system(). (R1)
+// Filesystem van a la fachada FileManager (listado, dialogos nativos, abrir
+// con la app del sistema, plantillas), nunca a system() o al Filesystem. (R1)
 class ContentFolderInterface : public GeneralUserInterface {
 private:
-    // Entrada del grid (R5): el directorio se lee en disco SOLO cuando cambia
-    // la ruta mostrada o su mtime; el dibujo del grid usa este cache en vez de
-    // re-scanear con directory_iterator cada frame.
-    struct GridEntry {
-        std::string nombre;
-        std::string fullPath;
-        bool esCarpeta = false;
-        std::string extension;
-    };
-
     FileManager* fileManager = nullptr;
+    EditorEventBus* eventoArchivos_ = nullptr;
     bool abrirPopupNombre = false;
     bool creandoCarpeta = false;
     bool creandoScript = false;
     bool creandoScriptJava = false;
-    char nombreNuevo[128] = "";
+    char nombreNuevo[256] = "";
     IconosGUI* iconosGUI = nullptr;
 
     // Estado de renombrado (R6): ruta del elemento, si es carpeta (sube el
@@ -59,15 +52,22 @@ private:
     std::string renombrarRuta;
     bool renombrarEsCarpeta = false;
     bool abrirPopupRenombrar = false;
-    char bufferRenombrar[128] = "";
+    char bufferRenombrar[256] = "";
 
-    // Cache del grid (R5).
-    std::vector<GridEntry> cacheEntradas;
+    // Cache del grid (R5): el directorio se lee en disco SOLO cuando cambia
+    // la ruta mostrada o su mtime; el dibujo del grid usa este cache en vez
+    // de re-scanear cada frame. Las entradas vienen de FileManager.
+    std::vector<FileManager::EntradaDirectorio> cacheEntradas;
+
+    // Bandera de vida para el sistema de dock: SIEMPRE true. Garantiza que
+    // la ventana exista en g.Windows cada frame para que ImGui pueda re-aplicar
+    // su DockId al restaurar el imgui.ini del proyecto (LoadIniSettingsFromDisk
+    // itera solo g.Windows; si la ventana no Begin()ea ese frame, nace suelta).
+    // La visibilidad visual sigue controlada por stateGUI/hayCarpeta en printGUI().
+    bool dockAlive_ = true;
     std::string cacheCarpeta;
     std::filesystem::file_time_type cacheMtime{};
 
-    std::string seleccionarCarpetaSistema();
-    std::string seleccionarArchivoSistema();
     void crearNuevoElemento();
     void copiarElementoSuelto(const std::string& origen, const std::string& destFolder);
     void recorrer(const std::string& path);
@@ -76,6 +76,9 @@ public:
     ContentFolderInterface(bool stateGUI, FileManager* fileManager);
 
     void setIconosGUI(IconosGUI* iconosG);
+    // Bus de eventos del editor: notifica ArchivosReubicados tras un rename
+    // exitoso del grid (lo inyecta GUIManager; opcional, default nullptr).
+    void setEditorEventBus(EditorEventBus* bus) noexcept;
 
     virtual void initGUI() override;
     virtual void contentGUI() override;

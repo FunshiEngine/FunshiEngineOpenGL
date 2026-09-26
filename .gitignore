@@ -122,6 +122,3 @@ imgui.ini
 FunshiEngineGL/ImGuizmo/example/
 FunshiEngineGL/ImGuizmo/vcpkg-example/
 .aider*
-
-# Convenciones locales del asistente (no se versiona)
-AGENTS.md

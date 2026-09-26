@@ -47,6 +47,10 @@ GUIManager::GUIManager(GLFWwindow* window)
     iconosGUI = std::make_unique<IconosGUI>();
     iconosGUI->init();
     statusBarGUI = std::make_unique<StatusBarInterface>(true);
+    // Ventanas del creador de interfaces: arrancan ocultas; se alternan desde
+    // el menu "Ventanas" o al crear una interfaz (se persisten por proyecto).
+    creadorInterfacesGUI = std::make_unique<CreadorDeInterfaces>(false);
+    canvasGUI = std::make_unique<CanvasInterface>(false);
     treeFilesGUI->setIconosGUI(iconosGUI.get());
     contentOfThisFolder->setIconosGUI(iconosGUI.get());
     selecteableGUI->setIconosGUI(iconosGUI.get());
@@ -58,6 +62,10 @@ GUIManager::GUIManager(GLFWwindow* window)
     // El menu "Ventanas" de la barra publica VentanaEstadoCambio para alternar
     // la visibilidad de los paneles del editor (explorador, contenido, etc).
     menuBarGUI->setEditorEventBus(&eventosEditor);
+    // Movimientos/renombrados dentro del explorador (arbol o grid): se
+    // publican para que main reescriba las referencias de la escena.
+    treeFilesGUI->setEditorEventBus(&eventosEditor);
+    contentOfThisFolder->setEditorEventBus(&eventosEditor);
     // "Usar" una camara en la ventana Camaras: la escena publica y la fachada
     // reacciona seleccionando el objeto para el inspector (antes GameScene
     // llamaba a EditorController directamente).
@@ -76,6 +84,8 @@ void GUIManager::bindScene(SceneRegistry* scene, EditorController* editor,
     selecteableGUI->bindScene(scene, editor, events);
     statusBarGUI->bindScene(scene);
     settingGUI->setEditor(editor);
+    settingGUI->setAudioEngine(audioMotor);
+    canvasGUI->setAudioEngine(audioMotor);
 }
 MenuGUI* GUIManager::getMenuGUI() { return menuGUI.get(); }
 TreeFilesInterface* GUIManager::getTreeFilesGUI() { return treeFilesGUI.get(); }
@@ -100,6 +110,9 @@ void GUIManager::setSelecteableGUI(PriorityListaDE<GameObject*>* gameObjects) {
     // Kept for source compatibility. Scene state is injected with bindScene.
     (void)gameObjects;
 }
+SceneMenuBarInterface* GUIManager::getMenuBarGUI() {
+    return menuBarGUI.get();
+}
 SceneMenuBarInterface* GUIManager::getMenuBarGUI(bool* targetBool) {
     menuBarGUI->setActivador(targetBool);
     return menuBarGUI.get();
@@ -107,6 +120,12 @@ SceneMenuBarInterface* GUIManager::getMenuBarGUI(bool* targetBool) {
 SceneSelectedInterface* GUIManager::getSelecteableGUI() { return selecteableGUI.get(); }
 ContentFolderInterface* GUIManager::getContentFolderGUI() { return contentOfThisFolder.get(); }
 DockSpaceInterface* GUIManager::getDockSpaceGUI() { return dockSpaceGUI.get(); }
+
+void GUIManager::setAudioEngine(AudioEngine* motor) {
+    audioMotor = motor;
+    if (settingGUI) settingGUI->setAudioEngine(motor);
+    if (canvasGUI) canvasGUI->setAudioEngine(motor);
+}
 
 StatusBarInterface* GUIManager::getStatusBarGUI() { return statusBarGUI.get(); }
 
@@ -122,7 +141,8 @@ std::vector<GeneralUserInterface*> GUIManager::ventanasPersistentes() const {
     // La ventana Settings es dinamica (depende de la seleccion) y se deja
     // fuera. El resto se persiste por su WindowName.
     return {selecteableGUI.get(), menuBarGUI.get(), treeFilesGUI.get(),
-            contentOfThisFolder.get(), dockSpaceGUI.get(), statusBarGUI.get()};
+            contentOfThisFolder.get(), dockSpaceGUI.get(), statusBarGUI.get(),
+            creadorInterfacesGUI.get(), canvasGUI.get()};
 }
 
 std::map<std::string, bool> GUIManager::obtenerEstadosVentanas() const {

@@ -21,6 +21,8 @@
 #include <cstring>
 #include <iostream>
 
+#include "Configuracion/EditorConfig.h"
+
 using namespace std;
 
 void Model::setPath(string path) {
@@ -33,11 +35,14 @@ void Model::setPath(string path) {
 }
 
 void Model::serializeComponent(std::ofstream* fileNamePathContentObject) {
-    size_t len = strnlen(filePath, sizeof(filePath));
+    // Se persiste relativo a la raiz de assets del proyecto (si esta fijada),
+    // de modo que la escena siga valida al renombrar/mover el proyecto entero.
+    const std::string almacenar = EditorConfig::relativizarRuta(filePath);
+    size_t len = almacenar.size();
     fileNamePathContentObject->write(reinterpret_cast<const char*>(&len),
                                      sizeof(size_t));
     if (len > 0) {
-        fileNamePathContentObject->write(filePath, len);
+        fileNamePathContentObject->write(almacenar.c_str(), len);
     } else {
         std::cout << "No hay un path en el Objeto para almacenarlo" << std::endl;
     }
@@ -49,19 +54,28 @@ void Model::deserializeComponent(std::ifstream* fileNamePathContentObject) {
                                     sizeof(size_t));
 
     if (len > 0) {
-        char buffer[100] = { 0 };
-        size_t toRead = std::min(len, static_cast<size_t>(sizeof(buffer) - 1));
-        fileNamePathContentObject->read(buffer, toRead);
-        buffer[toRead] = '\0';
+        // El escritor guarda el path completo, que puede superar lo que entra
+        // en filePath: hay que consumir del stream exactamente `len` bytes
+        // aunque se descarte el excedente. Leer de menos desalinea los
+        // componentes siguientes y la carga termina leyendo basura (mismo
+        // criterio que Material::leerPathTextura).
+        const size_t toRead = std::min(len, sizeof(filePath) - 1);
+        fileNamePathContentObject->read(
+            filePath, static_cast<std::streamsize>(toRead));
+        filePath[toRead] = '\0';
+        if (len > toRead) {
+            fileNamePathContentObject->seekg(
+                static_cast<std::streamoff>(len - toRead), std::ios::cur);
+        }
 
-#if defined(_WIN32)
-        strncpy_s(filePath, sizeof(filePath), buffer, _TRUNCATE);
-#elif defined(__linux__)
-        strncpy(this->filePath, buffer, sizeof(this->filePath) - 1);
-        this->filePath[sizeof(this->filePath) - 1] = '\0';
-#endif
+        // Las escenas nuevas persisten la ruta relativa a la raiz de assets;
+        // las legacy guardaban la absoluta, que deste se deja intacta.
+        const std::string abs =
+            EditorConfig::absolutizarRuta(std::string(filePath));
+        strncpy(filePath, abs.c_str(), sizeof(filePath) - 1);
+        filePath[sizeof(filePath) - 1] = '\0';
+
         std::cout << filePath << std::endl;
-        setPath(filePath); // reconstruye buffers
     } else {
         filePath[0] = '\0';
         std::cout << "No hay un path en el binario" << std::endl;

@@ -20,104 +20,197 @@
 
 #include <cmath>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+#include "../Configuracion/Apariencia.h"
 #include "Backend/IRenderBackend.h"
 
 namespace {
 
-// Empuja un segmento [x0,y0,z0]-[x1,y1,z1] al arreglo de vertices planos.
-void agregarSegmento(std::vector<float>& out, float x0, float y0, float z0,
-                     float x1, float y1, float z1) {
-    out.push_back(x0);
-    out.push_back(y0);
-    out.push_back(z0);
-    out.push_back(x1);
-    out.push_back(y1);
-    out.push_back(z1);
+// ---------------------------------------------------------------------------
+// Constantes de diseño (NO configurables por el usuario desde la GUI):
+// - Densidad FIJA: secundarias cada 1 unidad, principales cada 5.
+// - El horizonte es un CIRCULO de radio kFadeFin centrado en la camara (sobre
+//   el plano del suelo) que actua COMO LIMITE DE DIBUJADO: las lineas se
+//   recortan a lo que queda dentro del circulo (nada mas alla se pinta, dando
+//   la ilusion de que la grilla continua) y se difuminan radialmente por
+//   vertice (opacas cerca de la camara, transparentes en el borde). Como el
+//   circulo persigue a la camara, moverse pinta grilla nueva por delante y
+//   deja de pintar lo que queda atras.
+// ---------------------------------------------------------------------------
+constexpr float kSepMenor = 1.0f;        // separacion fija de las secundarias
+constexpr int   kMultiploMayor = 5;      // cada 5 secundarias -> una principal
+constexpr float kFadeInicio = 40.0f;     // opacidad plena hasta aqui
+constexpr float kFadeFin = 150.0f;       // radio del circulo-horizonte (limite)
+constexpr int   kSubdivisiones = 6;      // trozos por linea para el difuminado
+constexpr float kEjeYLongitud = 70.0f;   // longitud del eje perpendicular (Y)
+
+// Empuja un vertice intercalado xyz+rgba (7 floats).
+void agregarVerticeRGBA(std::vector<float>& out, const float color[3], float x,
+                        float y, float z, float alpha) {
+    out.push_back(x);
+    out.push_back(y);
+    out.push_back(z);
+    out.push_back(color[0]);
+    out.push_back(color[1]);
+    out.push_back(color[2]);
+    out.push_back(alpha);
 }
+
+// Opacidad del difuminado radial a distancia horizontal 'd' de la camara: 1.0
+// en la zona central y caida cuadratica hasta 0.0 en el borde del circulo.
+float alphaDifuminado(float d) {
+    const float t = (d - kFadeInicio) / (kFadeFin - kFadeInicio);
+    const float a = 1.0f - t * t;
+    return a < 0.0f ? 0.0f : (a > 1.0f ? 1.0f : a);
+}
+
+// Emite una linea de la grilla recortada por el circulo horizonte y con
+// difuminado radial POR VERTICE. 'fija' es la coordenada X (si variaZ, linea
+// paralela a Z) o Z (si no, linea paralela a X). Si la linea queda fuera del
+// circulo no se pinta nada (ese circulo es el limite de dibujado). Los
+// extremos del trozo interior caen en el borde (alpha 0) y cada vertice
+// intermedio lleva el alpha de su propia distancia radial a la camara, por eso
+// la linea se subdivide en kSubdivisiones trozos.
+void emitirLineaPlano(std::vector<float>& out, const float color[3], float fija,
+                      float camX, float camZ, bool variaZ) {
+    const float d = std::fabs(fija - (variaZ ? camX : camZ));
+    if (d >= kFadeFin) return; // fuera del circulo: el difuminado es el limite
+    const float h = std::sqrt(kFadeFin * kFadeFin - d * d);
+    const float t0 = (variaZ ? camZ : camX) - h;
+    const float t1 = (variaZ ? camZ : camX) + h;
+    const float largo = t1 - t0;
+    for (int k = 0; k < kSubdivisiones; ++k) {
+        const float ta = t0 + largo * (static_cast<float>(k) / kSubdivisiones);
+        const float tb =
+            t0 + largo * (static_cast<float>(k + 1) / kSubdivisiones);
+        float xa, za, xb, zb;
+        if (variaZ) {
+            xa = fija;
+            za = ta;
+            xb = fija;
+            zb = tb;
+        } else {
+            xa = ta;
+            za = fija;
+            xb = tb;
+            zb = fija;
+        }
+        const float da = std::sqrt((xa - camX) * (xa - camX) +
+                                   (za - camZ) * (za - camZ));
+        const float db = std::sqrt((xb - camX) * (xb - camX) +
+                                   (zb - camZ) * (zb - camZ));
+        const float aa = alphaDifuminado(da);
+        const float ab = alphaDifuminado(db);
+        agregarVerticeRGBA(out, color, xa, 0.0f, za, aa);
+        agregarVerticeRGBA(out, color, xb, 0.0f, zb, ab);
+    }
+}
+
+// Colores base de los ejes (X rojo, Z verde, Y amarillo). Se pasan por
+// ejeContraste contra el color efectivo de la grilla para que siempre se vean.
+const float kEjeBaseRojo[3] = {1.0f, 0.3f, 0.3f};
+const float kEjeBaseVerde[3] = {0.3f, 1.0f, 0.3f};
+const float kEjeBaseAmarillo[3] = {1.0f, 1.0f, 0.3f};
 
 } // namespace
 
-void GrillaRenderer::recompilarGrilla(const float colorGrilla[3]) {
-    color_[0] = colorGrilla[0];
-    color_[1] = colorGrilla[1];
-    color_[2] = colorGrilla[2];
+void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
+                             const float camaraMundo[3]) {
+    if (!model || !colorGrilla || !camaraMundo) return;
 
-    const float tam = tam_;
-    const float sep = sep_;
-    if (tam <= 0.f || sep <= 0.f) return;
+    // La camara se transforma al espacio local del objeto "Grilla": el circulo
+    // horizonte, la densidad fija y el difuminado siguen al objeto (que puede
+    // moverse/escalarse/rotarse como cualquier otro componente).
+    const glm::mat4 modelMat = glm::make_mat4(model);
+    const glm::vec4 camaraLocal =
+        glm::inverse(modelMat) *
+        glm::vec4(camaraMundo[0], camaraMundo[1], camaraMundo[2], 1.0f);
+    const float camX = camaraLocal.x;
+    const float camZ = camaraLocal.z;
 
     minorVertices_.clear();
     majorVertices_.clear();
+    ejeXVertices_.clear();
+    ejeZVertices_.clear();
+    ejeYVertices_.clear();
 
-    // Lineas secundarias (cada sep unidades) que no coinciden con una linea
-    // principal (cada 5 unidades).
-    const float majorStep = 5.0f;
-    for (float i = -tam; i <= tam; i += sep) {
-        if (std::fabs(std::fmod(i, majorStep)) < 0.001f) continue;
-        agregarSegmento(minorVertices_, i, 0.f, -tam, i, 0.f, tam);
-        agregarSegmento(minorVertices_, -tam, 0.f, i, tam, 0.f, i);
+    // Lineas del plano dentro del circulo de radio kFadeFin alrededor de la
+    // camara, ancladas a multiplos exactos de kSepMenor (no se desplazan al
+    // moverse la camara: simplemente entran y salen del circulo). Cada 5
+    // secundarias -> principal (mismo color, solo mas ancha). La linea por el
+    // origen (i/j == 0) se salta: la pintan los ejes X/Z.
+    const int iIni = static_cast<int>(std::ceil((camX - kFadeFin) / kSepMenor));
+    const int iFin = static_cast<int>(std::floor((camX + kFadeFin) / kSepMenor));
+    for (int i = iIni; i <= iFin; ++i) {
+        if (i == 0) continue;
+        const float x = static_cast<float>(i) * kSepMenor;
+        emitirLineaPlano((i % kMultiploMayor == 0) ? majorVertices_
+                                                   : minorVertices_,
+                         colorGrilla, x, camX, camZ, true);
+    }
+    const int jIni = static_cast<int>(std::ceil((camZ - kFadeFin) / kSepMenor));
+    const int jFin = static_cast<int>(std::floor((camZ + kFadeFin) / kSepMenor));
+    for (int j = jIni; j <= jFin; ++j) {
+        if (j == 0) continue;
+        const float z = static_cast<float>(j) * kSepMenor;
+        emitirLineaPlano((j % kMultiploMayor == 0) ? majorVertices_
+                                                   : minorVertices_,
+                         colorGrilla, z, camX, camZ, false);
     }
 
-    // Lineas principales (cada 5 unidades): saltar el origen (lo pinta el eje).
-    for (float i = -tam; i <= tam; i += majorStep) {
-        if (std::fabs(i) < 0.001f) continue;
-        agregarSegmento(majorVertices_, i, 0.f, -tam, i, 0.f, tam);
-        agregarSegmento(majorVertices_, -tam, 0.f, i, tam, 0.f, i);
-    }
+    // Ejes X y Z: paralelos al plano a traves del origen, recortados y
+    // difuminados por el mismo circulo (mismo tratamiento que una linea de la
+    // grilla, pero en su color). Eje Y perpendicular solo hacia arriba: no vive
+    // en el plano y no lo recorta el circulo; se difumina con la distancia
+    // horizontal de la camara al origen.
+    float colorEjeX[3], colorEjeZ[3], colorEjeY[3];
+    AparienciaUtil::ejeContraste(kEjeBaseRojo, colorGrilla, colorEjeX);
+    AparienciaUtil::ejeContraste(kEjeBaseVerde, colorGrilla, colorEjeZ);
+    AparienciaUtil::ejeContraste(kEjeBaseAmarillo, colorGrilla, colorEjeY);
 
-    // Ejes X y Z (incluyen el origen; el centro se respeta por simetria).
-    const float ext = tam * 0.8f;
-    ejeX_[0] = 0.f;  ejeX_[1] = 0.f;  ejeX_[2] = 0.f;  // X
-    ejeX_[3] = ext;  ejeX_[4] = 0.f;  ejeX_[5] = 0.f;
-    ejeZ_[0] = 0.f;  ejeZ_[1] = 0.f;  ejeZ_[2] = 0.f;  // Z
-    ejeZ_[3] = 0.f;  ejeZ_[4] = 0.f;  ejeZ_[5] = ext;
-}
-
-void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
-                             float tam, float sep) {
-    if (!model || !colorGrilla) return;
-    if (tam <= 0.f || sep <= 0.f) return;
-
-    // Recalcula los vectores CPU solo si cambian tamano, separacion o color
-    // efectivo; mientras nada cambie, la geometria se reutiliza.
-    if (minorVertices_.empty() || tam_ != tam || sep_ != sep ||
-        color_[0] != colorGrilla[0] || color_[1] != colorGrilla[1] ||
-        color_[2] != colorGrilla[2]) {
-        tam_ = tam;
-        sep_ = sep;
-        recompilarGrilla(colorGrilla);
-    }
+    emitirLineaPlano(ejeXVertices_, colorEjeX, 0.0f, camX, camZ, false);
+    emitirLineaPlano(ejeZVertices_, colorEjeZ, 0.0f, camX, camZ, true);
+    const float alphaEjeY =
+        alphaDifuminado(std::sqrt(camX * camX + camZ * camZ));
+    agregarVerticeRGBA(ejeYVertices_, colorEjeY, 0.0f, 0.0f, 0.0f, alphaEjeY);
+    agregarVerticeRGBA(ejeYVertices_, colorEjeY, 0.0f, kEjeYLongitud, 0.0f,
+                       alphaEjeY);
 
     Rendering::Backend::IRenderBackend& b =
         Rendering::Backend::activeBackend();
     b.pushMatrix();
     b.multMatrix(model);
     b.setLightingEnabled(false);
-    // Lineas suavizadas para todas las partes de la grilla.
+    // Lineas suavizadas (con blending activo, lo que ademas usa el alpha del
+    // difuminado para fundirse con el fondo en el horizonte).
     b.setLineSmoothing(true);
 
-    // Lineas secundarias (1px).
-    b.setLineWidth(1.f);
-    if (!minorVertices_.empty())
-        b.drawLinePairs(minorVertices_.data(),
-                        static_cast<int>(minorVertices_.size() / 3));
+    // Secundarias (1px) y principales (2px): mismo color efectivo, solo cambia
+    // el ancho. El alpha radial ya viene por vertice (cerca opaco, borde 0).
+    if (!minorVertices_.empty()) {
+        b.setLineWidth(1.0f);
+        b.drawLinePairsRGBA(minorVertices_.data(),
+                            static_cast<int>(minorVertices_.size() / 7));
+    }
+    if (!majorVertices_.empty()) {
+        b.setLineWidth(2.0f);
+        b.drawLinePairsRGBA(majorVertices_.data(),
+                            static_cast<int>(majorVertices_.size() / 7));
+    }
 
-    // Lineas principales (2px, color mas intenso).
-    b.setSolidColor(colorGrilla[0] * 0.7f, colorGrilla[1] * 0.7f,
-                    colorGrilla[2] * 0.7f);
-    b.setLineWidth(2.f);
-    if (!majorVertices_.empty())
-        b.drawLinePairs(majorVertices_.data(),
-                        static_cast<int>(majorVertices_.size() / 3));
+    // Ejes (3px) con su color por contraste.
+    b.setLineWidth(3.0f);
+    b.drawLinePairsRGBA(ejeXVertices_.data(),
+                        static_cast<int>(ejeXVertices_.size() / 7));
+    b.drawLinePairsRGBA(ejeZVertices_.data(),
+                        static_cast<int>(ejeZVertices_.size() / 7));
+    b.drawLinePairsRGBA(ejeYVertices_.data(),
+                        static_cast<int>(ejeYVertices_.size() / 7));
 
-    // Ejes (3px, colores brillantes): X roja, Z verde.
-    b.setLineWidth(3.f);
-    b.setSolidColor(1.0f, 0.3f, 0.3f);
-    b.drawLinePairs(ejeX_, 2);
-    b.setSolidColor(0.3f, 1.0f, 0.3f);
-    b.drawLinePairs(ejeZ_, 2);
-
-    b.setLineWidth(1.f); // Restaurar ancho por defecto
+    b.setLineWidth(1.0f); // Restaurar ancho por defecto
     b.setLineSmoothing(false);
     b.setLightingEnabled(true);
     b.popMatrix();
@@ -126,4 +219,7 @@ void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
 void GrillaRenderer::destruir() {
     minorVertices_.clear();
     majorVertices_.clear();
+    ejeXVertices_.clear();
+    ejeZVertices_.clear();
+    ejeYVertices_.clear();
 }

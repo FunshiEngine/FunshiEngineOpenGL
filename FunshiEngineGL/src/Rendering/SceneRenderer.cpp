@@ -27,6 +27,7 @@
 #include "ImmediateRenderer.h"
 #include "MeshRenderer.h"
 #include "RenderTarget.h"
+#include "Shaders/ShaderProgram.h"
 
 #include "../Configuracion/Apariencia.h"
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
@@ -154,10 +155,21 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
 
     backend.setCompatibilityMatrices(projection, view);
 
+    // Posicion de la camara en el mundo a partir de su matriz de vista:
+    // view = [R | t] (column-major), ojo = -(R^T * t). La usa la grilla para
+    // extender el plano hasta el horizonte y difuminarlo por distancia.
+    float camaraMundo[3];
+    camaraMundo[0] =
+        -(view[0] * view[12] + view[1] * view[13] + view[2] * view[14]);
+    camaraMundo[1] =
+        -(view[4] * view[12] + view[5] * view[13] + view[6] * view[14]);
+    camaraMundo[2] =
+        -(view[8] * view[12] + view[9] * view[13] + view[10] * view[14]);
+
     // La grilla se dibuja como una pasada independiente del renderer de
     // modelos: no depende de Modelos3D ni del recorrido normal de las
     // entidades.
-    dibujarGrillaEditor(ctx);
+    dibujarGrillaEditor(ctx, camaraMundo);
 
     // Luces del pipeline inmediato (antes vivian en LightSystem::beginFrame) y
     // las mismas para el shader: la semantica es identica en ambas pasadas.
@@ -187,6 +199,8 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     prepararLucesFrame(ctx);
 
     dibujarGameObjectsConOjo(ctx, camaraOjo, view, projection);
+
+    ShaderProgram::unbind();
 }
 
 void SceneRenderer::prepararLucesFrame(const FrameContext& ctx) {
@@ -327,7 +341,8 @@ void SceneRenderer::dibujarMarcadorCamara(GameObject* object) {
                                       color, modelArr);
 }
 
-void SceneRenderer::dibujarGrillaEditor(const FrameContext& ctx) {
+void SceneRenderer::dibujarGrillaEditor(const FrameContext& ctx,
+                                        const float camaraMundo[3]) {
     auto* gameObjects = ctx.gameObjects;
 
     if (!gameObjects || gameObjects->isEmpty()) return;
@@ -338,7 +353,7 @@ void SceneRenderer::dibujarGrillaEditor(const FrameContext& ctx) {
         GameObject* object = pos->getElement();
 
         if (object->getComponent<Grid>() != nullptr) {
-            dibujarGrilla(ctx, object);
+            dibujarGrilla(ctx, object, camaraMundo);
             return;
         }
 
@@ -346,28 +361,26 @@ void SceneRenderer::dibujarGrillaEditor(const FrameContext& ctx) {
     }
 }
 
-void SceneRenderer::dibujarGrilla(const FrameContext& ctx, GameObject* object) {
+void SceneRenderer::dibujarGrilla(const FrameContext& ctx, GameObject* object,
+                                  const float camaraMundo[3]) {
     Grid* grid = object->getComponent<Grid>();
     Transform* transform = object->getGlobalTransform();
     if (!grid || !grid->getVisible() || !transform || !ctx.apariencia) return;
-
-    const float tam = grid->getTam();
-    const float sep = grid->getSeparacion();
-    if (tam <= 0.f || sep <= 0.f) return;
 
     float modelArr[16];
     buildMatrixFromTransform(transform, modelArr);
 
     // Color efectivo de la grilla segun el perfil de apariencia: en modo
     // blanco y negro se ignora el color del componente y se usa el contraste
-    // puro (la geometria cachada se recompila si cambia el color).
+    // puro (la geometria del frame se genera con el color efectivo).
     float colorGrilla[3];
     AparienciaUtil::grillaEfectiva(*ctx.apariencia, grid->getColor(),
                                    colorGrilla);
 
-    // El dibujado (lineas + widths) vive en la capa de Rendering; aqui se le
-    // pasa la matriz del objeto "Grilla" y los datos efectivos.
-    grillaRenderer_.dibujar(modelArr, colorGrilla, tam, sep);
+    // El dibujado (extent infinito del plano + difuminado del horizonte con
+    // densidad fija + anchos) vive en la capa de Rendering; aqui se le pasa la
+    // matriz del objeto "Grilla" y la posicion del ojo en el mundo.
+    grillaRenderer_.dibujar(modelArr, colorGrilla, camaraMundo);
 }
 
 // ---------------------------------------------------------------------------

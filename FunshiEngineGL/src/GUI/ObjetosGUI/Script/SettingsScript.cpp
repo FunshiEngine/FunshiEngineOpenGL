@@ -71,7 +71,7 @@ bool editarScalar(ReflejoScripts::ValorCampo& valor) {
 		break;
 	}
 	case TagTipo::Texto: {
-		char buffer[256];
+		char buffer[1024];
 		const std::string& texto = valor.como<std::string>();
 		std::strncpy(buffer, texto.c_str(), sizeof(buffer) - 1);
 		buffer[sizeof(buffer) - 1] = '\0';
@@ -94,7 +94,7 @@ bool editarScalar(ReflejoScripts::ValorCampo& valor) {
 		break;
 	}
 	case TagTipo::Objeto: {
-		char buffer[64];
+		char buffer[256];
 		const std::string& nombre = valor.como<std::string>();
 		std::strncpy(buffer, nombre.c_str(), sizeof(buffer) - 1);
 		buffer[sizeof(buffer) - 1] = '\0';
@@ -342,7 +342,7 @@ void SettingsScript::showDataComponent() {
 				ImGui::TextUnformatted(def.nombre.c_str());
 				for (int j = 0; j < static_cast<int>(lista.size()); ++j) {
 					ImGui::PushID(j);
-					char buffer[256];
+					char buffer[1024];
 					std::strncpy(buffer,
 					             lista[static_cast<std::size_t>(j)].c_str(),
 					             sizeof(buffer) - 1);
@@ -397,7 +397,7 @@ void SettingsScript::showDataComponent() {
 				ImGui::TextUnformatted(def.nombre.c_str());
 				for (int j = 0; j < static_cast<int>(lista.size()); ++j) {
 					ImGui::PushID(j);
-					char buffer[64];
+					char buffer[256];
 					std::strncpy(buffer,
 					             lista[static_cast<std::size_t>(j)].c_str(),
 					             sizeof(buffer) - 1);

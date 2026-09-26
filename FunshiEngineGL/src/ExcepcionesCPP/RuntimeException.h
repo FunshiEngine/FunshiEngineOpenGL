@@ -19,6 +19,12 @@
 #ifndef RUNTIMEEXCEPTION_H
 #define RUNTIMEEXCEPTION_H
 
+// _HAS_STD_BYTE=0 DEBE ir ANTES de cualquier include de stdlib en Windows
+// para evitar colision con typedef 'byte' de rpcndr.h vs std::byte (C++17)
+#ifdef _WIN32
+#define _HAS_STD_BYTE 0
+#endif
+
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -28,7 +34,7 @@ class RuntimeException : public std::runtime_error {
 private:
     std::vector<std::string> stackTrace;
 
-    // Declaración correcta de los métodos privados
+    // Declaraciï¿½n correcta de los mï¿½todos privados
     std::vector<std::string> generateStackTrace();
     std::string formatStackTrace();
 

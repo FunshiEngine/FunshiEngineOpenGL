@@ -5,8 +5,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$ProjectDir,   # raiz del proyecto (con CMakeLists.txt)
     [Parameter(Mandatory = $true)][string]$BuildDir,     # salida config Release (contiene FunshiEngineGL.exe)
-    [string]$VcpkgInstalled = "",                        # vcpkg installed\x64-windows (para copiar *.dll)
-    [switch]$ConAssets                                   # copiar Modelos/Texturas/Imagenes demo a dist\MotorGrafico
+    [string]$VcpkgInstalled = ""                         # vcpkg installed\x64-windows (para copiar *.dll)
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,25 +51,6 @@ $imagenes = Join-Path $ProjectDir "Imagenes"
 if (-not (Test-Path $imagenes)) { Write-Error "Falta la carpeta Imagenes en $ProjectDir" }
 Copy-Item $imagenes "$Dist\Imagenes" -Recurse
 Write-Host "  [ok] Imagenes\ ($((Get-ChildItem (Join-Path $Dist 'Imagenes')).Count) archivos)"
-
-# --- 5. Assets demo (opcional): arbol que el FileManager muestra en el editor -
-#     En Windows la raiz del FileManager es ".\\MotorGrafico" relativa al cwd,
-#     asi que instalarlos en dist\MotorGrafico puebla el panel al primer run.
-if ($ConAssets) {
-    $origen = Join-Path $env:USERPROFILE "MotorGrafico"
-    if (Test-Path $origen) {
-        New-Item -ItemType Directory -Path "$Dist\MotorGrafico" | Out-Null
-        foreach ($sub in @("Modelos", "Texturas", "Imagenes")) {
-            $fuente = Join-Path $origen $sub
-            if (Test-Path $fuente) {
-                Copy-Item $fuente "$Dist\MotorGrafico\$sub" -Recurse
-                Write-Host "  [ok] MotorGrafico\$sub (assets demo)"
-            }
-        }
-    } else {
-        Write-Host "  [aviso] No se encontro $origen para assets demo (-ConAssets omitido)"
-    }
-}
 
 Write-Host ""
 Write-Host "  dist montado en: $Dist"

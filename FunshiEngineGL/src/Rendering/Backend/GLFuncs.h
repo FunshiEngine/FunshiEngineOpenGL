@@ -111,6 +111,9 @@ typedef char GLchar;
 #ifndef GL_DEPTH_COMPONENT24
 #define GL_DEPTH_COMPONENT24 0x81A6
 #endif
+#ifndef GL_MULTISAMPLE
+#define GL_MULTISAMPLE 0x809D
+#endif
 #endif
 
 #include <GLFW/glfw3.h>

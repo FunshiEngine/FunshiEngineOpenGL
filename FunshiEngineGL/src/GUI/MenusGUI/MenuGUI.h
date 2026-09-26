@@ -96,6 +96,11 @@ public:
     float getSensibilidadCamara() const noexcept;
     void setSensibilidadCamara(float sensibilidad);
 
+    // Sensibilidad de movimiento (WASD) de la camara del editor (vista
+    // Opciones). Se propaga a la escena por SensibilidadMovimientoCambio.
+    float getSensibilidadMovimientoCamara() const noexcept;
+    void setSensibilidadMovimientoCamara(float sensibilidad);
+
     // Perfil de apariencia del editor editado en la vista Opciones. Se aplica
     // a ImGui (TemaEditor) y a la escena (fondo y grilla) por AparienciaCambio.
     const Apariencia& getApariencia() const noexcept;
@@ -110,6 +115,19 @@ public:
     // y los recoge al salir).
     const std::string& getNombreProyecto() const noexcept;
     void setNombreProyecto(const std::string& nombre) noexcept;
+
+    // Edicion de nombre por click derecho (passthrough al modelo, sin disco).
+    // La vista registra la carpeta original; main lo consume al confirmar.
+    const std::string& getProyectoARenombrar() const noexcept;
+    void setProyectoARenombrar(const std::string& nombre) noexcept;
+    void limpiarProyectoARenombrar() noexcept;
+
+    // Eliminacion por click derecho (passthrough al modelo, sin disco). La
+    // vista registra la carpeta confirmada; main la borra de disco y resetea
+    // el estado si era el proyecto activo.
+    const std::string& getProyectoAEliminar() const noexcept;
+    void setProyectoAEliminar(const std::string& nombre) noexcept;
+    void limpiarProyectoAEliminar() noexcept;
 
     // Refresca el listado de proyectos disponibles mostrado en el menu: los
     // proyectos SON las carpetas del directorio base de MotorGrafico. La

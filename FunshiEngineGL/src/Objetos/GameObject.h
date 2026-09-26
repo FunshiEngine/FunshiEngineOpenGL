@@ -61,6 +61,9 @@ public:
     void addComponent(Component* component) override;
     void addComponent(std::unique_ptr<Component> component);
     void deleteComponent(Component* component) override;
+    std::unique_ptr<Component> extractComponent(Component* component);
+    Component* getComponentByName(const std::string& typeName);
+    bool hasComponent(const std::string& typeName);
     ListaDE<Component*>* getComponents() override;
     int compareTo(GameObject* other) override;
     float distanciaA(GameObject* other);

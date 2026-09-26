@@ -25,12 +25,14 @@
 class GameObject;
 class SettingsComponent;
 class EditorController;
+class AudioEngine;
 
 class SettingsObjectInterface : public GeneralUserInterface {
 private:
 	GameObject* object;
 	ListaDE<SettingsComponent*>* listaDESettingsComponent;
 	EditorController* editor = nullptr;
+	AudioEngine* audioMotor = nullptr;
 	int momentaneantID = 0;
 
 public:
@@ -38,6 +40,9 @@ public:
 	~SettingsObjectInterface();
 
 	void setEditor(EditorController* editor);
+	// El motor de audio se inyecta desde la escena para que los inspectores de
+	// AudioSource puedan probar la reproduccion. Puede ser nullptr.
+	void setAudioEngine(AudioEngine* motor) { audioMotor = motor; }
 	void loadComponents();
 
 	// Cambia el objeto inspeccionado sin recrear la ventana: limpia y recarga

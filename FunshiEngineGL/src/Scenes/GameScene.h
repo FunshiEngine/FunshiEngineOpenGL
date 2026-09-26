@@ -27,10 +27,14 @@
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
 #include "../Iluminacion/LightSystem.h"
 #include "../Behaviour/ScriptRuntime.h"
+#include "../Behaviour/ScriptGameObject.h"
+#include "../Input/InputScripts.h"
 #include "../Configuracion/Apariencia.h"
+#include "../Audio/AudioClipsManager.h"
 
 class CameraComponent;
 class EditorController;
+class Transform;
 class GUIManager;
 class GameObject;
 class PhysicsEngine;
@@ -38,10 +42,16 @@ class SceneMenuBarInterface;
 class SceneRegistry;
 class SceneSelectedInterface;
 class SceneSerializer;
+class AssimpMeshLoader;
 class AssetManager;
 class TextureManager;
 class Script;
 class SceneRenderer;
+class AudioEngine;
+class CanvasInterface;
+class CreadorDeInterfaces;
+class MiniAudioBackend;
+class GizmoController;
 
 class GameScene {
 private:
@@ -80,24 +90,49 @@ private:
     std::unique_ptr<EditorController> editorController;
     std::unique_ptr<SceneSerializer> sceneSerializer;
     LightSystem lightSystem;
+    // Motor de audio (facade, hilo de trabajo propio). Siempre existe aunque
+    // el backend de miniaudio no pueda iniciar (falla silenciosa -> mudo).
+    std::unique_ptr<AudioEngine> audioEngine;
+    // Consulta de teclado para scripts (GLFW key names). EditorInput vive en
+    // main.cpp para la camara; este es un canal independiente de solo lectura
+    // que se alimenta de los mismos callbacks.
+    InputScripts inputScripts;
+    // Catalogo de clips del proyecto (explora Sonidos/ y registra por nombre).
+    AudioClipsManager clipsAudio;
     float deltaTime = 0.0f;
     bool start = false;
     // version anterior de start: detecta la transicion false->true para
     // sincronizar los cuerpos a la pose VISUAL del editor ANTES de que el
     // primer stepSimulation los dispare desde la pose vieja.
     bool previousStart = false;
+    // Pausa de la simulacion (F6) dentro del play: congela fisica y scripts
+    // sin salir de Playing ni tocar `start` (asi no dispara la limpieza de la
+    // transicion play->editor). La gobierna main desde el orquestador de
+    // estados (funcion de marco de F5/F6/F7).
+    bool simulacionPausada = false;
     bool menuActivo = false;
     // Sensibilidad global del mouse look, sincronizada desde MenuGUI (vista
     // Opciones). La aplica main al offset del raton antes de updateYaw().
-    float sensibilidadCamara = 1.0f;
+    float sensibilidadCamara = 0.15f;
+    // Sensibilidad de MOVIMIENTO (WASD) del editor: multiplica la velocidad
+    // base (speed) de la camara activa. Se configura SOLO en la vista Opciones
+    // del menu (configuracion general); es INDEPENDIENTE del mouse look. La
+    // aplica main a DeltaTime antes de trasladar.
+    float sensibilidadMovimientoCamara = 1.0f;
     // Perfil de apariencia sincronizado desde MenuGUI. La escena solo usa el
     // fondo del viewport y el color de la grilla (modo B/N); el estilo ImGui
     // lo aplica main con TemaEditor.
     Apariencia apariencia;
-    int gizmoOperation = 7; // ImGuizmo::TRANSLATE
-    bool gizmoReady = false;
+    // Gizmo de manipulacion de transforms (ImGuizmo): seleccion por clic
+    // (picking) y manipulación del transform del objetivo, extraido de
+    // gameScene() a su propio modulo. Se construye en el cuerpo del ctor (la
+    // seleccion la inyecta GUIManager en el cuerpo) y vive toda la escena.
+    std::unique_ptr<GizmoController> gizmoController_;
 
     void asegurarGrilla();
+    // Reproduce/detiene los AudioSource de la escena en las transiciones de
+    // modo play (entrar = autoplay de los marcados; salir = detener todo).
+    void sincronizarAudioPlay(bool entrarEnPlay);
     // Muestra las vistas previas del SceneRenderer (textura FBO por camara con
     // "Vista previa" activo) como ventanas ImGui.
     void pintarViewportsGUI();
@@ -138,15 +173,35 @@ public:
     ListaDE<GameObject*>* getGameObjectsScene();
     void saveScene(const std::string& filename);
     bool isStart();
+    // Fuente de verdad de la simulacion: la maquina de estados (F5/F7) la
+    // refleja aca desde el input (EditorInput), compartida con el boton
+    // Activar/Detener del menu de escena.
+    void setStart(bool activo) noexcept;
+    // Pausa (F6): congela la simulacion sin salir de play.
+    bool isSimulacionPausada() const noexcept;
+    void setSimulacionPausada(bool pausada) noexcept;
     void loadScene(const std::string& pathTxt, const std::string& semiPath);
+    // Configura los assets de audio (Sonidos/) e interfaces (Memory/Interfaces)
+    // del proyecto. La llama main al arrancar y al cambiar de proyecto.
+    void configurarProyecto(const std::string& nombreProyecto);
+    AudioEngine* getAudioEngine() const noexcept;
     void GUI();
     void pintarVentanaCamaras();
     void update(float deltaTime);
     void gameScene();
     void setGizmoOperation(int operation);
     int getGizmoOperation() const;
+    // Sistema de coordenadas del gizmo (LOCAL con rotacion de los ejes del
+    // objeto, o GLOBAL con los ejes del mundo fijos). Se persiste por proyecto.
+    bool isGizmoGlobal() const noexcept;
+    void setGizmoGlobal(bool global) noexcept;
     bool isGizmoCapturingInput() const;
     bool gizmoInUse() const;
+
+    // Aviso momentaneo en la barra de estado del editor (mismo mecanismo que el
+    // "Proyecto guardado" de Ctrl+S). Lo usa el atajo de undo/redo para dejar
+    // claro que cambio tomo el estado.
+    void mostrarMensaje(const std::string& mensaje);
     GameObject* pickObject(float mouseX, float mouseY);
 
     // Camara de la escena como Component: devuelve el primer objeto que tenga
@@ -178,9 +233,19 @@ public:
     bool isEditorActivo() const;
     void clearSelection();
 
+    // Acceso al controlador del editor para comandos (undo/redo)
+    EditorController* getEditorController() noexcept { return editorController.get(); }
+    const EditorController* getEditorController() const noexcept { return editorController.get(); }
+
     // Sensibilidad del mouse look (la setea main desde MenuGUI/Opciones).
     float getSensibilidadCamara() const noexcept;
     void setSensibilidadCamara(float sensibilidad) noexcept;
+
+    // Sensibilidad de movimiento (WASD) del editor, configurable en la vista
+    // Opciones del menu. Multiplica la velocidad base de la camara activa (main
+    // lo aplica a DeltaTime en el callback de teclado).
+    float getSensibilidadMovimientoCamara() const noexcept;
+    void setSensibilidadMovimientoCamara(float sensibilidad) noexcept;
 
     // Perfil de apariencia (lo setea main desde MenuGUI/Opciones). Afecta el
     // fondo de la vista 3D y el color de la grilla.

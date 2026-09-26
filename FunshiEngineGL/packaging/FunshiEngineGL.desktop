@@ -1,0 +1,14 @@
+[Desktop Entry]
+# FunshiEngineGL - lanzador de escritorio (Linux).
+# Copiar a ~/.local/share/applications/FunshiEngineGL.desktop y ajustar las
+# rutas al lugar donde se instalo el motor. En un instalador IFW por defecto:
+#   Exec=/home/USUARIO/Desktop/FunshiEngineGL/FunshiEngineGL
+#   Icon=/home/USUARIO/Desktop/FunshiEngineGL/Imagenes/logo_256.png
+Type=Application
+Name=FunshiEngineGL
+Comment=Editor de escenas 3D de FunshiEngineGL
+Exec=<RUTA_INSTALACION>/FunshiEngineGL
+Icon=<RUTA_INSTALACION>/Imagenes/logo_256.png
+Terminal=false
+Categories=Development;Graphics;
+Keywords=3D;motor;editor;escenas;

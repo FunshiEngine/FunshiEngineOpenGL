@@ -26,6 +26,7 @@
 #include "SceneRegistry.h"
 #include "../Objetos/GameObject.h"
 #include "../Objetos/Modelos3D.h"
+#include "../Objetos/ObjetoEscena.h"
 
 
 SceneSerializer::SceneSerializer(SceneRegistry* value,
@@ -103,7 +104,14 @@ void SceneSerializer::savePreOrder(
         std::to_string(object->getId()) +
         ".db";
 
-    archive << objectPath << '\n';
+    // Se guarda solo el nombre del archivo: al cargar, el .db real se resuelve
+    // contra el directorio de escena del proyecto (SceneSerializer::load);
+    // un path absoluto aquí no añade información y se rompería al mover o
+    // renombrar el proyecto. El lector solo consume el basename de cada linea.
+    const std::string basename =
+        objectPath.substr(objectPath.find_last_of("/\\") + 1);
+
+    archive << basename << '\n';
 
     /*
      * Si el nodo no tiene hijos, termina.
@@ -256,14 +264,22 @@ void SceneSerializer::loadPreOrder(
 
         /*
          * Crear un nuevo objeto.
+         *
+         * La raiz (sin padre) es el GameObject "Scene": un contenedor sin
+         * geometria (ObjetoEscena) que agrupa a todas las entidades. El resto
+         * de los nodos se cargan como Modelos3D con la fuente de mallas
+         * inyectada ANTES de loadEntity(): la deserializacion lee el path del
+         * modelo y carga la geometria; con el manager ya asignado se comparte
+         * el asset cacheado.
          */
-        auto object =
-            std::make_unique<Modelos3D>();
-
-        // Inyectar la fuente de mallas ANTES de loadEntity(): la
-        // deserializacion lee el path del modelo y carga la geometria; con el
-        // manager ya asignado se comparte el asset cacheado.
-        object->setAssetManager(assets);
+        std::unique_ptr<GameObject> object;
+        if (!parent) {
+            object = std::make_unique<ObjetoEscena>();
+        } else {
+            auto modelo = std::make_unique<Modelos3D>();
+            modelo->setAssetManager(assets);
+            object = std::move(modelo);
+        }
 
         /*
          * ========================================================

@@ -75,7 +75,7 @@ Todas las transiciones son asignaciones triviales del enum `vista`.
 |---|---|---|---|
 | **Idioma** (`setIdioma`) | Las etiquetas del menú se traducen al instante (`MenuModel::traducir`) | Config **general** al cambio (`guardarGeneral`) | `IdiomaCambio`; `menu-tests` (traducción) |
 | **Sensibilidad de cámara** (`setSensibilidadCamara`) | Se aplica a la escena al soltar el slider (mouse look) | Config **general** al cambio | `SensibilidadCambio`; `eventbus-tests` |
-| **Apariencia** | Estilo ImGui, fondo y grilla del viewport al instante | Config **general** al cambio | `AparienciaCambio`; `eventbus-tests` |
+| **Apariencia** | Estilo ImGui completo (tema, acento RGB en todos los roles, grises azulados de fábrica a gris neutro), fondo y grilla del viewport al instante | Config **general** al cambio | `AparienciaCambio`; `eventbus-tests` y `tema-tests` (cobertura del acento) |
 | **Restablecer apariencia** | Vuelve el perfil a los valores de fábrica | Config **general** | Evento `AparienciaCambio` con perfil default; `menu-tests` |
 | **Restablecer configuracion** | Vuelve idioma/sensibilidad/apariencia a fábrica + estado del proyecto (ventanas, gizmo, cámara) | General + proyecto al instante | `ReiniciarConfiguracion`; `menu-tests` (reset) y `EditorConfigTests` (`restablecer`) |
 

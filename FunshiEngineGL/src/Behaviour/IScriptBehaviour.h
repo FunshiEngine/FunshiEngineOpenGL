@@ -27,6 +27,12 @@ public:
     // Los scripts la usan como `if (api) api->posicionX(owner)`.
     const MotorScript::ApiScriptGameObject* api = nullptr;
 
+    // Tabla de servicios de escena (audio, busqueda, teclado), inyectada por
+    // el motor al cargar. Los scripts la usan como
+    // `if (servicios) servicios->reproducirSonido(...)`; comprobar version con
+    // `servicios->version >= 1` si se quiere blindar contra builds viejas.
+    const MotorScript::ScriptServices* servicios = nullptr;
+
     virtual ~IScriptBehaviour() {}
     virtual void onStart(GameObject* owner) = 0;
     virtual void onUpdate(GameObject* owner, float deltaTime) = 0;

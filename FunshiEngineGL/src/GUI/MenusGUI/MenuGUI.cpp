@@ -68,6 +68,15 @@ void MenuGUI::setSensibilidadCamara(float sensibilidad) {
     model.setSensibilidadCamara(sensibilidad); // publica SensibilidadCambio
 }
 
+float MenuGUI::getSensibilidadMovimientoCamara() const noexcept {
+    return model.getSensibilidadMovimientoCamara();
+}
+
+void MenuGUI::setSensibilidadMovimientoCamara(float sensibilidad) {
+    model.setSensibilidadMovimientoCamara(
+        sensibilidad); // publica SensibilidadMovimientoCambio
+}
+
 const Apariencia& MenuGUI::getApariencia() const noexcept {
     return model.getApariencia();
 }
@@ -88,12 +97,36 @@ void MenuGUI::setNombreProyecto(const std::string& nombre) noexcept {
     model.setNombreProyecto(nombre);
 }
 
+const std::string& MenuGUI::getProyectoARenombrar() const noexcept {
+    return model.getProyectoARenombrar();
+}
+
+void MenuGUI::setProyectoARenombrar(const std::string& nombre) noexcept {
+    model.setProyectoARenombrar(nombre);
+}
+
+void MenuGUI::limpiarProyectoARenombrar() noexcept {
+    model.limpiarProyectoARenombrar();
+}
+
+const std::string& MenuGUI::getProyectoAEliminar() const noexcept {
+    return model.getProyectoAEliminar();
+}
+
+void MenuGUI::setProyectoAEliminar(const std::string& nombre) noexcept {
+    model.setProyectoAEliminar(nombre);
+}
+
+void MenuGUI::limpiarProyectoAEliminar() noexcept {
+    model.limpiarProyectoAEliminar();
+}
+
 void MenuGUI::actualizarProyectos() {
-    // Los proyectos son carpetas del directorio base de MotorGrafico (una por
+    // Los proyectos son carpetas de MotorGrafico/Proyects/ (una por
     // proyecto: Memory + src<Nombre>). Vista unica, sin duplicar la logica;
     // los accesos fallidos se toleran silenciosamente (no hay proyectos).
     std::vector<std::string> proyectos;
-    const std::string base = EditorConfig::directorioBaseMotorGrafico();
+    const std::string base = EditorConfig::directorioProyects();
     std::error_code ec;
     std::filesystem::directory_iterator it(base, ec);
     const std::filesystem::directory_iterator fin;
@@ -130,6 +163,10 @@ void MenuGUI::publicarCambio(MenuModel::Campo campo) {
     case MenuModel::Campo::SensibilidadCamara:
         ev.type = EditorEventType::SensibilidadCambio;
         ev.sensibilidad = model.getSensibilidadCamara();
+        break;
+    case MenuModel::Campo::SensibilidadMovimientoCamara:
+        ev.type = EditorEventType::SensibilidadMovimientoCambio;
+        ev.sensibilidadMovimiento = model.getSensibilidadMovimientoCamara();
         break;
     case MenuModel::Campo::Apariencia:
         ev.type = EditorEventType::AparienciaCambio;

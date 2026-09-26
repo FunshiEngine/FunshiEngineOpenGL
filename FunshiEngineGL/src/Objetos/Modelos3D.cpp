@@ -26,6 +26,7 @@
 #include "../Assets/AssetException.h"
 #include "../Assets/AssetManager.h"
 #include "../Assets/AssimpMeshLoader.h"
+#include "Configuracion/EditorConfig.h"
 #include "../ExcepcionesCPP/RuntimeException.h"
 #include "../Rendering/ImmediateRenderer.h"
 
@@ -71,10 +72,14 @@ void Modelos3D::dibujar(float deltaTime) {
 }
 
 void Modelos3D::serializeEntity() {
-    const size_t length = filePath_.size();
+    // Se persiste relativo a la raiz de assets del proyecto (si esta fijada),
+    // para que la escena siga valida al renombrar/mover el proyecto entero.
+    const std::string almacenar = EditorConfig::relativizarRuta(filePath_);
+    const size_t length = almacenar.size();
     std::ofstream* out = myBinario->getOfBinariFile();
     out->write(reinterpret_cast<const char*>(&length), sizeof(size_t));
-    if (length > 0) out->write(filePath_.data(), static_cast<std::streamsize>(length));
+    if (length > 0)
+        out->write(almacenar.data(), static_cast<std::streamsize>(length));
 }
 
 void Modelos3D::deserializeEntity() {
@@ -87,6 +92,15 @@ void Modelos3D::deserializeEntity() {
         std::string buffer(toRead, '\0');
         in->read(buffer.data(), static_cast<std::streamsize>(toRead));
         filePath_.assign(buffer, 0, toRead);
+        // El escritor guarda el path completo: descartar el excedente para no
+        // desalinear el stream (los objetos siguientes se leen del mismo
+        // archivo de escena).
+        if (length > toRead) {
+            in->seekg(static_cast<std::streamoff>(length - toRead), std::ios::cur);
+        }
+        // Las escenas nuevas persisten la ruta relativa a la raiz de assets;
+        // las legacy guardaban la absoluta, que se deja intacta.
+        filePath_ = EditorConfig::absolutizarRuta(filePath_);
         setObject();
     } else {
         filePath_.clear();
@@ -97,29 +111,10 @@ void Modelos3D::saveEntity(std::string filename) {
     const std::string path = filename + "/ObjectN" + std::to_string(getId()) + ".db";
     myBinario = std::make_unique<Binario>(path);
     myBinario->ofOpenBinary();
-    
-    // Leer todo el contenido del archivo
-    std::string fullPath = filename + "BBDDObjetos.txt";
-    std::ifstream readFile(fullPath);
-    std::string content;
-    if (readFile.is_open()) {
-        std::string line;
-        while (std::getline(readFile, line)) {
-            content += line + "\n";
-        }
-        readFile.close();
-    }
-    
-    // Agregar el nuevo path
-    content += path + "\n";
-    
-    // Escribir todo el contenido de una vez
-    std::ofstream writeFile(fullPath);
-    if (writeFile.is_open()) {
-        writeFile << content;
-        writeFile.close();
-    }
-    
+
+    // El indice de la escena (SceneBBDDObjetos.txt) lo escribe en exclusiva
+    // SceneSerializer::savePreOrder. Historicamente esta funcion lo re-leia y
+    // re-apendia aqui, duplicando la linea del objeto en cada guardado.
     GameObject::serializeEntity();
     serializeEntity();
     myBinario->ofCloseBinary();

@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Behaviour/IScriptBehaviour.h"
 
 using namespace ReflejoScripts;
@@ -276,8 +277,11 @@ static void testSerializacionBinaria() {
     // (b.enemigos esta vacio en la prueba) para ejercitar la serializacion.
     valores[16].contenido = enemigosNombres;
 
+    // Carpeta temporal unica por proceso (RAII): ademas el .bin ahora se
+    // limpia al salir (antes quedaba en el sistema tras cada corrida).
+    TempPruebas::CarpetaPrueba carpetaPrueba("funshi_reflexion_binaria");
     const std::filesystem::path ruta =
-        std::filesystem::temp_directory_path() / "funshi_reflexion_binaria.bin";
+        carpetaPrueba.ruta() / "reflexion_binaria.bin";
     {
         std::ofstream out(ruta, std::ios::binary | std::ios::trunc);
         CHECK(out.good(), "abrir archivo temporal de escritura");

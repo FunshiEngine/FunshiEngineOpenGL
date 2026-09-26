@@ -21,7 +21,9 @@
 #include "../../GestorDeArchivos/Binario.h"
 using namespace std;
 
-
+// Declaracion adelantada: onLoaded() recibe el dueno sin crear un ciclo de
+// includes (GameObject.h incluye los componentes; Component.h no lo incluye).
+class GameObject;
 
 class Component {
 private:
@@ -33,11 +35,17 @@ protected:
 	virtual void deserializeComponent(std::ifstream* fileNamePathContentObject) = 0;
 public:
 	bool settingsObjectComponent = false;
-	virtual ~Component() {} // Destructor virtual para hacer que la clase sea polimórfica.
+	virtual ~Component() {} // Destructor virtual para hacer que la clase sea polimï¿½rfica.
 
 	virtual void saveComponent(std::ofstream* fileNamePathContentObject) = 0;
 
 	virtual void loadComponent(std::ifstream* fileNamePathContentObject) = 0;
+
+	// Hook polimorfico de post-carga: se invoca desde deserializeEntityComponents
+	// justo despues de loadComponent() y antes de entregar el componente al
+	// objeto. Los componentes lo usan para aplicar su estado al dueno sin que
+	// el GameObejct tenga que despachar por nombre de tipo.
+	virtual void onLoaded(GameObject& /*owner*/) {}
 
 };
 #endif

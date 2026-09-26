@@ -28,4 +28,5 @@ THIRD_PARTY_NOTICES.md for the full list, licensing terms and attribution:
   - ImGuizmo (FunshiEngineGL/ImGuizmo/)
   - nlohmann/json (FunshiEngineGL/External/nlohmann/)
   - stb_image (FunshiEngineGL/src/Herramientas/IconosGUI/stb_image.h)
+  - miniaudio (FunshiEngineGL/src/Audio/miniaudio.h)
   - OpenGL Mathematics - GLM (system dependency; vendored fallback if present)

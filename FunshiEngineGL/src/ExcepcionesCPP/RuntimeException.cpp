@@ -20,6 +20,7 @@
 // typedef global 'byte' que colisiona con std::byte (C++17) ya visible cuando
 // la stdlib ya se expandio (<> en MinGW: "reference to 'byte' is ambiguous").
 #ifdef _WIN32
+#define _HAS_STD_BYTE 0
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif

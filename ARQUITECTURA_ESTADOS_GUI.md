@@ -162,6 +162,11 @@ proyecto ya usa de forma puntual, pero ahora **declarado para todas las GUI**.
      - `AparienciaCambio` — el menú (fachada `MenuGUI::setApariencia`) publica
        el perfil; main suscribe y aplica estilo ImGui + fondo/grilla de la
        escena + persistencia al instante (antes releía el perfil cada frame).
+       El estilo se aplica a **toda** la paleta: el acento se inyecta en todos
+       los roles visuales y los grises azulados de fábrica de Dear ImGui
+       (`FrameBg`, `Tab`/`TabDimmed`, `Border`/`Separator`, `TableHeaderBg`,
+       `TextLink`, `DragDropTarget`) se derivan del acento o pasan a gris
+       neutro; ver `GUI/Tema/TemaEditor.cpp` y `tema-tests`.
      - `IdiomaCambio` — el menú publica; main persiste al instante.
      - `CamaraActivaCambio` — "Usar" en la ventana Camaras publica el objeto;
        GUIManager (dueño del bus) selecciona el objeto para el inspector (antes

@@ -11,6 +11,7 @@ licencias originales, que se resumen a continuación junto a su ubicación.
 | nlohmann/json v3.11.3 | `FunshiEngineGL/External/nlohmann/` | MIT (SPDX en `json.hpp`) | Copyright (c) 2013-2023 Niels Lohmann |
 | stb_image v2.16 | `FunshiEngineGL/src/Herramientas/IconosGUI/stb_image.h` | Dominio público (dual MIT) | Sean Barrett |
 | OpenGL Mathematics (GLM) | Dependencia del sistema, con copia de respaldo si se detecta en el sistema | MIT / The Happy Bunny License | OpenGL Mathematics |
+| miniaudio | `FunshiEngineGL/src/Audio/miniaudio.h` | Dominio público (dual MIT-0 / MIT / CC0) | David Reid |
 
 ## Textos de licencia
 
@@ -50,6 +51,16 @@ licencias originales, que se resumen a continuación junto a su ubicación.
 
 Dominio público. El autor ofrece además la opción de usarlo bajo licencia MIT
 si el dominio público no aplica en tu jurisdicción (ver cabecera del archivo).
+
+### miniaudio
+
+> This software is dual-licensed. You are free to choose which license you want
+> to use. If you are unsure which license you want to use, it is recommended you
+> use the MIT-0 license.
+
+David Reid, 2016-2024. Ver cabecera de `miniaudio.h`: dominio público (CC0), o
+MIT-0 / MIT a elección. En el instalador Linux, el aviso completo vive en
+`data/licencia/third-party/miniaudio-copyright`.
 
 ## Nota
 

@@ -23,6 +23,7 @@
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/Componentes/Script.h"
 #include "../../Scenes/SceneRegistry.h"
+#include "../../EngineTime.h"
 #include "../../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
 
 #include <cstdio>
@@ -162,6 +163,11 @@ void StatusBarInterface::contentGUI() {
     dibujarToolchain();
     dibujarScripts();
     dibujarResultados();
+    if (!mensajeTemporal_.empty()) {
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.2f, 1.0f), "%s",
+                           mensajeTemporal_.c_str());
+    }
 }
 
 // Overlay de carga que se dibuja centrado al pulsar "Activar": barra de
@@ -269,6 +275,15 @@ void StatusBarInterface::printGUI() {
     // aunque el usuario haya cerrado la ventana.
     dibujarOverlayCarga();
 
+    // Temporizador para mensaje temporal (decrementa en segundos).
+    if (temporizadorMensaje_ > 0.0f) {
+        temporizadorMensaje_ -= Time::getDeltaTime();
+        if (temporizadorMensaje_ <= 0.0f) {
+            mensajeTemporal_.clear();
+            temporizadorMensaje_ = 0.0f;
+        }
+    }
+
     // Notificar cambios de visibilidad al bus de GUI: cerrar con la 'X' muda
     // stateGUI por dentro de ImGui::Begin y nadie mas la veria. El overlay no
     // cambia la visibilidad de la ventana, asi que aqui no hay ruido extra.
@@ -280,4 +295,9 @@ void StatusBarInterface::printGUI() {
         busEditor->publish(ev);
         estadoPublicado_ = stateGUI;
     }
+}
+
+void StatusBarInterface::mostrarMensaje(const std::string& mensaje) {
+    mensajeTemporal_ = mensaje;
+    temporizadorMensaje_ = 4.0f; // visible 4 segundos
 }

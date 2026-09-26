@@ -560,6 +560,10 @@ void OpenGL3Backend::applyBaseState() {
     glDepthFunc(GL_LESS);
     glEnable(GL_NORMALIZE);
     glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+    // Activacion explicita del framebuffer multisampleado (se pidio 4x en la
+    // creacion del contexto): suaviza las lineas de la escena sin depender de
+    // GL_LINE_SMOOTH.
+    glEnable(GL_MULTISAMPLE);
 }
 
 void OpenGL3Backend::setClearColor(const float color[3]) {
@@ -645,8 +649,15 @@ void OpenGL3Backend::setLineSmoothing(bool enabled) {
     if (enabled) {
         glEnable(GL_LINE_SMOOTH);
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+        // GL_LINE_SMOOTH solo suaviza de verdad si el blending esta activo:
+        // sin GL_BLEND los drivers degradan a lineas escalonadas ("a dientes").
+        // Se guarda el estado previo del blending para restaurarlo al cerrar.
+        blendPreviaLineaSmooth_ = (glIsEnabled(GL_BLEND) == GL_TRUE);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     } else {
         glDisable(GL_LINE_SMOOTH);
+        if (!blendPreviaLineaSmooth_) glDisable(GL_BLEND);
     }
 }
 
@@ -660,6 +671,19 @@ void OpenGL3Backend::drawLinePairs(const float* vertices, int vertexCount) {
     for (int i = 0; i + 1 < vertexCount; i += 2) {
         glVertex3fv(vertices + 3 * i);
         glVertex3fv(vertices + 3 * (i + 1));
+    }
+    glEnd();
+}
+
+void OpenGL3Backend::drawLinePairsRGBA(const float* vertices,
+                                       int vertexCount) {
+    if (!vertices || vertexCount < 2) return;
+    glBegin(GL_LINES);
+    for (int i = 0; i + 1 < vertexCount; i += 2) {
+        glColor4fv(vertices + 7 * i + 3);
+        glVertex3fv(vertices + 7 * i);
+        glColor4fv(vertices + 7 * (i + 1) + 3);
+        glVertex3fv(vertices + 7 * (i + 1));
     }
     glEnd();
 }

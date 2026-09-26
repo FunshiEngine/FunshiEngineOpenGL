@@ -9,7 +9,7 @@ Windows de FunshiEngineGL (tambien lo usa el pipeline de GitHub Actions).
 packaging/
 ├── FunshiEngineGL_setup.iss      Script Inno Setup 6 (el instalador)
 ├── HacerInstalador.bat           UN CLIC: dependencias + build + dist + setup.exe
-├── stage_dist_win.ps1            Monta packaging\dist\ (exe + dlls + Imagenes + assets)
+├── stage_dist_win.ps1            Monta packaging\dist\ (exe + dlls + Imagenes)
 ├── README_PAQUETE_WINDOWS.md     (este archivo)
 └── dist\                         Montaje de lo que se instala (autogenerado)
 └── instalador\                   Setup final: FunshiEngineGL-<version>-<canal>-setup.exe
@@ -29,8 +29,6 @@ packaging/
 ```bat
 cd FunshiEngineGL\packaging
 HacerInstalador.bat            REM build + dist + setup.exe
-HacerInstalador.bat -demo      REM ademas empaqueta tus assets demo
-                               REM (Modelos/Texturas/Imagenes) en dist\MotorGrafico\
 ```
 
 Pasos que ejecuta:
@@ -45,7 +43,6 @@ Pasos que ejecuta:
    - DLLs de vcpkg (`glfw3.dll`, `assimp-*.dll`, `Bullet*.dll`, `zlib1.dll`, ...)
    - runtime VC++ (`msvcp140.dll`, `vcruntime140*.dll`) si existe el redist
    - `Imagenes\` (iconos del editor, obligatorios)
-   - (opcional) tus `Modelos\Texturas\Imagenes` demo en `MotorGrafico\`
 5. Si Inno Setup existe, compila
    `instalador\FunshiEngineGL-<version>-<canal>-setup.exe`.
 
@@ -54,13 +51,13 @@ Pasos que ejecuta:
 - Programas y archivos en `C:\Program Files\FunshiEngineGL\`.
 - Iconos de menu inicio y escritorio (inicia en la carpeta de la app, para que
   `IconosGUI` y el FileManager resuelvan sus rutas relativas).
-- Crea la estructura del proyecto del usuario en `C:\MotorGraficoArchivos\`
-  (`Binarios\Scene`, `Modelos`, `Texturas`, `Imagenes`). Ahí el editor guarda
-  la escena (`SceneBBDDObjetos.txt` + `ObjectN#.db`) y la configuracion
-  (`Configuracion.json`, `imgui.ini`) al salir.
+- Crea la raiz vacia `{app}\MotorGrafico\`: ahi solo viven los proyectos que
+  el usuario crea (`<nombre>\Memory\Binarios\Scene`, `<nombre>\src<nombre>`)
+  y la configuracion (`Configuracion.json`, `imgui.ini`). No se instalan
+  carpetas fijas de `Modelos\Texturas\Imagenes`.
 
 > Requiere permisos de administrador (necesario para crear
-> `C:\MotorGraficoArchivos`).
+> `{app}\MotorGrafico` en `Program Files`).
 
 ## Versionar para demo/alpha/beta
 
@@ -78,8 +75,10 @@ Cada combinacion genera su propio archivo de salida, así no se mezclan builds
 
 - La primera vez la escena arranca vacia (el editor crea
   `SceneBBDDObjetos.txt` al cargar).
-- Arrastra meshes desde el árbol de archivos (raiz `MotorGrafico\`) al
-  viewport para armar tu escena demo, o usa los modelos instalados.
+- Al crear un proyecto, las carpetas se generan solas en
+  `{app}\MotorGrafico\<nombre>\` (`Memory\Binarios\Scene` + `src<nombre>`).
+  Arrastra meshes desde el árbol de archivos (raiz `src<nombre>`) al
+  viewport para armar tu escena demo.
 - Las rutas de assets se guardan **relativas al cwd** en Windows
   (`.\MotorGrafico\...`) porque el FileManager usa la carpeta de trabajo; por
   eso todos los accesos directos inician con `Carpeta de trabajo = {app}`.
@@ -97,15 +96,12 @@ después queda cacheada y es mucho mas rapida.
 
 ## Limitaciones conocidas (a corregir rumbo a 1.0)
 
-1. **Rutas del proyecto**: en Windows el directorio raíz del editor es
-   `C:\MotorGraficoArchivos` (fijo), mientras el FileManager apunta a
-   `.\MotorGrafico` relativo al cwd. Funciona porque los accesos directos
-   fuerzan el cwd, pero esta duplicación deberia unificarse en 1.0 (ver
+1. **Rutas del proyecto**: `EditorConfig` usa el directorio del ejecutable
+   (`{app}\MotorGrafico`, exe-relativo) y el FileManager resuelve `.\MotorGrafico`
+   relativo al cwd. Coinciden porque los accesos directos fuerzan `WorkingDir={app}`,
+   pero siguen siendo dos mecanismos que convendría unificar en 1.0 (ver
    `EditorConfig::directorioProyectoPorDefecto` + `GUIManager::GUIManager`).
 2. **Escenas con rutas Linux**: los `.db` guardan las rutas absolutas que se
    cargaron. Una escena hecha en Linux (`/home/.../MotorGrafico/...`) no
    resolverá sus assets en Windows tal cual; hay que reimportar los modelos
    desde el árbol o regenerar la escena en Windows.
-3. **`getenv("HOME")`**: `src/main.cpp:234` lo usa sin guarda; en Windows esa
-   variable no existe y el app depende de las ramas `_WIN32` (ya cubiertas para
-   cargar/guardar escena), pero conviene limpiarlo antes de 1.0.

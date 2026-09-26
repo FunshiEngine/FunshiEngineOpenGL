@@ -19,6 +19,8 @@
 #ifndef APARIENCIA_H
 #define APARIENCIA_H
 
+#include <cmath>
+
 // ============================================================================
 // Perfil de apariencia del editor.
 //
@@ -36,10 +38,15 @@
 struct Apariencia {
     // Tema base de la interfaz ImGui: false = oscuro (por defecto), true = claro.
     bool temaClaro = false;
-    // Modo monocromo: fondo + grilla contrastados en blanco/negro.
+    // Modo monocromo: desatura TODA la interfaz (paleta de ImGui y acento
+    // incluidos) y fuerza el fondo del viewport y la grilla a blanco/negro
+    // segun el tema (claro/oscuro).
     bool blancoYNegro = false;
-    // Color de acento de la interfaz (RGB + alpha). Azul historico de Dear
-    // ImGui; el usuario puede cambiarlo para que la UI no sea siempre azul.
+    // Color de acento de la interfaz (RGB). Azul historico de Dear ImGui; el
+    // usuario puede cambiarlo para que la UI no sea siempre azul. El cuarto
+    // componente (alpha) se conserva por compatibilidad con la configuracion
+    // guardada, pero el tema no lo usa: cada rol aporta su propia
+    // transparencia (ver TemaEditor::acento).
     float acento[4] = {0.26f, 0.59f, 0.98f, 1.0f};
     // Color de fondo de la vista 3D (glClearColor). Gris oscuro historico.
     float fondo[3] = {0.10f, 0.10f, 0.10f};
@@ -98,6 +105,46 @@ inline void grillaEfectiva(const Apariencia& ap, const float componente[3],
     out[0] = componente[0];
     out[1] = componente[1];
     out[2] = componente[2];
+}
+
+// Contraste minimo de luminancia (Rec. 709) entre un eje y la grilla.
+inline constexpr float kContrasteEjeMin = 0.35f;
+
+// Ajusta el color de un eje (rojo/verde/amarillo) para que SIEMPRE contraste
+// con el color de la grilla: si la diferencia de luminancia es menor al
+// umbral, se escala el color manteniendo su tono pero empujando su brillo en
+// la direccion que ya llevaba (mas claro si era mas claro, mas oscuro si era
+// mas oscuro) hasta distanciarse de la grilla. Con grilla blanca los ejes
+// quedan como estan (rojo, verde y amarillo puros).
+inline void ejeContraste(const float base[3], const float grilla[3],
+                         float out[3]) {
+    const float lGrilla = luminancia(grilla[0], grilla[1], grilla[2]);
+    const float lBase = luminancia(base[0], base[1], base[2]);
+
+    out[0] = base[0];
+    out[1] = base[1];
+    out[2] = base[2];
+    if (std::fabs(lGrilla - lBase) >= kContrasteEjeMin) return;
+
+    // Direccion: distanciarse de la luminancia de la grilla (si el eje iguala
+    // a la grilla, se aleja hacia el lado opuesto al brillo de esta).
+    float objetivo;
+    if (lBase < lGrilla - 1e-4f)
+        objetivo = lGrilla - kContrasteEjeMin; // eje mas oscuro que la grilla
+    else if (lBase > lGrilla + 1e-4f)
+        objetivo = lGrilla + kContrasteEjeMin; // eje mas claro que la grilla
+    else
+        objetivo = (lGrilla >= 0.5f) ? lGrilla - kContrasteEjeMin
+                                     : lGrilla + kContrasteEjeMin;
+
+    if (lBase <= 1e-6f) return; // base negra: no se puede aclarar por escala
+    const float k = objetivo / lBase;
+    if (k <= 0.f) return; // objetivo negativo: ya se quedo sin brillo
+    const float kRecorte = (k > 3.f) ? 3.f : k;
+    for (int i = 0; i < 3; ++i) {
+        float c = base[i] * kRecorte;
+        out[i] = (c > 1.f) ? 1.f : c;
+    }
 }
 
 } // namespace AparienciaUtil

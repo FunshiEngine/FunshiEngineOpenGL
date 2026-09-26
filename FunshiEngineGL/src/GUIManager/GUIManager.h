@@ -33,6 +33,8 @@
 #include "../GUI/SceneGUI/SceneMenuBarInterface.h"
 #include "../GUI/DockSpaceGUI/DockSpaceInterface.h"
 #include "../GUI/Estado/StatusBarInterface.h"
+#include "../GUI/CreadorUI/CreadorDeInterfaces.h"
+#include "../GUI/CreadorUI/CanvasInterface.h"
 #include "../Herramientas/IconosGUI/IconosGUI.h"
 #include "../FileManager/FileManager.h"
 #include "../Estructuras/ListasEnlazadas/ListasConPrioridad/PriorityListaDE.h"
@@ -43,6 +45,7 @@ class SceneRegistry;
 class EditorController;
 class EventBus;
 class Modelos3D;
+class AudioEngine;
 
 using namespace std;
 
@@ -67,6 +70,13 @@ private:
 	EditorController* editor = nullptr;
 	std::unique_ptr<ContentFolderInterface> contentOfThisFolder;
 	std::unique_ptr<StatusBarInterface> statusBarGUI;
+	// Creador de interfaces de usuario (assets JSON) y canvas que las pinta
+	// con su sonido. Ventanas persistentes mas: anclables, alternables desde
+	// el menu "Ventanas" y con estado guardado por proyecto.
+	std::unique_ptr<CreadorDeInterfaces> creadorInterfacesGUI;
+	std::unique_ptr<CanvasInterface> canvasGUI;
+	// Motor de audio inyectado por la escena para el inspector de AudioSource.
+	AudioEngine* audioMotor = nullptr;
 
 	// Canal de eventos de GUI interna (ARQUITECTURA_ESTADOS_GUI.md §4.2B).
 	// El dueño del bus es GUIManager (su registro central de ventanas): el
@@ -90,11 +100,18 @@ public:
 	SettingsObjectInterface* getSettingGUI(GameObject* gameObject);
 	void removeSettingsGUI();
 	void setSelecteableGUI(PriorityListaDE<GameObject*>* gameObjects);
+	SceneMenuBarInterface* getMenuBarGUI();
 	SceneMenuBarInterface* getMenuBarGUI(bool* targetBool);
 	SceneSelectedInterface* getSelecteableGUI();
 	ContentFolderInterface* getContentFolderGUI();
 	DockSpaceInterface* getDockSpaceGUI();
 	StatusBarInterface* getStatusBarGUI();
+
+	// Acceso a las ventanas del sistema de audio + creador de interfaces.
+	CreadorDeInterfaces* getCreadorInterfacesGUI() { return creadorInterfacesGUI.get(); }
+	CanvasInterface* getCanvasGUI() { return canvasGUI.get(); }
+	// La escena inyecta su AudioEngine (para el inspector de AudioSource).
+	void setAudioEngine(AudioEngine* motor);
 
 	// Configura la ruta y el nombre del proyecto en el explorador de archivos
 	void configurarProyecto(const std::string& nombreProyecto);

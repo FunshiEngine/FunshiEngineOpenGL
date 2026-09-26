@@ -79,8 +79,13 @@ bool ScriptRuntime::compilarYCargar(const std::string& fuente,
     }
     BackendScript* backend = backendPara(lenguaje);
     if (!backend) {
-        error = "No hay backend para '" + std::string(lenguaje) +
-                "'. ¿El motor fue compilado sin soporte Java?";
+        error = "No hay backend para '" + std::string(lenguaje) + "'.";
+        if (std::string(lenguaje) == "java") {
+            error += " El motor fue compilado sin soporte Java (falta el "
+                     "JDK en el build).";
+        } else {
+            error += " ¿El motor fue compilado con soporte para ese lenguaje?";
+        }
         return false;
     }
     return backend->compilarYCargar(fuente, nombreClase, salida, error);

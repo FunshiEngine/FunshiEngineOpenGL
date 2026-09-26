@@ -92,6 +92,10 @@ int main() {
         CHECK(notificado == MenuModel::Campo::SensibilidadCamara,
               "setSensibilidadCamara notifica SensibilidadCamara");
 
+        m.setSensibilidadMovimientoCamara(2.5f);
+        CHECK(notificado == MenuModel::Campo::SensibilidadMovimientoCamara,
+              "setSensibilidadMovimientoCamara notifica SensibilidadMovimientoCamara");
+
         Apariencia ap;
         ap.temaClaro = true;
         m.setApariencia(ap);
@@ -101,7 +105,7 @@ int main() {
         m.setNombreProyecto("MiProyecto");
         CHECK(notificado == MenuModel::Campo::Nombre,
               "setNombreProyecto notifica Nombre");
-        CHECK(avisos == 4, "cuatro avisos en total");
+        CHECK(avisos == 5, "cinco avisos en total");
     }
 
     // 5. Reset: vuelve idioma/sensibilidad/apariencia a defaults y conserva el
@@ -121,7 +125,9 @@ int main() {
         m.restablecerConfiguracion();
 
         CHECK(m.getIdioma() == "Espanol", "reset restaura el idioma");
-        CHECK(m.getSensibilidadCamara() == 1.0f, "reset restaura la sensibilidad");
+        CHECK(m.getSensibilidadCamara() == 0.15f, "reset restaura la sensibilidad");
+        CHECK(m.getSensibilidadMovimientoCamara() == 1.0f,
+              "reset restaura la sensibilidad de movimiento");
         CHECK(!m.getApariencia().temaClaro, "reset restaura la apariencia");
         CHECK(!m.getApariencia().blancoYNegro, "reset restaura el modo B/N");
         CHECK(m.getNombreProyecto() == "MiProyecto",
@@ -134,11 +140,18 @@ int main() {
     {
         MenuModel m;
         m.setSensibilidadCamara(-1.0f);
-        CHECK(m.getSensibilidadCamara() == 1.0f,
+        CHECK(m.getSensibilidadCamara() == 0.15f,
               "sensibilidad no valida se ignora");
         m.setSensibilidadCamara(0.0f);
-        CHECK(m.getSensibilidadCamara() == 1.0f,
+        CHECK(m.getSensibilidadCamara() == 0.15f,
               "sensibilidad cero se ignora");
+
+        m.setSensibilidadMovimientoCamara(-1.0f);
+        CHECK(m.getSensibilidadMovimientoCamara() == 1.0f,
+              "sensibilidad de movimiento no valida se ignora");
+        m.setSensibilidadMovimientoCamara(0.0f);
+        CHECK(m.getSensibilidadMovimientoCamara() == 1.0f,
+              "sensibilidad de movimiento cero se ignora");
     }
 
     // 7. Listado de proyectos disponibles (carpetas de MotorGrafico): se guarda
@@ -165,6 +178,20 @@ int main() {
               "aviso de lista vacia menciona Config Proyect");
         m.setIdioma("English");
         CHECK(m.traducir("proyectos") == "Projects", "clave proyectos en");
+        CHECK(m.traducir("editar_nombre") == "Edit name", "clave editar_nombre en");
+    }
+
+    // 9. Edicion de nombre por click derecho (vacia = confirmar normal).
+    {
+        MenuModel m;
+        CHECK(m.getProyectoARenombrar().empty(),
+              "por defecto no hay carpeta en edicion");
+        m.setProyectoARenombrar("Viejo");
+        CHECK(m.getProyectoARenombrar() == "Viejo",
+              "click derecho registra la carpeta original");
+        m.limpiarProyectoARenombrar();
+        CHECK(m.getProyectoARenombrar().empty(),
+              "confirmar/volver limpian el registro");
     }
 
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;

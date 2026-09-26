@@ -22,6 +22,8 @@
 #include <cstring>
 #include <iostream>
 
+#include "Configuracion/EditorConfig.h"
+
 namespace {
 // Longitud maxima de path de textura en disco. El deserializador descarta
 // paths por encima (cota estilo Modelos3D) para no leer buffers gigantes de
@@ -68,6 +70,9 @@ void Material::leerPathTextura(std::ifstream* file, std::string& out) {
     if (pathLen == 0) return;
     out.assign(pathLen, '\0');
     file->read(&out[0], static_cast<std::streamsize>(pathLen));
+    // Escenas nuevas guardan la ruta relativa a la raiz de assets del
+    // proyecto; las legacy guardaban la absoluta, que se deja intacta.
+    out = EditorConfig::absolutizarRuta(out);
 }
 
 void Material::serializeComponent(std::ofstream* file) {
@@ -79,10 +84,13 @@ void Material::serializeComponent(std::ofstream* file) {
     file->write(reinterpret_cast<const char*>(specular), sizeof(specular));
     file->write(reinterpret_cast<const char*>(emission), sizeof(emission));
     file->write(reinterpret_cast<const char*>(&shininess), sizeof(float));
-    escribirPath(file, diffuseMapPath_);
-    escribirPath(file, specularMapPath_);
-    escribirPath(file, normalMapPath_);
-    escribirPath(file, emissionMapPath_);
+    // Los paths se persisten relativos a la raiz de assets del proyecto (si
+    // esta fijada) para que la escena siga valida al mover/renombrar el
+    // proyecto entero.
+    escribirPath(file, EditorConfig::relativizarRuta(diffuseMapPath_));
+    escribirPath(file, EditorConfig::relativizarRuta(specularMapPath_));
+    escribirPath(file, EditorConfig::relativizarRuta(normalMapPath_));
+    escribirPath(file, EditorConfig::relativizarRuta(emissionMapPath_));
 }
 
 void Material::deserializeComponent(std::ifstream* file) {

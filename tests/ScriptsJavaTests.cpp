@@ -29,6 +29,7 @@
 #include <vector>
 #include <chrono>
 
+#include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Behaviour/Reflection/BehaviourReflection.h"
 #include "../FunshiEngineGL/src/Behaviour/ScriptRuntime.h"
 
@@ -92,9 +93,11 @@ int main() {
         return 77;
     }
 
-    const fs::path dir = fs::temp_directory_path() / "funshi_java_test";
+    // Carpeta temporal unica por proceso (RAII); `ec` se conserva porque la
+    // limpieza explicita de mas abajo lo usa.
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_java_test");
+    const fs::path dir = carpetaDir.ruta();
     std::error_code ec;
-    fs::create_directories(dir, ec);
     const std::string fuente = (dir / "MiPruebaJava.java").string();
     {
         std::ofstream f(fuente);

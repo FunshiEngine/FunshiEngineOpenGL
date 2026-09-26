@@ -24,6 +24,14 @@
 #include "../Objetos/Modelos3D.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../Events/EventBus.h"
+#include "../Comandos/GestorComandos.h"
+#include "../Comandos/CrearObjetoComando.h"
+#include "../Comandos/BorrarObjetoComando.h"
+#include "../Comandos/ReparentarComando.h"
+#include "../Comandos/AgregarComponenteComando.h"
+#include "../Comandos/QuitarComponenteComando.h"
+#include "../Comandos/TransformComando.h"
+#include "../Comandos/LimpiarEscenaComando.h"
 
 EditorController::EditorController(SceneRegistry* value, PhysicsEngine* world,
                                    EventBus* bus, AssetManager* assetsManager)
@@ -224,4 +232,20 @@ bool EditorController::removeComponent(GameObject* object, Component* component)
     if (events)
         events->publish({SceneEventType::ComponentChanged, object, nullptr});
     return true;
+}
+
+std::string EditorController::deshacer() {
+    return gestorComandos.deshacer();
+}
+
+std::string EditorController::rehacer() {
+    return gestorComandos.rehacer();
+}
+
+bool EditorController::puedeDeshacer() const noexcept {
+    return gestorComandos.puedeDeshacer();
+}
+
+bool EditorController::puedeRehacer() const noexcept {
+    return gestorComandos.puedeRehacer();
 }

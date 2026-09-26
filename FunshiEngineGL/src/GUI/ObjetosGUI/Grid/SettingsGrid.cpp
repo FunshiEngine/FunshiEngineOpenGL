@@ -38,15 +38,10 @@ void SettingsGrid::showDataComponent() {
         grid->setColor(color[0], color[1], color[2]);
     }
 
-    float tam = grid->getTam();
-    if (ImGui::DragFloat("Tamano (semi-lado)", &tam, 1.0f, 1.0f, 500.0f, "%.1f")) {
-        grid->setTam(tam);
-    }
-
-    float separacion = grid->getSeparacion();
-    if (ImGui::DragFloat("Separacion", &separacion, 0.1f, 0.1f, 100.0f, "%.2f")) {
-        grid->setSeparacion(separacion);
-    }
+    // La grilla es infinita con densidad FIJA de lineas (secundarias cada 1
+    // unidad, principales cada 5) y difuminado en el horizonte: NO hay
+    // tamano ni separacion configurables (se eliminaron por diseño).
+    ImGui::TextDisabled("Grilla infinita con densidad fija");
 }
 
 Component* SettingsGrid::getComponent() {

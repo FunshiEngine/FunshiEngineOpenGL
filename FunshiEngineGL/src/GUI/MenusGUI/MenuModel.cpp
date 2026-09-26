@@ -61,6 +61,26 @@ void MenuModel::setProyectosDisponibles(const std::vector<std::string>& proyecto
     proyectosDisponibles = proyectos;
 }
 
+const std::string& MenuModel::getProyectoARenombrar() const noexcept {
+    return proyectoARenombrar;
+}
+
+void MenuModel::setProyectoARenombrar(const std::string& nombre) {
+    proyectoARenombrar = nombre;
+}
+
+void MenuModel::limpiarProyectoARenombrar() noexcept { proyectoARenombrar.clear(); }
+
+const std::string& MenuModel::getProyectoAEliminar() const noexcept {
+    return proyectoAEliminar;
+}
+
+void MenuModel::setProyectoAEliminar(const std::string& nombre) {
+    proyectoAEliminar = nombre;
+}
+
+void MenuModel::limpiarProyectoAEliminar() noexcept { proyectoAEliminar.clear(); }
+
 const std::string& MenuModel::getIdioma() const noexcept { return idioma; }
 
 void MenuModel::setIdioma(const std::string& valor) {
@@ -83,6 +103,17 @@ void MenuModel::setSensibilidadCamara(float sensibilidad) {
     }
 }
 
+float MenuModel::getSensibilidadMovimientoCamara() const noexcept {
+    return sensibilidadMovimientoCamara;
+}
+
+void MenuModel::setSensibilidadMovimientoCamara(float sensibilidad) {
+    if (sensibilidad > 0.0f) {
+        sensibilidadMovimientoCamara = sensibilidad;
+        if (onCampoCambio) onCampoCambio(Campo::SensibilidadMovimientoCamara);
+    }
+}
+
 const Apariencia& MenuModel::getApariencia() const noexcept {
     return apariencia;
 }
@@ -97,7 +128,8 @@ void MenuModel::restablecerConfiguracion() {
     // toca: define la carpeta/proyecto (src<Nombre> + Memory) y un reset aqui
     // crearia otra carpeta y perderia la escena activa.
     idioma = "Espanol";
-    sensibilidadCamara = 1.0f;
+    sensibilidadCamara = 0.15f;
+    sensibilidadMovimientoCamara = 1.0f;
     apariencia.restablecer();
     if (onCampoCambio) onCampoCambio(Campo::Reiniciar);
 }
@@ -127,27 +159,39 @@ std::string MenuModel::traducir(const std::string& clave) const {
         {"juego", {"Juego", "Game"}},
         {"idioma", {"Idioma", "Language"}},
         {"sensibilidad_camara", {"Sensibilidad de camara", "Camera sensitivity"}},
+        {"sensibilidad_movimiento",
+         {"Sensibilidad de movimiento", "Movement sensitivity"}},
         {"apariencia", {"Apariencia", "Appearance"}},
         {"tema_claro", {"Tema claro de la interfaz", "Light UI theme"}},
         {"modo_bn",
-         {"Modo blanco y negro (fondo y grilla)",
-          "Black & white mode (background and grid)"}},
+         {"Modo blanco y negro (interfaz y viewport)",
+          "Black & white mode (UI and viewport)"}},
         {"color_acento", {"Color de acento de la interfaz", "UI accent color"}},
         {"color_fondo", {"Color de fondo de la escena", "Scene background color"}},
         {"ayuda_bn",
-         {"El modo blanco y negro ignora estos colores y usa\n"
-          "blanco/negro segun el tema claro u oscuro.",
-          "Black & white mode ignores these colors and uses\n"
-          "black/white according to the light or dark theme."}},
+         {"El modo blanco y negro desatura toda la interfaz (incluido el\n"
+          "acento) y usa blanco/negro en el fondo y la grilla del viewport\n"
+          "segun el tema claro u oscuro.",
+          "Black & white mode desaturates the whole UI (accent included) and\n"
+          "uses black/white for the background and viewport grid according\n"
+          "to the light or dark theme."}},
         {"restablecer_apariencia", {"Restablecer apariencia", "Reset appearance"}},
         {"restablecer_configuracion",
          {"Restablecer configuracion", "Reset configuration"}},
         {"ayuda_reset",
-         {"Reinicia idioma, apariencia, sensibilidad y estado del editor a\n"
-          "los valores de fabrica.",
-          "Resets language, appearance, camera sensitivity and editor\n"
-          "state to factory defaults."}},
+         {"Reinicia idioma, apariencia, sensibilidades y estado del editor a\n"
+           "los valores de fabrica.",
+           "Resets language, appearance, sensitivities and editor\n"
+           "state to factory defaults."}},
         {"nombre", {"Nombre", "Name"}},
+        {"editar_nombre", {"Editar nombre", "Edit name"}},
+        {"eliminar_proyecto", {"Eliminar proyecto", "Delete project"}},
+        {"aviso_eliminar",
+         {"Se eliminaran de disco la escena, los assets y la configuracion\n"
+          "de este proyecto. Esta accion no se puede deshacer.",
+          "The scene, assets and settings of this project will be removed\n"
+          "from disk. This action cannot be undone."}},
+        {"eliminar", {"Eliminar", "Delete"}},
         {"confirmar", {"Confirmar", "Confirm"}},
         {"actual", {"(actual: %s)", "(current: %s)"}},
     };

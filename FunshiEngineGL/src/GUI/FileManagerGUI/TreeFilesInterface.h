@@ -30,6 +30,7 @@ class File;
 class Carpeta;
 class FileManager;
 class IconosGUI;
+class EditorEventBus;
 
 // Panel "BrowseFile": dibuja el arbol de carpetas del proyecto y es la unica
 // vista que actualiza la seleccion compartida (FileSelection). Ya no posee
@@ -69,12 +70,24 @@ protected:
     // Ultimo contador de cambios que este panel ya rescaneco.
     unsigned long ultimoContadorVisto = 0;
 
+    // Bandera de vida para el sistema de dock: SIEMPRE true. Garantiza que
+    // la ventana exista en g.Windows cada frame para que ImGui pueda re-aplicar
+    // su DockId al restaurar el imgui.ini del proyecto (LoadIniSettingsFromDisk
+    // itera solo g.Windows; si la ventana no Begin()ea ese frame, nace suelta).
+    // La visibilidad visual sigue controlada por stateGUI en printGUI().
+    bool dockAlive_ = true;
+
 public:
     TreeFilesInterface(bool stateGUI, FileManager* fileManager);
     TreeFilesInterface(const TreeFilesInterface&) = delete;
     TreeFilesInterface& operator=(const TreeFilesInterface&) = delete;
 
+    EditorEventBus* eventoArchivos_ = nullptr;
+
     void setIconosGUI(IconosGUI* iconosG);
+    // Bus de eventos del editor: se usa para notificar ArchivosReubicados tras
+    // un rename exitoso (lo inyecta GUIManager; opcional, default nullptr).
+    void setEditorEventBus(EditorEventBus* bus) noexcept;
     void solicitarActualizacion();
 
     virtual void initGUI() override;

@@ -19,6 +19,12 @@
 #ifndef ICONOSGUI_H
 #define ICONOSGUI_H
 
+// _HAS_STD_BYTE=0 DEBE ir ANTES de cualquier include de stdlib en Windows
+// para evitar colision con typedef 'byte' de rpcndr.h vs std::byte (C++17)
+#ifdef _WIN32
+#define _HAS_STD_BYTE 0
+#endif
+
 #include <string>
 #include <imgui.h>
 
@@ -39,12 +45,20 @@ public:
     ImTextureID getIconoHpp() const { return aImTexture(iconoHpp); }
     ImTextureID getIconoJava() const { return aImTexture(iconoJava); }
     ImTextureID getIconoGameObject() const { return aImTexture(iconoGameObject); }
+    ImTextureID getIconoLogo() const { return aImTexture(iconoLogo); }
+    // Proporcion ancho/alto del logo (1 si no cargo): util para dibujarlo
+    // con un alto dado manteniendo el aspecto del asset.
+    float aspectoLogo() const {
+        return altoLogo > 0 ? static_cast<float>(anchoLogo) / altoLogo : 1.f;
+    }
     ImTextureID getIconoPorExtension(const std::string& extension) const;
 
 private:
     // La GUI nunca ve handles: los convierte el backend a ImTextureID.
     static ImTextureID aImTexture(Rendering::Backend::Handle handle);
     Rendering::Backend::Handle cargarPNG(const char* nombrePNG);
+    Rendering::Backend::Handle cargarPNG(const char* nombrePNG, int* ancho,
+                                         int* alto);
 
     // Iconos base del explorador de archivos (ya existentes).
     Rendering::Backend::Handle iconoCarpeta = Rendering::Backend::kInvalidHandle;
@@ -53,6 +67,12 @@ private:
     Rendering::Backend::Handle iconoHpp = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoJava = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoGameObject = Rendering::Backend::kInvalidHandle;
+
+    // Logo del motor (marca del editor; se muestra en el menu superior).
+    Rendering::Backend::Handle iconoLogo = Rendering::Backend::kInvalidHandle;
+    // Dimensiones del logo (rellenadas en init; proporcion para dibujarlo).
+    int anchoLogo = 0;
+    int altoLogo = 0;
 
     // Iconos por extension de asset/formato (Imagenes/ + nombre.png).
     Rendering::Backend::Handle iconoBlend = Rendering::Backend::kInvalidHandle;

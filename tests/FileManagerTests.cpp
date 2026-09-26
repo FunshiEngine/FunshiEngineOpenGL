@@ -18,8 +18,8 @@
 */
 // Pruebas headless del subsistema FileManager (explorador de archivos).
 // Sin pila grafica: solo std C++17 + los headers de ImGui que arrastra
-// TreeGUI.h. Se ejecutan contra un proyecto temporal en
-// temp_directory_path()/funshi_filemanager_tests y se corren con ctest.
+// TreeGUI.h. Se ejecutan contra un proyecto temporal en una carpeta unica por
+// proceso (TempPruebas::CarpetaPrueba) y se corren con ctest.
 //
 // Casos:
 //   - Construccion del arbol y re-resolucion de FileSelection::carpetaActual
@@ -39,6 +39,7 @@
 #include <string>
 #include <thread>
 
+#include "TempPruebas.h"
 #include "../FunshiEngineGL/src/FileManager/FileManager.h"
 
 #if defined(__linux__)
@@ -96,8 +97,11 @@ std::string unir(const fs::path& base, const std::string& resto) {
 } // namespace
 
 int main() {
-    const fs::path base = fs::temp_directory_path() / "funshi_filemanager_tests";
-    fs::remove_all(base);
+    // Carpeta temporal unica por proceso (TempPruebas::CarpetaPrueba): sin
+    // remove_all inicial que pudiera pisar a otras corridas simultaneas de
+    // ctest; se limpia sola al salir del scope, incluso si el test falla.
+    TempPruebas::CarpetaPrueba carpetaBase("funshi_filemanager_tests");
+    const fs::path base = carpetaBase.ruta();
 
     // --- Proyecto sintetico -------------------------------------------------
     const fs::path proy = base / "proyecto";

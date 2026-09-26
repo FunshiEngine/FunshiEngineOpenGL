@@ -53,12 +53,13 @@ jobs:
           -DVCPKG_TARGET_TRIPLET=x64-windows
           -DCMAKE_BUILD_TYPE=Release
           -DENABLE_ASAN=OFF
+          -DFUNSHI_JAVA=ON
 
       - name: Compilar engine
         run: cmake --build build --config Release --target FunshiEngineGL
 
       - name: Compilar pruebas
-        run: cmake --build build --config Release --target filemanager-tests configuracion-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests
+        run: cmake --build build --config Release --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests
 
       - name: Ejecutar pruebas
         uses: nick-fields/retry@v3
@@ -127,7 +128,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev libglm-dev \
-            libncurses-dev libassimp-dev libbullet-dev libxrandr-dev \
+            libncurses-dev libassimp-dev libbullet-dev libasound2-dev \
+            libxrandr-dev \
             libxi-dev ninja-build patchelf
           # Qt Installer Framework (binarycreator) precisa el stack X11/xkbcommon/xcb
           sudo apt-get install -y \
@@ -138,13 +140,13 @@ jobs:
             libfontconfig1 libdbus-1-3 libglib2.0-0
 
       - name: Configurar
-        run: cmake -B build -S FunshiEngineGL -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF
+        run: cmake -B build -S FunshiEngineGL -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF -DFUNSHI_JAVA=ON
 
       - name: Compilar engine
         run: cmake --build build --target FunshiEngineGL
 
       - name: Compilar pruebas
-        run: cmake --build build --target filemanager-tests configuracion-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests
+        run: cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests
 
       - name: Ejecutar pruebas
         uses: nick-fields/retry@v3

@@ -16,31 +16,15 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-// windows.h antes de la stdlib (colision 'byte' de rpcndr.h vs std::byte en
-// MinGW cuando la stdlib ya se expandio; ver RuntimeException.cpp).
-#if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <commdlg.h>
-#include <shlobj.h>
-#include <shellapi.h>
-#elif defined(__linux__)
-#include <cstdio>
-#include <unistd.h>
-#endif
-
+// La E/S de plataforma (dialogos nativos, xdg-open/ShellExecute, listado de
+// directorio) vive en FileManager; esta vista solo conversa con la fachada.
 #include "ContentFolderInterface.h"
 
 #include <algorithm>
 #include <cstring>
-#include <filesystem>
 
 #include "../../Herramientas/PathUtils.h"
+#include "../../Events/EditorEventBus.h"
 #include "../../FileManager/FileManager.h"
 #include "../../FileManager/FileSelection.h"
 #include "../WindowNames.h"
@@ -53,59 +37,8 @@ ContentFolderInterface::ContentFolderInterface(bool stateGUI, FileManager* fileM
 
 void ContentFolderInterface::setIconosGUI(IconosGUI* iconosG) { iconosGUI = iconosG; }
 
-std::string ContentFolderInterface::seleccionarCarpetaSistema() {
-#if defined(_WIN32)
-    BROWSEINFOA bi = { 0 };
-    bi.lpszTitle = "Selecciona una carpeta para copiar";
-    LPITEMIDLIST pidl = SHBrowseForFolderA(&bi);
-    if (pidl != 0) {
-        char path[MAX_PATH];
-        if (SHGetPathFromIDListA(pidl, path)) return std::string(path);
-    }
-    return "";
-#elif defined(__linux__)
-    char buffer[512];
-    FILE* fp = popen("zenity --file-selection --directory 2>/dev/null", "r");
-    if (fp) {
-        if (fgets(buffer, sizeof(buffer), fp) != NULL) {
-            std::string path(buffer);
-            path.erase(path.find_last_not_of("\n\r") + 1);
-            pclose(fp);
-            return path;
-        }
-        pclose(fp);
-    }
-    return "";
-#endif
-}
-
-std::string ContentFolderInterface::seleccionarArchivoSistema() {
-#if defined(_WIN32)
-    OPENFILENAMEA ofn;
-    CHAR szFile[MAX_PATH] = { 0 };
-    ZeroMemory(&ofn, sizeof(ofn));
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = NULL;
-    ofn.lpstrFile = szFile;
-    ofn.nMaxFile = sizeof(szFile);
-    ofn.lpstrFilter = "Todos los archivos\0*.*\0";
-    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-    if (GetOpenFileNameA(&ofn) == TRUE) return std::string(szFile);
-    return "";
-#elif defined(__linux__)
-    char buffer[512];
-    FILE* fp = popen("zenity --file-selection 2>/dev/null", "r");
-    if (fp) {
-        if (fgets(buffer, sizeof(buffer), fp) != NULL) {
-            std::string path(buffer);
-            path.erase(path.find_last_not_of("\n\r") + 1);
-            pclose(fp);
-            return path;
-        }
-        pclose(fp);
-    }
-    return "";
-#endif
+void ContentFolderInterface::setEditorEventBus(EditorEventBus* bus) noexcept {
+    eventoArchivos_ = bus;
 }
 
 void ContentFolderInterface::crearNuevoElemento() {
@@ -130,66 +63,16 @@ void ContentFolderInterface::crearNuevoElemento() {
             if (nombre.find(ext) == std::string::npos) nombre += ext;
         }
 
+        // Script componente usa la convencion <ClassName>.ext: la clase es el
+        // nombre sin extension. La plantilla vive en FileManager.
         std::string contenido;
-        if (creandoScript) {
-            // Script componente usa la convencion <ClassName>.cpp.
+        if (creandoScript || creandoScriptJava) {
             std::string clase = nombre;
             const size_t dot = clase.find_last_of('.');
             if (dot != std::string::npos) clase = clase.substr(0, dot);
-            // La clase compilada se llama FUNSHI_NOMBRE_CLASE: asi el mismo
-            // template compila para cualquier <ClassName>.cpp del proyecto.
-            contenido =
-                "#include \"Behaviour/IScriptBehaviour.h\"\n"
-                "\n"
-                "// Script C++ ejecutado por el motor (compilado a .so con hot\n"
-                "// reload en play mode). Los campos expuestos con REFLECT_*\n"
-                "// aparecen como SerializeField en el inspector.\n"
-                "class FUNSHI_NOMBRE_CLASE : public IScriptBehaviour {\n"
-                "public:\n"
-                "    // float velocidad = 5.0f; // descomenten y agreguen aca\n"
-                "\n"
-                "    REFLECT_INICIO(FUNSHI_NOMBRE_CLASE)\n"
-                "        // REFLECT_CAMPO(velocidad)\n"
-                "    REFLECT_FIN\n"
-                "\n"
-                "    void onStart(GameObject* owner) override { (void)owner; }\n"
-                "    void onUpdate(GameObject* owner, float deltaTime) override {\n"
-                "        (void)owner; (void)deltaTime;\n"
-                "    }\n"
-                "    void onStop(GameObject* owner) override { (void)owner; }\n"
-                "\n"
-                "    std::vector<::ReflejoScripts::DefCampo>\n"
-                "    camposReflejados() const override { return reflexion(); }\n"
-                "};\n"
-                "\n"
-                "// Export requerida por el backend del motor; no renombrar.\n"
-                "extern \"C\" IScriptBehaviour* FUNSHI_CREAR_COMPORTAMIENTO(\n"
-                "    const MotorScript::ApiScriptGameObject* api) {\n"
-                "    (void)api;\n"
-                "    return new FUNSHI_NOMBRE_CLASE();\n"
-                "}\n";
-        } else if (creandoScriptJava) {
-            std::string clase = nombre;
-            const size_t dot = clase.find_last_of('.');
-            if (dot != std::string::npos) clase = clase.substr(0, dot);
-            contenido =
-                "// Script Java ejecutado por el motor via JNI (requiere compilar\n"
-                "// el motor con -DFUNSHI_JAVA=ON). Los campos publicos son\n"
-                "// SerializeField editables en el inspector.\n"
-                "// El nombre de la clase debe coincidir con el del archivo.\n"
-                "public class " + clase + " implements Comportamiento {\n"
-                "    // public float velocidad = 5.0f;\n"
-                "\n"
-                "    @Override\n"
-                "    public void iniciar(long objeto) {}\n"
-                "\n"
-                "    @Override\n"
-                "    public void actualizar(long objeto, double deltaTime) {}\n"
-                "\n"
-                "    @Override\n"
-                "    public void detener(long objeto) {}\n"
-                "}\n";
+            contenido = fileManager->plantillaScript(clase, creandoScriptJava);
         }
+
         const std::string ruta = destFolder + PATH_SEP + nombre;
         // No sube el contador: los archivos no aparecen en el arbol de
         // carpetas y no merece colapsar la navegacion por un rescaneo.
@@ -211,11 +94,12 @@ void ContentFolderInterface::copiarElementoSuelto(const std::string& origen,
                                                   const std::string& destFolder) {
     if (origen.empty() || destFolder.empty()) return;
     FileSelection* sel = fileManager->getSelection();
-    std::error_code ec;
-    const std::string nombre = std::filesystem::path(origen).filename().string();
+    const std::string::size_type sep = origen.find_last_of("/\\");
+    const std::string nombre = (sep != std::string::npos)
+        ? origen.substr(sep + 1) : origen;
     const std::string finalDest = destFolder + PATH_SEP + nombre;
     if (finalDest == origen) return;
-    if (std::filesystem::is_directory(origen, ec)) {
+    if (fileManager->esDirectorio(origen)) {
         if (fileManager->copiarCarpeta(origen, finalDest)) sel->contadorCambios++;
     } else {
         fileManager->copiarArchivo(origen, finalDest);
@@ -228,36 +112,12 @@ void ContentFolderInterface::recorrer(const std::string& path) {
     // R5: re-scanear solo si cambio la ruta mostrada o el mtime del directorio
     // (mtime de un directorio sube al agregar/quitar entradas, justo lo que
     // pinta este panel; crear/renombrar/borrar dentro lo actualiza).
-    std::error_code ec;
-    const std::filesystem::file_time_type mtime =
-        std::filesystem::last_write_time(path, ec);
-    if (ec || path != cacheCarpeta || mtime != cacheMtime) {
+    const auto mtime = FileManager::mtimeDirectorio(path);
+    if (path != cacheCarpeta || mtime != cacheMtime) {
         cacheCarpeta = path;
         cacheMtime = mtime;
-        cacheEntradas.clear();
-
-        std::filesystem::directory_iterator dirIt(path, ec);
-        if (ec) return;
-        const std::filesystem::directory_iterator fin;
-        for (; dirIt != fin;) {
-            const std::filesystem::directory_entry entrada = *dirIt;
-            dirIt.increment(ec);
-            if (ec) { ec.clear(); continue; } // entrada con errores: la saltamos
-
-            const std::string nombre = entrada.path().filename().string();
-            if (nombre == "." || nombre == "..") continue;
-            const std::string fullPath = entrada.path().string();
-            // No seguir symlinks: pueden apuntar a carpetas del sistema.
-            if (std::filesystem::is_symlink(entrada.symlink_status())) continue;
-            const bool esCarpeta = entrada.is_directory();
-
-            size_t dot = nombre.find_last_of('.');
-            std::string extension;
-            if (!esCarpeta && dot != std::string::npos && dot != 0)
-                extension = nombre.substr(dot);
-
-            cacheEntradas.push_back({nombre, fullPath, esCarpeta, extension});
-        }
+        if (!FileManager::listarDirectorio(path, cacheEntradas))
+            cacheEntradas.clear();
     }
 
     // Dibujo del grid desde el cache (mismo layout del grid de iconos).
@@ -273,9 +133,9 @@ void ContentFolderInterface::recorrer(const std::string& path) {
     float yInicio = ImGui::GetCursorPosY();
 
     for (size_t i = 0; i < cacheEntradas.size(); ++i) {
-        const GridEntry& entrada = cacheEntradas[i];
+        const FileManager::EntradaDirectorio& entrada = cacheEntradas[i];
         const std::string& nombre = entrada.nombre;
-        const std::string& fullPath = entrada.fullPath;
+        const std::string& fullPath = entrada.ruta;
         const bool esCarpeta = entrada.esCarpeta;
         const std::string& extension = entrada.extension;
         size_t dot = nombre.find_last_of('.');
@@ -340,19 +200,9 @@ void ContentFolderInterface::recorrer(const std::string& path) {
                     sel->carpetaActual->getPathRoot() + PATH_SEP +
                     sel->carpetaActual->getPathName() + PATH_SEP + nombre;
             } else if (!esCarpeta) {
-#if defined(_WIN32)
-                ShellExecuteA(NULL, "open", fullPath.c_str(), NULL, NULL, SW_SHOW);
-#elif defined(__linux__)
-                // fork+exec (sin shell): los nombres de archivo pueden contener
-                // comillas o metacaracteres y system() no debe tener los dedos
-                // en la command line. xdg-open se desprende solo.
-                pid_t pid = fork();
-                if (pid == 0) {
-                    execl("/usr/bin/xdg-open", "xdg-open", fullPath.c_str(),
-                          static_cast<char*>(nullptr));
-                    _exit(127);
-                }
-#endif
+                // Abre el archivo con la app predeterminada del sistema (la E/S
+                // nativa vive en FileManager; aqui solo se delega).
+                FileManager::abrirConAppPredeterminada(fullPath);
             }
         }
 
@@ -389,7 +239,10 @@ void ContentFolderInterface::recorrer(const std::string& path) {
 
 void ContentFolderInterface::initGUI() {
     FileSelection* sel = fileManager->getSelection();
-    ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
+    // Usa dockAlive_ (siempre true) para que la ventana exista en g.Windows
+    // cada frame y ImGui pueda re-aplicar su DockId al restaurar el ini.
+    // stateGUI controla solo la visibilidad visual (usuario cierra con X).
+    ImGui::Begin(getNameGui().c_str(), &dockAlive_, getFlagGui());
 
     if (ImGui::BeginPopupContextWindow("AddFilesPopup", ImGuiPopupFlags_MouseButtonRight)) {
         if (ImGui::MenuItem("New Script")) {
@@ -421,7 +274,7 @@ void ContentFolderInterface::initGUI() {
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::MenuItem("Copy Exist Folder") && sel->carpetaActual) {
-            std::string sourceFolder = seleccionarCarpetaSistema();
+            std::string sourceFolder = FileManager::seleccionarCarpetaSistema();
             if (!sourceFolder.empty()) {
                 const std::string destFolder =
                     sel->carpetaActual->getPathRoot() + PATH_SEP +
@@ -436,7 +289,7 @@ void ContentFolderInterface::initGUI() {
             }
         }
         if (ImGui::MenuItem("Copy Exist File") && sel->carpetaActual) {
-            std::string sourceFile = seleccionarArchivoSistema();
+            std::string sourceFile = FileManager::seleccionarArchivoSistema();
             if (!sourceFile.empty()) {
                 const std::string destFolder =
                     sel->carpetaActual->getPathRoot() + PATH_SEP +
@@ -494,6 +347,20 @@ void ContentFolderInterface::initGUI() {
             const std::string nuevo = bufferRenombrar;
             if (!nuevo.empty() &&
                 fileManager->renombrar(renombrarRuta, nuevo)) {
+                // Referencias de la escena bajo la ruta vieja (mallas,
+                // texturas, scripts): main las reescribe y persiste.
+                if (eventoArchivos_ != nullptr) {
+                    const std::string::size_type sep =
+                        renombrarRuta.find_last_of("/\\");
+                    if (sep != std::string::npos) {
+                        EditorEvent ev;
+                        ev.type = EditorEventType::ArchivosReubicados;
+                        ev.rutaAnterior = renombrarRuta;
+                        ev.rutaNueva =
+                            renombrarRuta.substr(0, sep) + PATH_SEP + nuevo;
+                        eventoArchivos_->publish(ev);
+                    }
+                }
                 // Si es carpeta, el arbol se rescancea; el cache del grid se
                 // invalida solo por mtime en el proximo recorrer().
                 if (renombrarEsCarpeta) sel->contadorCambios++;
@@ -551,13 +418,13 @@ void ContentFolderInterface::endGUI() { ImGui::End(); }
 void ContentFolderInterface::printGUI() {
     FileSelection* sel = fileManager->getSelection();
     const bool hayCarpeta = sel && sel->carpetaActual != nullptr;
-    // R3: el panel se gobierna a si mismo. Se dibuja si esta abierto o si hay
-    // seleccion; se oculta automaticamente cuando no hay carpeta (aunque
-    // stateGUI quede en true, sin Begin() la ventana no se muestra).
+    // La ventana SIEMPRE existe en g.Windows (initGUI/endGUI cada frame)
+    // para que ImGui pueda re-aplicar su DockId al restaurar el ini.
+    // El contenido solo se dibuja si hay carpeta o stateGUI (visibilidad).
+    initGUI();
     if (stateGUI || hayCarpeta) {
         stateGUI = true;
-        initGUI();
         contentGUI();
-        endGUI();
     }
+    endGUI();
 }

@@ -24,25 +24,28 @@ jobs:
             libncurses-dev \
             libassimp-dev \
             libbullet-dev \
+            libasound2-dev \
             libxrandr-dev \
             libxi-dev
 
       - name: Configurar
-        run: cmake -B build -S FunshiEngineGL -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF
+        run: cmake -B build -S FunshiEngineGL -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF -DFUNSHI_JAVA=ON
 
       - name: Compilar engine
         run: cmake --build build --target FunshiEngineGL
 
       - name: Compilar pruebas
-        run: cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests
+        run: cmake --build build --config Release --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests
 
       - name: Ejecutar pruebas
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build -C Release --output-on-failure
 
   # Pruebas headless multiplataforma: compilan y corren sin la pila grafica en
   # Linux y Windows (con BUILD_ENGINE=OFF no se requieren libs externas).
   # macOS queda fuera por ahora: no se quiere mantener esa plataforma en el
   # build hasta que el sistema multiplataforma este mas maduro.
+  # NOTA: comandos-tests, manifiesto-assets-tests, orquestador-estado-tests,
+  # tema-tests requieren funshi_engine (BUILD_ENGINE=ON), NO se incluyen aqui.
   tests-multiplataforma:
     name: Pruebas headless (${{ matrix.os }})
     strategy:
@@ -54,10 +57,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configurar (solo pruebas, sin engine)
-        run: cmake -B build -S FunshiEngineGL -G Ninja -DBUILD_ENGINE=OFF -DENABLE_ASAN=OFF
+        run: cmake -B build -S FunshiEngineGL -G Ninja -DBUILD_ENGINE=OFF -DENABLE_ASAN=OFF -DFUNSHI_JAVA=OFF
 
-      - name: Compilar pruebas
-        run: cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests
+      - name: Compilar pruebas headless
+        run: cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests model-serialization-tests
 
       - name: Ejecutar pruebas
         run: ctest --test-dir build --output-on-failure

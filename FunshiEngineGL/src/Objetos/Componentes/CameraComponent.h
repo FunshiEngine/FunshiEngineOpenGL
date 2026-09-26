@@ -47,9 +47,12 @@ private:
 
     Transform* getLocalTransform() const;
     void leerDesdeTransform();
-    void escribirATransform();
     void calculardireccion();
     void move(const float direction[3], float velocity);
+
+public:
+    void escribirATransform();
+    void sincronizarConTransform() { leerDesdeTransform(); }
 
 protected:
     void serializeComponent(std::ofstream* file) override;
@@ -62,6 +65,14 @@ public:
 
     void saveComponent(std::ofstream* file) override;
     void loadComponent(std::ifstream* file) override;
+
+    // Post-carga: vincula el dueno y deriva el estado de la vista local desde
+    // su Transform global. Reemplaza el despacho por nombre de tipo que hacia
+    // deserializeEntityComponents ("CameraComponent"/"Camera").
+    void onLoaded(GameObject& owner) override;
+
+    // Fuerza lectura de posicion/direccion desde el Transform del duenio.
+    void refreshFromTransform() { leerDesdeTransform(); }
 
     // Vista actual segun el Transform del duenio (nunca cachead) : el gizmo,
     // el picking y el render comparten la misma fuente de verdad.
@@ -79,9 +90,29 @@ public:
     void forwardLeft(float dt);
     void backRight(float dt);
     void backLeft(float dt);
+    // Movimiento por vector unitario combinado (WASD en diagonal): el caller
+    // pasa el vector [derecha, arriba, adelante] ya normalizado y esto aplica
+    // speed*dt a cada eje. Reemplaza el encadenamiento de forward/left que
+    // hacian las callbacks antes (la diagonal salia a sqrt(2) y con jitter).
+    void moverDireccion(const float direccion[3], float dt);
     void updateYaw(float dYawX, float dYawY);
 
+    // Orbita: la camara gira alrededor de un punto origen manteniendo la
+    // distancia (radio) y mirando hacia ese punto. El caller pasa el delta
+    // de yaw/pitch, el origen y el radio (ajustable con rueda del mouse);
+    // se recalcula posicion y orientacion. Devuelve el radio efectivo usado
+    // (clampado a [radioMin, radioMax]).
+    float orbitAround(const float* origen, float radio, float dYawX, float dYawY);
+
+    // Limites de radio para orbita.
+    static constexpr float radioMin = 3.0f;
+    static constexpr float radioMax = 50.0f;
+
     const float* getPosition() const { return m_pos; }
+    void setPosition(const float pos[3]) { m_pos[0] = pos[0]; m_pos[1] = pos[1]; m_pos[2] = pos[2]; }
+    const float* getDirection() const { return m_dir; }
+
+    float getYawX() const { return yawX; }
 
     float getFov() const { return fov; }
     void setFov(float v) { fov = v; }

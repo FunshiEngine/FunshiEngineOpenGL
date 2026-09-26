@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Installer>
     <Name>FunshiEngineGL</Name>
-    <Version>0.5.0-alpha</Version>
+    <Version>0.5.4</Version>
     <Title>FunshiEngineGL Installer</Title>
     <Publisher>FunshiEngineGL</Publisher>
 
     <WizardStyle>Modern</WizardStyle>
+
+    <!-- Logo del wizard + icono de la ventana del instalador (PNGs en config/).
+         Deben ser ARCHIVOS DISTINTOS: binarycreator copia cada uno a su propio
+         destino y usar el mismo archivo en ambos campos lo hace chocar
+         ("Target already exist"). El icono de la aplicacion instalada
+         (.exe en Windows) vive en packaging/icon/app.ico via el recurso CMake. -->
+    <Logo>logo_banner.png</Logo>
+    <InstallerWindowIcon>logo.png</InstallerWindowIcon>
 
     <TargetDir>@HomeDir@/Desktop/FunshiEngineGL</TargetDir>
 

@@ -21,6 +21,8 @@
 
 #include <memory>
 
+#include "Comandos/GestorComandos.h"
+
 class Component;
 class GameObject;
 class PhysicsEngine;
@@ -64,6 +66,9 @@ private:
     // (p. ej. el offset local de un collider). Se limpia al cambiar de
     // seleccion o borrar objetos.
     GizmoTarget gizmoTarget;
+
+    // Gestor de comandos para undo/redo
+    GestorComandos gestorComandos;
 
 public:
     EditorController(SceneRegistry* scene, PhysicsEngine* physics = nullptr,
@@ -115,6 +120,15 @@ public:
     void clearGizmoTarget();
     bool hasGizmoTarget() const noexcept { return gizmoTarget.local != nullptr; }
     const GizmoTarget& getGizmoTarget() const noexcept { return gizmoTarget; }
+
+    // Sistema de comandos (undo/redo). deshacer/rehacer devuelven la descripcion
+    // del comando aplicado (vacia si no habia nada que deshacer/rehacer) para que
+    // la vista pueda avisarlo en la barra de estado.
+    GestorComandos* getGestorComandos() noexcept { return &gestorComandos; }
+    std::string deshacer();
+    std::string rehacer();
+    bool puedeDeshacer() const noexcept;
+    bool puedeRehacer() const noexcept;
 };
 
 #endif

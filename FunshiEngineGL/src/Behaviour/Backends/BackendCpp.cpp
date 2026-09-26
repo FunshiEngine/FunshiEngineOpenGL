@@ -16,26 +16,11 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#include "BackendCpp.h"
 
-#include <cstdio>
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <iterator>
-#include <string>
-
-#include "../ScriptGameObject.h"
-#include "../IScriptBehaviour.h"
-
-#ifndef FUNSHI_CXX_COMPILER
-#define FUNSHI_CXX_COMPILER "g++"
-#endif
-#ifndef FUNSHI_SRC_DIR
-#define FUNSHI_SRC_DIR ""
-#endif
-
+// Windows.h ANTES del header propio y de la stdlib, para que
+// _HAS_STD_BYTE=0 surta efecto antes de que la stdlib defina std::byte.
 #if defined(_WIN32)
+#define _HAS_STD_BYTE 0
 #include <windows.h>
 #define FUNSHI_DLOPEN(name) LoadLibraryA((name).c_str())
 #define FUNSHI_DLSYM(handle, symbol) GetProcAddress(reinterpret_cast<HMODULE>(handle), symbol)
@@ -57,6 +42,25 @@
 #define FUNSHI_DLOPENCERRAR(handle) dlclose(handle)
 #define FUNSHI_SYM_CREAR "FUNSHI_CREAR_COMPORTAMIENTO"
 #define FUNSHI_ARTEFACTO_EXT "so"
+#endif
+
+#include "BackendCpp.h"
+
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <string>
+
+#include "../ScriptGameObject.h"
+#include "../IScriptBehaviour.h"
+
+#ifndef FUNSHI_CXX_COMPILER
+#define FUNSHI_CXX_COMPILER "g++"
+#endif
+#ifndef FUNSHI_SRC_DIR
+#define FUNSHI_SRC_DIR ""
 #endif
 
 namespace {
@@ -81,6 +85,16 @@ std::string escapar(const std::string& ruta) {
         }
     }
     return resultado;
+}
+
+// Directorio con las cabeceras del motor para que el script pueda incluir
+// ScriptGameObject.h. Prioridad: variable de entorno FUNSHI_SRC_DIR; si no,
+// la ruta horneada en el build (el repo en un build dev, o la carpeta de
+// instalacion en un build de CI/instalador). Vacia si no hay cabeceras.
+std::string directorioSrcMotor() {
+    const char* env = std::getenv("FUNSHI_SRC_DIR");
+    if (env && *env) return env;
+    return FUNSHI_SRC_DIR;
 }
 
 std::string directorioCache() {
@@ -145,10 +159,20 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
     bool hayQueRecompilar = !std::filesystem::exists(artefactoPath, ec) ||
                             salida.mtimeFuente != mtime;
     if (hayQueRecompilar) {
-        // FUNSHI_SRC_DIR llega como literal con comillas dentro del contenido
-        // (FUNSHI_SRC_DIR=\"/ruta\") usadas para argv del compilador.
-        std::string logic = std::string("-I") + FUNSHI_SRC_DIR + " " +
-                            escapar(fuente);
+        // -I al dir de cabeceras del motor + fuente a compilar, ambos
+        // entrecomillados (rutas con espacios). En Windows ademas del /I no
+        // existia el include path, asi que el script nunca encontraba las
+        // cabeceras del SDK: se arregla aqui.
+        std::string logic;
+        const std::string dirSrc = directorioSrcMotor();
+        if (!dirSrc.empty()) {
+#if defined(_WIN32)
+            logic = "/I\"" + escapar(dirSrc) + "\" ";
+#else
+            logic = "-I\"" + escapar(dirSrc) + "\" ";
+#endif
+        }
+        logic += escapar(fuente);
         const std::string logPath =
             (std::filesystem::path(directorioCache()) / "compilar.log")
                 .string();

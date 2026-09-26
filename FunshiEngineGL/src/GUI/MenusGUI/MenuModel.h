@@ -65,6 +65,22 @@ public:
     const std::vector<std::string>& getProyectosDisponibles() const noexcept;
     void setProyectosDisponibles(const std::vector<std::string>& proyectos);
 
+    // Edicion de nombre por click derecho: la vista registra aqui el nombre
+    // original de la carpeta a renombrar y main la consume al confirmar.
+    // Vacia = confirmacion normal (crear/cambiar). Con valor = renombrar esa
+    // carpeta al nombre confirmado (modelo puro, sin disco/ImGui).
+    const std::string& getProyectoARenombrar() const noexcept;
+    void setProyectoARenombrar(const std::string& nombre);
+    void limpiarProyectoARenombrar() noexcept;
+
+    // Eliminacion por click derecho: la vista registra aqui el nombre de la
+    // carpeta a eliminar y main la consume al confirmar el modal (borrado de
+    // disco + reset del estado si era el proyecto activo). Vacia = sin
+    // eliminacion pendiente.
+    const std::string& getProyectoAEliminar() const noexcept;
+    void setProyectoAEliminar(const std::string& nombre);
+    void limpiarProyectoAEliminar() noexcept;
+
     const std::string& getIdioma() const noexcept;
     void setIdioma(const std::string& valor);
     const std::vector<std::string>& getIdiomas() const noexcept;
@@ -84,6 +100,11 @@ public:
     // pixel/grado (comportamiento historico).
     float getSensibilidadCamara() const noexcept;
     void setSensibilidadCamara(float sensibilidad);
+    // Sensibilidad de MOVIMIENTO (WASD) de la camara del editor (vista
+    // Opciones): multiplica la velocidad base de la camara activa. Se aplica a
+    // la escena por SensibilidadMovimientoCambio (independiente del mouse look).
+    float getSensibilidadMovimientoCamara() const noexcept;
+    void setSensibilidadMovimientoCamara(float sensibilidad);
 
     // Perfil de apariencia (tema, modo B/N, acento de la UI y fondo 3D). La
     // vista Opciones lo edita y main lo aplica a ImGui y a la escena.
@@ -105,6 +126,7 @@ public:
         Nombre,
         Idioma,
         SensibilidadCamara,
+        SensibilidadMovimientoCamara,
         Apariencia,
         Reiniciar, // restablecerConfiguracion() completo
     };
@@ -115,9 +137,17 @@ private:
     Vista vista = Vista::Principal;
     std::string nombreProyecto = "Nuevo Proyecto";
     std::vector<std::string> proyectosDisponibles;
+    // Carpeta original en edicion por click derecho (vacia = confirmar normal).
+    std::string proyectoARenombrar;
+    // Carpeta pendiente de eliminacion (vacia = sin eliminacion registrada).
+    std::string proyectoAEliminar;
     std::string idioma = "Espanol";
     std::vector<std::string> idiomasDisponibles = {"Espanol", "English"};
-    float sensibilidadCamara = 1.0f;
+    float sensibilidadCamara = 0.15f;
+    // Sensibilidad de movimiento (WASD) de la camara del editor. Se configura
+    // en la vista Opciones junto a la sensibilidad de camara y se aplica a la
+    // escena por SensibilidadMovimientoCambio.
+    float sensibilidadMovimientoCamara = 1.0f;
     Apariencia apariencia;
     // Un solo observador (la fachada). Puntero a funcion/closure NO propietario;
     // si no hay observador, no hacer nada.

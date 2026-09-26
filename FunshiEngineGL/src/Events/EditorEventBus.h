@@ -44,8 +44,11 @@ enum class EditorEventType {
     CamaraActivaCambio,   // camara elegida con "Usar" -> previews/inspector
     IdiomaCambio,         // idioma -> etiquetas sensibles (onLanguageChanged)
     SensibilidadCambio,   // multiplicador del mouse look de la camara -> escena
+    SensibilidadMovimientoCambio, // multiplicador de la velocidad WASD -> escena
     ReiniciarConfiguracion, // "Restablecer configuracion" -> main reaplica defaults
     VentanaActivaCambio,  // reservado: ventana con foco ImGui (Settings futuro)
+    ArchivosReubicados,   // archivo/carpeta movido o renombrado en el explorador -> Reescribir referencias
+    ExportarJuego,        // solicitud de exportar el proyecto (main copia carpeta)
 };
 
 // Datos declarativos segun el tipo (punteros NO propietarios; cadenas por
@@ -66,6 +69,10 @@ struct EditorEvent {
     // Para SensibilidadCambio: multiplicador global del mouse look (1.0 = 1:1).
     float sensibilidad = 1.0f;
 
+    // Para SensibilidadMovimientoCambio: multiplicador de la velocidad WASD de
+    // la camara del editor (1.0 = velocidad base de la camara activa).
+    float sensibilidadMovimiento = 1.0f;
+
     // Para CamaraActivaCambio: puntero NO propietario al GameObject camara
     // (igual que SceneEvent.object, pero semantica: «cambio la camara activa»,
     // no «se selecciono un objeto»). nullptr = camara automatica.
@@ -74,6 +81,16 @@ struct EditorEvent {
     // Para AparienciaCambio: el perfil COMPLETO (tema, B/N, acento y fondo).
     // Se transporta por valor como un DTO puro, sin punteros a la escena.
     Apariencia apariencia;
+
+    // Para ArchivosReubicados: rutas ABSOLUTAS anterior y nueva del elemento
+    // que se movio o renombro dentro del explorador. main (unico suscriptor)
+    // reescribe las referencias de la escena que cayan bajo rutaAnterior.
+    std::string rutaAnterior;
+    std::string rutaNueva;
+
+    // Para ExportarJuego: mensaje de resultado (exito/error) para feedback
+    // visual (status bar / toast).
+    std::string mensaje;
 };
 
 // Bus pub/sub 1:1 con el patron de EventBus (SceneEvent) pero con EditorEvent.
