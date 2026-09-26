@@ -26,6 +26,7 @@ class GameObject;
 class GameObjectFactory {
 public:
     static std::unique_ptr<GameObject> createModelObject();
+    static std::unique_ptr<GameObject> createSimpleObject();
 };
 
 #endif

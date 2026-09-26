@@ -19,7 +19,12 @@
 #include "GameObjectFactory.h"
 
 #include "Modelos3D.h"
+#include "SimpleObject.h"
 
 std::unique_ptr<GameObject> GameObjectFactory::createModelObject() {
     return std::make_unique<Modelos3D>();
+}
+
+std::unique_ptr<GameObject> GameObjectFactory::createSimpleObject() {
+    return std::make_unique<SimpleObject>();
 }

@@ -24,6 +24,7 @@
 
 class btCollisionShape;
 class GameObject;
+class LineBatch;
 
 // Collider: componente geometrico de colision.
 //
@@ -42,6 +43,20 @@ protected:
 	std::unique_ptr<Transform> myTransform;
 	std::unique_ptr<btCollisionShape> collisionShape;
 	GameObject* owner = nullptr;
+
+	// Batch de GPU con el wireframe del collider. Vive en la base para que los
+	// tres tipos reutilicen el mismo recurso: la geometria casi no cambia (solo
+	// el radio) y el dibujado es un unico draw por collider en vez de uno por
+	// arista.
+	// Va como puntero a incomplete type a proposito: Collider.h lo incluyen los
+	// scripts, la serializacion y los targets headless, que no deben arrastrar
+	// la pila de Rendering (LineBatch -> IRenderBackend -> glm). Se destruye en
+	// ~Collider(), que esta definido en el .cpp.
+	std::unique_ptr<LineBatch> wireBatch_;
+
+	// Devuelve el batch del wireframe, creandolo la primera vez (el dibujo
+	// ocurre con un contexto GL vivo).
+	LineBatch& obtenerWireBatch();
 
 	void serializeComponent(std::ofstream* fileNamePathContentObject) override;
 	void deserializeComponent(std::ifstream* fileNamePathContentObject) override;

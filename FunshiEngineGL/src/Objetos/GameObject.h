@@ -77,7 +77,9 @@ public:
     bool getState();
     int getTam();
 
-    virtual void dibujar(float deltaTime) = 0;
+    // El dibujado no es responsabilidad de la entidad: SceneRenderer recorre la
+    // escena y dibuja cada Modelos3D con MeshRenderer (VBO/VAO + shader). Asi
+    // la entidad no necesita conocer la capa de Rendering.
     virtual void update(float deltaTime);
 
 protected:

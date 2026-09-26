@@ -304,8 +304,8 @@ static int EjecutarMotor(int argc, char* argv[])
         Rendering::Backend::activeBackend().setClearColor(fondoInicial);
     }
 
-    // El estado de luz (GL_LIGHTING y GL_LIGHT0..7) lo gestiona el backend en
-    // cada pasada de la escena; no se enciende nada a mano aca.
+    // La iluminacion no tiene estado que encender: LightSystem arma los datos en
+    // CPU y SceneRenderer los sube como uniforms del shader en cada pasada.
 
     float FPS = 60.0;    //LIMITE DE FPS
     IMGUI_CHECKVERSION();

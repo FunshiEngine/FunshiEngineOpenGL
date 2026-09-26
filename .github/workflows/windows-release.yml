@@ -43,10 +43,10 @@ jobs:
         run: cmake --build build --config Release --target FunshiEngineGL
 
       - name: Compilar pruebas
-        run: cmake --build build --config Release --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests
+        run: cmake --build build --config Release --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests
 
       - name: Ejecutar pruebas
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ctest --test-dir build -C Release --output-on-failure --verbose
 
       - name: Montar dist (exe + dlls + Imagenes)
         shell: pwsh

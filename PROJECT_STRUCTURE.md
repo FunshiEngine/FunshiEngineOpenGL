@@ -4,12 +4,14 @@
 
 `FunshiEngineGL` es un editor/motor gráfico 3D en C++17. El ejecutable combina:
 
-- Ventana y contexto OpenGL mediante GLFW.
-- Renderizado híbrido: los modelos usan `MeshRenderer` (VBO/VAO + shaders) y
-  degradan a `glBegin/glEnd` (modo inmediato) si el shader no está disponible o
-  la malla no tiene normales; la grilla es un componente (`Grid`) en una pasada
-  independiente con display lists. Los marcadores de luz/cámara y los gizmos de
-  los colliders siguen usando el pipeline de compatibilidad.
+- Ventana y contexto OpenGL 3.3 **core** mediante GLFW.
+- Renderizado con un único pipeline moderno: los modelos usan `MeshRenderer`
+  (VBO/VAO + shaders) y las líneas un batch en GPU con shader de ancho en
+  píxeles. No queda modo inmediato (`glBegin/glEnd`), ni matrices de
+  compatibilidad, ni materiales ni luces de estado fijo. La grilla es un
+  componente (`Grid`) en una pasada independiente que ya no usa display lists;
+  los marcadores de luz/cámara y los gizmos de los colliders se dibujan con el
+  mismo pipeline de líneas.
 - Interfaz de editor con Dear ImGui y gizmos con ImGuizmo.
 - Jerarquía de entidades basada en árboles enlazados propios.
 - Simulación física mediante Bullet Physics detrás de una fachada desacoplada.
@@ -26,8 +28,11 @@
 - Estructuras de datos genéricas propias y jerarquía de excepciones.
 
 El punto de entrada es `FunshiEngineGL/src/main.cpp`. La configuración de compilación
-está en `FunshiEngineGL/CMakeLists.txt`; también existe una solución de Visual Studio
-(`FunshiEngineGL.sln`). Las pruebas headless viven en `tests/` y el CI en
+está en `FunshiEngineGL/CMakeLists.txt`, que es el único build soportado: CMake
+genera la solución de Visual Studio dentro del directorio de build que elijas
+(por ejemplo `FunshiEngineGL/build-win/FunshiEngineGL.sln`), así que no hay
+proyectos de Visual Studio mantenidos a mano en el repositorio. Las pruebas
+headless viven en `tests/` y el CI en
 `.github/workflows/ci.yml`.
 
 ---
@@ -47,7 +52,6 @@ FunshiEngineGL/                          ← raíz del repo
 ├── ARQUITECTURA_ESTADOS_GUI.md          ← estados/menú/GUI internas (diseño + Fases 1-3)
 ├── MANUAL_DE_USO.md                     ← manual de usuario (editor + scripting C++/Java)
 ├── FLUJO_DE_RAMAS.md                    ← convención de ramas (develop/test/staging/release)
-├── FunshiEngineGL.sln                   ← solución Visual Studio (Windows)
 ├── .github/workflows/ci.yml             ← CI: engine en Ubuntu + pruebas en Linux/Win/macOS
 ├── .github/workflows/release.yml        ← instaladores Qt IFW (.run) e Inno (.exe) por tag
 ├── .github/workflows/windows-release.yml← build+release específico de Windows
@@ -68,16 +72,13 @@ FunshiEngineGL/                          ← raíz del repo
 └── FunshiEngineGL/                      ← proyecto CMake principal
     ├── CMakeLists.txt                   ← GLOB de fuentes, dependencias, sanitizers,
     │                                      pruebas (CTest) y opción BUILD_ENGINE
-    ├── FunshiEngineGL.vcxproj(.filters) ← proyecto de Visual Studio (Windows)
     ├── Imagenes/                        ← íconos del explorador (cpp, cubo, file, folder, hpp)
     ├── ImGuizmo/                        ← dependencia integrada (ImGuizmo.cpp/.h, etc.)
     ├── External/nlohmann/json.hpp       ← nlohmann/json vendoriado (EditorConfig)
     └── src/
         ├── main.cpp                     ← composition root: ventanas, callbacks, bucle, config
         ├── EngineTime.h / EngineTime.cpp← delta time y limitador de FPS
-        ├── Ventana.h / Ventana.cpp      ← inicialización GLFW
-        ├── GLCompat.h                   ← cabecera única OpenGL legacy (gl.h/glu.h) + GLFW, con
-        │                                  las constantes que faltan en el SDK de Windows
+        ├── Ventana.h / Ventana.cpp      ← inicialización GLFW y contexto 3.3 core
         ├── Assets/                      ← caché Flyweight compartida (meshes e imágenes)
         │   ├── AssetManager.h/.cpp      ← registro de AssetPath→Mesh (loader inyectable)
         │   ├── TextureManager.h/.cpp    ← registro de AssetPath→Image (loader inyectable)
@@ -204,9 +205,21 @@ FunshiEngineGL/                          ← raíz del repo
         ├── Rendering/
         │   ├── MeshGPU.h/.cpp            ← malla residente en GPU (buffers VBO/VAO)
         │   ├── MeshRenderer.h/.cpp       ← dibuja MeshGPU con shader program
+        │   ├── LineBuilder.h/.cpp        ← geometría CPU de líneas (cada segmento
+        │   │                                expandido a un quad; sin OpenGL)
+        │   ├── LineBatch.h/.cpp          ← batch de líneas en GPU (VAO+VBO, RAII)
+        │   ├── LineRenderer.h/.cpp       ← shader de líneas gruesas + batch; fija las
+        │   │                                matrices y el viewport de la pasada actual
+        │   │                                (líneas de la grilla, marcadores y gizmos)
+         │   ├── GuiaEje.h/.cpp            ← geometría CPU de la guía de eje (X/Y/Z) del
+         │   │                                objeto seleccionado: origen + dirección
+         │   │                                unitaria, recorte analítico al horizonte y
+         │   │                                difuminado por vértice; solo CPU, sin OpenGL
+
         │   ├── TextureGL.h/.cpp          ← textura OpenGL desde Image
         │   ├── RenderTarget.h/.cpp       ← render a textura (FBO) para vistas previas de cámara
-        │   ├── GLFuncs.h                ← punteros de función OpenGL (contexto de compatibilidad)
+        │   ├── GLFuncs.h                ← punteros de función OpenGL 3.3 core (glad-style)
+        │   ├── Backend/                  ← IRenderBackend + OpenGL3Backend (única capa con GL)
         │   └── Shaders/
         │       ├── ShaderProgram.h/.cpp  ← compilación/link de shaders + ShaderSources.h
         │       └── ShaderException.h
@@ -214,7 +227,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── GameObject.h/.cpp         ← id, nombre, estado, update, serialización binaria
         │   ├── GameObjectFactory.h/.cpp
         │   ├── SimpleObject.h            ← GameObject sin geometría (Transform/Grid/Light...)
-        │   ├── Modelos3D.h/.cpp          ← carga Assimp y dibujo (MeshRenderer o glBegin/glEnd)
+        │   ├── Modelos3D.h/.cpp          ← carga Assimp y datos de la malla (el dibujado
+        │   │                                es de SceneRenderer, vía MeshRenderer)
         │   └── Componentes/
         │       ├── Component.h           ← interfaz base polimórfica (serialize/deserialize)
         │       ├── ComponentFactory.h/.cpp ← creación por nombre (GUI y deserialización)
@@ -228,6 +242,7 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── RigidBody/RigidBody.h/.cpp ← cuerpo Bullet sincronizado (RAII)
         │       └── Colliders/
         │           ├── Collider.h/.cpp   ← base abstracta; radio; gizmo del collider (GizmoTarget)
+        │           │                        con wireframe por el batch de líneas
         │           ├── EsfereCollider.*  ← btSphereShape
         │           ├── CubeCollider.*    ← btBoxShape (half extents = radio)
         │           └── MallaCollider.*   ← btConvexHullShape a partir de la malla
@@ -278,7 +293,7 @@ FunshiEngineGL/                          ← raíz del repo
 
 ```text
 main.cpp
-  ├── Ventana (GLFW init)
+  ├── Ventana (GLFW init: contexto 3.3 core + carga dura de GLFuncs)
   ├── ImGui init (backends glfw + opengl3; imgui.ini gestionado por el gestor)
   ├── GUIManager (crea el menú y las ventanas; posee FileManager)
   ├── GameScene(guiManager)
@@ -298,8 +313,8 @@ main.cpp
       ├── refleja el estado del menú en la fachada MenuGUI (guardia de cambio)
       ├── si Playing → GameScene::update(dt) = física (start==true, F5) + scripts, con
       │   F6 pausando fisica/scripts sin salir de play y F7 cortando (Playing → Editing)
-      ├── pasada de la grilla (display lists del objeto con Grid; color según apariencia)
-      ├── dibujarGameObjects (MeshRenderer VBO/VAO+shader → fallback glBegin/glEnd)
+      ├── pasada de la grilla (batch de líneas + shader de ancho en píxeles; color según apariencia)
+      ├── dibujarGameObjects (MeshRenderer VBO/VAO+shader; único pipeline)
       ├── gizmo ImGuizmo sobre el objetivo activo (objeto o collider)
       ├── GUI() de GameScene (paneles) + vistas previas de cámaras (FBO)
       ├── GestorDeProyectos::sincronizar/eliminar (cambios de proyecto desde el menú)
@@ -371,8 +386,9 @@ solo como orquestador de arranque y bucle.
   id entero, nombre (`inputName[25]`), color auxiliar (`auxColor`), estado (`bool`),
   ciclo `update(dt)` y la lógica de serialización binaria concreta.
 - `Modelos3D` extiende `GameObject`. Carga geometría (vértices, normales, índices)
-  mediante Assimp, la dibuja con `glBegin/glEnd` (OpenGL inmediato) y serializa
-  adicionalmente la ruta del archivo del modelo.
+  mediante Assimp y serializa adicionalmente la ruta del archivo del modelo. No
+  tiene método de dibujado: la entidad no conoce la capa de Rendering, y es
+  `SceneRenderer` quien la pinta vía `MeshRenderer`.
 - Los componentes concretos son: `Transform`, `Color`, `Model`, `Material`, `Light`,
   `AudioSource`, `InterfaceComponent`, `Grid`, `Script`, `EsfereCollider`,
   `CubeCollider`, `MallaCollider` y `RigidBody`. Todos heredan de `Component`
@@ -516,7 +532,7 @@ solo como orquestador de arranque y bucle.
 | Dependencia | Uso | Integración |
 |---|---|---|
 | GLFW | Ventana, contexto OpenGL y eventos de input | `find_package(glfw3)` |
-| OpenGL / GLU | Renderizado inmediato y utilidades de cámara | `find_package(OpenGL)` + fallback manual a libGLU |
+| OpenGL 3.3 core | Renderizado (shaders, VBO/VAO, FBO) vía `GLFuncs` | `find_package(OpenGL)` (sin GLU) |
 | Bullet Physics | Física y colisiones (btDiscreteDynamicsWorld) | `find_package(Bullet)` con fallback a targets clásicos |
 | Assimp | Carga de modelos 3D (opcional via `USE_ASSIMP`) | `find_package(assimp)` |
 | GLM | Matemáticas de Transform y cámaras (`GLM_ENABLE_EXPERIMENTAL`) | Usa `External/glm` si existe; si no, `find_package(glm)` del sistema |
@@ -525,8 +541,9 @@ solo como orquestador de arranque y bucle.
 | ImGuizmo | Gizmos de transformación | Integrada en `FunshiEngineGL/ImGuizmo/` |
 | ncurses / X11 | Enlace en Linux | `find_package(Curses)` + X11/Xrandr/Xi |
 
-En Windows se enlaza además `opengl32`, `glu32` y `dbghelp` (stack traces de
-`RuntimeException`).
+En Windows se enlazan además `opengl32` y `dbghelp` (stack traces de
+`RuntimeException`). `glu32` ya no se enlaza: sin modo inmediato no queda ningún
+`glu*` en uso.
 
 ---
 
@@ -555,11 +572,22 @@ registrados en CTest (compilan en cualquier plataforma con `BUILD_ENGINE=OFF`;
   el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido.
 - `eventbus-tests` (16): suscripción/publicación/unsubscribe del canal tipado de GUI.
 - `menu-tests` (30): lógica pura del menú (traducción, observer de cambios y reset).
-- `assetmanager-tests` (47): caché Flyweight de meshes (rutas `AssetPath`, geometría
-  `Mesh`) y el registro compartido con un loader artificial.
+- `assetmanager-tests` (82): caché Flyweight de meshes (rutas `AssetPath`, geometría
+  `Mesh` con `computeBounds`, `computeNormals` —incluido el modo `soloFaltantes`
+  para assets que mezclan sub-mallas con y sin normales— y `computeTangents`) y el
+  registro compartido con un loader artificial.
 - `texturemanager-tests` (15): caché Flyweight de imágenes CPU (sin entrar la pila gráfica).
 - `estructuras-tests` (87): `ListaDE`, `ArbolEnlazado`, `PriorityListaDE`,
   `MinHeap`/`MaxHeap`, `ListMergeSort` y `ArbolBinarioEnlazado`.
+- `rendering-tests` (131): geometría de las líneas del pipeline moderno
+  (`LineBuilder`): expansión de cada segmento al quad que ensancha el shader,
+  color por extremo (difuminado de la grilla), polilíneas, aristas con índices
+  fuera de rango y caja de 12 aristas; más la guía de eje (`GuiaEje`): origen y
+  dirección en mundo, dirección local rotada con el objeto, normalización frente
+  a la escala, colores por eje, recorte de la recta hasta el horizonte con la
+  distancia 3D a la cámara, difuminado por vértice y los rechazos defensivos
+  (eje inválido, NaN/Inf, eje degenerado, horizonte degenerado, recta fuera del
+  horizonte). Solo CPU, sin OpenGL.
 - `scripts-tests` (42): reflexión `SerializeField` (escalares, arrays, grupos
   anidados) y el round-trip binario del árbol de valores.
 - `scripts-runtime-tests`: compila un `.cpp` real con `BackendCpp`, lo carga con
@@ -584,7 +612,8 @@ main.cpp
   │
   ├─ input GLFW ──► EditorInput (callbacks + máquina de teclas) ──► cámara activa (movimiento continuo)
   │                                       ──► tecla E: toggleEditorInterfaces()
-  │                                       ──► 1/T, 2/R, 3/Y: operación del gizmo
+  │                                       ──► 1/T, 2/R, 3/U: operación del gizmo (y apagan la guía)
+  │                                       ──► X/Y/Z: guía de eje del objeto seleccionado
   │                                       ──► Escape: volver al menú (máquina de estados)
   │
   ├─ GameScene::GUI()
@@ -603,10 +632,10 @@ main.cpp
   │     └─ scripts: IScriptBehaviour::onUpdate (si compilados)
   │
   └─ GameScene::gameScene()
-        ├─ LightSystem::beginFrame() [glLight*]
-        ├─ pasada de la grilla (Grid + display lists, color según apariencia)
-        ├─ dibujarGameObjects (MeshRenderer shader; fallback a glBegin/glEnd)
-        ├─ marcadores de luz y cámara (wireframes auxiliares)
+        ├─ LightSystem::beginFrame() [solo CPU: datos de luz para el shader]
+        ├─ pasada de la grilla (Grid + batch de líneas, color según apariencia)
+        ├─ dibujarGameObjects (MeshRenderer shader; único pipeline)
+        ├─ marcadores de luz y cámara (wireframes auxiliares, batch de líneas)
         ├─ ImGuizmo::Manipulate sobre el GizmoTarget activo (objeto o collider)
         ├─ dibujarViewportsPrevios (FBO de cámaras) + paneles ImGui
         └─ pickObject con el mouse para seleccionar en el viewport
@@ -665,10 +694,18 @@ No están implementados todavía:
 - `SettingsObjectInterface` y algunos componentes todavía incluyen y construyen
   detalles concretos; el siguiente paso de desacoplamiento es completar el uso de
   `EditorController` y descriptors de componentes.
-- El renderer es híbrido: `MeshRenderer` intenta el pipeline moderno (VBO/VAO +
-  shaders) y degrada a `glBegin/glEnd` en contextos legacy o mallas sin
-  normales; los marcadores, gizmos y la grilla (display lists) siguen legacy.
-  No es un contexto OpenGL Core estricto.
+- El renderer es de un solo pipeline: `MeshRenderer` (VBO/VAO + shaders) para
+  mallas y el batch de líneas (GPU + shader de ancho en píxeles) para grilla,
+  marcadores y gizmos de collider. No hay modo inmediato ni estado fijo: la
+  iluminación viaja como uniforms y las transformaciones como uniforms de
+  matriz, así que el contexto es OpenGL 3.3 core estricto.
+- El perfil core es un **requisito duro**, no una preferencia: `Ventana::
+  initVentana` lo pide con `GLFW_OPENGL_CORE_PROFILE` + versión 3.3 +
+  `GLFW_OPENGL_FORWARD_COMPAT`, y si `glfwCreateWindow` falla (driver sin 3.3
+  core) o si a `GLFuncs::init()` le falta alguna función, aborta el arranque con
+  un mensaje en consola en vez de seguir hasta fallar en el primer draw (que se
+  vería como pantalla negra sin explicación). El requisito real es GLSL 330,
+  que es lo que imponen los shaders (`layout in/out`).
 
 ---
 
@@ -732,7 +769,7 @@ GameScene → coordina todos los subsistemas del frame
   `AgregarComponenteComando`, `QuitarComponenteComando`, `LimpiarEscenaComando`)
   con deshacer/rehacer, la cadena de redo múltiple, el límite del historial y la
   descripción que el historial devuelve para avisar en la barra de estado.
-- Los diecisiete targets compilan en cualquier plataforma y se ejecutan con `ctest`.
+- Los dieciocho targets compilan en cualquier plataforma y se ejecutan con `ctest`.
 - `.github/workflows/ci.yml` compila el engine completo en Ubuntu (Release, sin
   ASan) y ejecuta las pruebas; además ejecuta las headless en
   Linux/Windows con `BUILD_ENGINE=OFF` y el backend Java en Ubuntu con JDK.
@@ -754,7 +791,6 @@ Los bugs de la Fase 2 (cámaras/vistas previas) y sus fixes están documentados 
 - [ ] Terminar los popups del inspector.
 - [ ] Prefabs y duplicación de objetos.
 - [ ] Portabilidad de rutas de assets (centralizar `HOME` / rutas de Windows).
-- [ ] Migrar o eliminar el `FunshiEngineGL.vcxproj` (arrastra rutas absolutas; el build oficial es CMake).
 - [ ] Versionado y validación de la serialización binaria.
 - [ ] Extraer `SceneRenderer`, `PhysicsSystem` y `ScriptSystem` de `GameScene`.
 - [ ] Encapsular las estructuras internas de `SceneRegistry` (eliminar getters raw de compatibilidad).

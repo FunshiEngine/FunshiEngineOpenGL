@@ -198,6 +198,16 @@ public:
     bool isGizmoCapturingInput() const;
     bool gizmoInUse() const;
 
+    // Guia de eje (X/Y/Z): la recta que marca sobre que eje se mueve el objeto
+    // seleccionado. "eje" es 0 = X, 1 = Y, 2 = Z. Es un interruptor (pulsar dos
+    // veces la misma tecla la apaga) y se apaga sola al deseleccionar. Con la
+    // guia activa el gizmo se oculta. El estado vive en EditorController; esto
+    // es la puerta que usa el input.
+    void alternarGuiaEje(int eje);
+    int getGuiaEje() const noexcept;
+    bool hayGuiaEje() const noexcept;
+    void clearGuiaEje();
+
     // Aviso momentaneo en la barra de estado del editor (mismo mecanismo que el
     // "Proyecto guardado" de Ctrl+S). Lo usa el atajo de undo/redo para dejar
     // claro que cambio tomo el estado.

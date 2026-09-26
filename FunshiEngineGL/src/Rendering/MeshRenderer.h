@@ -37,10 +37,11 @@ class Image;
 class TextureManager;
 class Modelos3D;
 
-// Renderer de objetos con el pipeline moderno (VBO/VAO + shader): reemplaza el
-// dibujado de Modelos3D que vivia en glBegin/glEnd. Replica la iluminacion
-// fixed-function (LightSystem + Material) con uniforms para que el pasaje no
-// sea una regresion visual; la grilla y los gizmos siguen en modo inmediato.
+// Renderer de objetos con el pipeline moderno (VBO/VAO + shader). Sustituyo al
+// dibujado de Modelos3D que vivia en glBegin/glEnd, que ya no existe. Replica
+// la iluminacion que antes daba el estado fijo (LightSystem + Material) con
+// uniforms, para que el pasaje no sea una regresion visual; la grilla y los
+// gizmos van por LineRenderer, su propio batch en GPU.
 // El MeshGPU se cachea por identidad de la Mesh CPU (que ya es compartida por
 // AssetManager), asi dos objetos con la misma malla no re-suben geometria. La
 // textura difusa del Material (path -> Image compartida via TextureManager)
@@ -61,13 +62,15 @@ public:
     }
 
     // Luces de la pasada actual (1 vez por pasada, desde LightSystem: la misma
-    // semantica de GL_LIGHT0..7 pero en CPU). globalAmbient = modelo de luz.
+    // semantica que antes tenía el estado fijo de luces, pero calculada en CPU).
+    // globalAmbient = modelo de luz.
     void setLuces(const LightData* luces, int lucesCount,
                   const float* globalAmbient);
 
     // Dibuja el modelo con el pipeline moderno (update + material + malla).
-    // Devuelve false si no pudo (shader/VAO no disponible o malla sin
-    // normales) y el llamador usa el pipeline inmediato como fallback.
+    // Devuelve false si no se drew: shader/VAO no disponible, o malla vacía o
+    // sin normales por vertice (en ese caso avisa una vez por malla). No hay
+    // pipeline de respaldo:false significa "esta pasada no dibujo nada".
     bool intentarRender(Modelos3D* objeto, const float view[16],
                         const float projection[16], float deltaTime);
 
@@ -82,6 +85,9 @@ private:
     std::unordered_map<const Image*, std::unique_ptr<TextureGL>> gpuTexturas_;
     // Paths de textura que ya fallaron al cargar: no se reintentan por frame.
     std::unordered_set<std::string> texturasFallidas_;
+    // Mallas sin normales por vertice (no dibujables): el aviso por consola se
+    // emite una sola vez por malla, no por frame.
+    std::unordered_set<const Mesh*> mallasSinNormales_;
     std::vector<LightData> luces_;
     float globalAmbient_[3] = {0.15f, 0.15f, 0.15f};
 

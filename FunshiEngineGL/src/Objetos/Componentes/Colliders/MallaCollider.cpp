@@ -23,7 +23,14 @@
 
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Modelos3D.h"
-#include "../../../Rendering/ImmediateRenderer.h"
+#include "../../../Rendering/LineBuilder.h"
+#include "../../../Rendering/LineRenderer.h"
+
+namespace {
+// Ancho del wireframe del collider en pixeles (2 px: se ve al-redondeado sin
+// tapar la geometria).
+constexpr float kAnchoWire = 2.0f;
+} // namespace
 
 MallaCollider::MallaCollider(float radio, Transform* transformOfDadObject,
                              GameObject* owner)
@@ -50,7 +57,9 @@ void MallaCollider::dibujarCollider() {
     float modelArr[16];
     buildMatrixFromTransform(&globalT, modelArr);
 
-    const float verde[3] = {0.0f, 1.0f, 0.0f};
+    const float verde[4] = {0.0f, 1.0f, 0.0f, 1.0f};
+
+    LineBuilder builder;
 
     // Dibujo el hull real (bordes del convex hull) en vez de la caja
     // aproximada. getCollisionShape() construye la shape de forma lazy si
@@ -61,34 +70,22 @@ void MallaCollider::dibujarCollider() {
     if (hull && hull->getNumPoints() > 0) {
         const btVector3* points = hull->getUnscaledPoints();
         const int numPoints = hull->getNumPoints();
-        // Pares consecutivos (i -> i+1 modulo n): poligono cerrado con la
-        // misma topologia que el dibujado inmediato original.
-        std::vector<float> segs(static_cast<size_t>(numPoints) * 6);
+        // Puntos del hull, en coordenadas locales, para la polilinea cerrada.
+        std::vector<float> anillo(static_cast<size_t>(numPoints) * 3);
         for (int i = 0; i < numPoints; ++i) {
-            const btVector3& a = points[i];
-            const btVector3& b = points[(i + 1) % numPoints];
-            segs[6 * i + 0] = a.x();
-            segs[6 * i + 1] = a.y();
-            segs[6 * i + 2] = a.z();
-            segs[6 * i + 3] = b.x();
-            segs[6 * i + 4] = b.y();
-            segs[6 * i + 5] = b.z();
+            anillo[3 * i + 0] = points[i].x();
+            anillo[3 * i + 1] = points[i].y();
+            anillo[3 * i + 2] = points[i].z();
         }
-        ImmediateRenderer::dibujarSegmentos(
-            segs.data(), static_cast<int>(segs.size() / 3), verde, modelArr);
+        builder.agregarPolilinea(anillo.data(),
+                                 static_cast<std::size_t>(numPoints), true,
+                                 verde);
     } else {
         // Respaldo grafico: caja envolvente rapida al radio.
-        float r = getRadio();
-        const float box[8][3] = {
-            {-r, -r, -r}, { r, -r, -r}, { r,  r, -r}, {-r,  r, -r},
-            {-r, -r,  r}, { r, -r,  r}, { r,  r,  r}, {-r,  r,  r}
-        };
-        const int edges[12][2] = {
-            {0,1}, {1,2}, {2,3}, {3,0},
-            {4,5}, {5,6}, {6,7}, {7,4},
-            {0,4}, {1,5}, {2,6}, {3,7}
-        };
-        ImmediateRenderer::dibujarAristas(&box[0][0], 8, &edges[0][0], 12,
-                                          verde, modelArr);
+        const float origen[3] = {0.0f, 0.0f, 0.0f};
+        const float semilado[3] = {getRadio(), getRadio(), getRadio()};
+        builder.agregarCaja(origen, semilado, verde);
     }
+
+    lineRenderer().dibujar(builder, obtenerWireBatch(), modelArr, kAnchoWire);
 }

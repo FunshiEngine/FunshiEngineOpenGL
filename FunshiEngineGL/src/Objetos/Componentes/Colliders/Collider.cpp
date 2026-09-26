@@ -24,6 +24,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "../../../Objetos/GameObject.h"
+#include "../../../Rendering/LineBatch.h"
 
 void Collider::serializeComponent(std::ofstream* fileNamePathContentObject) {
     fileNamePathContentObject->write(reinterpret_cast<const char*>(&radio),
@@ -57,6 +58,13 @@ Collider::Collider(float radio, Transform* transformOfDadObject,
 }
 
 Collider::~Collider() = default;
+
+LineBatch& Collider::obtenerWireBatch() {
+    if (!wireBatch_) {
+        wireBatch_.reset(new LineBatch());
+    }
+    return *wireBatch_;
+}
 
 void Collider::saveComponent(std::ofstream* fileNamePathContentObject) {
     serializeComponent(fileNamePathContentObject);

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "GrillaRenderer.h"
+#include "GuiaEje.h"
 
 // Clases de otras capas que la pasada de render necesita (solo data CPU).
 class GameObject;
@@ -68,6 +69,15 @@ public:
         // Tamano del framebuffer de la ventana (pasada principal).
         int framebufferWidth = 0;
         int framebufferHeight = 0;
+        // Guia de eje activa: 0 = X, 1 = Y, 2 = Z, -1 = ninguna (GuiaEje.h).
+        // Es la recta que el editor dibuja sobre el objeto seleccionado para
+        // marcarle sobre que eje puede moverse. Solo se dibuja en la pasada
+        // principal (las vistas previas de camara no la muestran).
+        int guiaEje = GuiaEje::kSinGuia;
+        // Sistema de referencia de la guia, sincronizado con el toggle
+        // LOCAL/GLOBAL del gizmo (tecla G): en true la recta sigue el eje del
+        // mundo, en false el eje local rotado del objeto.
+        bool guiaCoordenadasGlobales = true;
     };
 
     // Renderiza las vistas previas y la pasada principal de la escena desde la
@@ -94,7 +104,9 @@ public:
 private:
     void dibujarViewportsPrevios(const FrameContext& ctx);
     void dibujarEscena(const FrameContext& ctx, const float view[16],
-                       const float projection[16], GameObject* camaraOjo);
+                       const float projection[16], GameObject* camaraOjo,
+                       int viewportAncho, int viewportAlto,
+                       bool esPasadaPrincipal);
     void prepararLucesFrame(const FrameContext& ctx);
     void dibujarGameObjectsConOjo(const FrameContext& ctx, GameObject* camaraOjo,
                                   const float view[16],
@@ -104,6 +116,9 @@ private:
                              const float projection[16]);
     void dibujarMarcadorLuz(GameObject* object);
     void dibujarMarcadorCamara(GameObject* object);
+    // Recta de la guia de eje (X/Y/Z) sobre el objeto seleccionado: va hasta el
+    // horizonte con el difuminado de la grilla y el color del eje.
+    void dibujarGuiaEje(const FrameContext& ctx, const float camaraMundo[3]);
     void dibujarGrillaEditor(const FrameContext& ctx,
                              const float camaraMundo[3]);
     void dibujarGrilla(const FrameContext& ctx, GameObject* object,
@@ -111,6 +126,9 @@ private:
 
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;
+    // Batch de lineas compartido por los marcadores de luz y de camara (ambos
+    // son 12 aristas): se sube y se dibuja por gizmo, en un solo draw cada uno.
+    LineBatch marcadoresBatch_;
     // Vista previa viva por camara con el checkbox "Vista previa" (Fase 2).
     // Se reconstruye cada frame: texturas FBO + el objeto que las genera.
     std::vector<std::unique_ptr<RenderTarget>> viewportsCamaras_;

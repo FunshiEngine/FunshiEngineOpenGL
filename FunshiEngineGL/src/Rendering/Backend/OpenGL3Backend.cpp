@@ -24,6 +24,7 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
+#include "../LineBuilder.h"
 #include "../Shaders/ShaderException.h"
 
 namespace Rendering {
@@ -238,6 +239,100 @@ void OpenGL3Backend::drawMesh(Handle mesh, unsigned int indexCount) {
     GLFuncs::pfnBindVertexArray(static_cast<GLuint>(mesh));
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount),
                    GL_UNSIGNED_INT, (const void*)nullptr);
+    GLFuncs::pfnBindVertexArray(0);
+}
+
+// ---------------------------------------------------------------------------
+// Batch de lineas
+// ---------------------------------------------------------------------------
+
+Handle OpenGL3Backend::createLineBatch(const float* vertices,
+                                       std::size_t vertexCount) {
+    if (!vertices || vertexCount == 0) return kInvalidHandle;
+
+    GLuint vao = 0;
+    GLFuncs::pfnGenVertexArrays(1, &vao);
+    GLFuncs::pfnBindVertexArray(vao);
+
+    GLuint vbo = 0;
+    GLFuncs::pfnGenBuffers(1, &vbo);
+    GLFuncs::pfnBindBuffer(GL_ARRAY_BUFFER, vbo);
+    GLFuncs::pfnBufferData(
+        GL_ARRAY_BUFFER,
+        static_cast<GLsizeiptr>(vertexCount * LineBuilder::kFloatsPorVertice *
+                                sizeof(float)),
+        vertices, GL_STATIC_DRAW);
+
+    // Un solo VBO interleaved; el layout lo define LineBuilder (12 floats por
+    // vertice) y el shader los lee de los atributos 0..4.
+    const GLsizei stride =
+        static_cast<GLsizei>(LineBuilder::stride());
+    GLFuncs::pfnEnableVertexAttribArray(0);
+    GLFuncs::pfnVertexAttribPointer(
+        0, 3, GL_FLOAT, GL_FALSE, stride,
+        reinterpret_cast<const void*>(LineBuilder::offsetInicio()));
+    GLFuncs::pfnEnableVertexAttribArray(1);
+    GLFuncs::pfnVertexAttribPointer(
+        1, 3, GL_FLOAT, GL_FALSE, stride,
+        reinterpret_cast<const void*>(LineBuilder::offsetFin()));
+    GLFuncs::pfnEnableVertexAttribArray(2);
+    GLFuncs::pfnVertexAttribPointer(
+        2, 1, GL_FLOAT, GL_FALSE, stride,
+        reinterpret_cast<const void*>(LineBuilder::offsetLado()));
+    GLFuncs::pfnEnableVertexAttribArray(3);
+    GLFuncs::pfnVertexAttribPointer(
+        3, 1, GL_FLOAT, GL_FALSE, stride,
+        reinterpret_cast<const void*>(LineBuilder::offsetAvance()));
+    GLFuncs::pfnEnableVertexAttribArray(4);
+    GLFuncs::pfnVertexAttribPointer(
+        4, 4, GL_FLOAT, GL_FALSE, stride,
+        reinterpret_cast<const void*>(LineBuilder::offsetColor()));
+
+    GLFuncs::pfnBindVertexArray(0);
+
+    const Handle handle = static_cast<Handle>(vao);
+    lineBatches_[handle] = GpuLineBatch{vao, vbo};
+    return handle;
+}
+
+void OpenGL3Backend::destroyLineBatch(Handle batch) {
+    if (batch == kInvalidHandle) return;
+    const auto it = lineBatches_.find(batch);
+    if (it == lineBatches_.end()) return;
+    if (GLFuncs::pfnDeleteVertexArrays) {
+        GLuint vao = it->second.vao;
+        GLFuncs::pfnDeleteVertexArrays(1, &vao);
+    }
+    if (GLFuncs::pfnDeleteBuffers) {
+        GLuint vbo = it->second.vbo;
+        GLFuncs::pfnDeleteBuffers(1, &vbo);
+    }
+    lineBatches_.erase(it);
+}
+
+void OpenGL3Backend::updateLineBatch(Handle batch, const float* vertices,
+                                     std::size_t vertexCount) {
+    if (batch == kInvalidHandle || !vertices || vertexCount == 0) return;
+    if (lineBatches_.find(batch) == lineBatches_.end()) return;
+
+    // glBufferData sobre el buffer ya enlazado en el VAO: la GPU lo considera
+    // una store nueva (el driver reutiliza el bloque si la store anterior ya no
+    // la referencia), que es lo que se quiere para un buffer que cambia de
+    // tamano cada frame (grilla y marcadores).
+    GLFuncs::pfnBindVertexArray(static_cast<GLuint>(batch));
+    GLFuncs::pfnBindBuffer(GL_ARRAY_BUFFER, lineBatches_[batch].vbo);
+    GLFuncs::pfnBufferData(
+        GL_ARRAY_BUFFER,
+        static_cast<GLsizeiptr>(vertexCount * LineBuilder::kFloatsPorVertice *
+                                sizeof(float)),
+        vertices, GL_DYNAMIC_DRAW);
+    GLFuncs::pfnBindVertexArray(0);
+}
+
+void OpenGL3Backend::drawLineBatch(Handle batch, unsigned int vertexCount) {
+    if (batch == kInvalidHandle || vertexCount == 0) return;
+    GLFuncs::pfnBindVertexArray(static_cast<GLuint>(batch));
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertexCount));
     GLFuncs::pfnBindVertexArray(0);
 }
 
@@ -468,7 +563,7 @@ void* OpenGL3Backend::imguiTextureId(Handle texture) const {
 }
 
 // ---------------------------------------------------------------------------
-// Estado del pipeline de compatibilidad / matriz de modelo
+// Estado de la pasada y del framebuffer
 // ---------------------------------------------------------------------------
 
 void OpenGL3Backend::setViewport(int x, int y, int width, int height) {
@@ -476,93 +571,22 @@ void OpenGL3Backend::setViewport(int x, int y, int width, int height) {
     glViewport(x, y, width, height);
 }
 
-void OpenGL3Backend::setCompatibilityMatrices(const float* projection,
-                                              const float* view) {
-    glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(projection);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(view);
-}
-
 void OpenGL3Backend::clearScreen(const float color[3]) {
     if (color) glClearColor(color[0], color[1], color[2], 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void OpenGL3Backend::setLegacyLights(const LegacyLight* lights,
-                                     int lightCount,
-                                     const float* globalAmbient) {
-    glEnable(GL_LIGHTING);
-    glEnable(GL_NORMALIZE);
-
-    // Modelo global (GL_LIGHT_MODEL_AMBIENT): si no llega, se usa el default
-    // gris tenue que usaba LightSystem.
-    static const float kAmbientDefault[4] = {0.15f, 0.15f, 0.15f, 1.0f};
-    const GLfloat ambientModel[4] = {
-        globalAmbient ? globalAmbient[0] : kAmbientDefault[0],
-        globalAmbient ? globalAmbient[1] : kAmbientDefault[1],
-        globalAmbient ? globalAmbient[2] : kAmbientDefault[2], 1.0f};
-    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambientModel);
-
-    // Apagar todos los slots garantiza que luces removidas no sigan activas:
-    // el backend es dueno del estado de luz, no vive sobre estado heredado.
-    for (int i = 0; i < 8; ++i) glDisable(static_cast<GLenum>(GL_LIGHT0 + i));
-
-    if (!lights || lightCount <= 0) return;
-    const int n = lightCount < 8 ? lightCount : 8;
-    for (int i = 0; i < n; ++i) {
-        const LegacyLight& d = lights[i];
-        const GLenum slot = static_cast<GLenum>(GL_LIGHT0 + i);
-        const bool direccional = (d.type == 0);
-
-        const GLfloat pos[4] = {d.worldPos[0], d.worldPos[1], d.worldPos[2],
-                                direccional ? 0.f : 1.f};
-        const GLfloat amb[4] = {d.ambient[0], d.ambient[1], d.ambient[2], 1.f};
-        const GLfloat diff[4] = {d.diffuse[0], d.diffuse[1], d.diffuse[2], 1.f};
-        const GLfloat spec[4] = {d.specular[0], d.specular[1], d.specular[2],
-                                 1.f};
-
-        glEnable(slot);
-        glLightfv(slot, GL_POSITION, pos);
-        glLightfv(slot, GL_AMBIENT, amb);
-        glLightfv(slot, GL_DIFFUSE, diff);
-        glLightfv(slot, GL_SPECULAR, spec);
-
-        if (d.type == 1 || d.type == 2) {
-            glLightf(slot, GL_CONSTANT_ATTENUATION, d.constant);
-            glLightf(slot, GL_LINEAR_ATTENUATION, d.linear);
-            glLightf(slot, GL_QUADRATIC_ATTENUATION, d.quadratic);
-        }
-        if (d.type == 2) {
-            const GLfloat spotDir[3] = {d.direction[0], d.direction[1],
-                                        d.direction[2]};
-            glLightfv(slot, GL_SPOT_DIRECTION, spotDir);
-            glLightf(slot, GL_SPOT_CUTOFF, d.spotCutoffDegrees);
-            glLightf(slot, GL_SPOT_EXPONENT, 1.f);
-        }
-    }
-}
-
-const char* OpenGL3Backend::diagnosticoCompat() const {
-    static thread_local char buffer[96];
-    std::snprintf(buffer, sizeof(buffer), "GL_LIGHTING=%s GL_LIGHT0=%s err=0x%x",
-                  glIsEnabled(GL_LIGHTING) ? "on" : "off",
-                  glIsEnabled(GL_LIGHT0) ? "on" : "off",
-                  static_cast<unsigned int>(glGetError()));
-    return buffer;
-}
-
 void OpenGL3Backend::applyBaseState() {
-    // Estado del contexto recien creado (equivalente al setup historico de
-    // main: depth test, normalizacion de normales y seguimiento de color por
-    // material para el modo inmediato).
+    // Estado del contexto recien creado: solo lo que el pipeline moderno
+    // necesita (profundidad y multisample del framebuffer de la ventana).
+    // La iluminacion viaja como uniforms y la transformacion como matriz
+    // modelo, asi que no hay estado fijo que dejar activo.
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
-    glEnable(GL_NORMALIZE);
-    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
     // Activacion explicita del framebuffer multisampleado (se pidio 4x en la
-    // creacion del contexto): suaviza las lineas de la escena sin depender de
-    // GL_LINE_SMOOTH.
+    // creacion del contexto): suaviza los bordes de la geometria, incluidas las
+    // lineas expandidas a quads, sin depender de glLineSmooth (que no existe en
+    // un perfil core).
     glEnable(GL_MULTISAMPLE);
 }
 
@@ -601,135 +625,13 @@ const char* OpenGL3Backend::diagnosticoGPU() const {
     return buffer;
 }
 
-void OpenGL3Backend::pushMatrix() { glPushMatrix(); }
-
-void OpenGL3Backend::popMatrix() { glPopMatrix(); }
-
-void OpenGL3Backend::multMatrix(const float mat4[16]) {
-    if (mat4) glMultMatrixf(mat4);
-}
-
-void OpenGL3Backend::applyTransform(const float translate[3],
-                                    const float scale[3],
-                                    const float rotate4[4]) {
-    if (translate) glTranslatef(translate[0], translate[1], translate[2]);
-    if (scale) glScalef(scale[0], scale[1], scale[2]);
-    if (rotate4) glRotatef(rotate4[0], rotate4[1], rotate4[2], rotate4[3]);
-}
-
-void OpenGL3Backend::setLightingEnabled(bool enabled) {
-    if (enabled)
-        glEnable(GL_LIGHTING);
-    else
-        glDisable(GL_LIGHTING);
-}
-
-void OpenGL3Backend::setPolygonFill() {
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-}
-
-void OpenGL3Backend::setSolidColor(float r, float g, float b) {
-    glColor3f(r, g, b);
-}
-
-void OpenGL3Backend::setMaterial(const float ambient[4],
-                                 const float diffuse[4],
-                                 const float specular[4],
-                                 const float emission[4], float shininess) {
-    if (ambient) glMaterialfv(GL_FRONT, GL_AMBIENT, ambient);
-    if (diffuse) glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);
-    if (specular) glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
-    if (emission) glMaterialfv(GL_FRONT, GL_EMISSION, emission);
-    glMaterialf(GL_FRONT, GL_SHININESS, shininess);
-}
-
-void OpenGL3Backend::setLineWidth(float width) { glLineWidth(width); }
-
-void OpenGL3Backend::setLineSmoothing(bool enabled) {
+void OpenGL3Backend::setBlendEnabled(bool enabled) {
     if (enabled) {
-        glEnable(GL_LINE_SMOOTH);
-        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-        // GL_LINE_SMOOTH solo suaviza de verdad si el blending esta activo:
-        // sin GL_BLEND los drivers degradan a lineas escalonadas ("a dientes").
-        // Se guarda el estado previo del blending para restaurarlo al cerrar.
-        blendPreviaLineaSmooth_ = (glIsEnabled(GL_BLEND) == GL_TRUE);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     } else {
-        glDisable(GL_LINE_SMOOTH);
-        if (!blendPreviaLineaSmooth_) glDisable(GL_BLEND);
+        glDisable(GL_BLEND);
     }
-}
-
-// ---------------------------------------------------------------------------
-// Primitivas inmediatas
-// ---------------------------------------------------------------------------
-
-void OpenGL3Backend::drawLinePairs(const float* vertices, int vertexCount) {
-    if (!vertices || vertexCount < 2) return;
-    glBegin(GL_LINES);
-    for (int i = 0; i + 1 < vertexCount; i += 2) {
-        glVertex3fv(vertices + 3 * i);
-        glVertex3fv(vertices + 3 * (i + 1));
-    }
-    glEnd();
-}
-
-void OpenGL3Backend::drawLinePairsRGBA(const float* vertices,
-                                       int vertexCount) {
-    if (!vertices || vertexCount < 2) return;
-    glBegin(GL_LINES);
-    for (int i = 0; i + 1 < vertexCount; i += 2) {
-        glColor4fv(vertices + 7 * i + 3);
-        glVertex3fv(vertices + 7 * i);
-        glColor4fv(vertices + 7 * (i + 1) + 3);
-        glVertex3fv(vertices + 7 * (i + 1));
-    }
-    glEnd();
-}
-
-void OpenGL3Backend::drawIndexedLines(const float* vertices, int vertexCount,
-                                      const int* edgeIndices, int edgeCount) {
-    if (!vertices || vertexCount < 1 || !edgeIndices || edgeCount < 1) return;
-    glBegin(GL_LINES);
-    for (int i = 0; i < edgeCount; ++i) {
-        const int i0 = edgeIndices[2 * i];
-        const int i1 = edgeIndices[2 * i + 1];
-        if (i0 < 0 || i0 >= vertexCount || i1 < 0 || i1 >= vertexCount)
-            continue;
-        glVertex3fv(vertices + 3 * i0);
-        glVertex3fv(vertices + 3 * i1);
-    }
-    glEnd();
-}
-
-void OpenGL3Backend::drawLineStrip(const float* vertices, int vertexCount,
-                                   bool closed) {
-    if (!vertices || vertexCount < 2) return;
-    glBegin(closed ? GL_LINE_LOOP : GL_LINE_STRIP);
-    for (int i = 0; i < vertexCount; ++i) glVertex3fv(vertices + 3 * i);
-    glEnd();
-}
-
-void OpenGL3Backend::drawTriangles(const float* vertices, int vertexCount,
-                                   const float* normals, int normalCount,
-                                   const unsigned int* indices,
-                                   int indexCount) {
-    if (!vertices || vertexCount == 0 || !indices || indexCount == 0) return;
-    const bool dibujaNormales = normals && normalCount >= vertexCount;
-    glBegin(GL_TRIANGLES);
-    for (int k = 0; k < indexCount; ++k) {
-        const unsigned int idx = indices[k];
-        if (idx >= static_cast<unsigned int>(vertexCount)) continue;
-        if (dibujaNormales) {
-            const float nx = normals[3 * idx + 0];
-            const float ny = normals[3 * idx + 1];
-            const float nz = normals[3 * idx + 2];
-            if (!(nx == 0.f && ny == 0.f && nz == 0.f)) glNormal3f(nx, ny, nz);
-        }
-        glVertex3fv(vertices + 3 * static_cast<std::size_t>(idx));
-    }
-    glEnd();
 }
 
 // ---------------------------------------------------------------------------

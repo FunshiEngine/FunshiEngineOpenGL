@@ -62,7 +62,9 @@ bool MeshRenderer::inicializar() {
                                       kDefaultFragmentShader));
         aplicarLuces();
     } catch (const std::exception& e) {
-        // No es fatal: el llamador degrada al pipeline inmediato.
+        // Sin shader no hay pipeline: available() queda en false y la pasada
+        // dibuja menos, sin objeto que avise uno por uno. El error va al log
+        // porque es la causa raiz de una escena vacia.
         std::cerr << "[MeshRenderer] Shader por defecto no disponible: "
                   << e.what() << '\n';
         shader_.reset();
@@ -74,6 +76,7 @@ void MeshRenderer::clearCache() {
     gpu_.clear();
     gpuTexturas_.clear();
     texturasFallidas_.clear();
+    mallasSinNormales_.clear();
 }
 
 void MeshRenderer::setLuces(const LightData* luces, int lucesCount,
@@ -251,8 +254,19 @@ bool MeshRenderer::intentarRender(Modelos3D* objeto, const float view[16],
         objeto->setPath(model->getPath());
 
     const Mesh* mesh = objeto->getMesh();
-    // Sin normales no hay iluminacion coherente: se degrada al inmediato.
-    if (!mesh || mesh->isEmpty() || !mesh->hasNormals()) return false;
+    // Sin malla, vacia o sin normales no hay nada que pintar. Ya no existe el
+    // modo inmediato de respaldo, asi que se avisa una vez por malla (el loader
+    // rellena las normales que faltan, de modo que esto solo deberia tocar a
+    // mallas construidas a mano).
+    if (!mesh || mesh->isEmpty() || !mesh->hasNormals()) {
+        if (mesh && mallasSinNormales_.insert(mesh).second) {
+            std::cerr << "[MeshRenderer] Malla '" << mesh->name
+                      << "' sin normales por vertice: no se dibuja. Use "
+                         "Mesh::computeNormals() para generarlas."
+                      << '\n';
+        }
+        return false;
+    }
 
     Transform* transform = objeto->getGlobalTransform();
     if (!transform) return false;
@@ -297,7 +311,8 @@ bool MeshRenderer::intentarRender(Modelos3D* objeto, const float view[16],
         it = gpu_.emplace(mesh, std::move(gpu)).first;
     }
 
-    Rendering::Backend::activeBackend().setPolygonFill();
+    // El relleno de poligonos es el unico estado valido en un contexto core
+    // (no hay glPolygonMode) y el depth test ya lo activa applyBaseState().
     it->second->draw();
     ShaderProgram::unbind();
     return true;

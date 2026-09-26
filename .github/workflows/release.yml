@@ -59,7 +59,7 @@ jobs:
         run: cmake --build build --config Release --target FunshiEngineGL
 
       - name: Compilar pruebas
-        run: cmake --build build --config Release --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests
+        run: cmake --build build --config Release --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests
 
       - name: Ejecutar pruebas
         uses: nick-fields/retry@v3
@@ -67,7 +67,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           retry_on: any
-          command: ctest --test-dir build -C Release --output-on-failure
+          command: ctest --test-dir build -C Release --output-on-failure --verbose
 
       - name: Montar dist (exe + dlls + Imagenes)
         shell: pwsh
@@ -146,7 +146,7 @@ jobs:
         run: cmake --build build --target FunshiEngineGL
 
       - name: Compilar pruebas
-        run: cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests
+        run: cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests
 
       - name: Ejecutar pruebas
         uses: nick-fields/retry@v3
@@ -154,7 +154,7 @@ jobs:
           timeout_minutes: 5
           max_attempts: 3
           retry_on: any
-          command: ctest --test-dir build --output-on-failure
+          command: ctest --test-dir build --output-on-failure --verbose
 
       - name: Montar datos del paquete IFW (binario + libs locales)
         run: chmod +x FunshiEngineGL/packaging/stage_dist_linux.sh && FunshiEngineGL/packaging/stage_dist_linux.sh build/FunshiEngineGL

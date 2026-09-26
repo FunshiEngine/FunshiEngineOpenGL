@@ -28,7 +28,6 @@
 #include "../Assets/AssimpMeshLoader.h"
 #include "Configuracion/EditorConfig.h"
 #include "../ExcepcionesCPP/RuntimeException.h"
-#include "../Rendering/ImmediateRenderer.h"
 
 Modelos3D::Modelos3D(Entity* origin) : GameObject(origin) {}
 Modelos3D::Modelos3D() : GameObject() {}
@@ -60,15 +59,6 @@ void Modelos3D::setObject() {
                   << "': " << e.what() << '\n';
         mesh_.reset();
     }
-}
-
-void Modelos3D::dibujar(float deltaTime) {
-    // El render NO simula: scripts/fisica se actualizan en GameScene::update
-    // (solo en play). Antes update() aca corria los scripts tambien en editor.
-    (void)deltaTime;
-    // El fallback legacy (glBegin/glEnd + material inmediato) vive en la capa
-    // de Rendering; cuando existe render moderno GameScene no llama a dibujar.
-    ImmediateRenderer::dibujarModeloLegacy(this);
 }
 
 void Modelos3D::serializeEntity() {

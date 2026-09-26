@@ -34,15 +34,21 @@ por arrastre y escribir scripts con la API exacta que expone el motor.
 14. [Scripting C++: referencia completa](#14-scripting-c-referencia-completa)
 15. [Scripting Java (JNI)](#15-scripting-java-jni)
 16. [Hot reload y depuración](#16-hot-reload-y-depuración)
-17. [Problemas frecuentes](#17-problemas-frecuentes)
 
 ---
 
 ## 1. Requisitos e inicio rapido
 
-**Dependencias:** CMake >= 3.16, compilador con C++17, OpenGL 2.1+/GLU, GLFW,
-GLM, Assimp y Bullet. Java es opcional (solo scripting Java): si el build
+**Dependencias:** CMake >= 3.16, compilador con C++17, OpenGL 3.3 core (sin GLU),
+GLFW, GLM, Assimp y Bullet. Java es opcional (solo scripting Java): si el build
 encuentra un JDK, se compila el soporte `FUNSHI_JAVA=ON` automaticamente.
+
+El **perfil core es obligatorio**: el motor pide un contexto OpenGL 3.3 core
+(GLFW `GLFW_OPENGL_CORE_PROFILE` + `GLFW_OPENGL_FORWARD_COMPAT`) porque todo su
+render es con shaders y no usa estado fijo. Si la GPU no lo soporta, el arranque
+se corta con un mensaje en consola y la ventana no se abre; en ese caso hay que
+actualizar el driver. El requisito real es GLSL 330, que es lo que imponen los
+shaders del engine.
 
 ```bash
 cmake -S FunshiEngineGL -B FunshiEngineGL/build
@@ -148,10 +154,11 @@ ImGui la combinacion la consume el editor de texto y no guarda.
 | `Ctrl+Z` | Deshacer ultima accion del editor (undo) |
 | `Ctrl+Y` | Rehacer accion deshecha (redo) |
 | `Escape` | Volver al menu de inicio |
-| `1` / `T` | Gizmo: traslacion |
-| `2` / `R` | Gizmo: rotacion |
-| `3` / `Y` | Gizmo: escala (sin `Ctrl`: con `Ctrl` es el atajo de redo) |
-| `G` | Gizmo local / mundo |
+| `1` / `T` | Gizmo: traslacion (apaga la guia de eje) |
+| `2` / `R` | Gizmo: rotacion (apaga la guia de eje) |
+| `3` / `U` | Gizmo: escala (la `Y` suelta la tomo la guia de eje; apaga la guia) |
+| `X` / `Y` / `Z` | Guia de eje del objeto seleccionado (ver abajo) |
+| `G` | Gizmo local / mundo (gizmo y guia de eje) |
 | Clic en objeto | Seleccionar en viewport |
 
 El modo Play/Stop se controla desde la barra de menu de la escena; la fisica y
@@ -162,8 +169,8 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 
 ## 4. Objetos y componentes
 
-- **Crear objetos:** "New Object" (vacio/jerarquia) y "New RenderObject"
-  (incluye `Model` + `Material` para renderizar).
+- **Crear objetos:** "New GameObject" (crea un objeto simple en la escena que posee únicamente el componente `Transform`).
+- **Menú contextual en la jerarquía:** clic derecho sobre un objeto despliega "Renombrar" y "Eliminar"; clic derecho en espacio vacío del panel despliega "New GameObject".
 - **Componentes:** `Transform`, `Color`, `Model`, `Material`, `Light`,
   `CameraComponent`, colliders (esfera / cubo / malla), `RigidBody`,
   `AudioSource`, `InterfaceComponent` y `Script`.
@@ -173,8 +180,40 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
   motor rechaza ciclos y la raiz. "Childs Freeze" congela la transformacion de
   los hijos durante la edicion del padre.
 - **Gizmos** (ImGuizmo): traslacion/rotacion/escala con `1`/`2`/`3` o
-  `T`/`R`/`Y`, local/mundo con `G`; la fisica tiene su gizmo propio para el
+  `T`/`R`/`U`, local/mundo con `G`; la fisica tiene su gizmo propio para el
   collider activo.
+
+### Guia de eje (`X` / `Y` / `Z`)
+
+Con un objeto seleccionado, `X`, `Y` o `Z` dibujan la recta sobre la que se
+puede mover ese objeto: la tecla pulsada es el eje que varia y **las otras dos
+coordenadas quedan fijadas** a las del objeto.
+
+Por ejemplo, un objeto en `(3, 2, -5)` y se pulsa `X`: la recta es `(t, 2, -5)`
+para todo `t`. Es decir, el objeto solo se desplaza en X y su altura (Y) y su
+profundidad (Z) no se mueven. Con `Y` el efecto es el inverso: quedan fijos X y Z.
+
+- Cada eje tiene su color (X rojo, Y verde, Z azul) y la recta llega hasta el
+  **horizonte**, difuminandose con el mismo criterio que la grilla: opaca cerca de
+  la camara y desvanciendose en el mismo punto donde el piso se acaba. Asi la
+  guia se lee como un eje que atraviesa la escena entera, no como un palo corto
+  pegado al objeto.
+- Es un interruptor: apretar dos veces la misma tecla la apaga. Al activarla o
+  apagarla aparece un aviso en la barra de estado que dice que guia quedo
+  prendida y sobre que eje se puede mover el objeto. Tambien se apaga sola al
+  seleccionar otro objeto, al ocultar las interfaces con `E` y al volver al menu
+  con `Escape`.
+- Con la guia activa el gizmo **no se oculta**: se queda solo la flecha del eje
+  elegido, que es el punto de agarre. Se arrastra esa flecha y el objeto se
+  mueve por ese unico eje, sin salir de la recta.
+- Elegir otra operacion del gizmo (`1`/`T`, `2`/`R`, `3`/`U`) apaga la guia: si
+  el usuario pide rotar, escalar o mover en los tres ejes, el "solo este eje" ya
+  no aplica.
+- `G` alterna entre **mundo** (la recta sigue el eje del mundo) y **local** (la
+  recta sigue el eje del objeto, rotado con el), igual que el gizmo. La escala
+  del objeto no alarga la recta.
+- Solo aparece en el viewport principal, no en las vistas previas de camara, y
+  no necesita `Ctrl` (`Ctrl+Y`/`Ctrl+Z` siguen siendo redo/undo).
 
 ---
 
@@ -393,6 +432,9 @@ ejecuta en modo Play.
   recompila y recarga el comportamiento conservando los valores.
 - La ventana **Estado** muestra el toolchain (compilador C++, javac, libjvm,
   cache) y el resultado de compilacion/carga de cada script de la escena.
+- Los errores de carga/compilacion se informan en la ventana **Estado** y en el
+  log del motor (`logs/FunshiEngineGL_*.log`); el panel del componente no los
+  repite: queda con el fuente asignado y sus SerializeField.
 
 ---
 
@@ -623,6 +665,14 @@ void onUpdate(GameObject* owner, float deltaTime) override {
   (`FUNSHI_NOMBRE_CLASE`) compila para cualquier `<ClassName>.cpp`.
 - El cache de artefactos compilados y la ruta del compilador se muestran en
   la ventana Estado.
+- **Windows:** el motor invoca `cl.exe` a traves de `vcvars64.bat` del mismo
+  toolset MSVC (se busca subiendo desde la carpeta del compilador), porque
+  `cl.exe` resuelve los headers del CRT (incluido `<cstddef>`) y las librerias
+  por `INCLUDE`/`LIB`. Con esto el editor funciona igual si se lanza desde el
+  Explorador o desde Visual Studio. Si el compilador configurado no es MSVC
+  (`FUNSHI_CXX` a MinGW/g++, por ejemplo), hace falta un entorno con `cl.exe`
+  disponible. Los scripts Java no tienen este requisito (javac se invoca por
+  ruta absoluta).
 
 ---
 
@@ -673,39 +723,11 @@ public class MiScript implements Comportamiento {
 - **Java:** igual, con el classloader child-first; la JVM se reutiliza.
 - **Ventana Estado:** para cada script muestra nombre, ok/error y mensaje
   (errores de compilacion incluidos), ademas del toolchain detectado.
-- **Errores de compilacion C++** aparecen en el Estado y en consola; corregi
-  el fuente y guardalo de nuevo (no hace falta salir de Play).
+- **Errores de carga/compilacion C++** aparecen en la ventana Estado y en el log
+  del motor (`logs/FunshiEngineGL_*.log` junto al ejecutable), no en el panel del
+  componente; corregi el fuente y guardalo de nuevo (no hace falta salir de
+  Play).
 - Al cerrar la aplicacion los comportamientos se descargan sin disparar
   `onStop`; los backends (incluida la JVM) se apagan despues.
 
 ---
-
-## 17. Problemas frecuentes
-
-**El modelo arrastrado no aparece al recargar la escena.**
-Versiones anteriores guardaban el path del componente `Model` en un buffer de
-100 bytes: los paths largos quedaban truncados al serializar. Reasigna el
-modelo arrastrandolo de nuevo con la version actual (buffer de 4096).
-
-**"Sin campos SerializeField" en el inspector del script.**
-El bloque `REFLECT_*` no esta dentro de la clase, o `camposReflejados()` no
-devuelve `reflexion()`. Revisa la plantilla de la seccion 13.1.
-
-**El dropdown de Sonido / Interfaz esta vacio.**
-Los assets se descubren por carpeta: coloca los clips en `Sonidos/` y los
-JSON en `Interfaces/` del proyecto. En builds antiguas verifica ademas que
-raiz lista el explorador (seccion 2).
-
-**El script no compila: clase no encontrada o export faltante.**
-- El archivo debe llamarse `<ClassName>.cpp` y la clase generada es
-  `FUNSHI_<ClassName>`; no renombres la export `FUNSHI_CREAR_COMPORTAMIENTO`.
-- La export debe quedar fuera de la clase, al final del archivo.
-
-**Fisica: el objeto "sale disparado" al moverlo con el gizmo.**
-En Play la simulacion avanza mientras arrastras; usa el gizmo en modo edicion
-o detene la simulacion antes de mover objetos con cuerpo dinamico.
-
-**Paths con tildes/espacios fallan al cargar assets.**
-El motor usa paths `char`/ANSI en Windows; evita caracteres fuera de ASCII en
-las carpetas del proyecto hasta completar la portabilidad de rutas (pendiente
-en el roadmap).

@@ -68,12 +68,13 @@ void SceneSelectedInterface::contentGUI() {
     // navegar con clics (mismo comportamiento que el explorador de archivos).
     if (!entitys->isEmpty()) sceneTree.draw();
 
-    if (ImGui::BeginPopupContextWindow("SelectedEntitysPopup", ImGuiPopupFlags_MouseButtonRight)) {
-        if (ImGui::MenuItem("New Object")) {}
-        if (ImGui::MenuItem("New RenderObject")) {
+    if (ImGui::BeginPopupContextWindow(
+            "SelectedEntitysPopup",
+            ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+        if (ImGui::MenuItem("New GameObject")) {
             if (editor) {
                 GameObject* created = editor->createGameObject(
-                    GameObjectFactory::createModelObject(),
+                    GameObjectFactory::createSimpleObject(),
                     scene ? scene->getRoot() : nullptr);
                 if (created) setReturnableEntity(created);
             }

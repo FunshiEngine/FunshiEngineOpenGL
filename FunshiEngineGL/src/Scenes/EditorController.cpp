@@ -179,14 +179,30 @@ void EditorController::selectObject(GameObject* object) {
     // Nunca seleccionar un puntero que ya no pertenece a la escena.
     if (object && scene && !scene->contains(object)) return;
     // Un cambio de seleccion desarma el gizmo de componentes: el gizmo vuelve
-    // a editar el transform del objeto recien seleccionado.
-    if (selected != object) clearGizmoTarget();
+    // a editar el transform del objeto recien seleccionado. La guia de eje
+    // tambien se apaga: es la recta del objeto anterior, y dejarla prendida
+    // dibujaria un eje flotando donde ya no hay nada que mover.
+    if (selected != object) {
+        clearGizmoTarget();
+        clearGuiaEje();
+    }
     selected = object;
     if (events)
         events->publish({SceneEventType::ObjectSelected, selected, nullptr});
 }
 
 void EditorController::clearSelection() { selectObject(nullptr); }
+
+void EditorController::setGuiaEje(int eje) {
+    guiaEje = (eje >= 0 && eje <= 2) ? eje : -1;
+}
+
+void EditorController::alternarGuiaEje(int eje) {
+    if (eje < 0 || eje > 2) return;
+    guiaEje = (guiaEje == eje) ? -1 : eje;
+}
+
+void EditorController::clearGuiaEje() { guiaEje = -1; }
 
 void EditorController::setGizmoTarget(const GizmoTarget& target) {
     gizmoTarget = target;

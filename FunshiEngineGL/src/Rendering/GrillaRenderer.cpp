@@ -26,12 +26,14 @@
 
 #include "../Configuracion/Apariencia.h"
 #include "Backend/IRenderBackend.h"
+#include "LineRenderer.h"
 
 namespace {
 
 // ---------------------------------------------------------------------------
 // Constantes de diseño (NO configurables por el usuario desde la GUI):
-// - Densidad FIJA: secundarias cada 1 unidad, principales cada 5.
+// - Densidad, horizonte y difuminado viven en GrillaRenderer.h (publicas) porque
+//   la guia de eje los reusa; lo que queda aca es privado de este archivo.
 // - El horizonte es un CIRCULO de radio kFadeFin centrado en la camara (sobre
 //   el plano del suelo) que actua COMO LIMITE DE DIBUJADO: las lineas se
 //   recortan a lo que queda dentro del circulo (nada mas alla se pinta, dando
@@ -40,29 +42,30 @@ namespace {
 //   circulo persigue a la camara, moverse pinta grilla nueva por delante y
 //   deja de pintar lo que queda atras.
 // ---------------------------------------------------------------------------
-constexpr float kSepMenor = 1.0f;        // separacion fija de las secundarias
-constexpr int   kMultiploMayor = 5;      // cada 5 secundarias -> una principal
-constexpr float kFadeInicio = 40.0f;     // opacidad plena hasta aqui
-constexpr float kFadeFin = 150.0f;       // radio del circulo-horizonte (limite)
-constexpr int   kSubdivisiones = 6;      // trozos por linea para el difuminado
 constexpr float kEjeYLongitud = 70.0f;   // longitud del eje perpendicular (Y)
 
-// Empuja un vertice intercalado xyz+rgba (7 floats).
-void agregarVerticeRGBA(std::vector<float>& out, const float color[3], float x,
-                        float y, float z, float alpha) {
-    out.push_back(x);
-    out.push_back(y);
-    out.push_back(z);
-    out.push_back(color[0]);
-    out.push_back(color[1]);
-    out.push_back(color[2]);
-    out.push_back(alpha);
+// Empuja un segmento de la grilla con su alpha por extremo: el batch de lineas
+// interpola de un color al otro a lo largo del segmento, que es el difuminado.
+void agregarSegmentoRGBA(LineBuilder& out, const float color[3], float ax,
+                         float az, float alphaA, float bx, float bz,
+                         float alphaB) {
+    const float a[3] = {ax, 0.0f, az};
+    const float b[3] = {bx, 0.0f, bz};
+    const float rgbaA[4] = {color[0], color[1], color[2], alphaA};
+    const float rgbaB[4] = {color[0], color[1], color[2], alphaB};
+    out.agregarSegmento(a, b, rgbaA, rgbaB);
 }
 
 // Opacidad del difuminado radial a distancia horizontal 'd' de la camara: 1.0
 // en la zona central y caida cuadratica hasta 0.0 en el borde del circulo.
 float alphaDifuminado(float d) {
-    const float t = (d - kFadeInicio) / (kFadeFin - kFadeInicio);
+    // t se acota a [0,1] ANTES de elevar al cuadrado: sin ese recorte, los
+    // puntos mas cercanos que kFadeInicio dan t negativo y el cuadrado los baja
+    // de opacos, con lo que hasta el centro de la vista se veria translucido.
+    float t = (d - GrillaRenderer::kFadeInicio) /
+              (GrillaRenderer::kFadeFin - GrillaRenderer::kFadeInicio);
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
     const float a = 1.0f - t * t;
     return a < 0.0f ? 0.0f : (a > 1.0f ? 1.0f : a);
 }
@@ -74,18 +77,22 @@ float alphaDifuminado(float d) {
 // extremos del trozo interior caen en el borde (alpha 0) y cada vertice
 // intermedio lleva el alpha de su propia distancia radial a la camara, por eso
 // la linea se subdivide en kSubdivisiones trozos.
-void emitirLineaPlano(std::vector<float>& out, const float color[3], float fija,
+void emitirLineaPlano(LineBuilder& out, const float color[3], float fija,
                       float camX, float camZ, bool variaZ) {
     const float d = std::fabs(fija - (variaZ ? camX : camZ));
-    if (d >= kFadeFin) return; // fuera del circulo: el difuminado es el limite
-    const float h = std::sqrt(kFadeFin * kFadeFin - d * d);
+    if (d >= GrillaRenderer::kFadeFin)
+        return; // fuera del circulo: el difuminado es el limite
+    const float h = std::sqrt(GrillaRenderer::kFadeFin *
+                                  GrillaRenderer::kFadeFin -
+                              d * d);
     const float t0 = (variaZ ? camZ : camX) - h;
     const float t1 = (variaZ ? camZ : camX) + h;
     const float largo = t1 - t0;
-    for (int k = 0; k < kSubdivisiones; ++k) {
-        const float ta = t0 + largo * (static_cast<float>(k) / kSubdivisiones);
-        const float tb =
-            t0 + largo * (static_cast<float>(k + 1) / kSubdivisiones);
+    for (int k = 0; k < GrillaRenderer::kSubdivisiones; ++k) {
+        const float ta =
+            t0 + largo * (static_cast<float>(k) / GrillaRenderer::kSubdivisiones);
+        const float tb = t0 + largo * (static_cast<float>(k + 1) /
+                                        GrillaRenderer::kSubdivisiones);
         float xa, za, xb, zb;
         if (variaZ) {
             xa = fija;
@@ -104,8 +111,7 @@ void emitirLineaPlano(std::vector<float>& out, const float color[3], float fija,
                                    (zb - camZ) * (zb - camZ));
         const float aa = alphaDifuminado(da);
         const float ab = alphaDifuminado(db);
-        agregarVerticeRGBA(out, color, xa, 0.0f, za, aa);
-        agregarVerticeRGBA(out, color, xb, 0.0f, zb, ab);
+        agregarSegmentoRGBA(out, color, xa, za, aa, xb, zb, ab);
     }
 }
 
@@ -131,33 +137,29 @@ void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
     const float camX = camaraLocal.x;
     const float camZ = camaraLocal.z;
 
-    minorVertices_.clear();
-    majorVertices_.clear();
-    ejeXVertices_.clear();
-    ejeZVertices_.clear();
-    ejeYVertices_.clear();
+    secundario_.limpiar();
+    principal_.limpiar();
+    ejes_.limpiar();
 
     // Lineas del plano dentro del circulo de radio kFadeFin alrededor de la
-    // camara, ancladas a multiplos exactos de kSepMenor (no se desplazan al
-    // moverse la camara: simplemente entran y salen del circulo). Cada 5
-    // secundarias -> principal (mismo color, solo mas ancha). La linea por el
-    // origen (i/j == 0) se salta: la pintan los ejes X/Z.
-    const int iIni = static_cast<int>(std::ceil((camX - kFadeFin) / kSepMenor));
-    const int iFin = static_cast<int>(std::floor((camX + kFadeFin) / kSepMenor));
+    // camara, ancladas a multiplos exactos de kSeparacionMenor (no se desplazan al
+    // moverse la camara: simplemente entran y salen del circulo). Cada
+    // kMultiploMayor secundarias -> principal (mismo color, solo mas ancha). La
+    // linea por el origen (i/j == 0) se salta: la pintan los ejes X/Z.
+    const int iIni = static_cast<int>(std::ceil((camX - kFadeFin) / kSeparacionMenor));
+    const int iFin = static_cast<int>(std::floor((camX + kFadeFin) / kSeparacionMenor));
     for (int i = iIni; i <= iFin; ++i) {
         if (i == 0) continue;
-        const float x = static_cast<float>(i) * kSepMenor;
-        emitirLineaPlano((i % kMultiploMayor == 0) ? majorVertices_
-                                                   : minorVertices_,
+        const float x = static_cast<float>(i) * kSeparacionMenor;
+        emitirLineaPlano((i % kMultiploMayor == 0) ? principal_ : secundario_,
                          colorGrilla, x, camX, camZ, true);
     }
-    const int jIni = static_cast<int>(std::ceil((camZ - kFadeFin) / kSepMenor));
-    const int jFin = static_cast<int>(std::floor((camZ + kFadeFin) / kSepMenor));
+    const int jIni = static_cast<int>(std::ceil((camZ - kFadeFin) / kSeparacionMenor));
+    const int jFin = static_cast<int>(std::floor((camZ + kFadeFin) / kSeparacionMenor));
     for (int j = jIni; j <= jFin; ++j) {
         if (j == 0) continue;
-        const float z = static_cast<float>(j) * kSepMenor;
-        emitirLineaPlano((j % kMultiploMayor == 0) ? majorVertices_
-                                                   : minorVertices_,
+        const float z = static_cast<float>(j) * kSeparacionMenor;
+        emitirLineaPlano((j % kMultiploMayor == 0) ? principal_ : secundario_,
                          colorGrilla, z, camX, camZ, false);
     }
 
@@ -171,55 +173,35 @@ void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
     AparienciaUtil::ejeContraste(kEjeBaseVerde, colorGrilla, colorEjeZ);
     AparienciaUtil::ejeContraste(kEjeBaseAmarillo, colorGrilla, colorEjeY);
 
-    emitirLineaPlano(ejeXVertices_, colorEjeX, 0.0f, camX, camZ, false);
-    emitirLineaPlano(ejeZVertices_, colorEjeZ, 0.0f, camX, camZ, true);
-    const float alphaEjeY =
-        alphaDifuminado(std::sqrt(camX * camX + camZ * camZ));
-    agregarVerticeRGBA(ejeYVertices_, colorEjeY, 0.0f, 0.0f, 0.0f, alphaEjeY);
-    agregarVerticeRGBA(ejeYVertices_, colorEjeY, 0.0f, kEjeYLongitud, 0.0f,
-                       alphaEjeY);
-
-    Rendering::Backend::IRenderBackend& b =
-        Rendering::Backend::activeBackend();
-    b.pushMatrix();
-    b.multMatrix(model);
-    b.setLightingEnabled(false);
-    // Lineas suavizadas (con blending activo, lo que ademas usa el alpha del
-    // difuminado para fundirse con el fondo en el horizonte).
-    b.setLineSmoothing(true);
-
-    // Secundarias (1px) y principales (2px): mismo color efectivo, solo cambia
-    // el ancho. El alpha radial ya viene por vertice (cerca opaco, borde 0).
-    if (!minorVertices_.empty()) {
-        b.setLineWidth(1.0f);
-        b.drawLinePairsRGBA(minorVertices_.data(),
-                            static_cast<int>(minorVertices_.size() / 7));
-    }
-    if (!majorVertices_.empty()) {
-        b.setLineWidth(2.0f);
-        b.drawLinePairsRGBA(majorVertices_.data(),
-                            static_cast<int>(majorVertices_.size() / 7));
+    emitirLineaPlano(ejes_, colorEjeX, 0.0f, camX, camZ, false);
+    emitirLineaPlano(ejes_, colorEjeZ, 0.0f, camX, camZ, true);
+    {
+        const float alphaEjeY =
+            alphaDifuminado(std::sqrt(camX * camX + camZ * camZ));
+        const float rgbaEjeY[4] = {colorEjeY[0], colorEjeY[1], colorEjeY[2],
+                                   alphaEjeY};
+        const float puntosEjeY[6] = {0.0f, 0.0f, 0.0f, 0.0f, kEjeYLongitud, 0.0f};
+        ejes_.agregarPolilinea(puntosEjeY, 2, false, rgbaEjeY);
     }
 
-    // Ejes (3px) con su color por contraste.
-    b.setLineWidth(3.0f);
-    b.drawLinePairsRGBA(ejeXVertices_.data(),
-                        static_cast<int>(ejeXVertices_.size() / 7));
-    b.drawLinePairsRGBA(ejeZVertices_.data(),
-                        static_cast<int>(ejeZVertices_.size() / 7));
-    b.drawLinePairsRGBA(ejeYVertices_.data(),
-                        static_cast<int>(ejeYVertices_.size() / 7));
+    // El difuminado se funde con el fondo: hace falta blending durante la
+    // grilla (y hay que restaurarlo, la pasada de objetos espera el estado base).
+    auto& backend = Rendering::Backend::activeBackend();
+    backend.setBlendEnabled(true);
 
-    b.setLineWidth(1.0f); // Restaurar ancho por defecto
-    b.setLineSmoothing(false);
-    b.setLightingEnabled(true);
-    b.popMatrix();
+    // Secundarias (1px), principales (2px) y ejes (3px): mismo color efectivo,
+    // solo cambia el ancho, que el shader resuelve en pixeles. El alpha radial ya
+    // viene por vertice (cerca opaco, borde 0).
+    auto& lineas = lineRenderer();
+    lineas.dibujar(secundario_, secundarioBatch_, model, 1.0f);
+    lineas.dibujar(principal_, principalBatch_, model, 2.0f);
+    lineas.dibujar(ejes_, ejesBatch_, model, 3.0f);
+
+    backend.setBlendEnabled(false);
 }
 
 void GrillaRenderer::destruir() {
-    minorVertices_.clear();
-    majorVertices_.clear();
-    ejeXVertices_.clear();
-    ejeZVertices_.clear();
-    ejeYVertices_.clear();
+    secundario_.limpiar();
+    principal_.limpiar();
+    ejes_.limpiar();
 }

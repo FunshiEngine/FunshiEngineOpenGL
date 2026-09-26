@@ -121,7 +121,10 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
     // drag&drop sobreescriben el "last item" de ImGui.
     const bool toggled = ImGui::IsItemToggledOpen();
 
-    if (ImGui::IsItemClicked() && editor) editor->selectObject(object);
+    if ((ImGui::IsItemClicked(ImGuiMouseButton_Left) ||
+         ImGui::IsItemClicked(ImGuiMouseButton_Right)) &&
+        editor)
+        editor->selectObject(object);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("ID: %d", object->getId());
 

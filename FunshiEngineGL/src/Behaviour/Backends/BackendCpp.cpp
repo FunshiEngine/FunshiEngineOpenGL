@@ -63,13 +63,37 @@
 #define FUNSHI_SRC_DIR ""
 #endif
 
+#if defined(_WIN32)
+// Ruta a vcvars64.bat subiendo desde la carpeta del compilador: el toolset
+// MSVC la tiene en <VS>/VC/Auxiliary/Build, arriba de VC/Tools/MSVC/<ver>.
+// Devuelve vacia si no es un compilador MSVC (MinGW, FUNSHI_CXX manual, etc.).
+std::string vcvars64Ruta(const std::string& compilador) {
+    std::error_code ec;
+    std::filesystem::path p = std::filesystem::weakly_canonical(compilador, ec);
+    if (ec) p = std::filesystem::path(compilador);
+    for (std::filesystem::path dir = p.parent_path(); !dir.empty();
+         dir = dir.parent_path()) {
+        std::filesystem::path cand = dir / "Auxiliary" / "Build" / "vcvars64.bat";
+        if (std::filesystem::exists(cand, ec)) return cand.string();
+    }
+    return std::string();
+}
+#endif
+
 namespace {
 const char* nombreFabrica() { return FUNSHI_SYM_CREAR; }
 
+// Ruta del compilador a invocar: FUNSHI_CXX si esta definida, si no la
+// horneada por CMake en el build. El valor puede quedar con comillas externas
+// en algunos generadores (Ninja/MinGW): se normalizan aca y el comando las
+// repone explicitamente, porque una ruta sin comillas se parte en el primer
+// espacio (cmd.exe intenta ejecutar "C:/Program" y no lo reconoce).
 std::string compilador() {
     const char* env = std::getenv("FUNSHI_CXX");
-    if (env && *env) return env;
-    return FUNSHI_CXX_COMPILER;
+    std::string c = (env && *env) ? env : FUNSHI_CXX_COMPILER;
+    if (c.size() >= 2 && c.front() == '"' && c.back() == '"')
+        c = c.substr(1, c.size() - 2);
+    return c;
 }
 
 // Escapa una ruta para pasarla como argumento de linea de comandos.
@@ -123,8 +147,7 @@ std::string mtimeDe(const std::string& ruta) {
 const char* BackendCpp::lenguaje() const { return "cpp"; }
 
 std::string BackendCpp::compiladorRuta() {
-    const char* env = std::getenv("FUNSHI_CXX");
-    return (env && *env) ? env : FUNSHI_CXX_COMPILER;
+    return compilador();
 }
 
 std::string BackendCpp::cacheDir() { return directorioCache(); }
@@ -172,22 +195,50 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
             logic = "-I\"" + escapar(dirSrc) + "\" ";
 #endif
         }
-        logic += escapar(fuente);
+        // El fuente va SIEMPRE entrecomillado: es una ruta de proyecto del
+        // usuario y puede tener espacios (p. ej. "...\Nuevo Proyecto\...\x.cpp").
+        // Sin comillas el shell la parte en trozos y el compilador no encuentra
+        // el archivo (C1083 "no se puede abrir el archivo origen").
+        logic += "\"" + escapar(fuente) + "\"";
         const std::string logPath =
             (std::filesystem::path(directorioCache()) / "compilar.log")
                 .string();
-        std::string cmd;
+        // El compilador va SIEMPRE entrecomillado: en Windows vive en una ruta
+        // con espacios (C:/Program Files/...) y sin comillas el shell corta en
+        // el primer espacio ("C:/Program" no se reconoce como comando interno).
+        const std::string compiladorCmd = "\"" + compilador() + "\"";
+        std::string cuerpo;
 #if defined(_WIN32)
-        cmd = compilador() +
-              " /nologo /LD /std:c++17 /O2 /DFUNSHI_NOMBRE_CLASE=" +
-              nombreClase + " " + logic + " /Fo\"" + directorioCache() +
-              "\\\" /Fe" + escapar(artefactoPath) + " > \"" + logPath +
-              "\" 2>&1";
+        // /Fo y /Fe entrecomillados y con el backslash final duplicado: con
+        // /Fo"dir\" el compilador lee \" como comilla escapada, se traga el
+        // argumento siguiente y falla con C1083 sobre el archivo generado.
+        cuerpo = compiladorCmd +
+                 " /nologo /LD /std:c++17 /O2 /DFUNSHI_NOMBRE_CLASE=" +
+                 nombreClase + " " + logic + " /Fo\"" + directorioCache() +
+                 "\\\\\" /Fe\"" + escapar(artefactoPath) + "\" > \"" + logPath +
+                 "\" 2>&1";
 #else
-        cmd = compilador() +
-              " -std=c++17 -shared -fPIC -O2 -DFUNSHI_NOMBRE_CLASE=" +
-              nombreClase + " " + logic + " -o " + escapar(artefactoPath) +
-              " > " + logPath + " 2>&1";
+        cuerpo = compiladorCmd +
+                 " -std=c++17 -shared -fPIC -O2 -DFUNSHI_NOMBRE_CLASE=" +
+                 nombreClase + " " + logic + " -o " + escapar(artefactoPath) +
+                 " > " + logPath + " 2>&1";
+#endif
+        std::string cmd = cuerpo;
+#if defined(_WIN32)
+        // std::system arma `cmd.exe /c <comando>`: si el comando arranca con
+        // comilla, cmd aplica su regla vieja y se come la PRIMERA y la ULTIMA
+        // comilla de la linea, desarmadolo (cl.exe no arranca y el log queda
+        // con '"C:/Program" no se reconoce'). Dos envoltorios resuelven:
+        // 1) cl.exe necesita el entorno del toolset (INCLUDE/LIB): si existe,
+        //    se antepone vcvars64.bat con `call` (sin comilla inicial no hay
+        //    strip, y el && encadena cl con el entorno ya armado).
+        // 2) Sin vcvars (compilador no MSVC), se envuelve el comando entero en
+        //    una comilla extra: cmd se come esas dos y el cuerpo queda intacto.
+        const std::string vcvars = vcvars64Ruta(compilador());
+        if (!vcvars.empty())
+            cmd = "call \"" + vcvars + "\" >nul 2>&1 && " + cuerpo;
+        else
+            cmd = "\"" + cuerpo + "\"";
 #endif
         int rc = std::system(cmd.c_str());
         if (rc != 0) {

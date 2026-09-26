@@ -21,7 +21,14 @@
 #include <memory>
 #include <btBulletDynamicsCommon.h>
 
-#include "../../../Rendering/ImmediateRenderer.h"
+#include "../../../Rendering/LineBuilder.h"
+#include "../../../Rendering/LineRenderer.h"
+
+namespace {
+// Ancho del wireframe del collider en pixeles (2 px: se ve al-redondeado sin
+// tapar la geometria).
+constexpr float kAnchoWire = 2.0f;
+} // namespace
 
 CubeCollider::CubeCollider(float radio, Transform* transformOfDadObject,
                            GameObject* owner)
@@ -38,28 +45,15 @@ void CubeCollider::dibujarCollider() {
     float modelArr[16];
     buildMatrixFromTransform(&globalT, modelArr);
 
-    // El collider expone solo geometria local (cubo al radio); el dibujado
-    // inmediato lo hace la capa de Rendering.
-    const float verde[3] = {0.0f, 1.0f, 0.0f};
+    // El collider expone solo geometria local (cubo al radio); el dibujado lo
+    // hace la capa de Rendering con el batch de lineas.
+    const float verde[4] = {0.0f, 1.0f, 0.0f, 1.0f};
 
     // Cubo en origen local
-    const float v[8][3] = {
-        {-radio, -radio, -radio},
-        { radio, -radio, -radio},
-        { radio,  radio, -radio},
-        {-radio,  radio, -radio},
-        {-radio, -radio,  radio},
-        { radio, -radio,  radio},
-        { radio,  radio,  radio},
-        {-radio,  radio,  radio}
-    };
+    const float semilado[3] = {radio, radio, radio};
+    const float origen[3] = {0.0f, 0.0f, 0.0f};
 
-    const int edges[12][2] = {
-        {0,1}, {1,2}, {2,3}, {3,0},
-        {4,5}, {5,6}, {6,7}, {7,4},
-        {0,4}, {1,5}, {2,6}, {3,7}
-    };
-
-    ImmediateRenderer::dibujarAristas(&v[0][0], 8, &edges[0][0], 12, verde,
-                                      modelArr);
+    LineBuilder builder;
+    builder.agregarCaja(origen, semilado, verde);
+    lineRenderer().dibujar(builder, obtenerWireBatch(), modelArr, kAnchoWire);
 }

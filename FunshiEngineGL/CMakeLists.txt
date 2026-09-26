@@ -117,7 +117,9 @@ if(BUILD_ENGINE)
 find_package(glfw3 REQUIRED)
 target_link_libraries(funshi_engine PRIVATE glfw)
 
-# 2. Configuración de OpenGL y GLU (VERSIÓN CORREGIDA)
+# 2. Configuración de OpenGL. El engine pide un contexto 3.3 core en Ventana.cpp
+# y usa las funciones modernas por puntero (GLFuncs), por lo que no se enlaza GLU:
+# no hay glu* que usar tras eliminar el modo inmediato.
 find_package(OpenGL REQUIRED)
 
 # Primero enlazamos OpenGL básico
@@ -472,6 +474,23 @@ set_target_properties(estructuras-tests PROPERTIES
     CXX_EXTENSIONS OFF
 )
 add_test(NAME estructuras-tests COMMAND estructuras-tests)
+
+# Geometria de las lineas del pipeline moderno (headless y portatil): solo la
+# parte CPU (LineBuilder, la expansion de cada segmento al quad que dibuja el
+# shader de lineas) y el calculo de la recta de la guia de eje (GuiaEje). No
+# entra OpenGL ni glm a proposito, asi el layout del VAO, la cuenta de vertices
+# y los extremos de la guia se pueden verificar sin pila grafica.
+add_executable(rendering-tests
+    ${SRC_DIR}/Rendering/LineBuilder.cpp
+    ${SRC_DIR}/Rendering/GuiaEje.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/RenderingTests.cpp
+)
+set_target_properties(rendering-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME rendering-tests COMMAND rendering-tests)
 
 # Reflexion de comportamiento (motor de SerializeField): headless y portatil.
 # Cubre las macros REFLECT_*, la lectura/escritura de campos (incl. grupos

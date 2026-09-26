@@ -5,11 +5,12 @@ Guía rápida para agentes (y humanos) que trabajen en este repositorio.
 ## Comandos esenciales
 
 ```bash
-# Configurar y compilar (el build soportado es CMake; el .vcxproj es legacy)
+# Configurar y compilar (CMake es el único build soportado; la solución de
+# Visual Studio la genera CMake dentro del directorio de build, no se versiona)
 cmake -S FunshiEngineGL -B FunshiEngineGL/build
 cmake --build FunshiEngineGL/build -j$(nproc)
 
-# Ejecutar la suite de tests (17 targets headless + scripts-java si hay JDK)
+# Ejecutar la suite de tests (18 targets headless + scripts-java si hay JDK)
 cd FunshiEngineGL/build && ctest --output-on-failure
 ```
 
@@ -64,6 +65,14 @@ cd FunshiEngineGL/build && ctest --output-on-failure
 
 ## Flujo de trabajo
 
+- **Lista de tareas antes de escribir código**: si la tarea requiere más de un
+  paso (analizar, tocar varios archivos, testear, documentar), armar primero una
+  lista de pendientes explícita y trabajar contra ella, no de memoria. La lista
+  se mantiene al día de forma incremental: cada tarea se marca como completada
+  en cuanto está hecha y verificada, y no todas al final. Si aparece un paso
+  nuevo o cambia el alcance, la lista se ajusta en el momento. Esto sirve para
+  que el usuario vea el avance real del trabajo y para que el agente no cierre
+  una tarea dando por hecho algo que quedó sin hacer.
 - **Una tarea, una rama**: al comenzar una tarea de un tema distinto al actual,
   primero commitear los cambios pendientes de la rama actual y luego cambiar de
   rama. Nunca mezclar temas distintos en una misma rama.
@@ -77,6 +86,25 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   cuál rama debe partir — `develop`, `release`, `staging` o `test` — para
   mantener el orden de desarrollo; solo usar `master` (o la rama que
   corresponda según ese documento) como base cuando el flujo lo indique.
+- **Rama desactualizada: ponerla al día antes de escribir código**: nada más
+  crear o traer la rama —y también cada vez que se retome el trabajo en ella—
+  medir la distancia con
+  `git rev-list --left-right --count origin/<rama>...HEAD` y `git fetch`. Si le
+  faltan commits —porque el equipo estuvo mergeando a otra rama, o porque la
+  base indicada en el flujo quedó rezagada (pasó con `develop`, que quedó
+  muchas releases atrás de `master` mientras los PR seguían entrando a
+  `master`)—, actualizarla de inmediato con `git merge --ff-only origin/<rama>`
+  cuando la base sea ancestro directo, o `git rebase origin/<rama>` si la rama
+  ya tiene commits propios, y recién entonces arrancar el trabajo. Nunca dejar
+  que la tarea se siga sobre un árbol viejo ni mezclar el atraso al final: el
+  costo (conflictos, archivos borrados que reaparecen, código que ya no compila)
+  es siempre mayor al hacerlo al comienzo. El objetivo es siempre trabajar
+  contra el estado actual del remoto y no contra una referencia vieja: hacer
+  `git fetch` antes de medir, y si la base indicada en el flujo se movió o la
+  rama quedó atrás por merges del equipo, actualizarla de inmediato. Si la
+  actualización produce
+  conflictos por commits ajenos, reportarlos y esperar instrucciones en lugar de
+  resolverlos por cuenta propia.
 - **Documentación sincronizada**: la documentación no es un extra, es parte de
   la tarea. Antes de empezar, revisar los `.md` que describen el área afectada
   (`README.md`, `MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`,

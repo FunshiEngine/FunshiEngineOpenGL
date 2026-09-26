@@ -42,6 +42,7 @@
 #include "../Rendering/Backend/IRenderBackend.h"
 #include "../Rendering/RenderTarget.h"
 #include "../Rendering/SceneRenderer.h"
+#include "../Rendering/GuiaEje.h"
 #include "../Audio/AudioEngine.h"
 #include "../Audio/MiniAudioBackend.h"
 #include "../GUI/CreadorUI/CreadorDeInterfaces.h"
@@ -305,7 +306,7 @@ CameraComponent* GameScene::getActiveCamera() {
     // esa orientacion inicial es la que ve el usuario hasta salir al menu.
     if (editorController) {
         GameObject* creada = editorController->createGameObject(
-            std::make_unique<Modelos3D>(nullptr), nullptr);
+            std::make_unique<SimpleObject>(), nullptr);
         if (creada) {
             std::snprintf(creada->inputName, sizeof(creada->inputName),
                           "CamaraPrincipal");
@@ -362,7 +363,7 @@ GameObject* GameScene::agregarCamaraEnVistaActiva() {
                            : nullptr;
 
     GameObject* creada = editorController->createGameObject(
-        std::make_unique<Modelos3D>(nullptr), nullptr);
+        std::make_unique<SimpleObject>(), nullptr);
     if (!creada) return nullptr;
 
     creada->addComponent(std::make_unique<Transform>());
@@ -879,6 +880,13 @@ void GameScene::gameScene() {
     ctx.globalAmbient = lightSystem.getGlobalAmbient();
     ctx.framebufferWidth = fbW;
     ctx.framebufferHeight = fbH;
+    // Guia de eje: el estado vive en EditorController y la recta se dibuja con
+    // el mismo sistema de referencia que el gizmo (G alterna GLOBAL/LOCAL). Es
+    // parte del toolkit del editor, asi que se apaga junto con el (E): sin las
+    // interfaces tampoco se ve la guia, y no queda prendida sin forma de
+    // apagarla.
+    ctx.guiaEje = isEditorActivo() ? getGuiaEje() : GuiaEje::kSinGuia;
+    ctx.guiaCoordenadasGlobales = isGizmoGlobal();
 
     // Pasada de la escena (vistas previas + pasada principal + diag) en la
     // capa de Rendering.
@@ -931,6 +939,30 @@ bool GameScene::isGizmoCapturingInput() const {
 
 bool GameScene::gizmoInUse() const {
     return gizmoController_ && gizmoController_->gizmoInUse();
+}
+
+void GameScene::alternarGuiaEje(int eje) {
+    if (!editorController) return;
+    // Sin objeto seleccionado no hay guia que dibujar: la tecla se ignora en
+    // lugar de dejar prendido un estado invisible que el usuario no puede ver
+    // ni apagar.
+    if (!editorController->getSelectedObject()) {
+        editorController->clearGuiaEje();
+        return;
+    }
+    editorController->alternarGuiaEje(eje);
+}
+
+int GameScene::getGuiaEje() const noexcept {
+    return editorController ? editorController->getGuiaEje() : -1;
+}
+
+bool GameScene::hayGuiaEje() const noexcept {
+    return editorController && editorController->hayGuiaEje();
+}
+
+void GameScene::clearGuiaEje() {
+    if (editorController) editorController->clearGuiaEje();
 }
 
 void GameScene::toggleEditorInterfaces() {

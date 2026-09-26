@@ -149,13 +149,10 @@ void SettingsScript::showDataComponent() {
 		ImGui::PopStyleColor();
 	}
 
-	const std::string& error = myScript->ultimoError();
-	if (!error.empty()) {
-		ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 90, 90, 255));
-		ImGui::TextWrapped("%s", error.c_str());
-		ImGui::PopStyleColor();
-		return;
-	}
+	// Los errores de carga/compilacion NO se muestran aca: se informan en la
+	// ventana Estado y en el log del motor (logs/), igual que el resto de los
+	// mensajes del scripting. El panel queda solo con el fuente asignado y sus
+	// SerializeField, para no repetir el mismo mensaje en dos lados.
 
 	const std::vector<DefCampo>& campos = myScript->obtenerCampos();
 	std::vector<ValorCampo>& valores = myScript->obtenerValores();

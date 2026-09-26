@@ -36,6 +36,7 @@
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/GameObject.h"
 #include "../Objetos/Modelos3D.h"
+#include "../Rendering/GuiaEje.h"
 #include "EditorController.h"
 #include "SceneRegistry.h"
 #include "ImGuizmo.h"
@@ -192,14 +193,31 @@ void GizmoController::dibujarYRastrear(ImGuiIO& io, CameraComponent* camara) {
         }
     }
 
-    if (target.local && operation_ != 0) {
+    // Guia de eje activa (X/Y/Z): en vez de apagar el gizmo, se limita a la
+    // flecha del eje elegido. ImGuizmo modela la operacion como mascara de
+    // bits, asi que pasar TRANSLATE_X/Y/Z (en vez de TRANSLATE, que son los tres)
+    // hace que dibuje solo esa flecha y solo responda al arrastre de esa
+    // flecha: el usuario agarra un unico punto y mueve el objeto por un unico
+    // eje, que es justo lo que promete la guia. El resto de la maquinaria
+    // (foto para undo, desescala y escritura al transform local) es la misma.
+    int guiaEje = -1;
+    if (controlador_) guiaEje = controlador_->getGuiaEje();
+
+    // Operacion efectiva de este frame: con guia activa es traslacion de un
+    // solo eje, sin importar cual era la operacion del gizmo (1/T, 2/R, 3/U).
+    const int operacionEfectiva =
+        guiaEje >= GuiaEje::kEjeX && guiaEje <= GuiaEje::kEjeZ
+            ? static_cast<int>(ImGuizmo::TRANSLATE_X << guiaEje)
+            : operation_;
+
+    if (target.local && operacionEfectiva != 0) {
         // Matriz que maniula el gizmo: parentGlobal * local. Para translate y
         // rotate ImGuizmo EXPLOTA con matrices escaladas (no-ortonormales):
         // con el objeto o su padre escalado, el objeto sale disparado al usar
         // el gizmo. Por eso se desescala antes de pasarla y se reinserta la
         // escala al leer el resultado.
         float scaleVec[3] = {1.0f, 1.0f, 1.0f};
-        const bool sinEscala = operation_ != ImGuizmo::SCALE;
+        const bool sinEscala = operacionEfectiva != ImGuizmo::SCALE;
 
         float localArr[16];
         buildMatrixFromTransform(target.local, localArr);
@@ -251,7 +269,7 @@ void GizmoController::dibujarYRastrear(ImGuiIO& io, CameraComponent* camara) {
         const ImGuizmo::MODE modoGizmo =
             global_ ? ImGuizmo::WORLD : ImGuizmo::LOCAL;
         ImGuizmo::Manipulate(view, projection,
-                             static_cast<ImGuizmo::OPERATION>(operation_),
+                             static_cast<ImGuizmo::OPERATION>(operacionEfectiva),
                              modoGizmo, matrix, nullptr,
                              nullptr, nullptr, nullptr);
         listo_ = true;

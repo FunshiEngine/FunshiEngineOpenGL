@@ -22,16 +22,12 @@
 #include "GameObject.h"
 
 // GameObject simples sin geometria. Util para objetos que solo necesitan
-// componentes como Transform, Grid, Light, etc., sin malla asociada.
+// componentes como Transform, Grid, Light, etc., sin malla asociada. El dibujado
+// lo hace SceneRenderer, asi que no hay nada que implementar aca.
 class SimpleObject : public GameObject {
 public:
     explicit SimpleObject(Entity* origin) : GameObject(origin) {}
     SimpleObject() : GameObject() {}
-    
-    void dibujar(float deltaTime) override {
-        // Objeto sin geometria: no dibuja nada.
-        (void)deltaTime;
-    }
 };
 
 #endif

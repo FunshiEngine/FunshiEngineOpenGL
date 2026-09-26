@@ -177,7 +177,9 @@ void EditorInput::onKey(GLFWwindow* window, int key, int scancode, int action,
     }
 
     // Ctrl+Y: rehacer (redo). Es el UNICO atajo de redo: la "Y" con Ctrl deja de
-    // ser el atajo de escala del gizmo (3/Y) y no se solapa con ningun otro.
+    // ser el atajo de escala del gizmo (3/U) y no se solapa con ningun otro.
+    // La "Y" suelta la tomo la guia de eje (X/Y/Z), que necesita las tres
+    // letras libres para dibujar la recta del eje pulsado.
     if (key == GLFW_KEY_Y && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
         if (scene && !ImGui::GetIO().WantCaptureKeyboard) {
             if (auto* ec = scene->getEditorController()) {
@@ -216,6 +218,41 @@ void EditorInput::onKey(GLFWwindow* window, int key, int scancode, int action,
             aplicarModoCursor(window);
         }
         return;
+    }
+
+    // X/Y/Z: guia de eje sobre el objeto seleccionado. Dibujan la recta del
+    // eje pulsado pasando por el objeto (las otras dos coordenadas quedan
+    // fijadas a las suyas) para marcar sobre que eje se puede mover, y la guia
+    // se apaga con el gizmo mientras esta activa. Como las teclas son de un
+    // caracter ("Y" suelta, "Z" suelta), se exigen las mismas guardas que E y
+    // los atajos del gizmo: solo en edicion, sin editor oculto y con el
+    // teclado libre de ImGui. Ctrl queda excluido (Ctrl+Y = rehacer,
+    // Ctrl+Z = deshacer) y el estado vive en EditorController, que lo comparte
+    // con el gizmo y el renderer.
+    if (action == GLFW_PRESS && !(mods & GLFW_MOD_CONTROL) && !ImGui::GetIO().WantCaptureKeyboard) {
+        int eje = -1;
+        if (key == GLFW_KEY_X) eje = 0;
+        else if (key == GLFW_KEY_Y) eje = 1;
+        else if (key == GLFW_KEY_Z) eje = 2;
+        if (eje >= 0) {
+            if (appState && appState->is(ApplicationState::Editing) && scene &&
+                scene->isEditorActivo() && !orbitando) {
+                scene->alternarGuiaEje(eje);
+                // Aviso momentaneo en la barra de estado (mismo mecanismo que el
+                // guardado y el undo): la guia se ve como una recta que cruza la
+                // escena, asi que sin este texto no queda claro si quedo prendida
+                // ni sobre que eje se puede mover el objeto.
+                static const char* kNombresEje[3] = {"X", "Y", "Z"};
+                const bool prendida = scene->hayGuiaEje();
+                scene->mostrarMensaje(
+                    prendida ? std::string("Guia de eje ") + kNombresEje[eje] +
+                                   " activa: arrastra la flecha para mover el "
+                                   "objeto en ese eje"
+                             : std::string("Guia de eje ") + kNombresEje[eje] +
+                                   " apagada");
+            }
+            return;
+        }
     }
 
     // Maquina de estado de movimiento: las teclas NO mueven la camara aca;
@@ -265,15 +302,31 @@ void EditorInput::onKey(GLFWwindow* window, int key, int scancode, int action,
         if (scene) scene->setGizmoGlobal(!scene->isGizmoGlobal());
     }
 
-    // Atajos de operacion del gizmo (1/T, 2/R, 3/Y): con Ctrl pulsada la tecla
+    // Atajos de operacion del gizmo (1/T, 2/R, 3/U): con Ctrl pulsada la tecla
     // pertenece a otro atajo (p. ej. Ctrl+Y = rehacer), asi que no se aplican.
+    // La escala quedo en "U" (no en "Y") para dejar las tres letras de los ejes
+    // (X/Y/Z) libres de atajos y dedicadas a la guia de eje.
+    //
+    // Elegir una operacion apaga la guia de eje: el usuario acaba de pedir
+    // rotar o escalar, o mover en los tres ejes, asi que el "solo este eje" ya
+    // no aplica y dejarlo prendido lo dejaria escribiendo en un unico eje
+    // mientras el gizmo muestra el otro (o ninguna flecha, si pidio escalar).
     if (action == GLFW_PRESS && !(mods & GLFW_MOD_CONTROL)) {
         if (key == GLFW_KEY_1 || key == GLFW_KEY_T) {
-            if (scene) scene->setGizmoOperation(ImGuizmo::TRANSLATE);
+            if (scene) {
+                scene->clearGuiaEje();
+                scene->setGizmoOperation(ImGuizmo::TRANSLATE);
+            }
         } else if (key == GLFW_KEY_2 || key == GLFW_KEY_R) {
-            if (scene) scene->setGizmoOperation(ImGuizmo::ROTATE);
-        } else if (key == GLFW_KEY_3 || key == GLFW_KEY_Y) {
-            if (scene) scene->setGizmoOperation(ImGuizmo::SCALE);
+            if (scene) {
+                scene->clearGuiaEje();
+                scene->setGizmoOperation(ImGuizmo::ROTATE);
+            }
+        } else if (key == GLFW_KEY_3 || key == GLFW_KEY_U) {
+            if (scene) {
+                scene->clearGuiaEje();
+                scene->setGizmoOperation(ImGuizmo::SCALE);
+            }
         }
     }
 }

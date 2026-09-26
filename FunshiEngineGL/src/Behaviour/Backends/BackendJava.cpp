@@ -175,11 +175,22 @@ std::string rutaLibjvm() {
         if (fs::exists(p, ec)) return p.string();
     }
 
-    // Ruta con la que se configuro el build (FindJNI), si existe.
+    // Ruta con la que se configuro el build (FindJNI), si existe. FindJNI en
+    // Windows entrega el .lib de importacion (no se puede LoadLibrary); el
+    // .dll real vive en <jdk>/bin/server/jvm.dll, al lado de lib/.
     std::error_code ec;
     if (std::string(FUNSHI_LIBJVM_DEFAULT).size() > 0 &&
-        fs::exists(FUNSHI_LIBJVM_DEFAULT, ec))
+        fs::exists(FUNSHI_LIBJVM_DEFAULT, ec)) {
+#if defined(_WIN32)
+        fs::path lib(FUNSHI_LIBJVM_DEFAULT);
+        if (lib.extension() == ".lib") {
+            fs::path dll = lib.parent_path().parent_path() / "bin" / "server" /
+                           "jvm.dll";
+            if (fs::exists(dll, ec)) return dll.string();
+        }
+#endif
         return FUNSHI_LIBJVM_DEFAULT;
+    }
 
     // Busqueda generica en instalaciones tipicas de Linux.
 #if !defined(_WIN32)
@@ -449,10 +460,18 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
             (fs::path(sdkDir) / "Comportamiento.java").string();
         const std::string sdkNativo = (fs::path(sdkDir) / "Nativo.java").string();
         const std::string sdkCargador = (fs::path(sdkDir) / "Cargador.java").string();
-        const std::string cmd =
+        std::string cmd =
             "\"" + javac + "\" -d \"" + clasesDir + "\" -cp \"" + clasesDir +
             "\" \"" + sdkComportamiento + "\" \"" + sdkNativo + "\" \"" +
             sdkCargador + "\" \"" + fuente + "\" > \"" + logPath + "\" 2>&1";
+#if defined(_WIN32)
+        // Mismo motivo que BackendCpp: std::system arma `cmd.exe /c <comando>`
+        // y con comilla inicial cmd se come la primera y la ultima de la
+        // linea, rompiendo el comando (javac no arrancaba y el log quedaba
+        // vacio). Envolverlo hace que cmd se coma el par extra y el cuerpo
+        // llegue intacto.
+        cmd = "\"" + cmd + "\"";
+#endif
         int rc = std::system(cmd.c_str());
         if (rc != 0) {
             error = "Error al compilar el script Java:\n" + leerArchivo(logPath);

@@ -55,7 +55,6 @@ public:
 
     void setPath(std::string path);
     std::string getPath();
-    void dibujar(float deltaTime) override;
     bool getBoundingBox(vec3& outMin, vec3& outMax) const;
     // Vertices en espacio local del modelo (para construir shapes de colision).
     const std::vector<vec3>& getVertices() const;

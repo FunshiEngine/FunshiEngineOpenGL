@@ -56,6 +56,20 @@ struct Mesh {
         return !uvs.empty() && uvs.size() == vertices.size();
     }
 
+    // Calcula una normal por vertice a partir de las caras: acumula la normal
+    // de cada triángulo (producto cruz, que ya viene ponderado por el area) en
+    // sus tres vertices y normaliza al final, promediando por area. Es el mismo
+    // criterio que computeTangents(). Requiere vertices e indices triangulados.
+    // Los vertices que no pertenecen a ninguna cara conservan la normal nula en
+    // vez de un NaN. Devuelve false si no hay indices triangulados.
+    //
+    // "soloFaltantes" recalcula SOLO los vertices cuya normal es nula y respeta
+    // las que ya traen normal (no nula). Es el modo para assets que mezclan
+    // sub-mallas con y sin normales: recomputar todas las dejaria planas
+    // (promediando aristas duras) y se perderia el suavizado que dio el
+    // importador.
+    bool computeNormals(bool soloFaltantes = false);
+
     // Calcula tangente/bitangente por vertice a partir de vertices+UVs
     // (algoritmo de cara estandar de Lengyel/iMDesmarais), acumulando por
     // vertice y normalizando. Requiere hasUvs() y hasNormals(). Las caras con

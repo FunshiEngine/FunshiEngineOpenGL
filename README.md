@@ -11,7 +11,10 @@ Motor y editor 3D en tiempo real escrito en C++17, con interfaz ImGui y renderiz
 
 ## Características actuales
 
-- Ventana y contexto OpenGL con **GLFW**; renderizado con **OpenGL / GLU** (pipeline inmediato).
+- Ventana y contexto **OpenGL 3.3 core** con **GLFW**; renderizado íntegramente
+  con shaders (VBO/VAO + `ShaderProgram`), sin pipeline inmediato ni GLU. El
+  perfil core es un requisito duro: si el driver no da 3.3 core, el arranque
+  aborta con un mensaje en consola en vez de mostrar una pantalla negra.
 - Interfaz de editor con **Dear ImGui** (docking) y gizmos con **ImGuizmo**.
 - Sistema **Entity–Component**: `Transform`, `Color`, `Model`, `Material`, `Light`, `CameraComponent`, `Grid`, colliders (esfera / cubo / malla), `RigidBody`, `AudioSource`, `InterfaceComponent` (HUD por asset JSON del CreadorDeInterfaces) y `Script`.
 - **Scripts dinámicos** (`Script` + `IScriptBehaviour`): reflexión por macros con campos `SerializeField` (escalares, arrays y grupos anidados) editables en el inspector; compilación en caliente de C++ a `.so`/`.dll` (`BackendCpp`) y soporte de **Java vía JNI** (`BackendJava`, se activa automáticamente si el build encuentra el JDK). Hot reload por fecha de modificación que reinyecta los valores serializados, y ciclo `onStart`/`onUpdate`/`onStop`.
@@ -22,7 +25,7 @@ Motor y editor 3D en tiempo real escrito en C++17, con interfaz ImGui y renderiz
 - **EventBus** con suscripción tipada (creación, eliminación, reparentado, selección y cambios de componentes) + **EditorEventBus**: canal tipado de GUI interna (apariencia, idioma, sensibilidad, cámara activa y visibilidad de ventanas) que median entre el menú, las ventanas del editor y la escena sin pasarse punteros.
 - **Máquina de estados** de la aplicación: `MainMenu`, `Editing`, `Playing`, `Exiting`, con reglas de transición centralizadas en `OrquestadorEstadoGUI`.
 - **Input modularizado** (`src/Input/EditorInput`): las callbacks de teclado/mouse de GLFW viven en su propio módulo (extraídas de `main.cpp`); traducen los eventos a acciones del editor (E, G, gizmos, Escape, clic derecho para navegar) y mantienen una máquina de estado de teclas WASD/Espacio/Shift con movimiento continuo normalizado por frame (diagonales a la misma velocidad que un eje).
-- **Render híbrido**: los `Modelos3D` se dibujan con `MeshRenderer` (VBO/VAO + shaders vía `ShaderProgram`) y degradan a `glBegin/glEnd` en contextos legacy o mallas sin normales. La **grilla** es un componente (`Grid`, con visible/color/tamaño/separación) en una pasada independiente, cuyo color acompaña a la apariencia (incluido el modo blanco y negro).
+- **Render de un solo pipeline**: los `Modelos3D` se dibujan con `MeshRenderer` (VBO/VAO + shaders vía `ShaderProgram`); una malla sin normales por vértice no se dibuja y se avisa una vez por consola (`Mesh::computeNormals()` las genera). La **grilla** es un componente (`Grid`, con visible/color/tamaño/separación) en una pasada independiente, cuyo color acompaña a la apariencia (incluido el modo blanco y negro); al igual que los marcadores de luz/cámara y los gizmos de los colliders, se dibuja con el pipeline de líneas (batch en GPU + shader de ancho en píxeles, con el difuminado del horizonte resuelto por alpha por vértice).
 - **Audio en runtime** (`src/Audio/`): `AudioEngine` (fachada thread-safe con cola + hilo de audio) sobre backends intercambiables (`MiniAudioBackend` con miniaudio, `NullAudioBackend`); `AudioClipsManager` descubre los clips de `Sonidos/` y los registra por nombre; `AudioSource` reproduce con volumen, loop y autoplay.
 - **Ventana "Estado"** (`StatusBarInterface`): muestra el toolchain externo (compilador C++, javac, libjvm) y el estado de compilación/carga de los scripts de la escena.
 - Explorador de archivos del proyecto con fachada propia (`FileManager`), estado de navegación compartido (`FileSelection`) y vigilancia de cambios externos (`FileSystemWatcher`).
@@ -54,7 +57,7 @@ Motor y editor 3D en tiempo real escrito en C++17, con interfaz ImGui y renderiz
 | CMake          | 3.15           |                                                              |
 | Compilador     | C++17          | GCC / Clang / MSVC                                           |
 | GLFW           | 3.x            | `libglfw3-dev`                                               |
-| OpenGL / GLU   | cualquiera     | `libglu1-mesa-dev`                                           |
+| OpenGL 3.3 core | 3.3            | Funciones modernas por puntero; **no** requiere GLU |
 | Bullet Physics | 3.x            | `libbullet-dev`                                              |
 | Assimp         | 5.x            | `libassimp-dev`                                              |
 | GLM            | 0.9.9+         | Del sistema (`libglm-dev`); el CMake usa `External/glm` si existe y cae al sistema si no |
@@ -67,7 +70,7 @@ Motor y editor 3D en tiempo real escrito en C++17, con interfaz ImGui y renderiz
 
 ```bash
 sudo apt install cmake build-essential ninja-build \
-    libglfw3-dev libglu1-mesa-dev libglm-dev \
+    libglfw3-dev libglm-dev \
     libbullet-dev libassimp-dev \
     libncurses-dev libx11-dev \
     libxrandr-dev libxi-dev
@@ -100,7 +103,7 @@ Build de Release más rápido (sin sanitizers):
 cmake -B build -S FunshiEngineGL -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF
 ```
 
-En Windows la misma receta funciona con el generador de Visual Studio. También existe `FunshiEngineGL.sln`, pero es un proyecto heredado con rutas absolutas de una máquina concreta: **prefiere siempre CMake** (`cmake -B build -S FunshiEngineGL`) para un build portable.
+En Windows la misma receta funciona con el generador de Visual Studio, que deja la solución en el directorio de build (por ejemplo `build-win\FunshiEngineGL.sln`) para abrirla desde el IDE. CMake es el **único** build soportado: no hay proyectos de Visual Studio mantenidos a mano en el repositorio, así que siempre conviene `cmake -B build -S FunshiEngineGL` para tener un build portable.
 
 > El primer arranque crea su configuración en `MotorGrafico/` junto al binario (la carpeta que contiene el ejecutable): ahí viven la escena serializada, la configuración global en `Configuraciones/Configuracion.json`, la de cada proyecto en `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` y el layout `imgui.ini` del editor.
 
@@ -109,11 +112,11 @@ En Windows la misma receta funciona con el generador de Visual Studio. También 
 
 ## Pruebas y CI
 
-Las pruebas son headless (sin pila gráfica), corren con CTest y hay **17 targets**
-(dieciséis siempre + `scripts-java-tests` si el build encontró el JDK):
+Las pruebas son headless (sin pila gráfica), corren con CTest y hay **18 targets**
+(diecisiete siempre + `scripts-java-tests` si el build encontró el JDK):
 
 ```bash
-cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests tema-tests assetmanager-tests texturemanager-tests estructuras-tests scripts-tests scripts-runtime-tests manifiesto-assets-tests orquestador-estado-tests
+cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests tema-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests manifiesto-assets-tests orquestador-estado-tests
 ctest --test-dir build --output-on-failure
 ```
 
@@ -122,8 +125,9 @@ ctest --test-dir build --output-on-failure
 - `eventbus-tests` (16): canal tipado de GUI interna (`EditorEventBus`).
 - `menu-tests` (30): `MenuModel` (traducción en vivo, observer de cambios y reset).
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia` al estilo ImGui): el acento llega a **todos** los roles y ningún rol conserva el azul de fábrica de Dear ImGui (regresión "el color de acento no se aplica a toda la interfaz"), el acento por defecto no cambia el aspecto histórico, un acento translúcido no apaga los roles de primer plano, la aplicación es idempotente y el modo B/N deja la paleta monocroma.
-- `assetmanager-tests` (47) y `texturemanager-tests` (15): caches Flyweight de meshes e imágenes.
+- `assetmanager-tests` (82) y `texturemanager-tests` (15): caches Flyweight de meshes (incluido el cálculo de normales por cara, y el que rellena solo las normales que faltan en assets mixtos) e imágenes.
 - `estructuras-tests` (87): listas, árboles, heaps y ordenamiento propios.
+- `rendering-tests` (79): geometría de las líneas del pipeline moderno (`LineBuilder`: expansión de cada segmento al quad que ensancha el shader, color por extremo, polilíneas, aristas de collider y caja de 12 aristas), sin entrar a OpenGL.
 - `scripts-tests` (42): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario).
 - `scripts-runtime-tests`: compila un script C++ real con `BackendCpp`, lo carga con `dlopen` y ejecuta el ciclo; se omite en Windows (SKIP, requiere `cl.exe` con entorno de Visual Studio).
 - `scripts-java-tests`: end-to-end del backend Java (JNI); se compila si el build detecta el JDK (SKIP sin JDK).
@@ -145,7 +149,6 @@ FunshiEngineGL/            ← raíz del repo
 ├── PROJECT_STRUCTURE.md          ← arquitectura detallada
 ├── CAMARAS_VISTAS_PREVIAS.md     ← cámaras componente + vistas previas (Fase 2)
 ├── ARQUITECTURA_ESTADOS_GUI.md   ← estados/menú/GUI internas (diseño + Fases 1-3)
-├── FunshiEngineGL.sln            ← solución Visual Studio (Windows, heredada)
 ├── .github/workflows/            ← CI (build del engine + pruebas multiplataforma)
 ├── tests/                        ← pruebas headless: FileManager, EditorConfig,
 │                                   EditorEventBus, MenuModel, Assets, Estructuras,
@@ -191,14 +194,11 @@ Ver **PROJECT_STRUCTURE.md** para la descripción completa de cada módulo, las 
 ## Roadmap / Pendientes conocidos
 
 - [ ] Sistema de animaciones.
-- [x] Scripts dinámicos: `SerializeField` con reflexión, compilación en caliente de C++ (`BackendCpp`) y Java vía JNI (`BackendJava`, auto-activado con JDK en build), ciclo `onStart`/`onUpdate`/`onStop` y hot reload.
-- [ ] `CommandManager` para undo/redo.
 - [ ] Cuadro de log de errores en el editor.
 - [ ] Resolver IDs duplicados al crear objetos; limpiar binarios huérfanos al eliminar.
 - [ ] Puente de input/audio/búsqueda para scripts (la infraestructura existe: `EditorInput`, `AudioEngine`, `SceneRegistry`; falta exponerla en la tabla `ApiScriptGameObject`).
 - [ ] Terminar los popups del inspector; prefabs y duplicación de objetos.
 - [ ] Portabilidad de rutas de assets (centralizar `HOME` / rutas de Windows).
-- [ ] Migrar o eliminar el `FunshiEngineGL.vcxproj` (aún arrastra rutas absolutas de una máquina concreta; el build soportado es CMake).
 - [ ] Versionado y validación de la serialización binaria.
 - [ ] Extraer `SceneRenderer`/`PhysicsSystem`/`ScriptSystem` de `GameScene`; vistas previas seleccionables con clic.
 

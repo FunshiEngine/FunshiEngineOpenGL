@@ -25,6 +25,8 @@
 #include "Configuracion/EditorConfig.h"
 #include "../Objetos/GameObject.h"
 
+#include <iostream>
+
 namespace {
 constexpr uint32_t MAGIC_SCRIPT = 0x31535346; // 'F','S','S','1'
 constexpr uint32_t VERSION_SCRIPT = 1;
@@ -67,7 +69,14 @@ bool Script::cargarActual(std::string& error) {
 void Script::cargarSiNecesario() {
     if (cargado_ || dllPath.empty()) return;
     cargado_ = true;
-    if (!cargarActual(error_)) return;
+    if (!cargarActual(error_)) {
+        // El detalle se informa en la ventana Estado y en el log del motor
+        // (logs/ junto al ejecutable): el panel del componente ya no repite
+        // el mensaje de error, solo muestra fuente y SerializeField.
+        std::cout << "[scripts] No se pudo cargar '" << dllPath << "':\n"
+                  << error_ << std::endl;
+        return;
+    }
 
     // Servicios de escena (audio, busqueda, teclado): la tabla global se
     // entrega aca, en el motor (los tests de scripts usan su propio stub de

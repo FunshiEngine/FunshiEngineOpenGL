@@ -67,6 +67,13 @@ private:
     // seleccion o borrar objetos.
     GizmoTarget gizmoTarget;
 
+    // Guia de eje activa: 0 = X, 1 = Y, 2 = Z, -1 = ninguna. Es la fuente de
+    // verdad compartida por los tres consumidores de la funcionalidad:
+    // el input (X/Y/Z la alternan), el gizmo (mientras haya guia NO se dibuja,
+    // porque la guia ya limita el movimiento del objeto a un unico eje) y el
+    // renderer (dibuja la recta). Se limpia sola al cambiar de seleccion.
+    int guiaEje = -1;
+
     // Gestor de comandos para undo/redo
     GestorComandos gestorComandos;
 
@@ -120,6 +127,18 @@ public:
     void clearGizmoTarget();
     bool hasGizmoTarget() const noexcept { return gizmoTarget.local != nullptr; }
     const GizmoTarget& getGizmoTarget() const noexcept { return gizmoTarget; }
+
+    // Guia de eje (X/Y/Z): la recta que marca sobre que eje se mueve el objeto
+    // seleccionado. "eje" es 0 = X, 1 = Y, 2 = Z. AlternarGuiaEje la enciende
+    // como un interruptor (pulsar dos veces la misma tecla la apaga) y
+    // setGuiaEje la fija outright (usada por los atajos de operacion al
+    // cambiar de operacion). Con la guia activa el gizmo se apaga; al
+    // deseleccionar el objeto la guia se limpia sola.
+    int getGuiaEje() const noexcept { return guiaEje; }
+    bool hayGuiaEje() const noexcept { return guiaEje >= 0; }
+    void setGuiaEje(int eje);
+    void alternarGuiaEje(int eje);
+    void clearGuiaEje();
 
     // Sistema de comandos (undo/redo). deshacer/rehacer devuelven la descripcion
     // del comando aplicado (vacia si no habia nada que deshacer/rehacer) para que

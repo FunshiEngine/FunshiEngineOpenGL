@@ -37,6 +37,53 @@ bool Mesh::computeBounds(vec3& outMin, vec3& outMax) const {
     return true;
 }
 
+bool Mesh::computeNormals(bool soloFaltantes) {
+    if (vertices.empty() || indices.empty() || indices.size() % 3 != 0)
+        return false;
+
+    if (soloFaltantes) {
+        // Respeta las normales que ya trae el asset: sin esto habria que
+        // arranque con un vector por vertice.
+        if (!hasNormals()) normals.assign(vertices.size(), vec3(0.f, 0.f, 0.f));
+    } else {
+        normals.assign(vertices.size(), vec3(0.f, 0.f, 0.f));
+    }
+
+    for (size_t f = 0; f + 2 < indices.size(); f += 3) {
+        const unsigned int i0 = indices[f + 0];
+        const unsigned int i1 = indices[f + 1];
+        const unsigned int i2 = indices[f + 2];
+        if (i0 >= vertices.size() || i1 >= vertices.size() ||
+            i2 >= vertices.size())
+            continue;
+
+        // El producto cruz de los dos lados tiene por longitud el doble del
+        // area de la cara: acumularlo pondera cada cara por su area, que es lo
+        // que hace que un promediado simple se vea mal en mallas con triangulos
+        // de tamanhos muy distintos.
+        const vec3& p0 = vertices[i0];
+        const vec3& p1 = vertices[i1];
+        const vec3& p2 = vertices[i2];
+        const vec3 n = (p1 - p0).prodVetorial(p2 - p0);
+
+        for (const unsigned int i : {i0, i1, i2}) {
+            // En modo "soloFaltantes" una normal ya informada no se toca: se
+            // acumula solo en los vertices que siguen en cero.
+            if (soloFaltantes && normals[i].magnitude() > 1e-8f) continue;
+            normals[i] = normals[i] + n;
+        }
+    }
+
+    for (size_t v = 0; v < vertices.size(); ++v) {
+        // normaliza() divide por la magnitud: un vertice sin caras (aislado
+        // o con caras degeneradas) se queda con la normal nula en vez de un NaN
+        // que contaminaria la iluminacion de toda la malla en el shader.
+        if (normals[v].magnitude() < 1e-8f) continue;
+        normals[v].normaliza();
+    }
+    return hasNormals();
+}
+
 bool Mesh::computeTangents() {
     if (!hasUvs() || !hasNormals() || indices.empty() ||
         indices.size() % 3 != 0)

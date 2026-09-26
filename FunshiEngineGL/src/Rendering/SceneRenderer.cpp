@@ -24,7 +24,9 @@
 #include <imgui.h>
 
 #include "Backend/IRenderBackend.h"
-#include "ImmediateRenderer.h"
+#include "LineBatch.h"
+#include "LineBuilder.h"
+#include "LineRenderer.h"
 #include "MeshRenderer.h"
 #include "RenderTarget.h"
 #include "Shaders/ShaderProgram.h"
@@ -39,9 +41,6 @@
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/GameObject.h"
 #include "../Objetos/Modelos3D.h"
-
-// Luz del pipeline de compatibilidad (alias corto del contrato del backend).
-using Rendering::Backend::LegacyLight;
 
 SceneRenderer::SceneRenderer() : meshRenderer_(std::make_unique<MeshRenderer>()) {}
 
@@ -99,10 +98,8 @@ void SceneRenderer::render(const FrameContext& ctx, GameObject* activeCameraObje
                   << " near=" << camara->getNearPlane()
                   << " far=" << camara->getFarPlane() << std::endl;
 
-        // Estado de luz real del frame: GL_LIGHTING, luces presentes y ultima
-        // luz habilitada (lo reporta el backend). Si dicen que hay luces pero
-        // ninguna llega al pipeline inmediato, es la causa negra en modo
-        // inmediato + shader sin luz.
+        // Inventario de la escena: cuantas luces y cuantas mallas dibujables
+        // (con normales) hay, para contrastar con lo que se ve en pantalla.
         std::cout << "[diag] luces_en_escena=";
         auto* diagObjects = ctx.gameObjects;
         int diagLuces = 0;
@@ -128,15 +125,14 @@ void SceneRenderer::render(const FrameContext& ctx, GameObject* activeCameraObje
                   << " conMalla=" << diagConMalla
                   << " conMallaYNormales=" << diagConMallaYNormales
                   << std::endl;
-        std::cout << "[diag] " << backend.diagnosticoCompat() << std::endl;
     }
 
-    dibujarEscena(ctx, view, projection, activeCameraObject);
+    dibujarEscena(ctx, view, projection, activeCameraObject, ctx.framebufferWidth,
+                  ctx.framebufferHeight, true);
 
     static bool diagPostPassPendiente = true;
     if (diagPostPassPendiente) {
         diagPostPassPendiente = false;
-        std::cout << "[diag] " << backend.diagnosticoCompat() << std::endl;
         std::cout << "[diag] MeshRenderer moderno disponible="
                   << (meshRenderer_ && meshRenderer_->available() ? "si" : "no")
                   << std::endl;
@@ -150,10 +146,16 @@ void SceneRenderer::render(const FrameContext& ctx, GameObject* activeCameraObje
 void SceneRenderer::dibujarEscena(const FrameContext& ctx,
                                   const float view[16],
                                   const float projection[16],
-                                  GameObject* camaraOjo) {
+                                  GameObject* camaraOjo, int viewportAncho,
+                                  int viewportAlto, bool esPasadaPrincipal) {
     auto& backend = Rendering::Backend::activeBackend();
 
-    backend.setCompatibilityMatrices(projection, view);
+    // Estado de la pasada de lineas: el shader de lineas grosses necesita las
+    // matrices de la camara y el tamano del viewport para pasar el ancho de
+    // pixeles a NDC. Se fija aca porque TODA pasada (principal y vistas previas)
+    // entra por esta funcion.
+    lineRenderer().setVista(view, projection);
+    lineRenderer().setViewport(viewportAncho, viewportAlto);
 
     // Posicion de la camara en el mundo a partir de su matriz de vista:
     // view = [R | t] (column-major), ojo = -(R^T * t). La usa la grilla para
@@ -171,36 +173,56 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     // entidades.
     dibujarGrillaEditor(ctx, camaraMundo);
 
-    // Luces del pipeline inmediato (antes vivian en LightSystem::beginFrame) y
-    // las mismas para el shader: la semantica es identica en ambas pasadas.
-    Rendering::Backend::LegacyLight legacy[LightSystem::kMaxLights];
-    const int n = ctx.lightCount < LightSystem::kMaxLights
-                      ? ctx.lightCount
-                      : LightSystem::kMaxLights;
-    for (int i = 0; i < n && ctx.lights; ++i) {
-        const LightData& s = ctx.lights[i];
-        LegacyLight& d = legacy[i];
-        d = LegacyLight{};
-        d.type = s.type;
-        for (int j = 0; j < 3; ++j) {
-            d.worldPos[j] = s.worldPos[j];
-            d.direction[j] = s.direction[j];
-            d.ambient[j] = s.ambient[j];
-            d.diffuse[j] = s.diffuse[j];
-            d.specular[j] = s.specular[j];
-        }
-        d.constant = s.constant;
-        d.linear = s.linear;
-        d.quadratic = s.quadratic;
-        d.spotCutoffDegrees = s.spotCutoffDegrees;
-    }
-    backend.setLegacyLights(legacy, n, ctx.globalAmbient);
-
+    // Luces de la pasada: van como uniforms del shader (MeshRenderer), que es
+    // la unica via de iluminacion que queda.
     prepararLucesFrame(ctx);
 
     dibujarGameObjectsConOjo(ctx, camaraOjo, view, projection);
 
+    // Guia de eje: despues de los objetos para que la recta se vea por encima
+    // de la malla, y solo en la pasada principal.
+    if (esPasadaPrincipal) dibujarGuiaEje(ctx, camaraMundo);
+
     ShaderProgram::unbind();
+}
+
+// Recta guia del objeto seleccionado (teclas X/Y/Z): la recta sobre la que
+// puede moverse, tomando el eje pulsado como variable y fijando las otras dos
+// coordenadas a las del objeto. Va hasta el horizonte y se difumina con el
+// MISMO criterio radial que la grilla (mismas constantes), asi que las dos se
+// desvanecen en el mismo punto y la guia se lee como un eje que cruza el piso.
+// Se dibuja con el batch de los marcadores (un solo draw) y el color del eje.
+void SceneRenderer::dibujarGuiaEje(const FrameContext& ctx,
+                                   const float camaraMundo[3]) {
+    if (ctx.guiaEje < GuiaEje::kEjeX || ctx.guiaEje > GuiaEje::kEjeZ) return;
+    GameObject* object = ctx.selectedObject;
+    if (!object) return;
+
+    Transform* transform = object->getGlobalTransform();
+    if (!transform) return;
+
+    float modelArr[16];
+    buildMatrixFromTransform(transform, modelArr);
+
+    GuiaEje::Eje eje;
+    if (!GuiaEje::calcularEje(modelArr, ctx.guiaEje,
+                              ctx.guiaCoordenadasGlobales, &eje))
+        return;
+
+    float color[4];
+    GuiaEje::colorEje(ctx.guiaEje, color);
+    GuiaEje::Difuminado dif;
+    dif.inicio = GrillaRenderer::kFadeInicio;
+    dif.fin = GrillaRenderer::kFadeFin;
+    // Mas subdivisiones que la grilla: la guia es mucho mas larga que una linea
+    // de la grilla, asi que con los 6 trozos de aquella el degradado se veria
+    // escalonado a lo largo de los 300 unidades.
+    dif.subdivisiones = 24;
+
+    LineBuilder builder;
+    GuiaEje::emitir(builder, eje, camaraMundo, color, dif);
+    // Geometria ya en mundo (la recta sale de la matriz global): model = null.
+    lineRenderer().dibujar(builder, marcadoresBatch_, nullptr, 3.0f);
 }
 
 void SceneRenderer::prepararLucesFrame(const FrameContext& ctx) {
@@ -230,17 +252,13 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
     object->setColor(object->auxColor);
 
     if (object->getComponent<Transform>()) {
-        // Los objetos intentan el pipeline moderno (VBO/VAO + shader); si no
-        // esta disponible o la malla no tiene normales, degradan al modo
-        // inmediato para no perder la visibilidad que habia hasta ahora.
+        // El dibujado va siempre por el pipeline moderno (MeshRenderer: VBO/VAO
+        // + shader). Si el objeto no tiene malla con normales, simplemente no
+        // se dibuja (MeshRenderer lo avisa una vez por malla).
         auto* modelo = dynamic_cast<Modelos3D*>(object);
-
-        if (modelo && meshRenderer_ &&
+        if (modelo && meshRenderer_) {
             meshRenderer_->intentarRender(modelo, view, projection,
-                                          ctx.deltaTime)) {
-            // Render moderno (update + material + geometria) ya hecho.
-        } else {
-            object->dibujar(ctx.deltaTime);
+                                          ctx.deltaTime);
         }
     }
 
@@ -285,14 +303,15 @@ void SceneRenderer::dibujarMarcadorLuz(GameObject* object) {
         {2,4},{2,5},{3,4},{3,5}};
 
     // Los vertices se escalan (octaedro chico) y el dibujo lo hace la capa de
-    // Rendering.
+    // Rendering con el batch de lineas.
     float vsize[6][3];
     for (int i = 0; i < 6; ++i)
         for (int j = 0; j < 3; ++j) vsize[i][j] = v[i][j] * size;
 
-    const float color[3] = {1.f, 0.85f, 0.1f};
-    ImmediateRenderer::dibujarAristas(&vsize[0][0], 6, &edges[0][0], 12, color,
-                                      modelArr);
+    const float color[4] = {1.f, 0.85f, 0.1f, 1.f};
+    LineBuilder builder;
+    builder.agregarAristas(&vsize[0][0], 6, &edges[0][0], 12, color);
+    lineRenderer().dibujar(builder, marcadoresBatch_, modelArr, 2.0f);
 }
 
 // Gizmo visual de una camara secundaria: frustum de vision alambre cian. La
@@ -336,9 +355,10 @@ void SceneRenderer::dibujarMarcadorCamara(GameObject* object) {
         {4,5},{4,6},{7,5},{7,6},
         {0,4},{1,5},{2,6},{3,7}};
 
-    const float color[3] = {0.3f, 0.8f, 0.9f};
-    ImmediateRenderer::dibujarAristas(&vFrustum[0][0], 8, &edges[0][0], 12,
-                                      color, modelArr);
+    const float color[4] = {0.3f, 0.8f, 0.9f, 1.f};
+    LineBuilder builder;
+    builder.agregarAristas(&vFrustum[0][0], 8, &edges[0][0], 12, color);
+    lineRenderer().dibujar(builder, marcadoresBatch_, modelArr, 2.0f);
 }
 
 void SceneRenderer::dibujarGrillaEditor(const FrameContext& ctx,
@@ -429,7 +449,11 @@ void SceneRenderer::dibujarViewportsPrevios(const FrameContext& ctx) {
                     projection,
                     static_cast<float>(kPreviewW) /
                         static_cast<float>(kPreviewH));
-                dibujarEscena(ctx, view, projection, objeto);
+                // La vista previa de camara NO muestra la guia de eje: es una
+                // ayuda del editor sobre la pasada principal (en el preview
+                // ocuparia la imagen sin que el usuario la haya pedido).
+                dibujarEscena(ctx, view, projection, objeto, kPreviewW,
+                              kPreviewH, false);
 
                 backend.bindDefaultFramebuffer();
 

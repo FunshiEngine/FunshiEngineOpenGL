@@ -22,7 +22,14 @@
 #include <memory>
 #include <btBulletDynamicsCommon.h>
 
-#include "../../../Rendering/ImmediateRenderer.h"
+#include "../../../Rendering/LineBuilder.h"
+#include "../../../Rendering/LineRenderer.h"
+
+namespace {
+// Ancho del wireframe del collider en pixeles (2 px: se ve al-redondeado sin
+// tapar la geometria).
+constexpr float kAnchoWire = 2.0f;
+} // namespace
 
 EsfereCollider::EsfereCollider(float radio, Transform* transformOfDadObject,
                                GameObject* owner)
@@ -40,12 +47,13 @@ void EsfereCollider::dibujarCollider() {
     float modelArr[16];
     buildMatrixFromTransform(&globalT, modelArr);
 
-    const float verde[3] = {0.0f, 1.0f, 0.0f};
+    const float verde[4] = {0.0f, 1.0f, 0.0f, 1.0f};
     const int meridians = 8;
     const int parallels = 4;
 
-    // Solo geometria: los segmentos de la esfera se dibujan via la capa de
-    // Rendering (ImmediateRenderer).
+    // Solo geometria: los segmentos de la esfera se arman con el LineBuilder y
+    // los dibuja la capa de Rendering con un unico batch.
+    LineBuilder builder;
     float pts[40][3];
 
     for (int m = 0; m < meridians; ++m) {
@@ -59,8 +67,7 @@ void EsfereCollider::dibujarCollider() {
             pts[p][2] = radio * cosf(lat) * sinf(angle);
         }
 
-        ImmediateRenderer::dibujarPolilinea(
-            &pts[0][0], 21, false, verde, modelArr);
+        builder.agregarPolilinea(&pts[0][0], 21, false, verde);
     }
 
     for (int p = 1; p <= parallels; ++p) {
@@ -74,7 +81,8 @@ void EsfereCollider::dibujarCollider() {
             pts[m][2] = radio * cosf(lat) * sinf(lon);
         }
 
-        ImmediateRenderer::dibujarPolilinea(
-            &pts[0][0], 40, true, verde, modelArr);
+        builder.agregarPolilinea(&pts[0][0], 40, true, verde);
     }
+
+    lineRenderer().dibujar(builder, obtenerWireBatch(), modelArr, kAnchoWire);
 }

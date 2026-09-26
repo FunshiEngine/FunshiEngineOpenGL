@@ -20,11 +20,10 @@
 #define LIGHTSYSTEM_H
 
 // Subsistema de iluminacion (solo CPU, sin estado GL): cada frame escanea los
-// GameObjects de la escena, toma sus componentes Light y exporta los datos con
-// la MISMA semantica que el pipeline inmediato (GL_LIGHT0..7) para que el
-// renderer de la escena los suba como uniforms del shader y los aplique al
-// backend (setLegacyLights). El estado GL de luces vive en el backend, no aca;
-// Light es solo data.
+// GameObjects de la escena, toma sus componentes Light y exporta los datos para
+// que el renderer de la escena los suba como uniforms del shader. No queda
+// estado de luz en OpenGL: en un contexto core la iluminacion viaja por el
+// shader, y aca no se toca ninguna funcion de GL. Light es solo data.
 class GameObject;
 
 template <typename T>
