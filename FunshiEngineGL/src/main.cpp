@@ -29,6 +29,7 @@
 #include "../src/Scenes/GameScene.h"
 #include "../src/GUIManager/GUIManager.h"
 #include "../src/Configuracion/EditorConfig.h"
+#include "../src/Configuracion/ProjectPaths.h"
 #include "../src/GUI/WindowNames.h"
 #include "../src/GUI/Tema/TemaEditor.h"
 #include <imgui.h>
@@ -213,6 +214,26 @@ static int EjecutarMotor(int argc, char* argv[])
     EditorInput* input =
         new EditorInput(scene, &appStateMachine, &orquestadorDeGUI);
     Time::start();
+
+    // Resolucion de la raiz de datos y recuperacion de datos previos. Va antes
+    // de cargar la configuracion para que se lea la migrada, no la de la ruta
+    // historica. Cuando el motor esta en una carpeta donde no puede escribir
+    // (instalado en Program Files y sin elevar), la raiz cae a la carpeta de
+    // datos del usuario; si quedo algo de una ejecucion elevada, se copia aqui.
+    {
+        std::string mensajeMigracion;
+        const bool migro = ProjectPaths::migrarDatosDesdeRutaOriginal(mensajeMigracion);
+        if (ProjectPaths::datosEnRutaDeUsuario()) {
+            std::cout << "[rutas] '" << ProjectPaths::directorioBaseOriginal()
+                      << "' no admite escritura, asi que los datos van a '"
+                      << ProjectPaths::directorioBase() << "'."
+                      << std::endl;
+        }
+        if (migro && !mensajeMigracion.empty())
+            if (StatusBarInterface* status = managerOfGUI->getStatusBarGUI())
+                status->mostrarMensaje(mensajeMigracion);
+    }
+
     // Configuration del editor (interfaz + menu) persistida en JSON en Memory
     // del proyecto del usuario. Al arrancar se carga y se aplica a cada capa; al
     // salir se recogen los valores actuales y se guarda (ver fin de main).

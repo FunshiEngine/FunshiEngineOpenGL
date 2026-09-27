@@ -105,7 +105,9 @@ cmake -B build -S FunshiEngineGL -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF
 
 En Windows la misma receta funciona con el generador de Visual Studio, que deja la solución en el directorio de build (por ejemplo `build-win\FunshiEngineGL.sln`) para abrirla desde el IDE. CMake es el **único** build soportado: no hay proyectos de Visual Studio mantenidos a mano en el repositorio, así que siempre conviene `cmake -B build -S FunshiEngineGL` para tener un build portable.
 
-> El primer arranque crea su configuración en `MotorGrafico/` junto al binario (la carpeta que contiene el ejecutable): ahí viven la escena serializada, la configuración global en `Configuraciones/Configuracion.json`, la de cada proyecto en `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` y el layout `imgui.ini` del editor.
+> El primer arranque crea su configuración en `MotorGrafico/`: la escena serializada, la configuración global en `Configuraciones/Configuracion.json`, la de cada proyecto en `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` y el layout `imgui.ini` del editor.
+>
+> Esa carpeta va **junto al binario** cuando el motor está en una carpeta donde puede escribir (build de desarrollo, instalación portátil). Si no puede —el caso típico es instalado en `C:\Program Files`, que el proceso no escribe sin elevar—, el motor detecta que no tiene acceso de escritura y usa en su lugar la carpeta de datos del usuario: `%APPDATA%\FunshiEngineGL\MotorGrafico` en Windows y `$XDG_DATA_HOME/FunshiEngineGL/MotorGrafico` (o `~/.local/share/...`) en Linux y macOS. La decisión se toma una vez al arrancar y se informa por consola. Si quedaran datos en la ubicación anterior, se copian una sola vez a la nueva sin pisar nada que ya exista allí.
 
 
 ---

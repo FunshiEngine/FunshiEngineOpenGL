@@ -128,13 +128,22 @@ std::vector<ValorCampo> valoresPorDefecto(const std::vector<DefCampo>& defs);
 // El arbol es autodescriptivo (cada valor lleva nombre + tag), por lo que no
 // depende de los DefCampo para leerse; al cargar se reordena para casar con los
 // oscuros actuales y se rellenan con los valores por defecto los campos nuevos.
+// Casa un arbol de valores ya leido con los DefCampo actuales POR NOMBRE:
+// conserva el valor de cada campo que sigue existiendo (aunque se haya
+// reordenado), descarta los que ya no estan en el script y rellena con el
+// valor por defecto los que se agregaron. El vector devuelto tiene exactamente
+// un valor por DefCampo, en el mismo orden: es el invariante que consume el
+// resto del motor (inyeccion, edicion en el inspector y guardado).
+std::vector<ValorCampo> alinearValores(std::vector<ValorCampo> leidos,
+                                       const std::vector<DefCampo>& defs);
 void guardarValoresCampos(std::ofstream& out,
                           const std::vector<ValorCampo>& valores);
 std::vector<ValorCampo> cargarValoresCampos(
     std::ifstream& in, const std::vector<DefCampo>& defs);
 // Sin defs (p. ej. al cargar la escena sin haber compilado el script): devuelve
-// el arbol tal cual quedo escrito; el emparejado con los defs reales ocurre
-// luego en Script::inyectarCampos (por nombre).
+// el arbol tal cual quedo escrito. El emparejado con los defs reales no puede
+// ocurrir aqui porque aun no se conocen; lo hace Script al compilar el script,
+// llamando a alinearValores() con los campos que devolvio la reflexion.
 std::vector<ValorCampo> cargarValoresCampos(std::ifstream& in);
 
 // Resolve el nombre de un GameObject objetivo a su puntero vivo. Lo fija quien

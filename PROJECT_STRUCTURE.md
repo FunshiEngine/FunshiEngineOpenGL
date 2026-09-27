@@ -490,6 +490,11 @@ solo como orquestador de arranque y bucle.
   (general) y `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json`
   (por proyecto). Tolerante a archivos ausentes o corruptos: los defaults
   viven en `EditorConfig.h`/`ConfigPersistence.h`.
+  La raíz `MotorGrafico` no es siempre `<directorioEjecutable>/MotorGrafico`:
+  `ProjectPaths::directorioBase()` la resuelve probando si puede escribirse y, si
+  no, cae a la carpeta de datos del usuario (`%APPDATA%` en Windows,
+  `$XDG_DATA_HOME` o `~/.local/share` en Linux). Ver "Resolución de la raíz de
+  datos" más abajo.
   - **Escritura atómica**: `ConfigPersistence::escribirJson` escribe a
     `<archivo>.tmp` y renombra encima; un corte a mitad de escritura no deja
     el JSON cortado ni temporales colgados.
@@ -664,6 +669,42 @@ No están implementados todavía:
 - `Command` para undo/redo.
 - `Prototype` para duplicación y prefabs.
 - `Visitor` para inspectores extensibles.
+
+### 8.1 Resolución de la raíz de datos
+
+Todos los datos del usuario (proyectos, escenas, configuraciones, `imgui.ini`)
+cuelgan de una única raíz, `MotorGrafico`, y toda la jerarquía de rutas sale de
+`ProjectPaths::directorioBase()`. Esa función **resuelve** la raíz en vez de
+calcularla:
+
+1. Parte de `<directorioEjecutable>/MotorGrafico`, la ubicación histórica.
+2. Comprueba si puede **escribir** ahí. No basta con que el directorio exista y
+   sea legible: se abre y se cierra un archivo de prueba, porque en
+   `C:\Program Files` la carpeta es legible y aun así el proceso no puede crear
+   nada dentro (la creó el instalador, que corre como administrador, y heredó
+   los ACL de `Program Files`; el ejecutable no lleva manifiesto de elevación).
+3. Si no puede, cae a la carpeta de datos del usuario: `%APPDATA%\FunshiEngineGL`
+   en Windows, `$XDG_DATA_HOME/FunshiEngineGL` o `~/.local/share/FunshiEngineGL`
+   en Linux y macOS.
+4. Si tampoco hay carpeta de usuario utilizable, conserva la ruta histórica: es
+   preferible una ruta conocida que falle de forma visible a dejar al motor sin
+   rutas válidas.
+
+La decisión se cachea por proceso (es una decisión de inicio, no por llamada) y
+se expone con `ProjectPaths::datosEnRutaDeUsuario()`,
+`directorioBaseOriginal()` y `migrarDatosDesdeRutaOriginal()`. Esta última copia
+una sola vez lo que hubiera quedado en la ruta histórica, y solo si el destino
+está vacío.
+
+Por qué importa: sin este paso, las escrituras fallaban **en silencio** (nadie
+comprobaba el retorno de `crearArchivo` ni de los demás), de modo que el motor
+leía bien pero no podía guardar nada. Esa divergencia entre lo leído y lo que
+se creía haber escrito desincronizaba el árbol de `SerializeField` de los
+scripts y terminaba en un `std::bad_variant_access` al abrir el inspector.
+
+Las rutas de assets dentro de la escena se guardan **relativas** a la raíz de
+assets del proyecto (`EditorConfig::relativizarRuta`) y se absolutizan al
+cargar, así que mover la raíz no invalida las escenas existentes.
 
 ---
 

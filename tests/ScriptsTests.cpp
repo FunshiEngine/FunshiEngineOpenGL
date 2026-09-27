@@ -22,6 +22,7 @@
 // y round-trip de la serializacion binaria (con reordenamiento/campos nuevos).
 // Sin pila grafica: se ejercita el arbol ValorCampo/DefCampo directamente.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -338,12 +339,127 @@ static void testSerializacionBinaria() {
     std::filesystem::remove(ruta);
 }
 
+// Escenario exacto del crash que se corrigio: la escena se carga SIN defs
+// (el script todavia no esta compilado) y el emparejado con los campos reales
+// ocurre despues, al compilar. Si ese emparejado no ocurre, el arbol guardado
+// conserva el cardinal que tenia en el archivo y el inspector lo indexa por
+// posicion contra los defs: lectura fuera de rango.
+static void testAlinearValores() {
+    std::cout << "-- alinearValores: emparejar el arbol de la escena con los "
+                 "campos del script"
+              << std::endl;
+
+    const std::vector<DefCampo>& defs = defsDePrueba();
+    const std::size_t n = static_cast<std::size_t>(kCantidadCampos);
+
+    // 1. Escena guardada con MENOS campos de los que expone el script ahora
+    //    (se agrego un SerializeField despues). Este es el caso que crasheaba.
+    {
+        std::vector<ValorCampo> leidos = valoresPorDefecto(defs);
+        CHECK(leidos.size() == n, "el arbol por defecto tiene un valor por campo");
+        leidos.resize(3); // solo vidas, velocidad y peso
+
+        const std::vector<ValorCampo> alineados = alinearValores(leidos, defs);
+        CHECK(alineados.size() == n,
+              "tras alinear hay un valor por campo, nunca mas corto");
+
+        bool orden = true;
+        for (std::size_t i = 0; i < n && i < alineados.size(); ++i)
+            orden = orden && alineados[i].nombre == defs[i].nombre;
+        CHECK(orden, "el resultado va en el mismo orden que los defs");
+
+        // Los preexistentes conservan su tipo; los nuevos toman el de SU campo
+        // (no el del ultimo leido), que es lo que evita el std::get sobre una
+        // alternativa equivocada.
+        if (alineados.size() == n) {
+            CHECK(alineados[0].tag == TagTipo::Entero &&
+                      alineados[1].tag == TagTipo::Flotante &&
+                      alineados[2].tag == TagTipo::Doble,
+                  "los campos preexistentes conservan su tipo");
+            CHECK(alineados[3].tag == TagTipo::Booleano,
+                  "un booleano faltante se rellena como booleano");
+            CHECK(alineados[static_cast<std::size_t>(kIndiceMisil)].tag ==
+                      TagTipo::Grupo,
+                  "un grupo faltante se rellena como grupo");
+            CHECK(alineados[15].tag == TagTipo::Objeto,
+                  "un GameObject faltante se rellena como objeto");
+            CHECK(alineados[16].tag == TagTipo::Objetos,
+                  "un vector de objetos faltante se rellena como vector");
+        }
+    }
+
+    // 2. Campo con valor EDITADO: debe sobrevivir al emparejado, no perder su
+    //    dato porque el resto del arbol se haya rellenado.
+    {
+        std::vector<ValorCampo> leidos = valoresPorDefecto(defs);
+        leidos[0].como<int>() = 42;
+        leidos.resize(1);
+
+        const std::vector<ValorCampo> alineados = alinearValores(leidos, defs);
+        if (alineados.size() == n) {
+            CHECK(alineados[0].como<int>() == 42,
+                  "el valor editado del campo que si existe se conserva");
+        } else {
+            CHECK(false, "arbol de tamanho inesperado al conservar el valor");
+        }
+    }
+
+    // 3. Reordenamiento: los nombres no coinciden con las posiciones.
+    {
+        std::vector<ValorCampo> leidos = valoresPorDefecto(defs);
+        std::reverse(leidos.begin(), leidos.end());
+
+        const std::vector<ValorCampo> alineados = alinearValores(leidos, defs);
+        CHECK(alineados.size() == n, "reordenar no cambia el cardinal");
+        if (alineados.size() == n) {
+            bool nombres = true;
+            for (std::size_t i = 0; i < n; ++i)
+                nombres = nombres && alineados[i].nombre == defs[i].nombre;
+            CHECK(nombres,
+                  "tras reordenar cada valor vuelve a su campo por nombre");
+        }
+    }
+
+    // 4. Campo RETIRADO del script: el valor guardado se descarta.
+    {
+        std::vector<ValorCampo> leidos = valoresPorDefecto(defs);
+        std::vector<DefCampo> menosCampos(defs.begin(), defs.end() - 1);
+        // El ultimo campo es 'enemigos' (vector de GameObject), no un texto:
+        // hay que escribir en la alternativa que le corresponde, o el
+        // std::get lanzaria bad_variant_access... que es exactamente el fallo que
+        // esta suite verifica que ya no puede llegar al usuario.
+        leidos.back().como<std::vector<std::string>>() = {"basura"};
+
+        const std::vector<ValorCampo> alineados =
+            alinearValores(leidos, menosCampos);
+        CHECK(alineados.size() == menosCampos.size(),
+              "un campo retirado no deja un valor huerfano");
+        bool conservaRetirado = false;
+        for (const ValorCampo& v : alineados)
+            conservaRetirado =
+                conservaRetirado || v.nombre == defs.back().nombre;
+        CHECK(!conservaRetirado, "el valor del campo retirado se descarta");
+    }
+
+    // 5. Sin defs (script sin SerializeField): el arbol se devuelve intacto,
+    //    sin inventar entradas ni recortar.
+    {
+        const std::vector<DefCampo> sinCampos;
+        std::vector<ValorCampo> leidos = valoresPorDefecto(defs);
+        leidos.resize(4);
+        const std::vector<ValorCampo> alineados = alinearValores(leidos, sinCampos);
+        CHECK(alineados.empty(),
+              "sin campos reflejados el arbol alineado queda vacio");
+    }
+}
+
 int main() {
     testValoresPorDefecto();
     testLecturaEscritura();
     testGruposVector();
     testObjetoResolucion();
     testSerializacionBinaria();
+    testAlinearValores();
 
     std::cout << "ScriptsTests: " << total << " verificaciones, " << fallos
               << " fallos" << std::endl;

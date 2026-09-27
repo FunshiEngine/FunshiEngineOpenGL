@@ -4,7 +4,7 @@
 
 ---
 
-## 1. Concepto: **Invalidación Diferida de Cache por Latencia de `mtime` en Filesystem**
+## 1. Primer concepto: **Invalidación Diferida de Cache por Latencia de `mtime` en Filesystem**
 
 ### 1.1 Descripción del Problema
 Al borrar un archivo o carpeta mediante `std::filesystem::remove/remove_all`, el **`mtime` (modification time) del directorio padre no se actualiza de forma inmediata** en ciertos filesystems / SO / configuraciones. Esto rompe la invalidación de caches que dependen de comparar `mtime` para decidir si re-leer el directorio.
@@ -55,7 +55,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 
 ---
 
-## 2. Registro de Instancias Conocidas
+## 2. Registro de Instancias Conocidas del primer concepto
 
 | # | Ubicación | Operación | Herramienta/FS | Fix Aplicado | Commit |
 |---|-----------|-----------|----------------|--------------|--------|
@@ -99,6 +99,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **Cache por `mtime` de Directorio (R5)** | Re-lee solo si ruta o `mtime` cambiaron; vulnerable a latencia FS | `ContentFolderInterface::recorrer()` |
 | **Invalidación Explícita Post-Mutación** | `cache.clear(); timestamp = {};` tras `remove/remove_all/write` | **Este documento** |
 | **Contador de Cambios (`contadorCambios`)** | Señal simple para forzar rescaneo de estructuras complejas (árboles) | `FileSelection`, `TreeFilesInterface` |
+| **R8 — Resolver la Ruta y Probar la Escritura** | No asumir que el destino es escribible: probar creando y borrando un archivo; si falla, usar la carpeta de datos del usuario y avisar | `ProjectPaths::directorioBase()` (ver §6.4) |
 
 ---
 
@@ -108,14 +109,116 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 
 Cuando tu código **escribe** en un recurso externo (FS, GPU, proceso hijo, red), **tú** eres la fuente de verdad de cuándo ese recurso cambió. Invalida tus caches **en el mismo punto de escritura**, no en el siguiente frame, no en un callback, no en un timer.
 
+El segundo concepto (§6) obedece al mismo espíritu desde el otro lado: **no le
+asumas nada al recurso externo**. Si la escritura puede fallar sin avisar,
+comprobala; si la ruta puede no ser escribible, pruébala antes de construir
+todo el trabajo sobre ella.
+
 ---
 
-## 6. Historial de Cambios
+## 6. Segundo concepto: **Escritura rechazada en el directorio de instalación**
+
+Distinto del concepto de §1: aquí la operación **no** funciona, y el motivo es
+que el proceso no tiene permiso de escritura sobre la ruta de destino. Se
+documenta aparte porque la causa no es latencia sino el modelo de permisos de
+Windows combinado con un instalador que corre elevado y un ejecutable que no.
+
+### 6.1 Descripción del problema
+
+El motor guardaba **todos** sus datos de usuario (proyectos, escenas,
+configuraciones, `imgui.ini`) en `<directorioEjecutable>/MotorGrafico`. Con el
+instalador de Windows eso resuelve a `C:\Program Files\FunshiEngineGL\MotorGrafico`,
+donde el proceso **no puede escribir**.
+
+### 6.2 Síntomas
+
+- Abrir, navegar y leer el motor funciona con normalidad (lecturas no fallan).
+- Crear un proyecto, guardar la configuración o guardar la escena **no producen
+  ningún error visible**: el estado en memoria cambia y al reabrir no quedó nada.
+- El síntoma visible llega más tarde y por otra vía: al abrir el inspector de un
+  script, el motor terminaba con `std::bad_variant_access` (`std::get: wrong
+  index for variant`). La causa era la divergencia entre lo que el motor **creía
+  haber escrito** y lo que realmente había en disco, que descuadraba el árbol de
+  `SerializeField`.
+- El build de desarrollo, en una carpeta de usuario, **no reproducía nada**,
+  porque ahí sí se puede escribir.
+
+### 6.3 Causa raíz
+
+Son tres hechos que por separado parecen inocuos y juntos cierran la puerta:
+
+| # | Hecho | Consecuencia |
+|---|-------|--------------|
+| 1 | `PrivilegesRequired=admin` en el `.iss` | El instalador corre como administrador. |
+| 2 | El `.iss` crea `{app}\MotorGrafico` **sin directiva `Permissions:`** | La carpeta hereda los ACL de `Program Files`: `Users` tiene lectura y ejecución, **no** escritura. |
+| 3 | El `.exe` no lleva manifiesto `requestedExecutionLevel` | El motor corre como usuario normal, sin elevar, y por tanto sin esos permisos. |
+
+El agravante: **ningún llamador comprobaba el retorno de las escrituras**
+(`crearArchivo`, `guardarGeneral`, `saveScene`, … devolvían `bool` y se
+ignoraban). Por eso el fallo fue silencioso en vez de un error reportado.
+
+### 6.4 Solución canónica (Patrón R8 — Resolver la ruta, probar la escritura)
+
+**No asumir que el directorio de destino es escribible: probarlo, y tener un
+plan B.** La comprobación tiene que ser de escritura real, no de existencia ni
+de legibilidad, porque en `Program Files` la carpeta existe y es legible y aun
+así no se puede crear nada dentro.
+
+```cpp
+// NO alcanza: la carpeta existe y es legible, pero escribir falla.
+if (fs::exists(dir)) return dir;
+
+// Sí alcanza: se abre y se cierra un archivo; se borra acto seguido.
+std::error_code ec;
+fs::create_directories(fs::path(dir), ec);
+if (ec) return fallback;
+const fs::path prueba = fs::path(dir) / ".funshi_prueba_escritura";
+{
+    std::ofstream salida(prueba, std::ios::binary | std::ios::trunc);
+    if (!salida.is_open()) return fallback;
+}
+fs::remove(prueba, ec);
+return dir;
+```
+
+Reglas complementarias:
+
+- **Decidir una vez por proceso**, no por llamada: la prueba toca el disco y la
+  respuesta es la misma durante toda la vida del proceso.
+- **Cachear la decisión** con un `static` de ámbito de función.
+- **Exponer si se activó el plan B** (`datosEnRutaDeUsuario()`) para poder
+  informarlo por consola o por la barra de estado, en vez de dejar que el
+  usuario descubra el cambio de ubicación a ciegas.
+- **Migrar sin pisar**: si hay datos en la ruta anterior, copiarlos **solo si el
+  destino está vacío**, nunca encima de lo que ya hay.
+- **Comprobar los retornos de las escrituras** cuando la ruta destino no es
+  fiable. La regla R7 sigue valiendo, pero no cubre el caso de "escribí y no
+  pasó nada".
+
+### 6.5 Registro de instancias
+
+| # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
+|---|-----------|-----------|----------------|--------------|--------|
+| 1 | `ProjectPaths::directorioBase()` | Guardar proyecto, escena, config e `imgui.ini` | Windows / `Program Files` / ACL del instalador | Patrón R8: prueba de escritura + caída a `%APPDATA%` / `$XDG_DATA_HOME`, decisión cacheada, migración sin sobrescribir | `fix(configuracion): resolver la raiz de datos cuando no se puede escribir` |
+| 2 | `SettingsScript.cpp` (lectura de `SerializeField`) | Editar un campo del inspector | `std::variant` (efecto, no causa) | Índice acotado al menor de los dos cardinales | Ídem |
+| 3 | `Script::cargarSiNecesario()` | Cargar los valores guardados de un script | `std::variant` (efecto, no causa) | `ReflejoScripts::alinearValores()` empareja por nombre al compilar | Ídem |
+
+> **Nota**: las instancias #2 y #3 no son la causa del crash sino el punto donde
+> se manifiesta. La causa es la instancia #1: sin ella no habría divergencia
+> entre el árbol de valores guardado y los campos que expone el script. Se
+> arreglaron las tres porque el acceso fuera de rango es un defecto real por sí
+> mismo: la escena guardada y la reflexión actual pueden discrepar siempre, no
+> solo cuando falla la escritura.
+
+---
+
+## 7. Historial de Cambios
 
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
 | 2026-09-27 | Gianfranco Ivan Enrique | Creación del documento; registro de instancias #1–3; definición de plantilla y checklist para agentes. |
+| 2026-09-27 | Gianfranco Ivan Enrique | Añadido el segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) con su registro de instancias, a raíz del crash al asignar un script en el binario instalado. |
 
 ---
 
-*Este documento es vivo: cada nuevo bug de esta clase debe registrarse en §2 y, si revela un patrón nuevo, añadirse a §4.*
+*Este documento es vivo: cada nuevo bug de esta clase debe registrarse en la tabla de su concepto (§2 para el primero, §6.5 para el segundo) y, si revela un patrón nuevo, añadirse a §4.*

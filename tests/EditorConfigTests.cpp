@@ -36,6 +36,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
+#include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
 
 namespace fs = std::filesystem;
 
@@ -439,6 +440,132 @@ int main() {
               "guardarGeneral vuelca el pendiente sin esperar al intervalo");
         CHECK(!fs::exists(rutaDif + ".tmp"),
               "ninguna de las escrituras dejo temporales");
+    }
+
+    // 8. Resolucion de la raiz de datos (ProjectPaths). El motor instalado en
+    //    Program Files no puede escribir junto al ejecutable, asi que la raiz
+    //    cae a la carpeta de datos del usuario. Lo que se comprueba aqui es el
+    //    CONTRATO, no el entorno: que la raiz exista y sea escribible, que las
+    //    funciones derivadas cuelguen de ella y que la migracion no pise datos.
+    {
+        const std::string raizDatos = ProjectPaths::directorioBase();
+        const std::string original = ProjectPaths::directorioBaseOriginal();
+
+        CHECK(!raizDatos.empty(), "directorioBase no vacio");
+        CHECK(!original.empty(), "directorioBaseOriginal no vacio");
+        // Termina en MotorGrafico: las dos son la MISMA raiz, solo cambia donde
+        // esta. Si esto se cumpliera, el resto de la comprobacion es coherente.
+        const std::string sufijo = "MotorGrafico";
+        auto terminaEn = [&sufijo](const std::string& ruta) {
+            return ruta.size() >= sufijo.size() &&
+                   ruta.compare(ruta.size() - sufijo.size(), sufijo.size(),
+                                sufijo) == 0;
+        };
+        CHECK(terminaEn(raizDatos), "directorioBase termina en MotorGrafico");
+        CHECK(terminaEn(original), "directorioBaseOriginal termina en MotorGrafico");
+
+        // Coherencia de datosEnRutaDeUsuario con las dos rutas: solo puede ser
+        // true si resolvio a OTRO sitio, y ese otro no puede ser el de siempre.
+        const bool enUsuario = ProjectPaths::datosEnRutaDeUsuario();
+        CHECK(enUsuario == (raizDatos != original),
+              "datosEnRutaDeUsuario refleja si la raiz cambio de ubicacion");
+
+        // La raiz debe existir y ser escribible: es la garantia que evita el
+        // bug original (escrituras fallando en silencio en Program Files).
+        CHECK(fs::is_directory(raizDatos), "la raiz de datos existe");
+
+        // Toda ruta derivada cuelga de la raiz efectiva, no de la historica.
+        const std::string proyecto = "PruebaResolucion";
+        CHECK(ProjectPaths::directorioProyecto(proyecto) ==
+                  raizDatos + "/Proyects/" + proyecto,
+              "directorioProyecto cuelga de directorioBase");
+        CHECK(ProjectPaths::directorioConfiguraciones() ==
+                  raizDatos + "/Configuraciones",
+              "directorioConfiguraciones cuelga de directorioBase");
+        CHECK(ProjectPaths::rutaConfiguracionGeneral() ==
+                  raizDatos + "/Configuraciones/Configuracion.json",
+              "la config general cuelga de directorioBase");
+        CHECK(ProjectPaths::rutaImguiIni(proyecto) ==
+                  raizDatos + "/Proyects/" + proyecto + "/Memory/imgui.ini",
+              "el imgui.ini del proyecto cuelga de directorioBase");
+
+        // Migracion: nunca debe pisar datos que ya estan en destino. Se siembra
+        // un archivo marcador y se comprueba que sobrevive a la llamada.
+        const fs::path sembrado = fs::path(raizDatos) / "marcador_migracion.txt";
+        {
+            std::ofstream salida(sembrado);
+            salida << "no pisar";
+        }
+        std::string mensajeMigracion = "sin tocar";
+        const bool migro =
+            ProjectPaths::migrarDatosDesdeRutaOriginal(mensajeMigracion);
+        CHECK(fs::exists(sembrado), "la migracion no borra datos existentes");
+        CHECK(!migro, "con destino poblado la migracion no copia nada");
+        CHECK(mensajeMigracion.empty(),
+              "sin migracion el mensaje al usuario queda vacio");
+        {
+            std::ifstream entrada(sembrado);
+            std::string contenido;
+            std::getline(entrada, contenido);
+            CHECK(contenido == "no pisar", "el contenido del marcador no cambio");
+        }
+        std::error_code ec;
+        fs::remove(sembrado, ec);
+    }
+
+    // 8.b La copia de la migracion, aislada. La migracion completa solo se
+    //     puede ejecutar cuando la carpeta del ejecutable no es escribible, y en
+    //     un runner de CI siempre lo es, asi que sin esto la parte que de verdad
+    //     se ejecuta en un fallo real (copiar el arbol) quedaria sin cubrir.
+    //     Se comprueba que copia, que trae la estructura anidada y que se niega a
+    //     pisar un destino poblado.
+    {
+        // Carpeta unica por proceso, como el resto de la suite, para que dos
+        // ctest simultaneos no se pisen.
+        TempPruebas::CarpetaPrueba carpetaCopia("funshi_copia_migracion");
+        const fs::path raizCopia = carpetaCopia.ruta();
+
+        const fs::path origen = raizCopia / "origen";
+        fs::create_directories(origen / "Proyects" / "Ejemplo" / "Memory");
+        { std::ofstream o(origen / "Configuracion.json"); o << "{}"; }
+        { std::ofstream o(origen / "Proyects" / "Ejemplo" / "Memory" / "escena.bin");
+          o << "escena"; }
+
+        // Destino vacio: debe copiar, incluida la estructura de directorios.
+        const fs::path destino = raizCopia / "destino";
+        std::string error = "sin tocar";
+        const bool copio = ProjectPaths::copiarArbolSiDestinoVacio(
+            origen.string(), destino.string(), error);
+        CHECK(copio, "copia el arbol cuando el destino esta vacio");
+        CHECK(error.empty(), "sin error cuando la copia funciona");
+        CHECK(fs::exists(destino / "Configuracion.json"),
+              "llego el archivo de la raiz del arbol");
+        CHECK(fs::exists(destino / "Proyects" / "Ejemplo" / "Memory" / "escena.bin"),
+              "llego tambien la estructura anidada de directorios");
+
+        // Destino poblado: no debe copiar ni pisar nada.
+        const fs::path marcador = destino / "marcador.txt";
+        { std::ofstream o(marcador); o << "intacto"; }
+        std::string error2 = "sin tocar";
+        const bool copio2 = ProjectPaths::copiarArbolSiDestinoVacio(
+            origen.string(), destino.string(), error2);
+        CHECK(!copio2, "no copia cuando el destino ya esta poblado");
+        CHECK(error2.empty(),
+              "no es un error que el destino este poblado: no hay nada que avisar");
+        {
+            std::ifstream e(marcador);
+            std::string contenido;
+            std::getline(e, contenido);
+            CHECK(contenido == "intacto", "el archivo preexistente no se toco");
+        }
+
+        // Origen inexistente: se informa por `error` en vez de fingir exito.
+        std::string error3;
+        const bool copio3 = ProjectPaths::copiarArbolSiDestinoVacio(
+            (raizCopia / "no_existe").string(),
+            (raizCopia / "destino3").string(), error3);
+        CHECK(!copio3, "falla si el origen no es un directorio");
+        CHECK(!error3.empty(), "deja el motivo en error");
     }
 
     fs::remove_all(base);

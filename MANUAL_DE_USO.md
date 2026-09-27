@@ -78,6 +78,18 @@ cmake --build FunshiEngineGL/build -j$(nproc)
 Al crear un proyecto, el motor genera la estructura bajo
 `{app}/MotorGrafico/Proyects/<proyecto>/`:
 
+> **Dónde quedan los datos.** `{app}` es la carpeta del ejecutable cuando el
+> motor está en una carpeta donde puede escribir (build de desarrollo,
+> instalación portátil). Si no puede escribir —el caso normal cuando está
+> instalado en `C:\Program Files`, porque el proceso no corre elevado—, usa en su
+> lugar `%APPDATA%\FunshiEngineGL\MotorGrafico` (Windows) o
+> `$XDG_DATA_HOME/FunshiEngineGL/MotorGrafico`, con respaldo en
+> `~/.local/share/FunshiEngineGL/MotorGrafico` (Linux y macOS). La ruta
+> efectiva se imprime por consola al arrancar y la migración de la carpeta
+> anterior, si había algo, se avisa en la barra de estado. Los proyectos que
+> migran siguen funcionando: las rutas de assets se guardan relativas al
+> proyecto, no absolutas.
+
 ```
 MotorGrafico/
 ├── Proyects/
@@ -407,10 +419,11 @@ MotorGrafico\Exportaciones\MiJuego\MiJuego.exe
   cambiar de color no quedan restos del azul clásico ni hace falta reiniciar el
   editor.
 - Sensibilidad de camara, ventana de camaras, visibilidad de ventanas y la
-  apariencia se guardan junto al binario en
-  `<directorioEjecutable>/MotorGrafico/Configuraciones/Configuracion.json`
-  (la configuración por proyecto vive en
-  `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json`). La escritura es
+  apariencia se guardan en la raíz de datos del motor, que es
+  `MotorGrafico/Configuraciones/Configuracion.json` —junto al binario si el
+  motor puede escribir ahí, o en la carpeta de datos del usuario si no (ver
+  "Dónde quedan los datos" en la sección 2)—. La configuración por proyecto
+  vive en `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json`. La escritura es
   **atómica** (archivo temporal + rename: un corte no deja el JSON cortado) y
   la configuración general se guarda de forma **diferida**: mientras cambiás
   opciones en vivo se escribe como máximo una vez cada 250 ms, y siempre al
