@@ -163,6 +163,9 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                  y grises azulados de fábrica a gris neutro; ver tests/TemaEditorTests.cpp)
         │   ├── FileManagerGUI/             ← TreeFilesInterface + ContentFolderInterface
         │   │                                  (vistas del explorador; conversan con FileManager)
+        │   │   └── SoltarEnCarpeta.h       ← helper header-only del arrastre: mueve (Ctrl=copia) y
+        │   │                                  publica ArchivosReubicados; lo usan las dos vistas
+        │   │                                  para que arrastrar al árbol y al grid se comporten igual
         │   ├── MenusGUI/                   ← paquete del menú de inicio (MVP); ver su README.md
         │   │   ├── MenuModel.h/.cpp        ← lógica pura sin ImGui/GLFW
         │   │   ├── MenuView.h/.cpp         ← dibujo ImGui
@@ -438,7 +441,8 @@ solo como orquestador de arranque y bucle.
   `FileManager`** del proyecto.
 - El explorador de archivos es una arquitectura de tres piezas: `FileManager`
   (fachada dueña del modelo `GestorDeArchivos` y de las operaciones de dominio
-  —crear/renombrar/eliminar/copiar— **más toda la E/S nativa del sistema**:
+  —crear/renombrar/eliminar/copiar/**mover**— **más toda la E/S nativa del
+  sistema**:
   diálogos de selección de carpeta/archivo, abrir con la app predeterminada,
   listado de directorio con symlink-safe y plantillas de scripts C++/Java),
   `FileSelection` (estado de navegación compartido) y las vistas
@@ -446,6 +450,12 @@ solo como orquestador de arranque y bucle.
   fachada (sin `system()`/`popen()`/`ShellExecute*` ni `directory_iterator`
   propios).
   `FileSystemWatcher` avisa de cambios externos (inotify) para re-escanear.
+  El **arrastre** lo resuelve `SoltarEnCarpeta.h`, compartido por las dos
+  vistas: soltar mueve (con `Ctrl` copia) y, al mover, publica
+  `ArchivosReubicados` para que el gestor de proyectos reescriba y guarde las
+  referencias de la escena. `GestorDeArchivos::mover` usa `rename`, que es
+  atómico, y solo cae a copiar+borrar si el destino está en otro volumen;
+  rechaza pisar un destino ocupado y meter una carpeta en sí misma.
 - `SceneSelectedInterface` observa la escena inyectada y delega las
   operaciones de edición a `EditorController`. Usa `GameObjectFactory` para crear objetos.
 - `SceneObjectTree` dibuja el árbol de objetos (con drag & drop para reparentar).

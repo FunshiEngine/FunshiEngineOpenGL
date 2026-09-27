@@ -152,6 +152,10 @@ bool FileManager::renombrar(const std::string& ruta, const std::string& nuevoNom
     return gestor->renombrar(ruta, nuevoNombre);
 }
 
+bool FileManager::mover(const std::string& origen, const std::string& destino) {
+    return gestor->mover(origen, destino);
+}
+
 Carpeta* FileManager::buscarCarpetaPorRuta(const std::string& ruta) {
     ArbolEnlazado<File*>* arbol = gestor->getTreeFilePath();
     if (!arbol || arbol->isEmpty()) return nullptr;

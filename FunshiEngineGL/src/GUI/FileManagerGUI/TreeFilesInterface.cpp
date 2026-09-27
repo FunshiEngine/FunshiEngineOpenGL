@@ -28,6 +28,7 @@
 #include "../../FileManager/FileSelection.h"
 #include "../../GestorDeArchivos/Carpeta.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
+#include "SoltarEnCarpeta.h"
 #include <imgui.h>
 
 namespace {
@@ -191,12 +192,30 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
         }
 
         // Destino de drag&drop: soltar un "ARCHIVO_PATH" (grid u otro origen)
-        // sobre la fila copia el elemento a esta carpeta.
+        // sobre la fila lo MUEVE a esta carpeta, o lo copia con Ctrl. Es el
+        // mismo helper que usa el grid, para que soltar en el arbol y soltar en
+        // el grid no hagan cosas distintas.
+        //
+        // El tooltip va ANTES de aceptar el payload: en cuanto se acepta, el
+        // arrastre termina y ya no hay nada sobre lo que hovering.
+        if (const ImGuiPayload* arrastre = ImGui::GetDragDropPayload()) {
+            if (strcmp(arrastre->DataType, "ARCHIVO_PATH") == 0 &&
+                ImGui::IsItemHovered()) {
+                if (ctrlOCmd())
+                    ImGui::SetTooltip("Copiar dentro de %s",
+                                      folderRoot->getPathName().c_str());
+                else
+                    ImGui::SetTooltip("Mover a %s  (Ctrl = copiar)",
+                                      folderRoot->getPathName().c_str());
+            }
+        }
         if (ImGui::BeginDragDropTarget()) {
             if (const ImGuiPayload* aceptado =
                     ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
                 const char* origen = static_cast<const char*>(aceptado->Data);
-                if (origen) copiarElementoSuelto(origen, rutaDe(folderRoot));
+                if (origen)
+                    soltarEnCarpeta(fileManager, eventoArchivos_, origen,
+                                    rutaDe(folderRoot), ctrlOCmd());
             }
             ImGui::EndDragDropTarget();
         }
@@ -287,25 +306,6 @@ void TreeFilesInterface::refrescarArbol() {
     // navegacionPendiente NO se limpia: es una ruta y debe aplicarse (FASE 2)
     // contra el arbol recien reconstruido; limpiarla aqui perderia el doble
     // clic que coincidio con un rescaneo (B6).
-}
-
-// Copia un elemento soltado sobre una carpeta del arbol (payload
-// "ARCHIVO_PATH"). Carpetas -> copiarCarpeta + rescaneo; archivos ->
-// copiarArchivo. No copiar sobre la propia carpeta (finalDest == origen).
-void TreeFilesInterface::copiarElementoSuelto(const std::string& origen,
-                                              const std::string& folderDest) {
-    if (origen.empty() || folderDest.empty()) return;
-    FileSelection* sel = fileManager->getSelection();
-    std::error_code ec;
-    const std::string nombre =
-        std::filesystem::path(origen).filename().string();
-    const std::string finalDest = folderDest + PATH_SEP + nombre;
-    if (finalDest == origen) return;
-    if (std::filesystem::is_directory(origen, ec)) {
-        if (fileManager->copiarCarpeta(origen, finalDest)) sel->contadorCambios++;
-    } else {
-        fileManager->copiarArchivo(origen, finalDest);
-    }
 }
 
 void TreeFilesInterface::aplicarNavegacionPendiente() {

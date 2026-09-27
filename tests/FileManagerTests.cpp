@@ -25,7 +25,13 @@
 //   - Construccion del arbol y re-resolucion de FileSelection::carpetaActual
 //     por ruta tras un rescaneo.
 //   - Operaciones de dominio: crear carpeta/archivo, renombrar (incluye el
-//     rechazo de separadores), copiar carpeta/archivo, eliminar.
+//     rechazo de separadores), copiar carpeta/archivo, mover (incluye el
+//     rechazo de pisar un destino existente y de meter una carpeta en si
+//     misma), eliminar.
+//   - Busqueda por ruta en el arbol vigente.
+//   - Arrastre-y-suelta (soltarEnCarpeta): mueve con Ctrl copia, y solo el
+//     movimiento publica ArchivosReubicados (lo que reescribe las rutas de la
+//     escena).
 //   - Busqueda por ruta en el arbol vigente.
 //   - FileSystemWatcher (solo en Linux, donde usa inotify): deteccion de
 //     cambios externos y de ramas multi-nivel.
@@ -38,9 +44,11 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/FileManager/FileManager.h"
+#include "../FunshiEngineGL/src/GUI/FileManagerGUI/SoltarEnCarpeta.h"
 
 #if defined(__linux__)
 #include "../FunshiEngineGL/src/FileManager/FileSystemWatcher.h"
@@ -169,6 +177,64 @@ int main() {
     CHECK(fs::is_directory(unir(copiaCarpeta, "nucleo")),
           "copiarCarpeta es recursiva (nucleo existe dentro)");
 
+    // --- Mover (drag&drop del explorador) -----------------------------------
+    // Es la operacion que usa el arrastre: por defecto mueve, con Ctrl copia.
+    // Los casos que importan son los que un rename Ingenuo no cubre.
+
+    // Mover un archivo: desaparece el origen y aparece el destino con su
+    // contenido intacto.
+    const std::string movible = unir(proy, "Assets/movible.txt");
+    CHECK(fm.crearArchivo(movible, "contenido a conservar"), "archivo para mover");
+    const std::string movido = unir(proy, "src/movible.txt");
+    CHECK(fm.mover(movible, movido), "mover traslada el archivo");
+    CHECK(!fs::exists(movible), "tras mover, el origen ya no existe");
+    CHECK(fs::is_regular_file(movido), "tras mover, el destino existe");
+    CHECK(contenidoDe(movido) == "contenido a conservar",
+          "mover conserva el contenido del archivo");
+
+    // Mover una carpeta completa, con su contenido y su estructura.
+    const std::string rama = unir(proy, "Assets/rama");
+    CHECK(fm.crearCarpeta(rama), "crea la rama");
+    CHECK(fm.crearCarpeta(unir(proy, "Assets/rama/interior")),
+          "crea la subcarpeta de la rama");
+    CHECK(fm.crearArchivo(unir(proy, "Assets/rama/interior/dato.txt"), "x"),
+          "archivo dentro de la rama");
+    const std::string ramaDestino = unir(proy, "src/rama");
+    CHECK(fm.mover(rama, ramaDestino), "mover traslada la carpeta");
+    CHECK(!fs::exists(rama), "tras mover la carpeta, el origen ya no existe");
+    CHECK(fs::is_regular_file(unir(ramaDestino, "interior/dato.txt")),
+          "mover arrastra el contenido de la carpeta");
+
+    // No se pisa un destino existente: es la proteccion contra un arrastre
+    // accidental encima de algo que ya estaba ahi.
+    const std::string ocupado = unir(proy, "src/ocupado.txt");
+    const std::string hueco = unir(proy, "Assets/hueco.txt");
+    CHECK(fm.crearArchivo(ocupado, "no tocar"), "destino ocupado");
+    CHECK(fm.crearArchivo(hueco, "el que se quiere mover"), "origen a mover");
+    CHECK(!fm.mover(hueco, ocupado), "mover se niega a pisar un destino existente");
+    CHECK(contenidoDe(ocupado) == "no tocar",
+          "el archivo ocupado quedo intacto tras el mover rechazado");
+    CHECK(fs::is_regular_file(hueco),
+          "el origen sigue en su sitio tras el mover rechazado");
+
+    // Carpeta dentro de si misma: se rechaza antes de tocar disco, porque si
+    // se dejara que el error_code lo cortara a mitad, quedaria un arbol a
+    // medias.
+    CHECK(!fm.mover(unir(proy, "src"), unir(proy, "src")),
+          "mover se niega a mover una carpeta sobre si misma");
+    CHECK(!fm.mover(unir(proy, "src"), unir(proy, "src/rama/dentro")),
+          "mover se niega a meter una carpeta en un descendiente suyo");
+    CHECK(fs::is_directory(unir(proy, "src")),
+          "la carpeta origen sigue intacta tras los rechazos");
+
+    // Origen inexistente: false sin tocar nada.
+    CHECK(!fm.mover(unir(proy, "no/existe.txt"), unir(proy, "src/x.txt")),
+          "mover devuelve false si el origen no existe");
+    CHECK(!fm.mover("", unir(proy, "src/x.txt")),
+          "mover devuelve false con origen vacio");
+    CHECK(!fm.mover(unir(proy, "src/rama"), ""),
+          "mover devuelve false con destino vacio");
+
     // Eliminar archivo.
     const std::string rutaBorrable = unir(proy, "Assets/borrable.txt");
     CHECK(fm.crearArchivo(rutaBorrable, "bye"), "archivo fuente para eliminar");
@@ -222,6 +288,79 @@ int main() {
               "detecta cambios profundos dentro de la rama nueva");
     }
 #endif
+
+    // --- Arrastre: el evento que reescribe las rutas de la escena ------------
+    // Es el motivo de que soltar notifique: sin ArchivosReubicados, mover un
+    // asset dejaria la escena apuntando a la ruta vieja.
+    {
+        EditorEventBus bus;
+        std::vector<EditorEvent> recibidos;
+        bus.subscribe([&recibidos](const EditorEvent& ev) {
+            recibidos.push_back(ev);
+        });
+
+        const std::string origen = unir(proy, "Assets/arrastrado.txt");
+        const std::string destinoCarpeta = unir(proy, "Assets/Movidos");
+        CHECK(fm.crearArchivo(origen, "x"), "archivo para arrastrar");
+        CHECK(fm.crearCarpeta(destinoCarpeta), "carpeta destino del arrastre");
+
+        // Mover: publica el evento con la ruta anterior y la nueva.
+        CHECK(soltarEnCarpeta(&fm, &bus, origen, destinoCarpeta, false),
+              "soltarEnCarpeta mueve el elemento");
+        CHECK(recibidos.size() == 1, "mover publica un unico evento");
+        CHECK(recibidos.size() == 1 &&
+                  recibidos[0].type == EditorEventType::ArchivosReubicados,
+              "el evento es ArchivosReubicados");
+        CHECK(recibidos.size() == 1 && recibidos[0].rutaAnterior == origen,
+              "el evento lleva la ruta anterior");
+        CHECK(recibidos.size() == 1 &&
+                  recibidos[0].rutaNueva == unir(destinoCarpeta, "arrastrado.txt"),
+              "el evento lleva la ruta nueva");
+        CHECK(fs::is_regular_file(unir(destinoCarpeta, "arrastrado.txt")),
+              "el archivo esta en el destino tras el arrastre");
+
+        // Copiar (Ctrl): mueve nada y no publica, porque no cambia ninguna de
+        // las dos rutas y no hay nada que reescribir en la escena.
+        const std::string aCopiar = unir(proy, "Assets/paraCopiar.txt");
+        CHECK(fm.crearArchivo(aCopiar, "y"), "archivo para copiar");
+        CHECK(soltarEnCarpeta(&fm, &bus, aCopiar, destinoCarpeta, true),
+              "soltarEnCarpeta copia el elemento");
+        CHECK(recibidos.size() == 1,
+              "copiar no publica evento (sigue habiendo uno solo)");
+        CHECK(fs::is_regular_file(aCopiar),
+              "tras copiar, el original sigue en su sitio");
+        CHECK(fs::is_regular_file(unir(destinoCarpeta, "paraCopiar.txt")),
+              "tras copiar, la copia esta en el destino");
+
+        // Soltar sobre la carpeta que ya lo contiene: no hace nada, ni mueve ni
+        // publica (mover intentaria renombrar el archivo sobre si mismo).
+        CHECK(!soltarEnCarpeta(&fm, &bus, unir(destinoCarpeta, "arrastrado.txt"),
+                                destinoCarpeta, false),
+              "soltar sobre la carpeta de origen se cancela");
+        CHECK(recibidos.size() == 1, "la operacion cancelada no publica evento");
+
+        // Rechazos: destino ocupado y carpeta dentro de si misma. No deben
+        // publicar evento, porque no se toco disco.
+        CHECK(fm.crearCarpeta(unir(proy, "Assets/Ocupada")), "carpeta ocupada");
+        // El conflicto es por NOMBRE: el destino ya tiene un "paraCopiar.txt".
+        CHECK(fm.crearArchivo(unir(proy, "Assets/Ocupada/paraCopiar.txt"),
+                              "el que ya estaba"),
+              "el destino ocupado ya tiene un archivo con ese nombre");
+        CHECK(!soltarEnCarpeta(&fm, &bus,
+                               unir(destinoCarpeta, "paraCopiar.txt"),
+                               unir(proy, "Assets/Ocupada"), false),
+              "destino ocupado: la operacion se cancela");
+        CHECK(contenidoDe(unir(proy, "Assets/Ocupada/paraCopiar.txt")) ==
+                  "el que ya estaba",
+              "el archivo ocupado quedo intacto");
+        CHECK(recibidos.size() == 1,
+              "un destino ocupado no publica evento");
+        CHECK(!soltarEnCarpeta(&fm, &bus, unir(proy, "src"),
+                               unir(proy, "src/dentro"), false),
+              "carpeta dentro de si misma: la operacion se cancela");
+        CHECK(recibidos.size() == 1,
+              "una carpeta en si misma no publica evento");
+    }
 
     // --- Resultado ----------------------------------------------------------
     fs::remove_all(base);

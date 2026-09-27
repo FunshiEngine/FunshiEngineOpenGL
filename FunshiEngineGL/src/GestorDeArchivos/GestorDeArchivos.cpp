@@ -218,3 +218,55 @@ bool GestorDeArchivos::renombrar(const std::string& ruta,
     std::filesystem::rename(objetivo, objetivo.parent_path() / nuevoNombre, ec);
     return !ec;
 }
+
+bool GestorDeArchivos::mover(const std::string& origen,
+                             const std::string& destino) {
+    if (origen.empty() || destino.empty()) return false;
+
+    std::error_code ec;
+    const std::filesystem::path desde(origen);
+    const std::filesystem::path hacia(destino);
+
+    if (!std::filesystem::exists(desde, ec)) return false;
+    // No se pisa un destino existente: un arrastre mal dirigido dejaria el
+    // original intacto y el usuario creeria que se movio cuando no.
+    if (std::filesystem::exists(hacia, ec)) return false;
+
+    // Carpeta dentro de si misma (o de un descendiente): el error_code de la
+    // recursion cortaria a mitad y dejaria el arbol a medias en disco.
+    if (std::filesystem::is_directory(desde, ec)) {
+        const std::filesystem::path padreDestino =
+            hacia.parent_path().lexically_normal();
+        std::filesystem::path actual = desde.lexically_normal();
+        for (;;) {
+            if (actual == padreDestino) return false;
+            const std::filesystem::path padre = actual.parent_path();
+            if (padre == actual) break; // se llego a la raiz sin coincidir
+            actual = padre;
+        }
+    }
+
+    std::filesystem::rename(desde, hacia, ec);
+    if (!ec) return true;
+
+    // rename solo funciona dentro del mismo volumen. Entre volumenes (o con el
+    // error de permisos que deja Windows en algunos casos) se cae a copiar y
+    // borrar el origen, que es mas lento pero produce el mismo resultado.
+    ec.clear();
+    if (std::filesystem::is_directory(desde, ec)) {
+        std::filesystem::copy(desde, hacia,
+                              std::filesystem::copy_options::recursive,
+                              ec);
+    } else {
+        std::filesystem::copy_file(desde, hacia,
+                                   std::filesystem::copy_options::none, ec);
+    }
+    if (ec) return false;
+
+    ec.clear();
+    if (std::filesystem::is_directory(desde, ec))
+        std::filesystem::remove_all(desde, ec);
+    else
+        std::filesystem::remove(desde, ec);
+    return !ec;
+}
