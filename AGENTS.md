@@ -33,6 +33,8 @@ cd FunshiEngineGL/build && ctest --output-on-failure
 - **Documentación**: los cambios de API visibles para usuarios se reflejan en
   `MANUAL_DE_USO.md` (especialmente la sección 13, scripting). Cambios de
   arquitectura en `PROJECT_STRUCTURE.md`.
+- **Bugs técnicos por limitaciones de herramientas**: documentar en
+  `DocuTecnicoBugs.md` (patrón, síntomas, fix canónico, checklist de mitigación).
 
 ## Reglas de arquitectura
 
@@ -108,13 +110,13 @@ cd FunshiEngineGL/build && ctest --output-on-failure
 - **Documentación sincronizada**: la documentación no es un extra, es parte de
   la tarea. Antes de empezar, revisar los `.md` que describen el área afectada
   (`README.md`, `MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`,
-  `FLUJO_DE_RAMAS.md` y los de diseño); durante el trabajo, ir comparando en
-  paralelo lo que la documentación afirma contra lo que el código realmente
-  hace y corregir todo lo que quedó desactualizado — APIs, arquitectura,
-  comandos y conteo de tests, atajos, limitaciones, ejemplos —, además de
-  reflejar lo nuevo que se introduce. Los ajustes de documentación entran en
-  el mismo commit que el código que los motiva: nunca "la documentación al
-  final", ni entregar avances sin sus documentos al día.
+  `FLUJO_DE_RAMAS.md`, `DocuTecnicoBugs.md` y los de diseño); durante el trabajo,
+  ir comparando en paralelo lo que la documentación afirma contra lo que el
+  código realmente hace y corregir todo lo que quedó desactualizado — APIs,
+  arquitectura, comandos y conteo de tests, atajos, limitaciones, ejemplos —,
+  además de reflejar lo nuevo que se introduce. Los ajustes de documentación
+  entran en el mismo commit que el código que los motiva: nunca "la
+  documentación al final", ni entregar avances sin sus documentos al día.
 - **Commits atómicos por tarea**: cada tarea terminada cierra con su commit
   (o los que sean necesarios si la tarea es grande), con mensaje descriptivo
   y convencionales (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`).
