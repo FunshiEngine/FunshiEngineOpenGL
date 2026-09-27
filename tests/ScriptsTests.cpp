@@ -495,16 +495,76 @@ static void testContratoCompilacion() {
               !CompilacionCpp::tieneFlag(gcc, "/EHsc"),
           "GCC: la linea no lleva flags de MSVC");
 
-    // El juego que usa ESTE build tambien cumple el contrato.
+    // H-2: la familia sale del TOOLCHAIN, no de la plataforma. Un build MinGW en
+    // Windows recibia los flags de MSVC y el script no compilaba nunca.
+    CHECK(CompilacionCpp::familiaDe("cl") == CompilacionCpp::Familia::Msvc,
+          "cl.exe es familia MSVC");
+    CHECK(CompilacionCpp::familiaDe(
+              "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/"
+              "MSVC/14.40.33807/bin/Hostx64/x64/cl.exe") ==
+              CompilacionCpp::Familia::Msvc,
+          "la ruta completa de cl.exe es familia MSVC");
+    CHECK(CompilacionCpp::familiaDe("C:/msys64/mingw64/bin/c++.exe") ==
+              CompilacionCpp::Familia::Gcc,
+          "MinGW c++.exe en Windows es familia GCC, no MSVC");
+    CHECK(CompilacionCpp::familiaDe("g++") == CompilacionCpp::Familia::Gcc,
+          "g++ es familia GCC");
+    CHECK(CompilacionCpp::familiaDe("/usr/bin/clang++") ==
+              CompilacionCpp::Familia::Gcc,
+          "clang++ es familia GCC");
+    CHECK(CompilacionCpp::familiaDe("/usr/bin/g++-14") ==
+              CompilacionCpp::Familia::Gcc,
+          "un g++ con sufijo de version sigue siendo familia GCC");
+
+    // La linea completa: el include y la salida tambien son de la familia, no de
+    // la plataforma (MinGW recibia /I, /Fo y /Fe, y no compilaba nunca).
+    CompilacionCpp::DatosComando datos;
+    datos.nombreClase = "MiClase";
+    datos.fuente = "C:/Proyectos/Nuevo Proyecto/src/Scripts/MiClase.cpp";
+    datos.dirSrc = "C:/engine/src";
+    datos.dirObjetos = "C:/Temp/funshi_scripts";
+    datos.artefacto = "C:/Temp/funshi_scripts/script_1.dll";
+    datos.log = "C:/Temp/funshi_scripts/compilar.log";
+
+    datos.compilador = "C:/msys64/mingw64/bin/c++.exe";
+    const std::string cmdMinGW = CompilacionCpp::comandoCompilacion(datos);
+    CHECK(cmdMinGW.find(" -I\"") != std::string::npos &&
+              cmdMinGW.find("/I\"") == std::string::npos,
+          "MinGW: las cabeceras entran con -I, no con /I");
+    CHECK(cmdMinGW.find(" -o ") != std::string::npos &&
+              cmdMinGW.find("/Fo") == std::string::npos &&
+              cmdMinGW.find("/Fe") == std::string::npos,
+          "MinGW: la salida va con -o, no con /Fo ni /Fe");
+    CHECK(cmdMinGW.find("/nologo") == std::string::npos &&
+              cmdMinGW.find("-shared") != std::string::npos,
+          "MinGW: sin flags de MSVC en ninguna parte de la linea");
+
+    datos.compilador = "cl.exe";
+    const std::string cmdMsvc = CompilacionCpp::comandoCompilacion(datos);
+    CHECK(cmdMsvc.find(" /I\"") != std::string::npos,
+          "MSVC: las cabeceras entran con /I");
+    CHECK(cmdMsvc.find(" /Fo\"") != std::string::npos &&
+              cmdMsvc.find(" /Fe\"") != std::string::npos,
+          "MSVC: la salida va con /Fo y /Fe");
+    CHECK(cmdMsvc.find(" -o ") == std::string::npos &&
+              cmdMsvc.find("-shared") == std::string::npos,
+          "MSVC: sin flags de GCC en ninguna parte de la linea");
+    CHECK(cmdMinGW.find("\"C:/Proyectos/Nuevo Proyecto/src/Scripts/MiClase.cpp\"") !=
+              std::string::npos,
+          "la ruta de un proyecto con espacios va entrecomillada");
+
+    // El juego que usa ESTE build tambien cumple el contrato: la familia sale
+    // del compilador horneado por CMake (FUNSHI_CXX_COMPILER), no del SO.
     const std::string actual = CompilacionCpp::flagsCompilador("MiClase");
-#if defined(_WIN32)
-    CHECK(CompilacionCpp::tieneFlag(actual, CompilacionCpp::runtimeFlag()),
-          "Windows: el build en uso compila los scripts con el runtime de "
-          "C++ del engine");
-#else
-    CHECK(CompilacionCpp::tieneFlag(actual, "-shared"),
-          "Linux/macOS: el build en uso compila los scripts como .so/.dylib");
-#endif
+    if (CompilacionCpp::familiaCompilador() == CompilacionCpp::Familia::Msvc) {
+        CHECK(CompilacionCpp::tieneFlag(actual, CompilacionCpp::runtimeFlag()),
+              "MSVC: el build en uso compila los scripts con el runtime de C++ "
+              "del engine");
+    } else {
+        CHECK(CompilacionCpp::tieneFlag(actual, "-shared"),
+              "GCC/Clang: el build en uso compila los scripts como biblioteca "
+              "compartida");
+    }
 
     // Comparacion por tokens: "/MD" no puede dar positivo sobre "/MDd".
     CHECK(!CompilacionCpp::tieneFlag("/MDd /EHsc", "/MD"),

@@ -35,14 +35,22 @@
 // C++. Con el CRT estatico (/MT) cada modulo tiene su propio heap y el delete
 // del otro lado corrompe el heap.
 
+#include <cctype>
 #include <string>
 
 namespace CompilacionCpp {
 
-// Familia del compilador: cada una tiene su juego de flags. Hoy se elige por
-// plataforma (`flagsCompilador`); la deteccion del toolchain real es el paso
-// siguiente (ver `familiaDe` en el commit que la introduce).
+// Familia del compilador: cada una tiene su juego de flags. Se elige por el
+// TOOLCHAIN (nombre del ejecutable), no por la plataforma: un build MinGW en
+// Windows recibia los flags de MSVC (`/nologo /LD ...`) y `c++.exe` los tomaba
+// como nombres de archivo, asi que los scripts C++ no compilaban nunca.
 enum class Familia { Msvc, Gcc };
+
+// Compilador con el que ESTE build compila los scripts (lo hornea CMake; mismo
+// nombre y default que BackendCpp, para que el header sirva aislado en tests).
+#ifndef FUNSHI_CXX_COMPILER
+#define FUNSHI_CXX_COMPILER "g++"
+#endif
 
 // Runtime dinamico de Visual C++ del build del engine. CMake lo hornea (/MDd en
 // Debug, /MD en el resto) para que el script siga la MISMA configuracion que el
@@ -53,13 +61,55 @@ enum class Familia { Msvc, Gcc };
 #define FUNSHI_CXX_RUNTIME_FLAG "/MD"
 #endif
 
+namespace detalle {
+
+// Valor sin las comillas externas que agrega el literal del compilador.
+inline std::string sinComillas(const std::string& valor) {
+    if (valor.size() >= 2 && valor.front() == '"' && valor.back() == '"')
+        return valor.substr(1, valor.size() - 2);
+    return valor;
+}
+
+} // namespace detalle
+
 // Valor normalizado del flag de runtime horneado por CMake.
 inline std::string runtimeFlag() {
-    std::string flag = FUNSHI_CXX_RUNTIME_FLAG;
-    if (flag.size() >= 2 && flag.front() == '"' && flag.back() == '"')
-        flag = flag.substr(1, flag.size() - 2);
-    return flag;
+    return detalle::sinComillas(FUNSHI_CXX_RUNTIME_FLAG);
 }
+
+// Nombre del ejecutable del compilador, sin comillas, sin carpeta y sin
+// extension, en minusculas: "C:/Program Files/.../cl.exe" -> "cl".
+inline std::string nombreEjecutable(const std::string& ruta) {
+    std::string nombre = detalle::sinComillas(ruta);
+    const std::string::size_type separador = nombre.find_last_of("/\\");
+    if (separador != std::string::npos) nombre = nombre.substr(separador + 1);
+    const std::string::size_type punto = nombre.find_last_of('.');
+    if (punto != std::string::npos && punto > 0) nombre = nombre.substr(0, punto);
+    for (char& c : nombre)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return nombre;
+}
+
+// Familia por el nombre del ejecutable. Los prefijos de version ("g++-14",
+// "clang++-18") cuentan como su familia; un nombre desconocido cae al default
+// de la plataforma, que es donde el compilador mas probable vive.
+inline Familia familiaDe(const std::string& compiladorRuta) {
+    const std::string exe = nombreEjecutable(compiladorRuta);
+    if (exe == "cl" || exe == "clang-cl") return Familia::Msvc;
+    if (exe == "g++" || exe == "c++" || exe == "gcc" || exe == "clang++" ||
+        exe == "clang" || exe.rfind("g++-", 0) == 0 ||
+        exe.rfind("gcc-", 0) == 0 || exe.rfind("clang++-", 0) == 0 ||
+        exe.rfind("clang-", 0) == 0)
+        return Familia::Gcc;
+#if defined(_WIN32)
+    return Familia::Msvc;
+#else
+    return Familia::Gcc;
+#endif
+}
+
+// Familia del toolchain horneado en el build (contrato que verifica el test).
+inline Familia familiaCompilador() { return familiaDe(FUNSHI_CXX_COMPILER); }
 
 // Juego de flags de la familia, sin espacios al principio ni al final: quien
 // arma la linea de comandos decide los separadores.
@@ -76,16 +126,62 @@ inline std::string flagsFamilia(Familia familia, const std::string& nombreClase)
     return "-std=c++17 -shared -fPIC -O2 -DFUNSHI_NOMBRE_CLASE=" + nombreClase;
 }
 
-// Flags del toolchain con el que ESTE build compila los scripts. En Windows la
-// rama es la de MSVC: cuando el compilador configurado es MinGW hay que elegir
-// por familia de compilador y no por plataforma (por eso `Familia` es un
-// parametro y no un `#if` embebido en `flagsFamilia`).
+// Flags del toolchain con el que ESTE build compila los scripts.
 inline std::string flagsCompilador(const std::string& nombreClase) {
-#if defined(_WIN32)
-    return flagsFamilia(Familia::Msvc, nombreClase);
-#else
-    return flagsFamilia(Familia::Gcc, nombreClase);
-#endif
+    return flagsFamilia(familiaCompilador(), nombreClase);
+}
+
+// Cita un argumento entre comillas y deja el interior tal como lo espera el
+// parser de la linea de comandos del proceso hijo.
+inline std::string citar(const std::string& ruta) {
+    std::string resultado = "\"";
+    for (char c : ruta) {
+        if (c == '"') {
+            resultado += "\\\"";
+        } else if (c == '\\') {
+            resultado += "\\\\";
+        } else {
+            resultado += c;
+        }
+    }
+    resultado += "\"";
+    return resultado;
+}
+
+// Todo lo que necesita la linea de comandos. Las rutas van SIN citar: el armado
+// de abajo las pasa por `citar()`.
+struct DatosComando {
+    std::string compilador; // ruta al compilador (o el nombre, si esta en PATH)
+    std::string nombreClase;
+    std::string fuente;
+    std::string dirSrc;     // carpeta de cabeceras del motor; vacia si no hay
+    std::string dirObjetos; // solo MSVC (/Fo)
+    std::string artefacto;  // .so/.dll/.dylib de salida
+    std::string log;        // archivo que recibe stdout+stderr
+};
+
+// Linea de comandos completa. La familia del compilador decide flags, include y
+// salida; la plataforma (BackendCpp) decide la extension del artefacto y como se
+// lanza el proceso.
+inline std::string comandoCompilacion(const DatosComando& datos) {
+    const Familia familia = familiaDe(datos.compilador);
+    std::string cmd =
+        citar(datos.compilador) + " " + flagsFamilia(familia, datos.nombreClase);
+    if (!datos.dirSrc.empty())
+        cmd += (familia == Familia::Msvc ? " /I" : " -I") + citar(datos.dirSrc);
+    cmd += " " + citar(datos.fuente);
+    if (familia == Familia::Msvc) {
+        if (!datos.dirObjetos.empty())
+            // El backslash final va doblado A PROPOSITO: con /Fo"dir\" el parser
+            // lee \" como comilla escapada, se traga el argumento siguiente y
+            // falla con C1083 sobre el archivo generado.
+            cmd += " /Fo\"" + datos.dirObjetos + "\\\\\"";
+        cmd += " /Fe" + citar(datos.artefacto);
+    } else {
+        cmd += " -o " + citar(datos.artefacto);
+    }
+    cmd += " > " + citar(datos.log) + " 2>&1";
+    return cmd;
 }
 
 // Verdadero si `flags` contiene el flag exacto, comparando por tokens: "/MD" no

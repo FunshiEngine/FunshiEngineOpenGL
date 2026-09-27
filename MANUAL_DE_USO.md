@@ -707,9 +707,12 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 
 ### 13.5 Notas del backend C++
 
-- El fuente se compila a `.so` (Linux), `.dll` (Windows/MSVC) o `.dylib`
-  (macOS) con `-std=c++17 -shared -fPIC -O2` y
-  `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
+- El fuente se compila a `.so` (Linux), `.dll` (Windows) o `.dylib` (macOS). El
+  juego de flags lo decide la **familia del compilador**, no el sistema
+  operativo: MSVC (`cl.exe`) recibe
+  `/nologo /LD /std:c++17 /O2 /MD /EHsc` y GCC/Clang (`g++`, `c++`, `clang++`,
+  incluido MinGW en Windows) recibe `-std=c++17 -shared -fPIC -O2`; en los dos
+  casos se agrega `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
 - **Runtime de C++ compartido (Windows/MSVC):** el `.dll` del script se compila
   con el **mismo CRT dinamico que el engine** (`/MD` en Release, `/MDd` en
   Debug) y con `/EHsc`. No es una preferencia de estilo: los `SerializeField`
@@ -734,10 +737,10 @@ void onUpdate(GameObject* owner, float deltaTime) override {
   toolset MSVC (se busca subiendo desde la carpeta del compilador), porque
   `cl.exe` resuelve los headers del CRT (incluido `<cstddef>`) y las librerias
   por `INCLUDE`/`LIB`. Con esto el editor funciona igual si se lanza desde el
-  Explorador o desde Visual Studio. Si el compilador configurado no es MSVC
-  (`FUNSHI_CXX` a MinGW/g++, por ejemplo), hace falta un entorno con `cl.exe`
-  disponible. Los scripts Java no tienen este requisito (javac se invoca por
-  ruta absoluta).
+  Explorador o desde Visual Studio. Si el compilador configurado es MinGW/g++
+  (`FUNSHI_CXX`, o el horneado por el build), se emiten los flags de GCC: ese
+  camino tambien funciona y no necesita `cl.exe` en el entorno. Los scripts Java
+  no tienen este requisito (javac se invoca por ruta absoluta).
 
 ---
 

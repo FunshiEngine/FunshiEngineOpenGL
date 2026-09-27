@@ -97,21 +97,6 @@ std::string compilador() {
     return c;
 }
 
-// Escapa una ruta para pasarla como argumento de linea de comandos.
-std::string escapar(const std::string& ruta) {
-    std::string resultado;
-    for (char c : ruta) {
-        if (c == '"') {
-            resultado += "\\\"";
-        } else if (c == '\\') {
-            resultado += "\\\\";
-        } else {
-            resultado += c;
-        }
-    }
-    return resultado;
-}
-
 // Directorio con las cabeceras del motor para que el script pueda incluir
 // ScriptGameObject.h. Prioridad: variable de entorno FUNSHI_SRC_DIR; si no,
 // la ruta horneada en el build (el repo en un build dev, o la carpeta de
@@ -193,50 +178,24 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
     bool hayQueRecompilar = !std::filesystem::exists(artefactoPath, ec) ||
                             salida.mtimeFuente != mtime;
     if (hayQueRecompilar) {
-        // -I al dir de cabeceras del motor + fuente a compilar, ambos
-        // entrecomillados (rutas con espacios). En Windows ademas del /I no
-        // existia el include path, asi que el script nunca encontraba las
-        // cabeceras del SDK: se arregla aqui.
-        std::string logic;
-        const std::string dirSrc = directorioSrcMotor();
-        if (!dirSrc.empty()) {
-#if defined(_WIN32)
-            logic = "/I\"" + escapar(dirSrc) + "\" ";
-#else
-            logic = "-I\"" + escapar(dirSrc) + "\" ";
-#endif
-        }
-        // El fuente va SIEMPRE entrecomillado: es una ruta de proyecto del
-        // usuario y puede tener espacios (p. ej. "...\Nuevo Proyecto\...\x.cpp").
-        // Sin comillas el shell la parte en trozos y el compilador no encuentra
-        // el archivo (C1083 "no se puede abrir el archivo origen").
-        logic += "\"" + escapar(fuente) + "\"";
+        // La linea de comandos se arma en ComandoCompilacionCpp.h: la familia
+        // del compilador (MSVC o GCC/Clang) decide flags, include y salida, y el
+        // contrato de CRT con el engine lo verifica el test de esa suite.
         const std::string logPath =
             (std::filesystem::path(directorioCache()) / "compilar.log")
                 .string();
-        // El compilador va SIEMPRE entrecomillado: en Windows vive en una ruta
-        // con espacios (C:/Program Files/...) y sin comillas el shell corta en
-        // el primer espacio ("C:/Program" no se reconoce como comando interno).
-        const std::string compiladorCmd = "\"" + compilador() + "\"";
-        std::string cuerpo;
-        // Los flags del compilador viven en ComandoCompilacionCpp.h: son el
-        // contrato de ABI con el engine (CRT compartido) y el test de contrato
-        // los verifica sin necesidad de MSVC.
-#if defined(_WIN32)
-        // /Fo y /Fe entrecomillados y con el backslash final duplicado: con
-        // /Fo"dir\" el compilador lee \" como comilla escapada, se traga el
-        // argumento siguiente y falla con C1083 sobre el archivo generado.
-        cuerpo = compiladorCmd + " " +
-                 CompilacionCpp::flagsCompilador(nombreClase) + " " + logic +
-                 " /Fo\"" + directorioCache() +
-                 "\\\\\" /Fe\"" + escapar(artefactoPath) + "\" > \"" + logPath +
-                 "\" 2>&1";
-#else
-        cuerpo = compiladorCmd + " " +
-                 CompilacionCpp::flagsCompilador(nombreClase) + " " + logic +
-                 " -o " + escapar(artefactoPath) + " > " + logPath + " 2>&1";
-#endif
-        std::string cmd = cuerpo;
+        CompilacionCpp::DatosComando datos;
+        datos.compilador = compilador();
+        datos.nombreClase = nombreClase;
+        datos.fuente = fuente;
+        datos.dirSrc = directorioSrcMotor();
+        datos.dirObjetos = directorioCache();
+        datos.artefacto = artefactoPath;
+        datos.log = logPath;
+        // El compilador va entrecomillado dentro del armado: en Windows vive en
+        // una ruta con espacios (C:/Program Files/...) y sin comillas el shell
+        // corta en el primer espacio ("C:/Program" no se reconoce como comando).
+        std::string cmd = CompilacionCpp::comandoCompilacion(datos);
 #if defined(_WIN32)
         // std::system arma `cmd.exe /c <comando>`: si el comando arranca con
         // comilla, cmd aplica su regla vieja y se come la PRIMERA y la ULTIMA
@@ -249,9 +208,9 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
         //    una comilla extra: cmd se come esas dos y el cuerpo queda intacto.
         const std::string vcvars = vcvars64Ruta(compilador());
         if (!vcvars.empty())
-            cmd = "call \"" + vcvars + "\" >nul 2>&1 && " + cuerpo;
+            cmd = "call \"" + vcvars + "\" >nul 2>&1 && " + cmd;
         else
-            cmd = "\"" + cuerpo + "\"";
+            cmd = "\"" + cmd + "\"";
 #endif
         int rc = std::system(cmd.c_str());
         if (rc != 0) {

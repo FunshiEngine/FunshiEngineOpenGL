@@ -517,8 +517,9 @@ add_executable(scripts-tests
 )
 # El contrato de flags con el que se compilan los scripts C++ se verifica en
 # esta suite (headless y en las tres plataformas): el test necesita el mismo
-# runtime horneado que el engine, por eso recibe la definicion.
+# compilador y runtime horneados que el engine, por eso recibe las definiciones.
 target_compile_definitions(scripts-tests PRIVATE
+    FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
     FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
 set_target_properties(scripts-tests PROPERTIES
     CXX_STANDARD 17

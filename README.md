@@ -130,7 +130,7 @@ ctest --test-dir build --output-on-failure
 - `assetmanager-tests` (82) y `texturemanager-tests` (15): caches Flyweight de meshes (incluido el cálculo de normales por cara, y el que rellena solo las normales que faltan en assets mixtos) e imágenes.
 - `estructuras-tests` (87): listas, árboles, heaps y ordenamiento propios.
 - `rendering-tests` (79): geometría de las líneas del pipeline moderno (`LineBuilder`: expansión de cada segmento al quad que ensancha el shader, color por extremo, polilíneas, aristas de collider y caja de 12 aristas), sin entrar a OpenGL.
-- `scripts-tests` (67): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario) y el contrato de flags con el que `BackendCpp` compila el script C++ (mismo CRT dinámico que el engine, `/EHsc`, sin flags cruzadas entre familias de compilador).
+- `scripts-tests` (80): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario) y el contrato de flags con el que `BackendCpp` compila el script C++ (mismo CRT dinámico que el engine, `/EHsc`, elección por familia de compilador —MSVC o GCC/Clang— y armado de la línea de comandos sin flags cruzadas).
 - `scripts-runtime-tests`: compila un script C++ real con `BackendCpp`, lo carga con `dlopen` y ejecuta el ciclo; se omite en Windows (SKIP, requiere `cl.exe` con entorno de Visual Studio).
 - `scripts-java-tests`: end-to-end del backend Java (JNI); se compila si el build detecta el JDK (SKIP sin JDK).
 - `audio-tests` (16): `AudioEngine`/`AudioClipsManager` con `NullAudioBackend` (contrato de la cola de comandos: clips, handles, encolado, detención, volumen).
