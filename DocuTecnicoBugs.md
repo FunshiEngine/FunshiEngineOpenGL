@@ -100,6 +100,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **Invalidación Explícita Post-Mutación** | `cache.clear(); timestamp = {};` tras `remove/remove_all/write` | **Este documento** |
 | **Contador de Cambios (`contadorCambios`)** | Señal simple para forzar rescaneo de estructuras complejas (árboles) | `FileSelection`, `TreeFilesInterface` |
 | **R8 — Resolver la Ruta y Probar la Escritura** | No asumir que el destino es escribible: probar creando y borrando un archivo; si falla, usar la carpeta de datos del usuario y avisar | `ProjectPaths::directorioBase()` (ver §6.4) |
+| **R9 — Texto estructurado con seek en binario** | Si el lector hace `seekg(tellg())` para releer (look-ahead/peek), abrir en **binario** y normalizar las líneas (recortar `\r`): en modo texto el CRT de Windows traduce CRLF y los offsets dejan de ser bytes exactos | `SceneSerializer::load()` + `getlineLimpio()` (ver §7.4) |
 
 ---
 
@@ -212,13 +213,104 @@ Reglas complementarias:
 
 ---
 
-## 7. Historial de Cambios
+## 7. Tercer concepto: **Offsets engañosos en streams de texto (`tellg`/`seekg` con CRLF)**
+
+Distinto de §1 (latencia de `mtime`) y de §6 (permisos de escritura): aquí la
+lectura **sí funciona**, byte a byte, hasta que el código retrocede en el
+archivo para releer una línea y el stream no vuelve al mismo sitio. La causa
+es que en modo texto el CRT de Windows traduce `CRLF`↔`LF`, y en esa
+traducción `tellg()` deja de devolver un offset físico consistente con el que
+`seekg()` después interpreta.
+
+### 7.1 Descripción del problema
+
+`SceneSerializer::load()` abría `SceneBBDDObjetos.txt` en **modo texto**.
+El `look-ahead` de `loadPreOrder` hace lo siguiente con cada línea:
+
+```cpp
+const std::streampos markerPosition = file.tellg();  // ¿posición exacta?
+std::getline(file, marker);
+if (marker no es "=>" ni "<=")
+    file.seekg(markerPosition);                      // volver a leerla como línea
+```
+
+En modo texto, ese `seekg(tellg())` **no es idempotente** en
+MinGW/libstdc++ sobre Windows: la releitura arranca en un offset erróneo.
+
+### 7.2 Síntomas
+
+- La línea del **siguiente hermano** en el bloque de hijos se relee
+  **truncada** por la izquierda (`"ObjectN2.db"` → `"ectN2.db"`,
+  `"basura"` → `"sura"`). Medido con sondas: la deriva va de **+2 a +6
+  bytes** y depende del búfer, no es constante ni acumulativa de forma
+  predecible.
+- **Solo con ≥2 hermanos en el mismo nivel**: con un hijo por nivel el
+  look-ahead siempre ve `"=>"` o `"<="` y nunca se ejecuta el `seekg`
+  (por eso los round-trip con jerarquía en escalera no lo reproducían).
+- Efecto en H-17 (bug de los objetos fantasma "Scene", ver
+  `PLAN GENERAL DE FIX.md` §20): con el código previo, la línea truncada no
+  contenía `"ObjectN"` → el id quedaba en su default `0` → `loadEntity`
+  leía `ObjectN0.db` (el binario de la **raíz**) → nacía un hijo
+  `Modelos3D` con el nombre "Scene" que, al guardarse con id propio, **se
+  auto-propagaba**. Ningún error en el log: el código ni siquiera avisaba.
+- El índice en disco **se ve limpio** (el guardado escribe secuencialmente,
+  sin `seekg`), así que inspeccionar el archivo no revela nada.
+
+### 7.3 Causa raíz
+
+La traducción `CRLF`↔`LF` del CRT en modo texto hace que la posición que
+devuelve `tellg()` y la que interpreta `seekg()` no midan lo mismo. La
+única garantía de round-trip exacto es el modo **binario**, donde los
+offsets son bytes literales. (Los demás `tellg`/`seekg` del motor —
+`Script`, `Model`, `Material`, `Transform`, `Modelos3D` — leen vía
+`Binario`, que ya abre con `std::ios::binary`: el problema era exclusivo
+del índice de escena.)
+
+### 7.4 Solución canónica (Patrón R9 — texto estructurado con seek en binario)
+
+**Si el lector retrocede (`seekg(tellg())`, peek, relectura), abrir en
+binario y normalizar las líneas al leerlas:**
+
+```cpp
+// load(): apertura en binario — offsets de bytes exactos.
+std::ifstream file(pathTxt, std::ios::binary);
+
+// helper: getline + recorte del '\r' que en binario ya no traduce nadie.
+bool getlineLimpio(std::ifstream& file, std::string& line) {
+    if (!std::getline(file, line)) return false;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    return true;
+}
+```
+
+Reglas complementarias:
+
+- El `trim` de `\r` tiene que estar en **todas** las lecturas de ese
+  archivo (bucle principal, look-ahead, saltos de bloque): una sola
+  lectura sin normalizar rompe `line == "<="`.
+- **Testear con ≥2 hermanos consecutivos**: es el único caso que ejercita
+  el `seekg` de releertura; un round-trip en escalera (1 hijo por nivel)
+  no lo toca.
+- Validar además el patrón de cada línea (`ObjectN<entero>.db`) y saltarla
+  con aviso si no cumple: es la red de seguridad para índices que **ya**
+  quedaron corruptos con el formato viejo.
+
+### 7.5 Registro de instancias
+
+| # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
+|---|-----------|-----------|----------------|--------------|--------|
+| 1 | `SceneSerializer::load()` / `loadPreOrder` (look-ahead línea ≈518/563) | Cargar la escena del proyecto | MinGW/libstdc++ sobre Windows, CRT en modo texto con CRLF | R9: apertura en binario + `getlineLimpio()`; validación estricta de líneas con aviso | `fix(escena): impedir los objetos fantasma Scene y leer el indice en binario` |
+
+---
+
+## 8. Historial de Cambios
 
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
 | 2026-09-27 | Gianfranco Ivan Enrique | Creación del documento; registro de instancias #1–3; definición de plantilla y checklist para agentes. |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) con su registro de instancias, a raíz del crash al asignar un script en el binario instalado. |
+| 2026-09-27 | Gianfranco Ivan Enrique | Añadido el tercer concepto (Patrón R9, offsets engañosos de `tellg`/`seekg` en streams de texto con CRLF) con su instancia #1, a raíz del bug de los objetos fantasma "Scene" (H-17). |
 
 ---
 
-*Este documento es vivo: cada nuevo bug de esta clase debe registrarse en la tabla de su concepto (§2 para el primero, §6.5 para el segundo) y, si revela un patrón nuevo, añadirse a §4.*
+*Este documento es vivo: cada nuevo bug de esta clase debe registrarse en la tabla de su concepto (§2 para el primero, §6.5 para el segundo, §7.5 para el tercero) y, si revela un patrón nuevo, añadirse a §4.*

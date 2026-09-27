@@ -477,7 +477,11 @@ solo como orquestador de arranque y bucle.
   registra la ruta; inserta `=>` para abrir un bloque de hijos y `<=` para cerrarlo.
 - La carga reconstruye la escena **de forma recursiva** (`loadPreOrder` con
   look-ahead de marcadores), restaurando padres e hijos; inserta cada objeto
-  directamente en `SceneRegistry` vía `EditorController`.
+  directamente en `SceneRegistry` vía `EditorController`. El índice se abre en
+  **binario** (el `seekg(tellg())` del look-ahead no es fiable en modo texto
+  con CRLF, ver `DocuTecnicoBugs.md` §7) y cada línea se valida contra el
+  patrón estricto `ObjectN<entero>.db`: lo que no cumple — o un hijo con
+  id 0, que leería `ObjectN0.db`, el binario de la raíz — se salta con aviso.
 - `Binario` encapsula los streams binarios usados por las entidades.
 - `GameObject::saveEntity/loadEntity` coordina la serialización binaria propia
   (atributos globales, locales, componentes).
@@ -882,7 +886,9 @@ suele necesitarlas están resueltos con otras herramientas:
   `External/`); las claves se validan por acceso estructurado, no por patrones.
 - **Serialización de escenas**: `SceneSerializer` usa un formato binario en
   preorden con marcadores literales `=>`/`<=`, decididos con comparaciones de
-  `std::string` exactas (búsqueda del look-ahead), no con matching.
+  `std::string` exactas (búsqueda del look-ahead), no con matching; el patrón
+  de las líneas del índice (`ObjectN<entero>.db`) se valida a mano, sin
+  regex.
 - **Nombres de tipos**: `ComponentFactory`/`TypeUtils` comparan huesos
   exactamente (`"CameraComponent"` y alias `"Camera"`), sin patrones.
 

@@ -159,9 +159,26 @@ void SettingsObjectInterface::initGUI() {
 
 void SettingsObjectInterface::contentGUI() {
 	ImGui::InputInt("Id", &momentaneantID);
+
+	// H-17 (ver PLAN GENERAL DE FIX.md §20): el id 0 lo usa la raiz
+	// (ObjectN0.db en el indice de escena). Aplicarlo a un hijo hacia que el
+	// guardado pisara el binario de la raiz y el indice quedara con dos
+	// "ObjectN0.db", semilla del fantasma "Scene" que se auto-propaga. El
+	// campo ademas quedaba en 0 tras cada "Confirmar" y un segundo click
+	// (p. ej. para confirmar un renombre) fijaba id 0 sin querer: ahora se
+	// rechaza el id invalido y el campo siempre vuelve al id real.
+	const bool esRaiz = object->getParentEntity() == nullptr;
+	const bool idValido = momentaneantID > 0 || (esRaiz && momentaneantID >= 0);
+	if (!idValido) {
+		ImGui::TextColored(ImVec4(1.f, 0.45f, 0.45f, 1.f),
+		                   "Id invalido: 0 es de la raiz; un hijo necesita id > 0");
+	}
+
 	if (ImGui::Button("Confirmar")) {
-		object->setId(momentaneantID);
-		momentaneantID = 0;
+		if (idValido) {
+			object->setId(momentaneantID);
+		}
+		momentaneantID = object->getId();
 	}
 
 	ImGui::InputText("Nombre", object->inputName, IM_ARRAYSIZE(object->inputName));

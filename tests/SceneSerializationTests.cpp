@@ -32,6 +32,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -300,11 +301,295 @@ void reporteFalloBinario() {
     binBueno.ifCloseBinary();
 }
 
+// --- H-17: lineas corruptas en SceneBBDDObjetos.txt ----------------------------
+// Una linea del indice que resuelve a id=0 dentro del bloque de hijos hacia que
+// loadPreOrder lea ObjectN0.db (el contenido de la raiz): nace un hijo que se
+// llama "Scene" como la raiz y, al guardarse con id propio, se auto-propaga para
+// siempre. El fantasma observado por el usuario (4 hijos "Scene" de 181 bytes en
+// ObjectN2..N5) era exactamente eso. Tres variantes de linea que hoy reproducen
+// el fantasma; tras el fix tienen que saltarse con aviso y sin romper la
+// estructura del arbol.
+//
+// Ver PLAN GENERAL DE FIX.md §20 (H-17).
+namespace {
+
+// Guarda la escena base (raiz + hijo "Victima") y devuelve la ruta del indice.
+std::string guardarEscenaVictima(const fs::path& base) {
+    std::error_code ec;
+    fs::create_directories(base / "Scene", ec);
+
+    const std::string prefijo = (base / "Scene").string();
+
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    SceneSerializer serializer(&registry, &editor, &assets);
+
+    GameObject* raiz = registry.getRoot();
+    auto objeto = GameObjectFactory::createSimpleObject(raiz);
+    std::snprintf(objeto->inputName, sizeof(objeto->inputName), "Victima");
+    GameObject* creado = editor.createGameObject(std::move(objeto), raiz);
+    CHECK(creado != nullptr, "se crea la escena base con su hijo");
+
+    serializer.save(prefijo);
+    return (base / "SceneBBDDObjetos.txt").string();
+}
+
+struct ResultadoCarga {
+    bool fantasma = false;      // hijo llamado "Scene" (ademas de la raiz)
+    bool victimaPresente = true; // el hijo real sobrevivio
+    std::string aviso;          // lo que dijo std::cerr durante la carga
+};
+
+// Carga un indice (corrupto o no) en una escena nueva y mide el efecto.
+ResultadoCarga cargarYMedir(const std::string& pathTxt,
+                            const std::string& semiPath) {
+    ResultadoCarga r;
+
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    SceneSerializer serializer(&registry, &editor, &assets);
+
+    std::ostringstream aviso;
+    std::streambuf* buferAnterior = std::cerr.rdbuf(aviso.rdbuf());
+    serializer.load(pathTxt, semiPath);
+    std::cerr.rdbuf(buferAnterior);
+    r.aviso = aviso.str();
+
+    GameObject* raiz = registry.getRoot();
+    r.victimaPresente = false;
+    if (raiz) {
+        for (auto* hijo : raiz->getChildEntities()) {
+            auto* go = dynamic_cast<GameObject*>(hijo);
+            if (!go) continue;
+            const std::string nombre = go->inputName;
+            if (nombre == "Scene") r.fantasma = true;
+            if (nombre == "Victima") r.victimaPresente = true;
+        }
+    }
+    return r;
+}
+
+std::string leerTodo(const std::string& ruta) {
+    std::ifstream archivo(ruta, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(archivo),
+                       std::istreambuf_iterator<char>());
+}
+
+} // namespace
+
+void indiceCorruptoSinFantasmas() {
+    // T1: linea basura (sin "ObjectN"): hoy el id queda en su default 0 y se
+    // lee ObjectN0.db -> fantasma "Scene" SIN ningun aviso en el log.
+    // T2: "ObjectN.db" (id vacio -> stoi falla): hoy setId(0) -> fantasma.
+    // T3: "ObjectN0.db" duplicado en posicion de hijo: hoy lee la raiz ->
+    // fantasma byte-identico al observado por el usuario.
+    struct Caso {
+        const char* descripcion;
+        const char* nombreCarpeta;
+        const char* indiceCorrupto;
+    };
+    const Caso casos[] = {
+        {"T1: linea basura en el bloque de hijos", "funshi_h17_basura",
+         "ObjectN0.db\n=>\nObjectN1.db\nbasura\n<=\n"},
+        {"T2: ObjectN.db con id vacio", "funshi_h17_idvacio",
+         "ObjectN0.db\n=>\nObjectN1.db\nObjectN.db\n<=\n"},
+        {"T3: ObjectN0.db duplicado como hijo", "funshi_h17_duplicado",
+         "ObjectN0.db\n=>\nObjectN1.db\nObjectN0.db\n<=\n"},
+    };
+
+    for (const Caso& c : casos) {
+        TempPruebas::CarpetaPrueba carpetaDir(c.nombreCarpeta);
+        const fs::path base = carpetaDir.ruta();
+
+        const std::string pathTxt = guardarEscenaVictima(base);
+        const std::string semiPath = (base / "Scene").string() + "/";
+
+        {
+            std::ofstream indice(pathTxt, std::ios::trunc);
+            indice << c.indiceCorrupto;
+        }
+
+        const ResultadoCarga r = cargarYMedir(pathTxt, semiPath);
+
+        CHECK(!r.fantasma,
+              std::string(c.descripcion) + ": no nace un fantasma 'Scene'");
+        CHECK(r.victimaPresente,
+              std::string(c.descripcion) + ": el hijo real sigue cargado");
+        CHECK(r.aviso.find("[escena]") != std::string::npos,
+              std::string(c.descripcion) + ": la linea mala se avisa en el log");
+
+        // Estructura: con el fantasma fuera, guardar y recargar otra vez
+        // tiene que devolver exactamente la misma escena (sin propagacion).
+        {
+            SceneRegistry registry;
+            EventBus events;
+            AssetManager assets;
+            EditorController editor(&registry, nullptr, &events, &assets);
+            SceneSerializer serializer(&registry, &editor, &assets);
+            serializer.load(pathTxt, semiPath);
+            serializer.save((base / "Scene").string());
+        }
+        const ResultadoCarga segunda = cargarYMedir(pathTxt, semiPath);
+        CHECK(!segunda.fantasma,
+              std::string(c.descripcion) +
+                  ": tras guardar de nuevo no aparece el fantasma");
+        CHECK(segunda.victimaPresente,
+              std::string(c.descripcion) +
+                  ": el ciclo guardar-cargar es estable");
+    }
+}
+
+// --- H-17 (variante de guardado): hijo con id=0 --------------------------------
+// El campo "Id" del inspector no validaba nada y un segundo "Confirmar"
+// fijaba id=0 en cualquier hijo (SettingsObjectInterface). Al guardar, ese
+// hijo escribia ObjectN0.db: pisaba el contenido de la RAIZ y dejaba una
+// segunda linea "ObjectN0.db" en el indice (semilla del fantasma). El save
+// tiene que reasignarle un id libre antes de escribir nada, con aviso.
+void hijoConIdCeroSeReasignaAlGuardar() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_h17_idcero_guardar");
+    const fs::path base = carpetaDir.ruta();
+    std::error_code ec;
+    fs::create_directories(base / "Scene", ec);
+
+    const std::string prefijo = (base / "Scene").string();
+    const std::string pathTxt = (base / "SceneBBDDObjetos.txt").string();
+
+    {
+        SceneRegistry registry;
+        EventBus events;
+        AssetManager assets;
+        EditorController editor(&registry, nullptr, &events, &assets);
+        SceneSerializer serializer(&registry, &editor, &assets);
+
+        GameObject* raiz = registry.getRoot();
+        auto objeto = GameObjectFactory::createSimpleObject(raiz);
+        std::snprintf(objeto->inputName, sizeof(objeto->inputName), "Victima");
+        GameObject* creado = editor.createGameObject(std::move(objeto), raiz);
+        CHECK(creado != nullptr, "se crea el hijo que quedara con id=0");
+        if (creado) creado->setId(0);
+
+        std::ostringstream aviso;
+        std::streambuf* buferAnterior = std::cerr.rdbuf(aviso.rdbuf());
+        serializer.save(prefijo);
+        std::cerr.rdbuf(buferAnterior);
+
+        CHECK(aviso.str().find("[escena]") != std::string::npos,
+              "guardar un hijo con id=0 avisa en el log");
+    }
+
+    // El indice tiene que tener UNA sola linea ObjectN0.db (la raiz).
+    int lineasCero = 0;
+    std::string lineaDelHijo;
+    {
+        std::ifstream indice(pathTxt);
+        std::string linea;
+        while (std::getline(indice, linea)) {
+            if (linea == "ObjectN0.db") ++lineasCero;
+            else if (linea.rfind("ObjectN", 0) == 0) lineaDelHijo = linea;
+        }
+    }
+    CHECK(lineasCero == 1,
+          "el indice no contiene una segunda linea ObjectN0.db");
+    CHECK(lineaDelHijo == "ObjectN1.db",
+          "el hijo con id=0 se reasigna a un id libre antes de escribir");
+
+    // ObjectN0.db conserva el contenido de la RAIZ (no el del hijo).
+    const std::string bytesRaiz = leerTodo((base / "Scene" / "ObjectN0.db").string());
+    CHECK(bytesRaiz.find("Victima") == std::string::npos,
+          "ObjectN0.db sigue teniendo el contenido de la raiz");
+
+    // Y el hijo reasignado tiene su propio archivo con su nombre.
+    const std::string bytesHijo =
+        leerTodo((base / "Scene" / "ObjectN1.db").string());
+    CHECK(bytesHijo.find("Victima") != std::string::npos,
+          "el hijo reasignado guarda su propio .db con su nombre");
+}
+
+// --- H-17 (causa raíz): el look-ahead pierde la posición con ≥2 hermanos -----
+// loadPreOrder lee SceneBBDDObjetos.txt en modo texto y el look-ahead hace
+// seekg(tellg()) tras getline; en MinGW/Windows eso no es idempotente: la
+// releitura de la linea del siguiente hermano arranca en un offset erroneo
+// (medido con sondas: +2 a +6, depende del bufer) y la linea sale truncada
+// ("ectN2.db"). Con el codigo viejo find("ObjectN") fallaba -> id 0 ->
+// fantasma "Scene" sin aviso; con solo la validacion estricta el hermano
+// sano se saltearia. La correccion de fondo es leer el indice en binario.
+void hermanosConsecutivosSinPerdida() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_h17_hermanos");
+    const fs::path base = carpetaDir.ruta();
+    std::error_code ec;
+    fs::create_directories(base / "Scene", ec);
+
+    const std::string prefijo = (base / "Scene").string();
+    const std::string pathTxt = (base / "SceneBBDDObjetos.txt").string();
+    const std::string semiPath = (base / "Scene").string() + "/";
+
+    // Escena: raiz + 4 hermanos consecutivos en el MISMO nivel (el caso que
+    // el round-trip existente no cubria: ahi el look-ahead si hace seekg).
+    {
+        SceneRegistry registry;
+        EventBus events;
+        AssetManager assets;
+        EditorController editor(&registry, nullptr, &events, &assets);
+        SceneSerializer serializer(&registry, &editor, &assets);
+
+        GameObject* raiz = registry.getRoot();
+        int creados = 0;
+        for (int i = 1; i <= 4; ++i) {
+            auto objeto = GameObjectFactory::createSimpleObject(raiz);
+            std::snprintf(objeto->inputName, sizeof(objeto->inputName),
+                          "Hermano%d", i);
+            if (editor.createGameObject(std::move(objeto), raiz)) ++creados;
+        }
+        CHECK(creados == 4, "se crean los cuatro hermanos consecutivos");
+        serializer.save(prefijo);
+    }
+
+    // Recargar: los cuatro tienen que volver completos.
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    SceneSerializer serializer(&registry, &editor, &assets);
+
+    std::ostringstream aviso;
+    std::streambuf* buferAnterior = std::cerr.rdbuf(aviso.rdbuf());
+    serializer.load(pathTxt, semiPath);
+    std::cerr.rdbuf(buferAnterior);
+
+    int hermanosCargados = 0;
+    int idsCorrectos = 0;
+    if (GameObject* raiz = registry.getRoot()) {
+        for (auto* hijo : raiz->getChildEntities()) {
+            auto* go = dynamic_cast<GameObject*>(hijo);
+            if (!go) continue;
+            const std::string nombre = go->inputName;
+            if (nombre.rfind("Hermano", 0) != 0) continue;
+            ++hermanosCargados;
+            const int esperado = nombre.back() - '0';
+            if (go->getId() == esperado) ++idsCorrectos;
+        }
+    }
+    CHECK(hermanosCargados == 4,
+          "sobreviven los cuatro hermanos consecutivos (el look-ahead no "
+          "pierde la posicion de ninguna linea)");
+    CHECK(idsCorrectos == 4,
+          "cada hermano conserva su id (ninguno se releyo truncado)");
+    CHECK(aviso.str().find("linea invalida") == std::string::npos,
+          "sin lineas invalidas: la releertura del look-ahead es exacta");
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
     guardadoConArbolVacio();
     reporteFalloBinario();
+    indiceCorruptoSinFantasmas();
+    hijoConIdCeroSeReasignaAlGuardar();
+    hermanosConsecutivosSinPerdida();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;
