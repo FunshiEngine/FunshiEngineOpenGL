@@ -161,6 +161,19 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   además de reflejar lo nuevo que se introduce. Los ajustes de documentación
   entran en el mismo commit que el código que los motiva: nunca "la
   documentación al final", ni entregar avances sin sus documentos al día.
+- **Hallazgos fuera de lo contemplado: contrastarlos contra la documentación
+  antes de agregarlos o arreglarlos.** Cuando aparece un problema que el
+  documento de trabajo del lote (o la investigación en curso) no contempla, el
+  orden es: (1) revisar si la documentación del repo ya afirma que eso funciona
+  —`README.md`, `MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`, `DOCUMENTACION.md`,
+  `DocuTecnicoBugs.md`, `AGENTS.md` y los documentos de diseño—: si la doc
+  afirma que el comportamiento es el correcto y el código no lo cumple, es un
+  bug real y se arregla el código; si el código es correcto y la doc quedó
+  vieja, lo que se arregla es la doc. (2) Recién después agregarlo al plan del
+  lote —sin borrar nada y marcando el estado— si aporta a la resolución, con
+  síntoma, evidencia, causa, fix y test como cualquier otro punto. (3) Cerrarlo
+  con su commit. Nunca se declara un bug ni se arregla algo "al vuelo" sin ese
+  contraste: la doc es la que dice cuál de los dos lados está mal.
 - **Commits atómicos por tarea**: cada tarea terminada cierra con su commit
   (o los que sean necesarios si la tarea es grande), con mensaje descriptivo
   y convencionales (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). El
