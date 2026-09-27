@@ -531,7 +531,11 @@ public:
 
 // Export requerida por el backend del motor; NO renombrar. Va FUERA de la
 // clase, al final del archivo.
-extern "C" IScriptBehaviour* FUNSHI_CREAR_COMPORTAMIENTO(
+// En Windows/MSVC la fabrica tiene que viajar marcada con
+// FUNSHI_COMPORTAMIENTO_EXPORT: sin ese atributo la .dll compila pero no
+// exporta el simbolo y el motor no la encuentra (GetProcAddress). En
+// MinGW/Linux/macOS el macro queda vacio (ahi se exporta todo solo).
+extern "C" FUNSHI_COMPORTAMIENTO_EXPORT IScriptBehaviour* FUNSHI_CREAR_COMPORTAMIENTO(
     const MotorScript::ApiScriptGameObject* api) {
     (void)api;
     return new FUNSHI_NOMBRE_CLASE();
@@ -745,6 +749,15 @@ void onUpdate(GameObject* owner, float deltaTime) override {
   (`FUNSHI_CXX`, o el horneado por el build), se emiten los flags de GCC: ese
   camino tambien funciona y no necesita `cl.exe` en el entorno. Los scripts Java
   no tienen este requisito (javac se invoca por ruta absoluta).
+- **Export de la fabrica en Windows/MSVC:** la funcion
+  `FUNSHI_CREAR_COMPORTAMIENTO` tiene que declararse con
+  `FUNSHI_COMPORTAMIENTO_EXPORT` (asi la genera el editor). En MSVC un
+  `extern "C"` pelado **no se exporta solo**: la `.dll` compila, pero
+  `GetProcAddress` no la encuentra. Para los scripts escritos con el template
+  viejo (sin el macro), el motor pide el export tambien en el link
+  (`/EXPORT:`), asi que siguen funcionando; los `.dll` compilados antes de ese
+  cambio simplemente se recompilan solos. En MinGW/Linux/macOS el macro queda
+  vacio porque ahi los simbolos se exportan por defecto.
 
 ---
 

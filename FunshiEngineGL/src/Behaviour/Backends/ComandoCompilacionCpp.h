@@ -119,8 +119,15 @@ inline std::string flagsFamilia(Familia familia, const std::string& nombreClase)
         //          heap entre el .dll del script y el motor.
         // /EHsc -> sin el, la primera excepcion del script llama a
         //          std::terminate en vez de propagarse (cl.exe emite C4530).
+        // /link /EXPORT:FUNSHI_CREAR_COMPORTAMIENTO -> la fabrica queda en la
+        //          tabla de exportaciones de la .dll aunque el fuente use el
+        //          template viejo sin FUNSHI_COMPORTAMIENTO_EXPORT (H-15): en
+        //          MSVC un extern "C" pelado no se exporta solo y GetProcAddress
+        //          fallaria. Los fuentes con el macro la exportan igual por
+        //          dllexport; declarar el export dos veces no da error.
         return "/nologo /LD /std:c++17 /O2 " + runtimeFlag() +
-               " /EHsc /DFUNSHI_NOMBRE_CLASE=" + nombreClase;
+               " /EHsc /DFUNSHI_NOMBRE_CLASE=" + nombreClase +
+               " /link /EXPORT:FUNSHI_CREAR_COMPORTAMIENTO";
     }
     // GCC/Clang: Linux, macOS y MinGW (biblioteca compartida con -fPIC).
     return "-std=c++17 -shared -fPIC -O2 -DFUNSHI_NOMBRE_CLASE=" + nombreClase;

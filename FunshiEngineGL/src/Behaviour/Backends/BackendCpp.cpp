@@ -239,6 +239,13 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
     Fabrica fabrica =
         reinterpret_cast<Fabrica>(FUNSHI_DLSYM(manejador, nombreFabrica()));
     if (!fabrica) {
+        // En Windows/MSVC este error suele significar que el fuente usa el
+        // template viejo, sin FUNSHI_COMPORTAMIENTO_EXPORT en la fabrica: la
+        // .dll compila, pero el simbolo no se exporta y GetProcAddress no lo
+        // encuentra (H-15). El motor ya pide el export en el link para esos
+        // fuentes, pero los scripts compilados ANTES de ese cambio siguen sin
+        // exportarlo: basta con borrar el artefacto viejo o tocar el fuente
+        // para que recompile.
         error = "El .so no exporta 'FUNSHI_CREAR_COMPORTAMIENTO'. ¿El fuente "
                 "deriva de IScriptBehaviour y usa el template del motor?";
         FUNSHI_DLOPENCERRAR(manejador);

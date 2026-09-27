@@ -28,6 +28,9 @@
 //     rechazo de separadores), copiar carpeta/archivo, mover (incluye el
 //     rechazo de pisar un destino existente y de meter una carpeta en si
 //     misma), eliminar.
+//   - Plantilla de script C++: la fabrica que el motor busca con GetProcAddress
+//     tiene que viajar exportada en MSVC (H-15): la plantilla debe declarar el
+//     macro portable de exportacion.
 //   - Busqueda por ruta en el arbol vigente.
 //   - Arrastre-y-suelta (soltarEnCarpeta): mueve con Ctrl copia, y solo el
 //     movimiento publica ArchivosReubicados (lo que reescribe las rutas de la
@@ -255,6 +258,24 @@ int main() {
     fm.refrescar();
     CHECK(fm.buscarCarpetaPorRuta(rutaRenombrada) == nullptr,
           "tras el rescaneo la carpeta eliminada no esta en el arbol");
+
+    // --- Plantilla de script C++ (H-15: la fabrica debe viajar exportada) -----
+    // La plantilla declara la fabrica con el macro portable de exportacion,
+    // para que en Windows/MSVC la .dll la exporte y GetProcAddress la
+    // encuentre. Sin el macro la .dll compila pero el simbolo no existe y el
+    // script nunca carga (en MinGW/ELF no se nota: ahi se exporta todo solo).
+    const std::string plantilla = FileManager::plantillaScript("MiScript", false);
+    CHECK(plantilla.find("FUNSHI_COMPORTAMIENTO_EXPORT") != std::string::npos,
+          "la plantilla del script declara el macro de exportacion");
+    CHECK(plantilla.find("extern \"C\" " + std::string("FUNSHI_COMPORTAMIENTO_EXPORT")) !=
+              std::string::npos,
+          "el macro de exportacion aparece en la declaracion de la fabrica");
+    CHECK(plantilla.find("FUNSHI_CREAR_COMPORTAMIENTO") != std::string::npos,
+          "la plantilla conserva la fabrica con su nombre para GetProcAddress");
+    // El camino Java no lleva exportacion (la carga el JVM, no LoadLibrary).
+    const std::string plantillaJava = FileManager::plantillaScript("MiJava", true);
+    CHECK(plantillaJava.find("FUNSHI_COMPORTAMIENTO_EXPORT") == std::string::npos,
+          "la plantilla Java no lleva el macro de exportacion nativa");
 
     // --- Rescaneo refleja carpetas creadas FUERA del editor -----------------
     CHECK(fs::create_directory(proy / "Assets" / "DiscDirecto"),

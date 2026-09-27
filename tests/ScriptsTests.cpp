@@ -480,6 +480,14 @@ static void testContratoCompilacion() {
           "MSVC: sin /EHsc la primera excepcion del script mata el proceso");
     CHECK(msvc.find("/DFUNSHI_NOMBRE_CLASE=MiClase") != std::string::npos,
           "MSVC: el nombre de clase del script llega por define");
+    CHECK(CompilacionCpp::tieneFlag(msvc, "/link"),
+          "MSVC: la linea termina pasando opciones al linker");
+    // H-15: el export de la fabrica queda pedido en el link para que los
+    // fuentes con el template viejo (sin FUNSHI_COMPORTAMIENTO_EXPORT)
+    // exporten igual el simbolo en MSVC, donde un extern "C" pelado no se
+    // exporta solo.
+    CHECK(msvc.find("/EXPORT:FUNSHI_CREAR_COMPORTAMIENTO") != std::string::npos,
+          "MSVC: la linea pide exportar la fabrica en el link (H-15)");
     CHECK(!CompilacionCpp::tieneFlag(msvc, "-std=c++17"),
           "MSVC: la linea no lleva flags de GCC");
 

@@ -129,7 +129,7 @@ cmake --build build --target filemanager-tests configuracion-tests eventbus-test
 ctest --test-dir build --output-on-failure
 ```
 
-- `filemanager-tests` (78 verificaciones): explorador de archivos (`GestorDeArchivos`/`FileManager`/`FileSystemWatcher`).
+- `filemanager-tests` (82 verificaciones): explorador de archivos (`GestorDeArchivos`/`FileManager`/`FileSystemWatcher`) y el contrato de la plantilla de script C++ (la fábrica viaja con el macro portable de exportación, obligatorio en MSVC).
 - `configuracion-tests` (122): `EditorConfig` sobre `ConfigPersistence`/`ProjectPaths` (round-trip general y por proyecto, prioridad de las claves modernas sobre el `menu/*` legacy, tolerancia a archivos ausentes/corruptos/parciales, `restablecer`, escritura atómica sin temporales colgados y guardado diferido con `volcarGuardadoGeneral`).
 - `eventbus-tests` (16): canal tipado de GUI interna (`EditorEventBus`).
 - `menu-tests` (38): `MenuModel` (traducción en vivo, observer de cambios y reset).
@@ -137,7 +137,7 @@ ctest --test-dir build --output-on-failure
 - `assetmanager-tests` (82) y `texturemanager-tests` (15): caches Flyweight de meshes (incluido el cálculo de normales por cara, y el que rellena solo las normales que faltan en assets mixtos) e imágenes.
 - `estructuras-tests` (87): listas, árboles, heaps y ordenamiento propios.
 - `rendering-tests` (131): geometría de las líneas del pipeline moderno (`LineBuilder`: expansión de cada segmento al quad que ensancha el shader, color por extremo, polilíneas, aristas de collider y caja de 12 aristas), sin entrar a OpenGL.
-- `scripts-tests` (85): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario) y el contrato de flags con el que `BackendCpp` compila el script C++ (mismo CRT dinámico que el engine, `/EHsc`, elección por familia de compilador —MSVC o GCC/Clang—, armado de la línea de comandos sin flags cruzadas y citado de rutas para `cmd.exe`).
+- `scripts-tests` (87): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario) y el contrato de flags con el que `BackendCpp` compila el script C++ (mismo CRT dinámico que el engine, `/EHsc`, elección por familia de compilador —MSVC o GCC/Clang—, armado de la línea de comandos sin flags cruzadas, citado de rutas para `cmd.exe` y pedido de exportación de la fábrica en el link MSVC).
 - `scripts-runtime-tests` (según plataforma): compila un script C++ real con `BackendCpp`, lo carga con `dlopen`/`LoadLibrary` y ejecuta el ciclo; se omite en Windows con MSVC (SKIP, requiere `cl.exe` con entorno de Visual Studio).
 - `scripts-java-tests` (según plataforma): end-to-end del backend Java (JNI); se compila si el build detecta el JDK (SKIP 77 sin JDK, y también en Windows hasta que se corrija el sondeo POSIX del javac).
 - `model-serialization-tests` (16): serialización binaria del componente `Model` (path con prefijo de longitud; regresión del core al cargar escenas con paths largos).
