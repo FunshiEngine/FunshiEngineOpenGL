@@ -260,17 +260,9 @@ void ContentFolderInterface::initGUI() {
 
     if (ImGui::BeginPopupContextWindow("AddFilesPopup", ImGuiPopupFlags_MouseButtonRight)) {
         if (ImGui::MenuItem("New Script")) {
-            creandoCarpeta = false; creandoScript = true;
-            creandoScriptJava = false;
-            memset(nombreNuevo, 0, sizeof(nombreNuevo));
-            abrirPopupNombre = true;
-            ImGui::CloseCurrentPopup();
-        }
-        if (ImGui::MenuItem("New Java Script")) {
-            creandoCarpeta = false; creandoScript = false;
-            creandoScriptJava = true;
-            memset(nombreNuevo, 0, sizeof(nombreNuevo));
-            abrirPopupNombre = true;
+            // Abre dialogo para elegir tipo de script (C++ o Java)
+            tipoScriptSeleccionado = 0; // default C++
+            abrirPopupTipoScript = true;
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::MenuItem("New Folder")) {
@@ -385,6 +377,34 @@ void ContentFolderInterface::initGUI() {
         ImGui::SameLine();
         if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
             renombrarRuta.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    // Modal para seleccionar tipo de script (C++ o Java)
+    if (abrirPopupTipoScript) {
+        ImGui::OpenPopup("Seleccionar Tipo de Script");
+        abrirPopupTipoScript = false;
+    }
+    if (ImGui::BeginPopupModal("Seleccionar Tipo de Script", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Selecciona el tipo de script a crear:");
+        ImGui::Separator();
+        if (ImGui::RadioButton("C++ (.cpp)", &tipoScriptSeleccionado, 0)) {}
+        if (ImGui::RadioButton("Java (.java)", &tipoScriptSeleccionado, 1)) {}
+        ImGui::Separator();
+        const bool confirmado = ImGui::Button("Continuar", ImVec2(120, 0)) ||
+                                (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
+        if (confirmado) {
+            creandoCarpeta = false;
+            creandoScript = (tipoScriptSeleccionado == 0);
+            creandoScriptJava = (tipoScriptSeleccionado == 1);
+            memset(nombreNuevo, 0, sizeof(nombreNuevo));
+            abrirPopupNombre = true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();

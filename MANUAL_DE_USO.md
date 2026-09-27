@@ -425,8 +425,9 @@ Los comportamientos del juego se escriben como **scripts dinamicos**: archivos
 `.cpp` o `.java` dentro del proyecto que el editor compila en caliente y
 ejecuta en modo Play.
 
-- Se crean desde el explorador: "New Script" (C++) o "New Script Java"
-  (disponible si el motor se compilo con soporte JNI).
+- Se crean desde el explorador: clic derecho sobre la carpeta actual > "New
+  Script" y, en el dialogo que se abre, elegir **C++ (`.cpp`)** o **Java
+  (`.java`)** (este ultimo disponible si el motor se compilo con soporte JNI).
 - **El nombre del archivo debe ser `<ClassName>.cpp`** (la clase == nombre del
   archivo). El backend compila la clase como `FUNSHI_<ClassName>` mediante
   `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.

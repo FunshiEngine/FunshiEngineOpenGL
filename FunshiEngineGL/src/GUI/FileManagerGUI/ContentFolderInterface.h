@@ -65,6 +65,10 @@ private:
     bool confirmarEliminarCarpetaGrid = false;
     std::string carpetaAEliminarGridConfirmada; // ruta confirmada para borrar en contentGUI()
 
+    // Estado para seleccionar tipo de script al crear nuevo script
+    bool abrirPopupTipoScript = false;
+    int tipoScriptSeleccionado = 0; // 0 = C++, 1 = Java
+
     // Cache del grid (R5): el directorio se lee en disco SOLO cuando cambia
     // la ruta mostrada o su mtime; el dibujo del grid usa este cache en vez
     // de re-scanear cada frame. Las entradas vienen de FileManager.
