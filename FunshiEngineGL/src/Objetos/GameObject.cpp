@@ -623,7 +623,7 @@ void GameObject::deserializeEntity() {
  * La estructura de la escena y BBDDObjetos.txt es responsabilidad
  * exclusiva de SceneSerializer.
  */
-void GameObject::saveEntity(std::string filename) {
+bool GameObject::saveEntity(std::string filename) {
 
     const std::string path =
         filename +
@@ -634,15 +634,17 @@ void GameObject::saveEntity(std::string filename) {
     myBinario =
         std::make_unique<Binario>(path);
 
-    myBinario->ofOpenBinary();
+    if (!myBinario->ofOpenBinary())
+        return false;
 
     serializeEntity();
 
     myBinario->ofCloseBinary();
+    return true;
 }
 
 
-void GameObject::loadEntity(std::string filename) {
+bool GameObject::loadEntity(std::string filename) {
 
     const std::string path =
         filename +
@@ -653,11 +655,13 @@ void GameObject::loadEntity(std::string filename) {
     myBinario =
         std::make_unique<Binario>(path);
 
-    myBinario->ifOpenBinary();
+    if (!myBinario->ifOpenBinary())
+        return false;
 
     deserializeEntity();
 
     myBinario->ifCloseBinary();
+    return true;
 }
 
 

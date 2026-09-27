@@ -91,7 +91,11 @@ void SceneSerializer::savePreOrder(
      * Guardar únicamente el archivo binario
      * correspondiente a este GameObject.
      */
-    object->saveEntity(filename);
+    if (!object->saveEntity(filename)) {
+        std::cerr << "[escena] no se pudo guardar el binario del objeto id="
+                  << object->getId() << " ('" << object->inputName
+                  << "') en: " << filename << std::endl;
+    }
 
     /*
      * Registrar el archivo del objeto en BBDDObjetos.txt.
@@ -343,7 +347,10 @@ void SceneSerializer::loadPreOrder(
          *
          * semiPath/ObjectN#.db
          */
-        object->loadEntity(semiPath);
+        if (!object->loadEntity(semiPath)) {
+            std::cerr << "[escena] no se pudo cargar el binario del objeto id="
+                      << object->getId() << " desde: " << semiPath << std::endl;
+        }
 
         GameObject* loaded = nullptr;
 

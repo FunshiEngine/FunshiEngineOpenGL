@@ -245,10 +245,66 @@ void roundTripDeEscena() {
     }
 }
 
+// --- Reporte de fallos en Binario (H-9) ---------------------------------------
+// Si el archivo no se pudo abrir para escritura (directorio inexistente, sin
+// permisos), ofOpenBinary() debe devolver false y avisar en el log, en vez de
+// dejar que cada write() falle en silencio. Lo mismo al leer: ifOpenBinary()
+// devuelve false y avisa en vez de dejar los campos intactos (que es el
+// mecanismo que hacia parecer que el objeto "perdia" el nombre o sus
+// componentes).
+void reporteFalloBinario() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_binario_fallo");
+    const fs::path dir = carpetaDir.ruta();
+
+    // 1. Escritura en directorio inexistente: falla, devuelve false y loguea.
+    const std::string rutaInexistente =
+        (dir / "carpeta_que_no_existe" / "archivo.db").string();
+    Binario binEscritura(rutaInexistente);
+
+    std::ostringstream logEscritura;
+    std::streambuf* buferViejo = std::cerr.rdbuf(logEscritura.rdbuf());
+    const bool okEscritura = binEscritura.ofOpenBinary();
+    std::cerr.rdbuf(buferViejo);
+
+    CHECK(!okEscritura, "ofOpenBinary devuelve false cuando no puede abrir");
+    CHECK(logEscritura.str().find("[binario]") != std::string::npos,
+          "ofOpenBinary avisa en el log cuando falla la apertura");
+
+    // 2. Lectura de archivo inexistente: falla, devuelve false y loguea.
+    const std::string rutaLecturaInexistente =
+        (dir / "archivo_no_creado.db").string();
+    Binario binLectura(rutaLecturaInexistente);
+
+    std::ostringstream logLectura;
+    buferViejo = std::cerr.rdbuf(logLectura.rdbuf());
+    const bool okLectura = binLectura.ifOpenBinary();
+    std::cerr.rdbuf(buferViejo);
+
+    CHECK(!okLectura, "ifOpenBinary devuelve false si el archivo no existe");
+    CHECK(logLectura.str().find("[binario]") != std::string::npos,
+          "ifOpenBinary avisa en el log cuando no encuentra el archivo");
+
+    // 3. Propagacion a GameObject::saveEntity / loadEntity: devuelven false.
+    auto obj = GameObjectFactory::createSimpleObject(nullptr);
+    CHECK(!obj->saveEntity((dir / "carpeta_que_no_existe").string()),
+          "saveEntity propaga el fallo de ofOpenBinary");
+    CHECK(!obj->loadEntity((dir / "carpeta_que_no_existe").string()),
+          "loadEntity propaga el fallo de ifOpenBinary");
+
+    // 4. Camino exitoso: devuelve true y no loguea error.
+    const std::string rutaBuena = (dir / "bueno.db").string();
+    Binario binBueno(rutaBuena);
+    CHECK(binBueno.ofOpenBinary(), "ofOpenBinary devuelve true en ruta valida");
+    binBueno.ofCloseBinary();
+    CHECK(binBueno.ifOpenBinary(), "ifOpenBinary devuelve true sobre archivo existente");
+    binBueno.ifCloseBinary();
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
     guardadoConArbolVacio();
+    reporteFalloBinario();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;
