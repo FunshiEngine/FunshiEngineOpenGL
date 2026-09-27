@@ -136,13 +136,13 @@ contenido, y el arbol y el grid se refrescan en el acto. El **undo/redo**
 escena se persisten **relativas** a la carpeta `src<proyecto>/`. Por eso, al
 renombrar un proyecto (menu de inicio) o mover su carpeta completa, las
 escenas siguen cargando sin tocar nada: la raiz `src<nombre>` se desplaza
-entera con el proyecto. Dentro del explorador, al **renombrar** un archivo o
-carpeta el motor reescribe al instante las referencias de la escena que
-apuntaban a esa ruta y guarda la escena modificada. Limitaciones: mover un
-asset *por copia* (arrastre con copia) no se rastrea, y los sonidos de
-`Sonidos/` e interfaces de `Interfaces/` se referencian por **nombre**: un
-move con el mismo nombre conserva la referencia y un rename la rompe (volve a
-seleccionar el clip/interfaz en su dropdown).
+entera con el proyecto. Dentro del explorador, al **renombrar** o al **mover**
+un archivo o carpeta el motor reescribe al instante las referencias de la
+escena que apuntaban a esa ruta y guarda la escena modificada. Limitaciones:
+una **copia** (arrastre con `Ctrl`) no se rastrea, porque no cambia ninguna de
+las dos rutas; y los sonidos de `Sonidos/` e interfaces de `Interfaces/` se
+referencian por **nombre**: un move con el mismo nombre conserva la referencia
+y un rename la rompe (vuelve a seleccionar el clip/interfaz en su dropdown).
 
 **Manifiesto de assets (`SceneAssets.json`).** Junto a los binarios de la
 escena se mantiene `Memory/Binarios/SceneAssets.json`, un add-on legible que
@@ -276,6 +276,37 @@ que edita el componente, no el transform del objeto) todavia no genera comando.
 ---
 
 ## 6. Assets por drag & drop
+
+### 6.1 Mover y copiar dentro del explorador
+
+El panel **Vista de contenido** lleva el nombre de la carpeta que esta
+mostrando en su barra superior (pasa el raton por encima para ver la ruta
+completa). Hay dos vistas del mismo arbol -- el grid de esa ventana y el arbol
+de la izquierda -- y arrastrar un archivo o una carpeta sirve para las dos:
+
+| Destino del drop | Resultado |
+|---|---|
+| Una celda de **carpeta** del grid | Mueve el elemento dentro de esa carpeta |
+| Una fila de **carpeta** del arbol | Mueve el elemento dentro de esa carpeta |
+| El espacio vacio del grid | Mueve el elemento a la carpeta que se esta viendo |
+
+Manteniendo `Ctrl` (o `Cmd` en macOS) el arrastre **copia** en vez de mover. El
+tooltip indica cual de las dos va a ocurrir antes de soltar.
+
+Al mover se actualizan al instante las referencias de la escena que apuntaban
+a la ruta anterior (mallas, texturas, fuentes de script) y se guarda la escena;
+copiar no cambia ninguna ruta, asi que no hay nada que reescribir. El
+`SceneAssets.json` se regenera con el guardado.
+
+Dos casos se rechazan a proposito, sin tocar disco:
+
+- **Destino ocupado:** si en la carpeta destino ya existe un elemento con ese
+  nombre, el movimiento se cancela y el original queda intacto. No se pisa nada.
+- **Carpeta dentro de si misma:** soltar `Assets` sobre `Assets/Modelos` (o
+  sobre si misma) se cancela. Si se dejara, la recursion se cortaria a mitad
+  y dejaria el arbol a medias en disco.
+
+### 6.2 Arrastrar un asset a un componente
 
 El explorador de archivos (arbol + grid) emite el payload ImGui
 `ARCHIVO_PATH` (path completo del asset) al arrastrar. Receptores del editor:

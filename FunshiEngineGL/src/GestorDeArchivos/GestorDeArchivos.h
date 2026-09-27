@@ -65,6 +65,16 @@ public:
     bool copiarCarpeta(const std::string& origen, const std::string& destino);
     bool copiarArchivo(const std::string& origen, const std::string& destino);
     bool renombrar(const std::string& ruta, const std::string& nuevoNombre);
+
+    // Mueve un archivo o una carpeta de `origen` a `destino` (ruta completa
+    // final, no el nombre). Intenta rename, que es atomico y barato; si el
+    // destino esta en otro volumen, cae a copiar+eliminar.
+    //
+    // Se niega a mover una carpeta dentro de si misma o de un descendiente: el
+    // `error_code` cortaria la recursion a mitad, dejando el arbol a medias en
+    // disco. Tambien se niega a pisar un destino existente, para no perder datos
+    // con un arrastre accidental.
+    bool mover(const std::string& origen, const std::string& destino);
 };
 
 #endif

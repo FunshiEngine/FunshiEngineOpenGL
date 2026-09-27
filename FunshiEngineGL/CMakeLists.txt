@@ -346,6 +346,7 @@ add_executable(filemanager-tests
     ${SRC_DIR}/GestorDeArchivos/Carpeta.cpp
     ${SRC_DIR}/FileManager/FileManager.cpp
     ${SRC_DIR}/FileManager/FileSystemWatcher.cpp
+    ${SRC_DIR}/Events/EditorEventBus.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/FileManagerTests.cpp
 )

@@ -84,8 +84,14 @@ private:
     std::filesystem::file_time_type cacheMtime{};
 
     void crearNuevoElemento();
-    void copiarElementoSuelto(const std::string& origen, const std::string& destFolder);
     void recorrer(const std::string& path);
+
+    // Invalida el cache del grid (R5): la entrada desaparecio de hecho de la
+    // carpeta visible y el mtime puede no haberse actualizado todavia.
+    void invalidarCache() {
+        cacheCarpeta.clear();
+        cacheMtime = std::filesystem::file_time_type{};
+    }
 
 public:
     ContentFolderInterface(bool stateGUI, FileManager* fileManager);

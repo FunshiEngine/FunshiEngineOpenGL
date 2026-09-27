@@ -28,6 +28,7 @@
 #include "../../FileManager/FileManager.h"
 #include "../../FileManager/FileSelection.h"
 #include "../WindowNames.h"
+#include "SoltarEnCarpeta.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
 #include <imgui.h>
 
@@ -83,27 +84,6 @@ void ContentFolderInterface::crearNuevoElemento() {
     creandoScript = false;
     creandoScriptJava = false;
     memset(nombreNuevo, 0, sizeof(nombreNuevo));
-}
-
-// Copia un elemento soltado via drag&drop (payload "ARCHIVO_PATH") a
-// destFolder. Carpetas -> copiarCarpeta + rescaneo del arbol; archivos ->
-// copiarArchivo (el arbol no los lista). Ignora soltar una carpeta sobre si
-// misma (finalDest == origen) y deja que copiarCarpeta falle si el origen es
-// su propio ancestro (recursion sobre si misma, el error_code lo corta).
-void ContentFolderInterface::copiarElementoSuelto(const std::string& origen,
-                                                  const std::string& destFolder) {
-    if (origen.empty() || destFolder.empty()) return;
-    FileSelection* sel = fileManager->getSelection();
-    const std::string::size_type sep = origen.find_last_of("/\\");
-    const std::string nombre = (sep != std::string::npos)
-        ? origen.substr(sep + 1) : origen;
-    const std::string finalDest = destFolder + PATH_SEP + nombre;
-    if (finalDest == origen) return;
-    if (fileManager->esDirectorio(origen)) {
-        if (fileManager->copiarCarpeta(origen, finalDest)) sel->contadorCambios++;
-    } else {
-        fileManager->copiarArchivo(origen, finalDest);
-    }
 }
 
 void ContentFolderInterface::recorrer(const std::string& path) {
@@ -227,6 +207,41 @@ void ContentFolderInterface::recorrer(const std::string& path) {
             ImGui::EndDragDropSource();
         }
 
+        // Destino de arrastre sobre una CARPETA concreta de la celda. Sin esto
+        // la unica forma de soltar en una carpeta era acertar el vacio de abajo,
+        // que encima copiaba. Ahora la celda es destino: MUEVE, y con Ctrl
+        // copia. El tooltip aparece solo mientras se arrastra, para no tapar
+        // nada en reposo.
+        if (esCarpeta) {
+            // El tooltip va ANTES de aceptar el payload: en cuanto se acepta,
+            // el arrastre termina y ya no hay nada sobre lo que hovering.
+            if (const ImGuiPayload* arrastre = ImGui::GetDragDropPayload()) {
+                if (strcmp(arrastre->DataType, "ARCHIVO_PATH") == 0 &&
+                    ImGui::IsItemHovered()) {
+                    if (ctrlOCmd())
+                        ImGui::SetTooltip("Copiar dentro de %s", nombre.c_str());
+                    else
+                        ImGui::SetTooltip("Mover a %s  (Ctrl = copiar)",
+                                          nombre.c_str());
+                }
+            }
+            if (ImGui::BeginDragDropTarget()) {
+                if (const ImGuiPayload* aceptado =
+                        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+                    const char* origen = static_cast<const char*>(aceptado->Data);
+                    // El destino es la CARPETA, no su contenido.
+                    // El mtime puede no haberse actualizado todavia tras el
+                    // movimiento, asi que ademas de refrescar se invalida el
+                    // cache a proposito.
+                    if (origen &&
+                        soltarEnCarpeta(fileManager, eventoArchivos_, origen,
+                                        fullPath, ctrlOCmd()))
+                        invalidarCache();
+                }
+                ImGui::EndDragDropTarget();
+            }
+        }
+
         std::string nombreMostrado = (dot != std::string::npos && dot != 0) ? nombre.substr(0, dot) : nombre;
         bool truncado = false;
         if (ImGui::CalcTextSize(nombreMostrado.c_str()).x > iconSize) {
@@ -257,6 +272,27 @@ void ContentFolderInterface::initGUI() {
     // cada frame y ImGui pueda re-aplicar su DockId al restaurar el ini.
     // stateGUI controla solo la visibilidad visual (usuario cierra con X).
     ImGui::Begin(getNameGui().c_str(), &dockAlive_, getFlagGui());
+
+    // Barra de menu: la ventana se creo con ImGuiWindowFlags_MenuBar pero nunca
+    // la dibujo, y es el lugar natural para decir que carpeta se esta viendo.
+    // Antes no se mostraba el nombre en ningun lado y con varias carpetas
+    // abiertas no habia forma de saber donde estabas.
+    if (ImGui::BeginMenuBar()) {
+        if (sel->carpetaActual) {
+            const std::string& nombre = sel->carpetaActual->getPathName();
+            ImGui::TextUnformatted(nombre.empty() ? "(raiz)" : nombre.c_str());
+            // La ruta completa en el tooltip: dos carpetas de sitios distintos
+            // pueden llamarse igual, y con varias abiertas el nombre solo no
+            // dice donde estas.
+            if (ImGui::IsItemHovered()) {
+                const std::string completa =
+                    sel->carpetaActual->getPathRoot() + PATH_SEP +
+                    sel->carpetaActual->getPathName();
+                ImGui::SetTooltip("%s", completa.c_str());
+            }
+        }
+        ImGui::EndMenuBar();
+    }
 
     if (ImGui::BeginPopupContextWindow("AddFilesPopup", ImGuiPopupFlags_MouseButtonRight)) {
         if (ImGui::MenuItem("New Script")) {
@@ -466,8 +502,7 @@ void ContentFolderInterface::contentGUI() {
         fileManager->eliminarArchivo(archivoAEliminarConfirmado);
         // Forzar invalidacion del cache: el mtime del directorio puede no
         // actualizarse inmediatamente en algunos FS; limpiamos el cache manualmente.
-        cacheCarpeta.clear();
-        cacheMtime = std::filesystem::file_time_type{};
+        invalidarCache();
         archivoAEliminarConfirmado.clear();
         // No sube contadorCambios: archivos no estan en el arbol de carpetas.
     }
@@ -476,8 +511,7 @@ void ContentFolderInterface::contentGUI() {
             sel->contadorCambios++;
         }
         // Forzar invalidacion del cache del grid tambien para carpetas.
-        cacheCarpeta.clear();
-        cacheMtime = std::filesystem::file_time_type{};
+        invalidarCache();
         carpetaAEliminarGridConfirmada.clear();
     }
 
@@ -485,9 +519,9 @@ void ContentFolderInterface::contentGUI() {
 
     // Zona de drop del grid: mientras se arrastra un "ARCHIVO_PATH" (desde este
     // mismo grid o de otro origen del editor, p.ej. el inspector), el espacio
-    // vacio bajo las celdas es destino: soltar copia el elemento a la carpeta
-    // visible (como en cualquier explorador, soltar en el vacio = soltar en la
-    // carpeta). Solo se dibuja durante el arrastre, asi no roba clicks ni
+    // vacio bajo las celdas es destino: soltar MUEVE el elemento a la carpeta
+    // visible, y con Ctrl lo copia (misma semantica que soltar sobre una celda
+    // de carpeta). Solo se dibuja durante el arrastre, asi no roba clicks ni
     // crece el area desplazable: la zona cubre lo que sobra hasta abajo.
     if (const ImGuiPayload* dragPayload = ImGui::GetDragDropPayload()) {
         if (strcmp(dragPayload->DataType, "ARCHIVO_PATH") == 0) {
@@ -496,12 +530,19 @@ void ContentFolderInterface::contentGUI() {
                 ImGui::InvisibleButton(
                     "zonaDropArchivos",
                     ImVec2(ImGui::GetContentRegionAvail().x, alturaZona));
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip(ctrlOCmd()
+                        ? "Copiar en la carpeta actual"
+                        : "Mover a la carpeta actual  (Ctrl = copiar)");
                 if (ImGui::BeginDragDropTarget()) {
                     if (const ImGuiPayload* aceptado =
                             ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
                         const char* origen =
                             static_cast<const char*>(aceptado->Data);
-                        if (origen) copiarElementoSuelto(origen, destFolder);
+                        if (origen &&
+                            soltarEnCarpeta(fileManager, eventoArchivos_,
+                                            origen, destFolder, ctrlOCmd()))
+                            invalidarCache();
                     }
                     ImGui::EndDragDropTarget();
                 }
