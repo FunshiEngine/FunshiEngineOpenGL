@@ -24,6 +24,7 @@
 
 #include <iostream>
 
+#include "../FunshiEngineGL/src/Input/AtajosEditor.h"
 #include "../FunshiEngineGL/src/States/ApplicationStateMachine.h"
 #include "../FunshiEngineGL/src/States/OrquestadorEstadoGUI.h"
 
@@ -169,6 +170,23 @@ void reflejosPorEstado() {
     CHECK(orquestador.menuDebeEstarVisible(), "stop + Escape vuelven al menu");
 }
 
+// --- Atajos del editor frente al teclado de ImGui ----------------------------
+// Ctrl+S guarda SIEMPRE: un InputText enfocado no hace nada con esa combinacion,
+// y con el guard viejo (el mismo que Escape) renombrar un objeto y guardar sin
+// salir del campo perdia el nombre en silencio. Ctrl+Z y Ctrl+Y si significan
+// otra cosa dentro de un campo de texto (su propio deshacer/rehacer), asi que
+// ahi el editor cede la tecla.
+void atajosFrenteAlCampoDeTexto() {
+    CHECK(AtajosEditor::debeGuardar(true),
+          "Ctrl+S guarda aunque haya un campo de texto enfocado");
+    CHECK(AtajosEditor::debeGuardar(false),
+          "Ctrl+S guarda cuando no hay campo de texto enfocado");
+    CHECK(AtajosEditor::cedeAlCampoDeTexto(true),
+          "Ctrl+Z/Ctrl+Y le dejan el deshacer al campo de texto");
+    CHECK(!AtajosEditor::cedeAlCampoDeTexto(false),
+          "Ctrl+Z/Ctrl+Y son del editor cuando no hay campo enfocado");
+}
+
 } // namespace
 
 int main() {
@@ -180,6 +198,7 @@ int main() {
     f6SoloEnPlay();
     f7ParaElPlay();
     reflejosPorEstado();
+    atajosFrenteAlCampoDeTexto();
 
     std::cout << "orquestador-estado-tests: " << total << " comprobaciones, "
               << fallos << " fallos." << std::endl;

@@ -136,7 +136,7 @@ ctest --test-dir build --output-on-failure
 - `audio-tests` (16): `AudioEngine`/`AudioClipsManager` con `NullAudioBackend` (contrato de la cola de comandos: clips, handles, encolado, detención, volumen).
 - `userinterface-tests` (34): `UserInterfaceCustom` (modelo del Creador de interfaces, `src/GUI/CreadorUI/`): round-trip JSON de los 5 tipos de widget, guardar/cargar y tolerancia a JSON parcial.
 - `manifiesto-assets-tests` (29): `ManifiestoAssetsCore` (manifiesto `SceneAssets.json`): JSON round-trip, tolerancia a manifiestos corruptos/inexistentes, relativizar/absolutizar contra la raíz `src<proyecto>`/ y precedencia del manifiesto sobre el `.db`.
-- `orquestador-estado-tests` (34): `OrquestadorEstadoGUI` (la "función de marco" de F5/F6/F7 y las teclas): reglas por estado de Play/Pausa/Stop, Escape → menú e "Iniciar Estudio" → editor.
+- `orquestador-estado-tests` (38): `OrquestadorEstadoGUI` (la "función de marco" de F5/F6/F7 y las teclas): reglas por estado de Play/Pausa/Stop, Escape → menú e "Iniciar Estudio" → editor; y los atajos del editor frente al teclado de ImGui (Ctrl+S guarda siempre; Ctrl+Z/Ctrl+Y ceden al campo de texto).
 - `comandos-tests` (77): sistema de comandos (undo/redo) del editor: los 7 comandos con su deshacer/rehacer, la cadena de redo múltiple, el límite de 50 entradas y que `deshacer()`/`rehacer()` devuelvan la descripción del comando aplicado (la que muestra la barra de estado al pulsar `Ctrl+Z`/`Ctrl+Y`).
 
 Con `-DBUILD_ENGINE=OFF` se compilan **solo** las pruebas: no se requieren GLFW/OpenGL/Bullet/Assimp y funcionan en cualquier plataforma. `.github/workflows/ci.yml` hace exactamente eso en Linux, Windows y macOS (más el backend Java en Ubuntu con JDK), además de un build completo del engine en Ubuntu.

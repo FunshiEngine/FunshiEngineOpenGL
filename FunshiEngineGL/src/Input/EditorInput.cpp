@@ -30,6 +30,7 @@
 #include "../States/OrquestadorEstadoGUI.h"
 #include "ImGuizmo.h"
 #include "../Scenes/EditorController.h"
+#include "AtajosEditor.h"
 
 EditorInput* EditorInput::instancia = nullptr;
 
@@ -152,20 +153,26 @@ void EditorInput::onKey(GLFWwindow* window, int key, int scancode, int action,
 
     // Ctrl+S: guardado en caliente del proyecto (misma rutina que el guardado
     // al salir, inyectada por main). Se intercepta ANTES de la maquina de
-    // movimiento para que el "S" con Ctrl no mueva la camara hacia atras, y
-    // con el mismo guard que Escape: si un campo de texto de ImGui esta
-    // capturando el teclado, la combinacion es del editor de texto.
+    // movimiento para que el "S" con Ctrl no mueva la camara hacia atras.
+    // Guarda SIEMPRE, tambien con un InputText enfocado: el atajo no le quita
+    // nada al campo, y con el guard anterior (el mismo que Escape) renombrar un
+    // objeto y guardar sin salir del campo perdia el nombre en silencio. La
+    // decision vive en AtajosEditor.h, con su test.
     if (key == GLFW_KEY_S && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
-        if (accionGuardar && !ImGui::GetIO().WantCaptureKeyboard) accionGuardar();
+        if (accionGuardar &&
+            AtajosEditor::debeGuardar(ImGui::GetIO().WantCaptureKeyboard))
+            accionGuardar();
         return;
     }
 
     // Ctrl+Z: deshacer (undo). Se avisa en la barra de estado que cambio tomo
     // el estado (mismo aviso momentaneo que Ctrl+S), o que no hay nada que
-    // deshacer, para que el atajo nunca sea silencioso.
+    // deshacer, para que el atajo nunca sea silencioso. Con un campo de texto
+    // enfocado el editor cede la tecla: ahi Ctrl+Z es el deshacer del campo.
     if (key == GLFW_KEY_Z && (mods & GLFW_MOD_CONTROL) &&
         !(mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
-        if (scene && !ImGui::GetIO().WantCaptureKeyboard) {
+        if (scene &&
+            !AtajosEditor::cedeAlCampoDeTexto(ImGui::GetIO().WantCaptureKeyboard)) {
             if (auto* ec = scene->getEditorController()) {
                 const std::string descripcion = ec->deshacer();
                 scene->mostrarMensaje(descripcion.empty()
@@ -179,9 +186,11 @@ void EditorInput::onKey(GLFWwindow* window, int key, int scancode, int action,
     // Ctrl+Y: rehacer (redo). Es el UNICO atajo de redo: la "Y" con Ctrl deja de
     // ser el atajo de escala del gizmo (3/U) y no se solapa con ningun otro.
     // La "Y" suelta la tomo la guia de eje (X/Y/Z), que necesita las tres
-    // letras libres para dibujar la recta del eje pulsado.
+    // letras libres para dibujar la recta del eje pulsado. Como Ctrl+Z, cede la
+    // tecla al campo de texto (que tiene su propio rehacer).
     if (key == GLFW_KEY_Y && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
-        if (scene && !ImGui::GetIO().WantCaptureKeyboard) {
+        if (scene &&
+            !AtajosEditor::cedeAlCampoDeTexto(ImGui::GetIO().WantCaptureKeyboard)) {
             if (auto* ec = scene->getEditorController()) {
                 const std::string descripcion = ec->rehacer();
                 scene->mostrarMensaje(descripcion.empty()

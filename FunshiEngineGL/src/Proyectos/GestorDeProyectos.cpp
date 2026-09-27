@@ -50,8 +50,14 @@ void GestorDeProyectos::prepararProyectoAlArrancar() {
 }
 
 void GestorDeProyectos::guardarProyectoCompleto() {
-    if (proyectoActual_.empty())
+    if (proyectoActual_.empty()) {
+        // Sin proyecto abierto no hay nada que guardar, pero el aviso tiene que
+        // llegar: antes se salia en silencio y Ctrl+S parecia no hacer nada.
+        std::cerr << "[guardar] no hay proyecto abierto: nada que guardar\n";
+        if (auto* status = gui_->getStatusBarGUI())
+            status->mostrarMensaje("No hay proyecto abierto: nada que guardar");
         return;
+    }
     // Escena completa: binarios (.db) + manifiesto de assets (JSON).
     scene_->saveScene(EditorConfig::rutaScenePrefijo(proyectoActual_));
     // Se recogen los valores actuales (menu, ventanas, gizmo) tal como se

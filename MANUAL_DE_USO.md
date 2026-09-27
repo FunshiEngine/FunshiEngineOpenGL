@@ -154,8 +154,12 @@ renombrar/mover assets el guardado automatico lo mantiene al dia.
 
 **Guardado sin salir (Ctrl+S).** El editor guarda el proyecto completo
 (escena + manifiesto + configuracion de ventanas/gizmo/camara) con
-`Ctrl+S`, ademas del guardado automatico al salir. En un campo de texto de
-ImGui la combinacion la consume el editor de texto y no guarda.
+`Ctrl+S`, ademas del guardado automatico al salir. El atajo funciona **siempre**,
+tambien mientras escribes en un campo de texto: guardar no le quita ninguna tecla
+al campo y asi se evita perder el cambio recien escrito (renombrar un objeto y
+guardar sin hacer clic en otro lado). `Ctrl+Z` y `Ctrl+Y` si se ceden al campo,
+que ahi tienen su propio deshacer/rehacer. Si no hay proyecto abierto, la barra
+de estado avisa en vez de ignorar el atajo.
 
 ---
 
