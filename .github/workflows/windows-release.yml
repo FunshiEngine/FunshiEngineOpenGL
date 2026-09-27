@@ -6,6 +6,10 @@ name: Windows (instalador)
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version a usar (p.ej. 0.5.4). Sin tag, por defecto 0.0.0-dev'
+        required: false
   push:
     tags:
       - 'v*'
@@ -15,6 +19,22 @@ jobs:
     name: Build + setup.exe (Windows)
     runs-on: windows-latest
     steps:
+      - name: Calcular version
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "push") {
+            $v = "${{ github.ref }}".Split('/')[-1].TrimStart('v')
+          } else {
+            $v = "${{ github.event.inputs.version }}"
+            if (-not $v) { $v = "0.0.0-dev" }
+          }
+          if ($v -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') {
+            Write-Error "Version invalida: '$v'. Se espera X.Y.Z (ej: 0.5.4) o X.Y.Z-sufijo (ej: 0.5.0-alpha)."
+            exit 1
+          }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       - uses: actions/checkout@v4
 
       # Los runners de GitHub traen vcpkg preinstalado en C:\vcpkg y en PATH.
@@ -55,6 +75,15 @@ jobs:
             -ProjectDir "$env:GITHUB_WORKSPACE\FunshiEngineGL" `
             -BuildDir "$env:GITHUB_WORKSPACE\build\Release" `
             -VcpkgInstalled "C:\vcpkg\installed\x64-windows"
+
+      - name: Versionar instalador con el tag
+        shell: pwsh
+        run: |
+          $iss = "$env:GITHUB_WORKSPACE\FunshiEngineGL\packaging\FunshiEngineGL_setup.iss"
+          (Get-Content -Raw $iss) `
+            -replace '#define MiVersion "[^"]*"', "#define MiVersion `"${{ steps.ver.outputs.version }}`"" `
+            -replace '#define MiCanal "[^"]*"', '#define MiCanal "release"' `
+            | Set-Content -NoNewline $iss -Encoding ASCII
 
       - name: Instalar Inno Setup y compilar setup.exe
         shell: pwsh
