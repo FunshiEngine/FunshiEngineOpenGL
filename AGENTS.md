@@ -47,6 +47,39 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   `scripts-java-tests` (si no hay JDK en el PATH). `ctest` los reporta como
   *skipped* aparte; no son tests rotos.
 
+## Depuración por orden de dependencia
+
+Cuando un lote de correcciones tiene varios ítems (bugs, hallazgos nuevos,
+mejoras), la lista de tareas se arma **por orden de dependencia**, no por el
+orden en que se descubrieron los problemas ni por su severidad:
+
+1. **Primero, las bases**: los fixes de los que cuelgan otros —los que tocan el
+   mismo código, fijan un contrato que los demás heredan o habilitan un camino
+   que otros dan por supuesto—, aunque su severidad sea menor que la de sus
+   dependientes. Un ítem que hereda el arreglo de otro va después de ese otro,
+   sin excepción.
+2. **Después, los independientes**: los que no tocan a nadie, en cualquier
+   orden. Si un fix puede revelar problemas nuevos (p. ej. un test que pasa a
+   correr donde antes se saltaba), hacerlo antes que los que dependan de que
+   el alcance esté cerrado.
+3. **Al final, los de mayor riesgo**: los que reescriben lo ya validado o
+   tocan caminos críticos; siempre después de que sus bases estén commiteadas
+   y verificadas.
+
+Reglas de trabajo sobre la lista:
+
+- Es explícita y se trabaja contra ella, no de memoria (ver "Lista de tareas
+  antes de escribir código"). Cada ítem se marca en cuanto queda hecho y
+  verificado, no todo al final.
+- Un ítem bloqueado por otro se espera, no se salta: saltar el orden deja
+  fixes aplicados sobre bases que todavía pueden cambiar.
+- Al aparecer un hallazgo nuevo, insertarlo en la posición que le corresponda
+  según sus dependencias e indicar de qué ítem cuelga, en vez de agregarlo al
+  final de la cola.
+- El orden se documenta donde viva el lote (plan de trabajo, issue, tabla de
+  secuencia de commits), para que quien retome el trabajo sepa por dónde
+  sigue.
+
 ## Ejecutar el editor para prueba manual
 
 El criterio de aceptación de un fix lo define el usuario probando la app real
