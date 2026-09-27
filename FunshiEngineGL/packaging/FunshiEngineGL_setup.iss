@@ -92,6 +92,12 @@ Filename: "{app}\{#MiExe}"; Description: "Ejecutar {#MiNombre} ahora"; WorkingDi
 #define JdkUrl "https://api.adoptium.net/v3/installer/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse"
 
 [Code]
+const
+  { El salto de linea va en una constante y no suelto como #13#10 porque ISPP
+    (el preprocesador de Inno) interpreta cualquier linea que arranque con # como
+    una directiva y aborta con "Unknown preprocessor directive". }
+  NL = #13#10;
+
 var
   JdkAdvertencia: string;
 
@@ -109,7 +115,7 @@ begin
   begin
     try
       repeat
-        if (Buscador.Attr and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+        if (Buscador.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
         begin
           Sub := Buscador.Name;
           if FileExists(Carpeta + '\' + Sub + '\bin\server\jvm.dll') then
@@ -136,11 +142,7 @@ begin
   if RegQueryStringValue(HKEY_LOCAL_MACHINE,
       'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
       'JAVA_HOME', Valor) then
-  begin
     Result := Valor;
-    while (Result <> '') and (Result[Length(Result)] = '\') do
-      Result := Delete(Result, Length(Result), 1);
-  end;
 end;
 
 function DetectarJdk(): Boolean;
@@ -181,9 +183,9 @@ end;
   no hay red, se sigue y se avisa al final. }
 function PrepareToInstall(var NeedsRestart: Boolean): string;
 var
-  Descarga: TDownloadTemporaryFile;
+  Msi: string;
+  Bytes: Int64;
   Codigo: Integer;
-  Home: string;
 begin
   Result := '';
   NeedsRestart := False;
@@ -195,11 +197,10 @@ begin
   if WizardSilent then
     Exit;  { en /VERYSILENT no se pregunta nada }
 
-  if MsgBox('No se encontro un JDK (Java Development Kit) en este equipo.' + #13#10 +
-            #13#10 +
+  if MsgBox('No se encontro un JDK (Java Development Kit) en este equipo.' + NL + NL +
             'Los scripts Java del motor necesitan un JDK porque compila los .java ' +
             'del proyecto con javac antes de cargarlos en la JVM. Sin el, el editor ' +
-            'abre igual pero los scripts Java no van a funcionar.' + #13#10 + #13#10 +
+            'abre igual pero los scripts Java no van a funcionar.' + NL + NL +
             'Deseas descargar e instalar Temurin JDK 17 ahora? Son unos 190 MB y ' +
             'requiere conexion a internet.',
             mbConfirmation, MB_YESNO) = IDNO then
@@ -208,22 +209,27 @@ begin
     Exit;
   end;
 
-  Descarga := TDownloadTemporaryFile.Create(
-    '{#JdkUrl}', 'Descargando Temurin JDK 17...', 'temurin-jdk17.msi');
+  { DownloadTemporaryFile deja el archivo en la carpeta temporal con el nombre
+    pedido y muestra el progreso con su propio dialogo cuando
+    OnDownloadProgress es nil. Si algo falla (sin red, URL caida) levanta
+    excepcion, de ahi el except. }
+  Msi := ExpandConstant('{tmp}\temurin-jdk17.msi');
   try
-    if not Descarga.ShowWaitDialog then
-    begin
-      JdkAdvertencia := 'Se cancelo la descarga del JDK, asi que los scripts Java no van a funcionar.';
-      Exit;
-    end;
-  finally
-    Descarga.Free;
+    Bytes := DownloadTemporaryFile('{#JdkUrl}', 'temurin-jdk17.msi', '', nil);
+  except
+    Bytes := 0;
+  end;
+  if (Bytes <= 0) or not FileExists(Msi) then
+  begin
+    JdkAdvertencia := 'No se pudo descargar el JDK, asi que los scripts Java no van ' +
+                     'a funcionar.';
+    Exit;
   end;
 
   { FeatureMain: el JDK. FeatureEnvironment: deja JAVA_HOME y el PATH.
     FeatureJavaHome/FeatureJarFileRunWith: completan la instalacion estandar.
     /qn es la instalacion silenciosa del propio MSI. }
-  if not Exec(Descarga.Filename,
+  if not Exec(Msi,
     '/qn /norestart ADDLOCAL=FeatureMain,FeatureEnvironment,FeatureJavaHome,FeatureJarFileRunWith',
     '', SW_HIDE, True, Codigo) then
   begin
@@ -239,23 +245,20 @@ begin
     Exit;
   end;
 
-  { El MSI recien instalado todavia no figura en el entorno de este proceso, y
-    el motor se lanza desde aca ([Run]), asi que se le pasa JAVA_HOME a mano. }
-  Home := JavaHomeMaquina();
-  if Home <> '' then
-    SetEnv('JAVA_HOME', Home);
-
+  { El MSI deja JAVA_HOME en el entorno de la maquina, pero este proceso ya
+    estaba corriendo y no lo ve. No hace falta pasarselo a mano: el motor
+    descubre el JDK por su cuenta en el registro y en Program Files, asi que
+    lo encuentra igual aunque JAVA_HOME no sea visible todavia. }
   if not DetectarJdk() then
     JdkAdvertencia := 'El JDK se instalo, pero no se pudo localizar. Si los scripts Java ' +
                      'no funcionan, reinicia Windows o configura JAVA_HOME a mano.';
 end;
 
 { Si al terminar no hay JDK, se avisa una vez con un mensaje claro. }
-function CurStepChanged(CurStep: TSetupStep): string;
+procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  Result := '';
   if (CurStep = ssPostInstall) and (JdkAdvertencia <> '') then
-    MsgBox(JdkAdvertencia + #13#10 + #13#10 +
+    MsgBox(JdkAdvertencia + NL + NL +
            'Se puede instalar despues desde https://adoptium.net',
            mbInformation, MB_OK);
 end;
