@@ -32,6 +32,10 @@ jobs:
             $v = "${{ github.event.inputs.version }}"
             if (-not $v) { $v = "0.0.0-dev" }
           }
+          if ($v -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') {
+            Write-Error "Version invalida: '$v'. Se espera X.Y.Z (ej: 0.5.4) o X.Y.Z-sufijo (ej: 0.5.0-alpha)."
+            exit 1
+          }
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - uses: actions/checkout@v4
@@ -118,6 +122,10 @@ jobs:
           else
             v="${{ github.event.inputs.version }}"
             v="${v:-0.0.0-dev}"
+          fi
+          if ! printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::Version invalida: '$v'. Se espera X.Y.Z (ej: 0.5.4) o X.Y.Z-sufijo (ej: 0.5.0-alpha)."
+            exit 1
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
