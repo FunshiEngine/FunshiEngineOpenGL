@@ -14,12 +14,56 @@ cmake --build FunshiEngineGL/build -j$(nproc)
 cd FunshiEngineGL/build && ctest --output-on-failure
 ```
 
+- **`cmake` sin `-DCMAKE_BUILD_TYPE` fuerza Debug** (`CMakeLists.txt`), y en
+  Debug se activan ASan+UBSan para compiladores GNU/Clang. Con el GCC de MSYS2
+  eso **no linkea**: el toolchain no trae los runtimes de sanitizer. Para un
+  build de trabajo normal y para igualar la CI:
+
+  ```bash
+  cmake -S FunshiEngineGL -B FunshiEngineGL/build \
+      -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF -DFUNSHI_JAVA=ON
+  ```
+
+  Con el generador de Visual Studio el sanitizer no se activa
+  (`CMAKE_CXX_COMPILER_ID` no es GNU/Clang), así que ahí el flag es inofensivo.
+
 - **Build y tests como parte del cambio**: al tocar código fuente (o `CMakeLists.txt`
   y tests), revisar SIEMPRE si hay que actualizar el build y la suite: el engine
   usa `file(GLOB_RECURSE ... CONFIGURE_DEPENDS)`, pero los targets de test listan
   sus fuentes explícitamente; un `.cpp`/`.h` nuevo, un include, una dependencia,
   un `add_test` o el conteo de comprobaciones de un test existente pueden quedar
   fuera de sincronía. Ajustarlos en el mismo commit que el código que los motiva.
+
+## Pruebas
+
+- **Autoría de un test headless**: seguir el patrón de
+  `tests/ModelSerializationTests.cpp` — macro `CHECK(cond, msg)` definida en el
+  propio archivo, `TempPruebas::CarpetaPrueba` para una carpeta temporal que se
+  limpia sola al salir (RAII), y cierre con
+  `std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << ... << " comprobaciones"`,
+  saliendo con 0 o 1.
+- **Código de salida 77 = *skipped*, no fallo**. En Windows es lo esperado para
+  `scripts-runtime-tests` (necesita `cl.exe` con el entorno de Visual Studio) y
+  `scripts-java-tests` (si no hay JDK en el PATH). `ctest` los reporta como
+  *skipped* aparte; no son tests rotos.
+
+## Ejecutar el editor para prueba manual
+
+El criterio de aceptación de un fix lo define el usuario probando la app real
+(ver "NO confirmar fixes hasta validación del usuario"), así que hace falta
+poder lanzarla:
+
+```bash
+cd FunshiEngineGL && ./build/FunshiEngineGL       # Linux
+cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
+```
+
+- Lanzarlo **desde `FunshiEngineGL/`**: los assets y las rutas relativas se
+  resuelven contra el cwd.
+- La salida (stdout y stderr) se redirige a un archivo por arranque en
+  `logs/`, junto al ejecutable —`FunshiEngineGL_<AAAAMMDD_HHMMSS>.log`, con
+  timestamp **UTC**—, así que el editor no abre consola. Es lo primero que hay
+  que mirar cuando algo falla.
 
 ## Convenciones del código
 
