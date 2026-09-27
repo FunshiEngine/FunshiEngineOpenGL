@@ -813,10 +813,11 @@ GameScene → coordina todos los subsistemas del frame
   escenas: verifica que un path más largo que el buffer de lectura no desalinee
   el stream, además de round-trip corto/largo/vacío y archivos truncados.
 - `tests/SceneSerializationTests.cpp`: round-trip completo de escena (guardar →
-  recargar → conservar nombre, id y jerarquía) y el nombre por defecto de los
+  recargar → conservar nombre, id y jerarquía), el nombre por defecto de los
   objetos nuevos (`GameObjectFactory` + `NombreUnico.h`, que no puede repetirse
-  en el árbol). Es la suite que faltaba: hasta ahora solo existía
-  `ModelSerializationTests`, que cubre el componente `Model` aislado.
+  en el árbol) y el guardado con el árbol vacío (archivo vacío **con aviso en el
+  log**, nunca un trunc silencioso). Es la suite que faltaba: hasta ahora solo
+  existía `ModelSerializationTests`, que cubre el componente `Model` aislado.
 - `tests/TemaEditorTests.cpp`: aplicación del perfil `Apariencia` al estilo de ImGui
   (`TemaEditor::aplicarEstilo`, solo contexto de ImGui, sin pila gráfica). Cubre la
   regresión "el color de acento no llega a toda la interfaz": con un acento no azul

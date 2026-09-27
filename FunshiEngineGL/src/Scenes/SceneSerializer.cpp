@@ -18,6 +18,7 @@
 */
 #include "SceneSerializer.h"
 
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -180,6 +181,22 @@ void SceneSerializer::save(const std::string& filename)
      * Por lo tanto BBDDObjetos.txt debe reconstruirse
      * desde cero en cada guardado.
      */
+    // La decision se toma ANTES de abrir con trunc. Un arbol vacio es un estado
+    // valido (se limpia la escena y se guarda) y se escribe vacio a proposito,
+    // pero SIEMPRE con aviso: un BBDDObjetos.txt de 0 bytes sin decir nada es
+    // indistinguible de una perdida de datos silenciosa (el caso investigado era
+    // exactamente un return entre el trunc y la escritura).
+    const bool escenaVacia = scene->getEntitysTree()->isEmpty();
+    std::error_code ec;
+    const bool existia = std::filesystem::exists(pathTxt, ec);
+    if (escenaVacia) {
+        std::cerr << "[escena] guardando con el arbol vacio";
+        if (existia)
+            std::cerr << ": " << pathTxt
+                      << " queda vacio a proposito (antes tenia contenido)";
+        std::cerr << std::endl;
+    }
+
     std::ofstream archive(
         pathTxt,
         std::ios::trunc
@@ -197,19 +214,17 @@ void SceneSerializer::save(const std::string& filename)
     }
 
     /*
-     * Si la escena está vacía, dejamos el archivo vacío.
+     * Recorrido completo desde la raíz. Con el arbol vacio no hay nada que
+     * recorrer: el trunc de arriba dejo el archivo vacio, que es exactamente lo
+     * que se aviso arriba.
      */
-    if (scene->getEntitysTree()->isEmpty())
-        return;
-
-    /*
-     * Recorrido completo desde la raíz.
-     */
-    savePreOrder(
-        scene->getEntitysTree()->rootOfTree(),
-        archive,
-        filename
-    );
+    if (!escenaVacia) {
+        savePreOrder(
+            scene->getEntitysTree()->rootOfTree(),
+            archive,
+            filename
+        );
+    }
 
     /*
      * El stream se cierra automáticamente al salir

@@ -33,6 +33,7 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include "TempPruebas.h"
@@ -100,6 +101,55 @@ void nombresPorDefecto() {
         CHECK(std::string(colgado->inputName) != nombre1,
               "el nombre por defecto no repite el del padre");
     }
+}
+
+// --- Guardar con el arbol vacio (H-8) -----------------------------------------
+// Decision: una escena vacia es un estado valido y se guarda vacia a PROPOSITO,
+// pero con aviso en el log. Lo que no se permite es el retorno silencioso entre
+// el trunc y la escritura: un BBDDObjetos.txt de 0 bytes sin explicar es
+// indistinguible de una perdida de datos.
+//
+// Nota de alcance: hoy el registro siembra la raiz en su constructor y en
+// clear(), asi que desde la UI el arbol casi no puede quedar vacio; el branch
+// queda protegido para cuando aparezca un camino que lo deje asi (y por eso se
+// vacia a mano aca, desde el arbol, que es lo que save() mira).
+void guardadoConArbolVacio() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_escena_vacia");
+    const fs::path base = carpetaDir.ruta();
+    std::error_code ec;
+    fs::create_directories(base / "Scene", ec);
+
+    const std::string prefijo = (base / "Scene").string();
+    const std::string pathTxt = (base / "SceneBBDDObjetos.txt").string();
+
+    // Un archivo previo con contenido real: si el guardado vacio lo reemplaza,
+    // tiene que decirlo.
+    {
+        std::ofstream previo(pathTxt);
+        previo << "escena anterior\n";
+    }
+
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    SceneSerializer serializer(&registry, &editor, &assets);
+
+    auto* arbol = registry.getEntitysTree();
+    CHECK(arbol != nullptr, "el arbol existe");
+    while (arbol && !arbol->isEmpty()) arbol->deleteRoot();
+    CHECK(arbol && arbol->isEmpty(), "se vacia el arbol para el caso de H-8");
+
+    std::ostringstream aviso;
+    std::streambuf* buferAnterior = std::cerr.rdbuf(aviso.rdbuf());
+    serializer.save(prefijo);
+    std::cerr.rdbuf(buferAnterior);
+
+    CHECK(fs::exists(pathTxt), "el archivo se escribe aunque el arbol este vacio");
+    CHECK(fs::is_empty(pathTxt, ec),
+          "una escena vacia deja el archivo vacio (estado valido)");
+    CHECK(aviso.str().find("arbol vacio") != std::string::npos,
+          "el guardado vacio se avisa en el log: nunca en silencio");
 }
 
 // --- Round-trip de escena -----------------------------------------------------
@@ -198,6 +248,7 @@ void roundTripDeEscena() {
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
+    guardadoConArbolVacio();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;
