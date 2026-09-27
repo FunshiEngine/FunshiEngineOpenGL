@@ -691,6 +691,31 @@ Requiere que el motor se haya compilado con el JDK disponible
 (`FUNSHI_JAVA=ON`); la ventana Estado muestra `javac`, `libjvm` y si el
 soporte esta activo.
 
+En runtime hace falta un **JDK** (no un JRE) porque el motor compila el
+`.java` del proyecto con `javac` antes de cargarlo en la JVM. El motor lo
+busca solo, en este orden:
+
+1. `FUNSHI_LIBJVM` (ruta explicita a la biblioteca de la JVM).
+2. Un `jre/` junto al ejecutable (reservado para empaquetar un runtime).
+3. `JAVA_HOME` (`<JAVA_HOME>/bin/server/jvm.dll` en Windows,
+   `<JAVA_HOME>/lib/server/libjvm.so` en Linux y macOS).
+4. La ruta con la que se compiló el binario, que solo existe si el juego se
+   corre en la misma máquina donde se compiló.
+5. Las instalaciones típicas: el registro de Windows (`JavaSoft\JDK`,
+   `JavaSoft\Java Development Kit`, `Eclipse Adoptium\JDK`) y las carpetas
+   `Program Files\{Java,Eclipse Adoptium,Microsoft,Amazon Corretto,Zulu}`, o
+   `/usr/lib/jvm` en Linux.
+
+El `javac` se busca en la **misma** raíz que la JVM, así que el `.java` se
+compila siempre con el mismo JDK que después lo ejecuta. Se puede forzar con
+la variable `JAVAC`.
+
+El instalador de Windows (`FunshiEngineGL_setup.iss`) comprueba si hay un JDK
+antes de instalar y, si no lo encuentra, ofrece descargar e instalar Temurin
+JDK 17. El paquete de Linux (Qt IFW) no puede encadenar instaladores, así que
+declara el requisito en la descripción: en la mayoría de distros el JDK ya
+viene instalado.
+
 ### 14.1 Plantilla generada por el editor
 
 ```java

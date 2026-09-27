@@ -40,6 +40,7 @@
 #include <vector>
 
 #include "../ScriptGameObject.h"
+#include "../../Configuracion/ProjectPaths.h"
 
 #ifndef FUNSHI_LIBJVM_DEFAULT
 #define FUNSHI_LIBJVM_DEFAULT ""
@@ -158,55 +159,191 @@ std::string directorioCache() {
     return (base / "funshi_scripts" / "java").string();
 }
 
-std::string rutaLibjvm() {
-    const char* explicito = std::getenv("FUNSHI_LIBJVM");
-    if (explicito && *explicito) return explicito;
+// --- Descubrimiento del JDK -------------------------------------------------
+// El binario se compila con FUNSHI_JAVA=ON en una maquina (el runner de CI) y
+// corre en otra (la del usuario), asi que las rutas del build casi nunca
+// existen en destino. Antes de rendirse, el backend busca un JDK instalado en
+// la maquina: un JRE embebido junto al exe, JAVA_HOME, el JDK del build y por
+// ultimo las carpetas donde los JDK se instalan de verdad. La misma lista
+// sirve para encontrar el javac, de modo que la JVM y el compilador de los
+// scripts salen siempre del mismo JDK.
 
-    const char* home = std::getenv("JAVA_HOME");
-    if (home && *home) {
 #if defined(_WIN32)
-        fs::path p = fs::path(home) / "bin" / "server" / "jvm.dll";
+constexpr const char* kLibjvmNombre = "jvm.dll";
 #elif defined(__APPLE__)
-        fs::path p = fs::path(home) / "lib" / "server" / "libjvm.dylib";
+constexpr const char* kLibjvmNombre = "libjvm.dylib";
 #else
-        fs::path p = fs::path(home) / "lib" / "server" / "libjvm.so";
+constexpr const char* kLibjvmNombre = "libjvm.so";
 #endif
-        std::error_code ec;
-        if (fs::exists(p, ec)) return p.string();
-    }
 
-    // Ruta con la que se configuro el build (FindJNI), si existe. FindJNI en
-    // Windows entrega el .lib de importacion (no se puede LoadLibrary); el
-    // .dll real vive en <jdk>/bin/server/jvm.dll, al lado de lib/.
+// Raiz de JDK -> biblioteca de la JVM, si esta ahi.
+// FindJNI en Windows entrega un .lib de importacion (LoadLibrary no lo puede
+// cargar): el .dll real vive en <jdk>/bin/server/jvm.dll, al lado de lib/.
+fs::path libjvmEnRaiz(const fs::path& raiz) {
     std::error_code ec;
-    if (std::string(FUNSHI_LIBJVM_DEFAULT).size() > 0 &&
-        fs::exists(FUNSHI_LIBJVM_DEFAULT, ec)) {
+    if (raiz.empty() || !fs::exists(raiz, ec)) return {};
 #if defined(_WIN32)
-        fs::path lib(FUNSHI_LIBJVM_DEFAULT);
-        if (lib.extension() == ".lib") {
-            fs::path dll = lib.parent_path().parent_path() / "bin" / "server" /
-                           "jvm.dll";
-            if (fs::exists(dll, ec)) return dll.string();
-        }
-#endif
-        return FUNSHI_LIBJVM_DEFAULT;
+    if (raiz.extension() == ".lib") {
+        const fs::path dll = raiz.parent_path().parent_path() / "bin" /
+                             "server" / kLibjvmNombre;
+        return fs::exists(dll, ec) ? dll : fs::path{};
     }
+    const fs::path p = raiz / "bin" / "server" / kLibjvmNombre;
+#else
+    const fs::path p = raiz / "lib" / "server" / kLibjvmNombre;
+#endif
+    return fs::exists(p, ec) ? p : fs::path{};
+}
 
-    // Busqueda generica en instalaciones tipicas de Linux.
-#if !defined(_WIN32)
+// Raiz de JDK -> javac, si esta ahi. Se necesita un JDK y no un JRE: el motor
+// compila el .java del usuario a bytecode antes de cargarlo en la JVM.
+fs::path javacEnRaiz(const fs::path& raiz) {
+    std::error_code ec;
+    if (raiz.empty() || !fs::is_directory(raiz, ec)) return {};
+#if defined(_WIN32)
+    const fs::path p = raiz / "bin" / "javac.exe";
+#else
+    const fs::path p = raiz / "bin" / "javac";
+#endif
+    return fs::exists(p, ec) ? p : fs::path{};
+}
+
+// JRE embebido junto al ejecutable (<exeDir>/jre). Va primero porque es el unico
+// que el usuario no puede desinstalar por accidente.
+fs::path raizJreEmbebido() {
+    const std::string exeDir = ProjectPaths::directorioEjecutable();
+    if (exeDir.empty()) return {};
+    return fs::path(exeDir) / "jre";
+}
+
+#if defined(_WIN32)
+// Raices de JDK registradas en Windows. JavaSoft es el esquema clasico
+// (JavaHome por version); Adoptium y los JDK modernos usan "Path".
+std::vector<fs::path> raicesRegistroWindows() {
+    struct Origen {
+        const wchar_t* clave;
+        const wchar_t* valor;
+    };
+    const Origen origenes[] = {
+        {L"SOFTWARE\\JavaSoft\\JDK", L"JavaHome"},
+        {L"SOFTWARE\\JavaSoft\\Java Development Kit", L"JavaHome"},
+        {L"SOFTWARE\\Eclipse Adoptium\\JDK", L"Path"},
+    };
+    std::vector<fs::path> salida;
+    for (const Origen& origen : origenes) {
+        HKEY raiz = nullptr;
+        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, origen.clave, 0,
+                          KEY_READ | KEY_WOW64_64KEY, &raiz) != ERROR_SUCCESS) {
+            continue;
+        }
+        for (DWORD i = 0;; ++i) {
+            wchar_t nombre[256] = {};
+            DWORD len = ARRAYSIZE(nombre);
+            if (RegEnumKeyExW(raiz, i, nombre, &len, nullptr, nullptr, nullptr,
+                              nullptr) != ERROR_SUCCESS) {
+                break;
+            }
+            HKEY sub = nullptr;
+            if (RegOpenKeyExW(raiz, nombre, 0, KEY_READ | KEY_WOW64_64KEY,
+                              &sub) != ERROR_SUCCESS) {
+                continue;
+            }
+            wchar_t valor[32768] = {};
+            DWORD tam = ARRAYSIZE(valor);
+            DWORD tipo = 0;
+            if (RegQueryValueExW(sub, origen.valor, nullptr, &tipo,
+                                 reinterpret_cast<LPBYTE>(valor),
+                                 &tam) == ERROR_SUCCESS &&
+                (tipo == REG_SZ || tipo == REG_EXPAND_SZ)) {
+                salida.emplace_back(valor);
+            }
+            RegCloseKey(sub);
+        }
+        RegCloseKey(raiz);
+    }
+    return salida;
+}
+
+// Carpetas donde los JDK se instalan de verdad en Windows.
+std::vector<fs::path> raicesComunesWindows() {
+    std::vector<fs::path> salida;
+    std::error_code ec;
+    const char* bases[] = {"C:\\Program Files\\Java",
+                           "C:\\Program Files\\Eclipse Adoptium",
+                           "C:\\Program Files\\Microsoft",
+                           "C:\\Program Files\\Amazon Corretto",
+                           "C:\\Program Files\\Zulu",
+                           "C:\\Program Files (x86)\\Java"};
+    for (const char* base : bases) {
+        for (const fs::directory_entry& e : fs::directory_iterator(base, ec)) {
+            if (e.is_directory(ec)) salida.push_back(e.path());
+        }
+    }
+    if (const char* local = std::getenv("LOCALAPPDATA")) {
+        const fs::path base = fs::path(local) / "Programs" / "Eclipse Adoptium";
+        for (const fs::directory_entry& e : fs::directory_iterator(base, ec)) {
+            if (e.is_directory(ec)) salida.push_back(e.path());
+        }
+    }
+    return salida;
+}
+#else
+// Instalaciones tipicas de Linux. Se listan primero las conocidas y despues se
+// recorre /usr/lib/jvm, que es donde las distros las ponen.
+std::vector<fs::path> raicesComunesLinux() {
+    std::vector<fs::path> salida;
     for (const char* base : {"/usr/lib/jvm/default-java",
                              "/usr/lib/jvm/java-1.21.0-openjdk-amd64",
                              "/usr/lib/jvm/java-17-openjdk-amd64",
                              "/usr/lib/jvm/java-11-openjdk-amd64"}) {
-        fs::path p = fs::path(base) / "lib" / "server" / "libjvm.so";
-        if (fs::exists(p, ec)) return p.string();
+        salida.emplace_back(base);
     }
-    for (const fs::directory_entry& entrada :
-         fs::directory_iterator("/usr/lib/jvm", ec)) {
-        fs::path p = entrada.path() / "lib" / "server" / "libjvm.so";
-        if (fs::exists(p, ec)) return p.string();
+    std::error_code ec;
+    for (const fs::directory_entry& e : fs::directory_iterator("/usr/lib/jvm", ec)) {
+        if (e.is_directory(ec)) salida.push_back(e.path());
     }
+    return salida;
+}
 #endif
+
+// Raices candidatas de JDK, en orden de prioridad.
+std::vector<fs::path> raicesJdk() {
+    std::vector<fs::path> salida;
+    const auto agregar = [&salida](const fs::path& p) {
+        if (p.empty()) return;
+        for (const fs::path& existente : salida) {
+            if (existente == p) return;
+        }
+        salida.push_back(p);
+    };
+
+    agregar(raizJreEmbebido());
+    if (const char* home = std::getenv("JAVA_HOME")) agregar(home);
+    agregar(fs::path(FUNSHI_LIBJVM_DEFAULT));
+#if defined(_WIN32)
+    for (const fs::path& raiz : raicesRegistroWindows()) agregar(raiz);
+    for (const fs::path& raiz : raicesComunesWindows()) agregar(raiz);
+#else
+    for (const fs::path& raiz : raicesComunesLinux()) agregar(raiz);
+#endif
+    return salida;
+}
+
+// Recorrer el registro y las carpetas de Program Files en cada llamada es caro y
+// el conjunto no cambia mientras corre el motor (el JDK se instala antes de
+// lanzar el juego), asi que la lista se arma una sola vez.
+const std::vector<fs::path>& raicesJdkCache() {
+    static const std::vector<fs::path> cache = raicesJdk();
+    return cache;
+}
+
+std::string rutaLibjvm() {
+    const char* explicito = std::getenv("FUNSHI_LIBJVM");
+    if (explicito && *explicito) return explicito;
+
+    for (const fs::path& raiz : raicesJdkCache()) {
+        if (const fs::path p = libjvmEnRaiz(raiz); !p.empty()) return p.string();
+    }
     return "";
 }
 
@@ -276,6 +413,12 @@ JNIEnv* entorno() { return jvm().env; }
 std::string javacExe() {
     const char* env = std::getenv("JAVAC");
     if (env && *env) return env;
+    // Se busca en las mismas raices que rutaLibjvm() para que el .java se
+    // compile con el mismo JDK que despues lo ejecuta. Sin esto, el javac
+    // caeria en el path del build (la maquina de CI) y fallaria en destino.
+    for (const fs::path& raiz : raicesJdkCache()) {
+        if (const fs::path p = javacEnRaiz(raiz); !p.empty()) return p.string();
+    }
     return FUNSHI_JAVAC_DEFAULT;
 }
 
