@@ -68,6 +68,7 @@ FunshiEngineGL/                          ← raíz del repo
 │   ├── ScriptsRuntimeTests.cpp          ← BackendCpp end-to-end (compila y dlopen un .so)
 │   ├── ScriptsJavaTests.cpp             ← BackendJava end-to-end (solo con FUNSHI_JAVA)
 │   ├── AudioEngineTests.cpp             ← AudioEngine/AudioClipsManager con NullAudioBackend
+│   ├── SceneSerializationTests.cpp      ← round-trip de escena + nombres por defecto
 │   └── UserInterfaceTests.cpp           ← modelo del Creador de interfaces (round-trip JSON)
 └── FunshiEngineGL/                      ← proyecto CMake principal
     ├── CMakeLists.txt                   ← GLOB de fuentes, dependencias, sanitizers,
@@ -811,6 +812,11 @@ GameScene → coordina todos los subsistemas del frame
   `Model` (path con prefijo de longitud). Cubre la regresión del core al cargar
   escenas: verifica que un path más largo que el buffer de lectura no desalinee
   el stream, además de round-trip corto/largo/vacío y archivos truncados.
+- `tests/SceneSerializationTests.cpp`: round-trip completo de escena (guardar →
+  recargar → conservar nombre, id y jerarquía) y el nombre por defecto de los
+  objetos nuevos (`GameObjectFactory` + `NombreUnico.h`, que no puede repetirse
+  en el árbol). Es la suite que faltaba: hasta ahora solo existía
+  `ModelSerializationTests`, que cubre el componente `Model` aislado.
 - `tests/TemaEditorTests.cpp`: aplicación del perfil `Apariencia` al estilo de ImGui
   (`TemaEditor::aplicarEstilo`, solo contexto de ImGui, sin pila gráfica). Cubre la
   regresión "el color de acento no llega a toda la interfaz": con un acento no azul
@@ -826,7 +832,7 @@ GameScene → coordina todos los subsistemas del frame
   `AgregarComponenteComando`, `QuitarComponenteComando`, `LimpiarEscenaComando`)
   con deshacer/rehacer, la cadena de redo múltiple, el límite del historial y la
   descripción que el historial devuelve para avisar en la barra de estado.
-- Los dieciocho targets compilan en cualquier plataforma y se ejecutan con `ctest`.
+- Los diecinueve targets compilan en cualquier plataforma y se ejecutan con `ctest`.
 - `.github/workflows/ci.yml` compila el engine completo en Ubuntu (Release, sin
   ASan) y ejecuta las pruebas; además ejecuta las headless en
   Linux/Windows con `BUILD_ENGINE=OFF` y el backend Java en Ubuntu con JDK.

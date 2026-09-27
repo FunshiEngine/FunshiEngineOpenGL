@@ -36,7 +36,7 @@ jobs:
         run: cmake --build build --target FunshiEngineGL
 
       - name: Compilar pruebas
-        run: cmake --build build --config Release --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests
+        run: cmake --build build --config Release --target filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests
 
       - name: Ejecutar pruebas
         run: ctest --test-dir build -C Release --output-on-failure
@@ -46,7 +46,8 @@ jobs:
   # macOS queda fuera por ahora: no se quiere mantener esa plataforma en el
   # build hasta que el sistema multiplataforma este mas maduro.
   # NOTA: comandos-tests, manifiesto-assets-tests, orquestador-estado-tests,
-  # tema-tests requieren funshi_engine (BUILD_ENGINE=ON), NO se incluyen aqui.
+  # tema-tests, escena-serializacion-tests requieren funshi_engine
+  # (BUILD_ENGINE=ON), NO se incluyen aqui.
   tests-multiplataforma:
     name: Pruebas headless (${{ matrix.os }})
     strategy:

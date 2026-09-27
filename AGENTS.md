@@ -10,7 +10,7 @@ Guía rápida para agentes (y humanos) que trabajen en este repositorio.
 cmake -S FunshiEngineGL -B FunshiEngineGL/build
 cmake --build FunshiEngineGL/build -j$(nproc)
 
-# Ejecutar la suite de tests (18 targets headless + scripts-java si hay JDK)
+# Ejecutar la suite de tests (19 targets headless + scripts-java si hay JDK)
 cd FunshiEngineGL/build && ctest --output-on-failure
 ```
 

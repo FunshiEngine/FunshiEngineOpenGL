@@ -23,10 +23,21 @@
 
 class GameObject;
 
+// Factoria de objetos de escena.
+//
+// Ademas de instanciar, pone el NOMBRE POR DEFECTO del objeto: `inputName` nace
+// vacio y, si nadie lo llena, el arbol de escena muestra el nombre de la clase
+// (fallback de SceneObjectTree) y el vacio se guarda y se recarga. Ver
+// NombreUnico.h para el criterio de sufijo numerico.
+//
+// H-7: el camino de "agregar modelo 3D desde el explorador" no existe hoy, asi
+// que createModelObject() (sin ningun llamador) se retiro en vez de dejarlo
+// sin usar. Cuando ese camino aparezca, se agrega de vuelta aqui.
 class GameObjectFactory {
 public:
-    static std::unique_ptr<GameObject> createModelObject();
-    static std::unique_ptr<GameObject> createSimpleObject();
+    // `raiz` es el arbol contra el que se evitan repetir nombres; puede ser
+    // nulo (el objeto nace con un nombre libre igual).
+    static std::unique_ptr<GameObject> createSimpleObject(const GameObject* raiz = nullptr);
 };
 
 #endif

@@ -277,6 +277,32 @@ if(WIN32)
     target_compile_definitions(comandos-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
+# --- Pruebas headless de serializacion de escena (round-trip y nombres, H-6) --
+# Cubre lo que model-serialization-tests no alcanza: guardar -> recargar ->
+# conservar nombre, id y jerarquia, y que los objetos nuevos nazcan con nombre.
+# Necesita funshi_engine (SceneRegistry/SceneSerializer/EditorController), asi
+# que al igual que comandos-tests solo se compila con BUILD_ENGINE=ON.
+add_executable(escena-serializacion-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/SceneSerializationTests.cpp
+)
+target_include_directories(escena-serializacion-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+    ${CMAKE_SOURCE_DIR}/External/imgui
+)
+target_link_libraries(escena-serializacion-tests PRIVATE funshi_engine)
+set_target_properties(escena-serializacion-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME escena-serializacion-tests COMMAND escena-serializacion-tests)
+
+if(WIN32)
+    target_link_libraries(escena-serializacion-tests PRIVATE dbghelp)
+    target_compile_definitions(escena-serializacion-tests PRIVATE _HAS_STD_BYTE=0)
+endif()
+
 # Nucleo del manifiesto de assets de la escena (SceneAssets.json): headless,
 # sin GameObjects (como MenuModel). Cubre JSON round-trip, tolerancia a
 # archivos corruptos/inexistentes, relativizacion/absolutizacion contra la
