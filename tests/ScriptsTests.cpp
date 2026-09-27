@@ -21,6 +21,9 @@
 // instancia (incl. grupos anidados, vectores de grupos, vectores de primitivas)
 // y round-trip de la serializacion binaria (con reordenamiento/campos nuevos).
 // Sin pila grafica: se ejercita el arbol ValorCampo/DefCampo directamente.
+// Incluye ademas los CONTRATOS headless de BackendCpp: los flags con que se
+// compila el script C++ (CRT, familia de compilador, citado de rutas) y el
+// comando de sondeo de toolchain (dispositivo nulo de la plataforma).
 
 #include <algorithm>
 #include <cmath>
@@ -33,6 +36,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Behaviour/Backends/ComandoCompilacionCpp.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/IScriptBehaviour.h"
 
 using namespace ReflejoScripts;
@@ -595,6 +599,58 @@ static void testContratoCompilacion() {
     // Comparacion por tokens: "/MD" no puede dar positivo sobre "/MDd".
     CHECK(!CompilacionCpp::tieneFlag("/MDd /EHsc", "/MD"),
           "el chequeo de flags compara tokens completos");
+
+    // vcvars64Ruta: el recorte por parent_path() tenia que terminar. En
+    // MinGW/libstdc++ `path("C:\\\\").parent_path()` devuelve `C:\\\\` (nunca
+    // vacio), asi que el bucle giraba para siempre y BackendCpp se colgaba al
+    // compilar un script en Windows+MinGW. Si estas llamadas no vuelven, el
+    // test se cuelga y ctest lo marque como timeout: esa es la senal.
+    CHECK(CompilacionCpp::vcvars64Ruta("C:/msys64/mingw64/bin/c++.exe").empty(),
+          "vcvars: un compilador GCC no busca vcvars64.bat (guarda de familia)");
+    CHECK(CompilacionCpp::vcvars64Ruta("/ruta/de/prueba/cl.exe").empty(),
+          "vcvars: una ruta MSVC inexistente recorta hasta la raiz y termina "
+          "(sin guarda el bucle era infinito)");
+    CHECK(CompilacionCpp::vcvars64Ruta("g++").empty(),
+          "vcvars: un compilador bare de familia GCC ni recorre el filesystem");
+}
+
+// --- Contrato del sondeo de toolchain (H-14) ---------------------------------
+// El sondeo de disponibilidad de javac/compilador pasaba por `> /dev/null`,
+// un redirect de POSIX: cmd.exe lo toma como ruta inexistente y el chequeo
+// falla aunque la herramienta este instalada (scripts-java-tests se saltaba en
+// Windows con el JDK presente). Este test verifica el CONTRATO del comando de
+// sondeo para la plataforma en que corre.
+static void testSondeoToolchain() {
+    const std::string sondeo =
+        SondeoToolchain::comandoVersion("javac", "-version");
+
+    CHECK(sondeo.find("\"javac\" -version") != std::string::npos,
+          "el sondeo invoca a la herramienta con su flag de version, citada");
+    CHECK(sondeo.find("2>&1") != std::string::npos,
+          "el sondeo redirige stderr a stdout (javac -version escribe en "
+          "stderr)");
+
+#if defined(_WIN32)
+    CHECK(sondeo.find("/dev/null") == std::string::npos,
+          "H-14: en Windows el sondeo no usa el redirect POSIX /dev/null, que "
+          "cmd.exe no entiende");
+    CHECK(sondeo.find("> NUL") != std::string::npos,
+          "H-14: en Windows el sondeo redirige al dispositivo NUL de cmd.exe");
+    // std::system arma `cmd.exe /c <comando>` y con comilla inicial cmd se
+    // come la primera y la ultima: el cuerpo va envuelto en un par extra.
+    CHECK(!sondeo.empty() && sondeo.front() == '"' &&
+              sondeo.back() == '"' && sondeo.size() > 2 &&
+              sondeo[1] == '"',
+          "H-14: el comando Windows lleva el envoltorio de comillas extra que "
+          "cmd.exe necesita para no comerse el cuerpo");
+#else
+    CHECK(sondeo.find("> /dev/null") != std::string::npos,
+          "H-14: en POSIX el sondeo redirige a /dev/null");
+    CHECK(sondeo.find("NUL") == std::string::npos,
+          "H-14: en POSIX no aparece el dispositivo NUL de Windows");
+    CHECK(sondeo.front() != '"' || sondeo[1] != '"',
+          "H-14: fuera de Windows no se agrega el envoltorio de cmd.exe");
+#endif
 }
 
 int main() {
@@ -605,6 +661,7 @@ int main() {
     testSerializacionBinaria();
     testAlinearValores();
     testContratoCompilacion();
+    testSondeoToolchain();
 
     std::cout << "ScriptsTests: " << total << " verificaciones, " << fallos
               << " fallos" << std::endl;

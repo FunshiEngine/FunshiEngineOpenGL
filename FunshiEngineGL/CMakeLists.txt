@@ -557,7 +557,9 @@ add_test(NAME scripts-tests COMMAND scripts-tests)
 # Runtime de scripts: valida de punta a punta el BackendCpp (compila el fuente
 # de un script a .so, lo carga con dlopen y ejecuta el ciclo). Requiere un
 # compilador C++ en PATH; si no hay, el test sale con SKIP (77).
-# En Windows el test queda ignorado: cl necesita el entorno de Visual Studio.
+# El skip es por FAMILIA de toolchain, no por SO: con MSVC hace falta el
+# entorno de Visual Studio (vcvars), pero con GCC/MinGW el test corre en
+# Windows igual que en Linux (H-14).
 add_executable(scripts-runtime-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
     ${SRC_DIR}/Behaviour/Backends/BackendCpp.cpp

@@ -36,6 +36,7 @@
 // del otro lado corrompe el heap.
 
 #include <cctype>
+#include <filesystem>
 #include <string>
 
 namespace CompilacionCpp {
@@ -205,6 +206,36 @@ inline std::string comandoCompilacion(const DatosComando& datos) {
     }
     cmd += " > " + citar(datos.log) + " 2>&1";
     return cmd;
+}
+
+// Ruta a vcvars64.bat subiendo desde la carpeta del compilador: el toolset
+// MSVC la tiene en <VS>/VC/Auxiliary/Build, arriba de VC/Tools/MSVC/<ver>.
+// Devuelve vacia si no es un compilador MSVC (MinGW, FUNSHI_CXX manual, etc.).
+//
+// Vive en el header para que el test de contrato pueda assertar que TERMINA
+// (bug real: en MinGW/libstdc++ `path("C:\\").parent_path()` devuelve
+// `C:\\` y nunca vacio, asi que el bucle sobre parent_path() giraba para
+// siempre y BackendCpp se colgaba al compilar un script en Windows+MinGW;
+// jamas aparecio porque scripts-runtime-tests se saltaba en Windows por
+// plataforma). Dos guardas contra eso:
+//   1. Si la familia no es MSVC, ni siquiera se recorre: MinGW no usa vcvars.
+//   2. El recorte se detiene cuando parent_path() deja de avanzar (raiz).
+inline std::string vcvars64Ruta(const std::string& compiladorRuta) {
+    if (familiaDe(compiladorRuta) != Familia::Msvc) return std::string();
+    std::error_code ec;
+    std::filesystem::path p =
+        std::filesystem::weakly_canonical(detalle::sinComillas(compiladorRuta),
+                                          ec);
+    if (ec) p = std::filesystem::path(detalle::sinComillas(compiladorRuta));
+    for (std::filesystem::path dir = p.parent_path(); !dir.empty();) {
+        std::filesystem::path cand =
+            dir / "Auxiliary" / "Build" / "vcvars64.bat";
+        if (std::filesystem::exists(cand, ec)) return cand.string();
+        const std::filesystem::path arriba = dir.parent_path();
+        if (arriba == dir) break; // llego a la raiz: no avanza mas
+        dir = arriba;
+    }
+    return std::string();
 }
 
 // Verdadero si `flags` contiene el flag exacto, comparando por tokens: "/MD" no

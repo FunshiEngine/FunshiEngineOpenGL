@@ -25,6 +25,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -33,14 +34,17 @@
 #include <vector>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/ComandoCompilacionCpp.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/Reflection/BehaviourReflection.h"
 #include "../FunshiEngineGL/src/Behaviour/ScriptRuntime.h"
 
 // Stub de MotorScript::tablaApi(): en el motor real lo implementa
 // ScriptGameObject.cpp (necesita GameObject completo); el test solo verifica
-// que el backend entrega una tabla no nula a la fabrica. Vive FUERA del guard
-// _WIN32 para que BackendCpp.cpp (que lo referencia) enlace tambien en
-// Windows: alli el main solo devuelve 77 (SKIP) pero el simbolo debe existir.
+// que el backend entrega una tabla no nula a la fabrica. Vive fuera de
+// cualquier guard de plataforma: BackendCpp.cpp (que lo referencia) se
+// compila en todas, y el main tampoco se salta por SO sino por familia de
+// toolchain (ver abajo).
 namespace MotorScript {
 const ApiScriptGameObject* tablaApi() {
     static const ApiScriptGameObject tabla = {
@@ -60,15 +64,6 @@ const ApiScriptGameObject* tablaApi() {
     return &tabla;
 }
 } // namespace MotorScript
-
-#ifdef _WIN32
-int main() {
-    std::cout << "scripts-runtime-tests: SKIP en Windows (requiere cl.exe con "
-                 "entorno de Visual Studio)."
-              << std::endl;
-    return 77;
-}
-#else
 
 using namespace ReflejoScripts;
 
@@ -127,10 +122,12 @@ static std::string fuenteScript(const std::string& clase) {
 
 static bool hayCompilador() {
     const char* cxx = std::getenv("FUNSHI_CXX");
-    const std::string cmd =
-        std::string(cxx && *cxx ? cxx : FUNSHI_CXX_COMPILER) +
-        " --version > /dev/null 2>&1";
-    return std::system(cmd.c_str()) == 0;
+    const std::string ruta = cxx && *cxx ? cxx : FUNSHI_CXX_COMPILER;
+    // Sondeo con el dispositivo nulo de la plataforma (H-14): `> /dev/null`
+    // cmd.exe no lo entiende y el chequeo fallaria en Windows aunque el
+    // compilador exista.
+    return std::system(
+               SondeoToolchain::comandoVersion(ruta, "--version").c_str()) == 0;
 }
 
 static void escribirFuente(const std::string& ruta,
@@ -147,6 +144,17 @@ static void tocarFuente(const std::string& ruta) {
 }
 
 int main() {
+    // El skip es por FAMILIA de toolchain, no por SO (H-14): con MSVC el
+    // compilador necesita el entorno de Visual Studio (vcvars: INCLUDE, LIB,
+    // link.exe), asi que desde un shell normal no hay forma de correrlo. Con
+    // GCC/Clang el test corre en cualquier plataforma, Windows incluido
+    // (MinGW): la familia decide los flags, no el sistema operativo.
+    if (CompilacionCpp::familiaCompilador() == CompilacionCpp::Familia::Msvc) {
+        std::cout << "scripts-runtime-tests: SKIP (toolchain MSVC: requiere "
+                     "el entorno de Visual Studio)."
+                  << std::endl;
+        return 77;
+    }
     if (!hayCompilador()) {
         std::cout << "scripts-runtime-tests: SKIP (no hay compilador C++)."
                   << std::endl;
@@ -279,4 +287,3 @@ int main() {
               << " fallos" << std::endl;
     return fallos == 0 ? 0 : 1;
 }
-#endif

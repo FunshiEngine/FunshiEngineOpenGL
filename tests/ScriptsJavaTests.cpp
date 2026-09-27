@@ -30,6 +30,8 @@
 #include <chrono>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/BackendJava.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/Reflection/BehaviourReflection.h"
 #include "../FunshiEngineGL/src/Behaviour/ScriptRuntime.h"
 
@@ -86,9 +88,27 @@ static const ValorCampo* buscar(const std::vector<ValorCampo>& v,
     return nullptr;
 }
 
+// Sondeo del toolchain Java con la MISMA resolucion que usa el backend
+// (BackendJava::javacRuta: JAVAC > raices del JDK como JAVA_HOME > default
+// horneado por CMake), y con el dispositivo nulo de la plataforma
+// (SondeoToolchain) en vez del redirect POSIX `> /dev/null`, que cmd.exe no
+// entiende y que hacia fallar el chequeo aunque hubiera JDK (H-14).
+// Si la resolucion da una ruta (lo normal), ni siquiera se usa shell: basta
+// comprobar que el archivo exista.
+static bool hayJavac() {
+    const std::string ruta = BackendJava::javacRuta();
+    // Si la resolucion da una ruta con espacios (un JDK en "Program Files/
+    // Eclipse Adoptium/...") la cita el propio comandoVersion. El sondeo
+    // siempre pasa por el shell de la plataforma: es lo que verifica que el
+    // compilador realmente corre.
+    return std::system(
+               SondeoToolchain::comandoVersion(ruta, "-version").c_str()) == 0;
+}
+
 int main() {
-    if (std::system("javac -version > /dev/null 2>&1") != 0) {
-        std::cout << "scripts-java-tests: SKIP (no hay javac en PATH)."
+    if (!hayJavac()) {
+        std::cout << "scripts-java-tests: SKIP (no hay javac; resuelto por "
+                     "JAVAC/JAVA_HOME/PATH y no encontrado)."
                   << std::endl;
         return 77;
     }

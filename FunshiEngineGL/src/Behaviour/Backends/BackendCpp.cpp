@@ -64,23 +64,6 @@
 #define FUNSHI_SRC_DIR ""
 #endif
 
-#if defined(_WIN32)
-// Ruta a vcvars64.bat subiendo desde la carpeta del compilador: el toolset
-// MSVC la tiene en <VS>/VC/Auxiliary/Build, arriba de VC/Tools/MSVC/<ver>.
-// Devuelve vacia si no es un compilador MSVC (MinGW, FUNSHI_CXX manual, etc.).
-std::string vcvars64Ruta(const std::string& compilador) {
-    std::error_code ec;
-    std::filesystem::path p = std::filesystem::weakly_canonical(compilador, ec);
-    if (ec) p = std::filesystem::path(compilador);
-    for (std::filesystem::path dir = p.parent_path(); !dir.empty();
-         dir = dir.parent_path()) {
-        std::filesystem::path cand = dir / "Auxiliary" / "Build" / "vcvars64.bat";
-        if (std::filesystem::exists(cand, ec)) return cand.string();
-    }
-    return std::string();
-}
-#endif
-
 namespace {
 const char* nombreFabrica() { return FUNSHI_SYM_CREAR; }
 
@@ -206,7 +189,7 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
         //    strip, y el && encadena cl con el entorno ya armado).
         // 2) Sin vcvars (compilador no MSVC), se envuelve el comando entero en
         //    una comilla extra: cmd se come esas dos y el cuerpo queda intacto.
-        const std::string vcvars = vcvars64Ruta(compilador());
+        const std::string vcvars = CompilacionCpp::vcvars64Ruta(compilador());
         if (!vcvars.empty())
             cmd = "call \"" + vcvars + "\" >nul 2>&1 && " + cmd;
         else

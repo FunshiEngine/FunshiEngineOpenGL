@@ -42,10 +42,12 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   limpia sola al salir (RAII), y cierre con
   `std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << ... << " comprobaciones"`,
   saliendo con 0 o 1.
-- **Código de salida 77 = *skipped*, no fallo**. En Windows es lo esperado para
-  `scripts-runtime-tests` (necesita `cl.exe` con el entorno de Visual Studio) y
-  `scripts-java-tests` (si no hay JDK en el PATH). `ctest` los reporta como
-  *skipped* aparte; no son tests rotos.
+- **Código de salida 77 = *skipped*, no fallo**. Lo esperado: para
+  `scripts-runtime-tests` cuando el toolchain es MSVC (necesita `cl.exe` con el
+  entorno de Visual Studio; con GCC/MinGW corre en cualquier SO) y para
+  `scripts-java-tests` si no hay JDK resoluble (`JAVAC`/`JAVA_HOME`/PATH).
+  `ctest` los reporta como *skipped* aparte; no son tests rotos. El skip es por
+  **familia de toolchain**, nunca por sistema operativo (H-14).
 
 ## Depuración por orden de dependencia
 
