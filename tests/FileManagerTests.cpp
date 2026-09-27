@@ -169,6 +169,20 @@ int main() {
     CHECK(fs::is_directory(unir(copiaCarpeta, "nucleo")),
           "copiarCarpeta es recursiva (nucleo existe dentro)");
 
+    // Eliminar archivo.
+    const std::string rutaBorrable = unir(proy, "Assets/borrable.txt");
+    CHECK(fm.crearArchivo(rutaBorrable, "bye"), "archivo fuente para eliminar");
+    CHECK(fm.eliminarArchivo(rutaBorrable), "eliminarArchivo borra en disco");
+    CHECK(!fs::exists(rutaBorrable), "el archivo eliminado ya no existe");
+    CHECK(!fm.eliminarArchivo(rutaBorrable),
+          "eliminarArchivo devuelve false si la ruta no existe");
+    CHECK(!fm.eliminarArchivo(""),
+          "eliminarArchivo devuelve false con ruta vacia");
+    CHECK(fm.eliminarArchivo(unir(copiaCarpeta, "nucleo/datos.txt")),
+          "eliminarArchivo borra un archivo dentro de una rama");
+    CHECK(!fs::exists(unir(copiaCarpeta, "nucleo/datos.txt")),
+          "el archivo dentro de la rama ya no existe");
+
     // Eliminar carpeta.
     CHECK(fm.eliminarCarpeta(rutaRenombrada), "eliminarCarpeta borra en disco");
     CHECK(!fs::exists(rutaRenombrada), "la carpeta eliminada ya no existe");

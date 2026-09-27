@@ -80,6 +80,7 @@ public:
 
     bool crearCarpeta(const std::string& ruta);
     bool eliminarCarpeta(const std::string& ruta);
+    bool eliminarArchivo(const std::string& ruta);
     bool crearArchivo(const std::string& ruta, const std::string& contenido);
     bool copiarCarpeta(const std::string& origen, const std::string& destino);
     bool copiarArchivo(const std::string& origen, const std::string& destino);

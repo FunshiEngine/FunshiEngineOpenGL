@@ -112,6 +112,14 @@ proyecto** (`src<nombre>`).
 > la de scripts. Si un dropdown o drag & drop aparece vacio, verifica que raiz
 > lista tu arbol.
 
+**Operaciones sobre los archivos.** En el **grid** de la carpeta seleccionada
+(clic derecho sobre un elemento) el menu contextual ofrece "Renombrar",
+"Eliminar Archivo" o "Eliminar Carpeta" (segun corresponda); en el **arbol**, el
+mismo menu aparece sobre la carpeta. Eliminar pide confirmacion en un dialogo y
+**no se puede deshacer**: al borrar una carpeta desaparece tambien todo su
+contenido, y el arbol y el grid se refrescan en el acto. El **undo/redo**
+(`Ctrl+Z` / `Ctrl+Y`) no cubre el borrado de archivos.
+
 **Rutas de la escena.** Las mallas, texturas y fuentes de script que usa la
 escena se persisten **relativas** a la carpeta `src<proyecto>/`. Por eso, al
 renombrar un proyecto (menu de inicio) o mover su carpeta completa, las

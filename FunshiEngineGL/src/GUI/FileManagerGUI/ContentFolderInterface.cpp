@@ -170,7 +170,7 @@ void ContentFolderInterface::recorrer(const std::string& path) {
             ImGui::Button(icon, ImVec2(iconSize, iconSize));
         }
 
-        // R6: menu contextual de la celda -> Renombrar (archivo o carpeta).
+        // R6/R7: menu contextual de la celda -> Renombrar / Eliminar (archivo o carpeta).
         if (ImGui::BeginPopupContextItem("PopRenombrar")) {
             if (ImGui::MenuItem("Renombrar")) {
                 renombrarRuta = fullPath;
@@ -179,6 +179,20 @@ void ContentFolderInterface::recorrer(const std::string& path) {
                 strncpy(bufferRenombrar, nombre.c_str(), sizeof(bufferRenombrar) - 1);
                 abrirPopupRenombrar = true;
                 ImGui::CloseCurrentPopup();
+            }
+            ImGui::Separator();
+            if (esCarpeta) {
+                if (ImGui::MenuItem("Eliminar Carpeta")) {
+                    carpetaAEliminarGrid = fullPath;
+                    confirmarEliminarCarpetaGrid = true;
+                    ImGui::CloseCurrentPopup();
+                }
+            } else {
+                if (ImGui::MenuItem("Eliminar Archivo")) {
+                    archivoAEliminar = fullPath;
+                    confirmarEliminarArchivo = true;
+                    ImGui::CloseCurrentPopup();
+                }
             }
             ImGui::EndPopup();
         }
@@ -375,6 +389,48 @@ void ContentFolderInterface::initGUI() {
         }
         ImGui::EndPopup();
     }
+
+    // Modal de confirmacion para eliminar archivo (R7)
+    if (confirmarEliminarArchivo && !archivoAEliminar.empty()) {
+        ImGui::OpenPopup("ConfirmarEliminarArchivo");
+        confirmarEliminarArchivo = false;
+    }
+    if (ImGui::BeginPopupModal("ConfirmarEliminarArchivo", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Eliminar archivo \"%s\"?", archivoAEliminar.c_str());
+        ImGui::Text("Esta accion no se puede deshacer.");
+        if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
+            archivoAEliminarConfirmado = archivoAEliminar;
+            archivoAEliminar.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            archivoAEliminar.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    // Modal de confirmacion para eliminar carpeta desde el grid (R7)
+    if (confirmarEliminarCarpetaGrid && !carpetaAEliminarGrid.empty()) {
+        ImGui::OpenPopup("ConfirmarEliminarCarpetaGrid");
+        confirmarEliminarCarpetaGrid = false;
+    }
+    if (ImGui::BeginPopupModal("ConfirmarEliminarCarpetaGrid", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Eliminar carpeta \"%s\" y todo su contenido?", carpetaAEliminarGrid.c_str());
+        ImGui::Text("Esta accion no se puede deshacer.");
+        if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
+            carpetaAEliminarGridConfirmada = carpetaAEliminarGrid;
+            carpetaAEliminarGrid.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            carpetaAEliminarGrid.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 }
 
 void ContentFolderInterface::contentGUI() {
@@ -383,6 +439,27 @@ void ContentFolderInterface::contentGUI() {
     const std::string destFolder =
         sel->carpetaActual->getPathRoot() + PATH_SEP +
         sel->carpetaActual->getPathName();
+
+    // Eliminacion diferida (R7): ejecutada ANTES de recorrer() para que el cache
+    // del grid se invalide y no muestre el elemento "fantasma" en este frame.
+    if (!archivoAEliminarConfirmado.empty()) {
+        fileManager->eliminarArchivo(archivoAEliminarConfirmado);
+        // Forzar invalidacion del cache: el mtime del directorio puede no
+        // actualizarse inmediatamente en algunos FS; limpiamos el cache manualmente.
+        cacheCarpeta.clear();
+        cacheMtime = std::filesystem::file_time_type{};
+        archivoAEliminarConfirmado.clear();
+        // No sube contadorCambios: archivos no estan en el arbol de carpetas.
+    }
+    if (!carpetaAEliminarGridConfirmada.empty()) {
+        if (fileManager->eliminarCarpeta(carpetaAEliminarGridConfirmada)) {
+            sel->contadorCambios++;
+        }
+        // Forzar invalidacion del cache del grid tambien para carpetas.
+        cacheCarpeta.clear();
+        cacheMtime = std::filesystem::file_time_type{};
+        carpetaAEliminarGridConfirmada.clear();
+    }
 
     recorrer(destFolder);
 

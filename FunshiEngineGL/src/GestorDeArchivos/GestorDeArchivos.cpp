@@ -158,6 +158,14 @@ bool GestorDeArchivos::eliminarCarpeta(const std::string& path) {
     return !ec && removidos > 0;
 }
 
+bool GestorDeArchivos::eliminarArchivo(const std::string& path) {
+    if (path.empty()) return false;
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(path, ec)) return false;
+    std::filesystem::remove(path, ec);
+    return !ec;
+}
+
 bool GestorDeArchivos::crearCarpeta(const std::string& path) {
     if (path.empty()) return false;
     std::error_code ec;

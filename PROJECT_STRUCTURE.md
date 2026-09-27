@@ -564,7 +564,7 @@ Además del ejecutable, el proyecto define **doce targets de prueba headless**
 registrados en CTest (compilan en cualquier plataforma con `BUILD_ENGINE=OFF`;
 `scripts-java-tests` solo se registra con `-DFUNSHI_JAVA=ON`):
 
-- `filemanager-tests` (27): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
+- `filemanager-tests` (34): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica.
 - `configuracion-tests` (99): round-trip del JSON de `EditorConfig` (general y
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
@@ -736,8 +736,8 @@ GameScene → coordina todos los subsistemas del frame
 ## 11. Pruebas y CI
 
 - `tests/FileManagerTests.cpp`: construcción y re-resolución del árbol de archivos,
-  operaciones de dominio (crear, renombrar, copiar, eliminar, búsqueda) y
-  `FileSystemWatcher` (detección de cambios externos, en Linux via inotify).
+  operaciones de dominio (crear, renombrar, copiar, eliminar archivo y carpeta,
+  búsqueda) y `FileSystemWatcher` (detección de cambios externos, en Linux via inotify).
 - `tests/EditorConfigTests.cpp`: round-trip del JSON (general, por proyecto y
   legacy `menu/*`), tolerancia a archivos ausentes/corruptos/parciales,
   escritura atómica (sin temporales colgados) y guardado diferido

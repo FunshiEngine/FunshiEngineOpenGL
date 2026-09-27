@@ -132,6 +132,10 @@ bool FileManager::eliminarCarpeta(const std::string& ruta) {
     return gestor->eliminarCarpeta(ruta);
 }
 
+bool FileManager::eliminarArchivo(const std::string& ruta) {
+    return gestor->eliminarArchivo(ruta);
+}
+
 bool FileManager::crearArchivo(const std::string& ruta, const std::string& contenido) {
     return gestor->crearArchivo(ruta, contenido);
 }

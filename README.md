@@ -120,7 +120,7 @@ cmake --build build --target filemanager-tests configuracion-tests eventbus-test
 ctest --test-dir build --output-on-failure
 ```
 
-- `filemanager-tests` (27 verificaciones): explorador de archivos (`GestorDeArchivos`/`FileManager`/`FileSystemWatcher`).
+- `filemanager-tests` (34 verificaciones): explorador de archivos (`GestorDeArchivos`/`FileManager`/`FileSystemWatcher`).
 - `configuracion-tests` (99): `EditorConfig` sobre `ConfigPersistence`/`ProjectPaths` (round-trip general y por proyecto, prioridad de las claves modernas sobre el `menu/*` legacy, tolerancia a archivos ausentes/corruptos/parciales, `restablecer`, escritura atómica sin temporales colgados y guardado diferido con `volcarGuardadoGeneral`).
 - `eventbus-tests` (16): canal tipado de GUI interna (`EditorEventBus`).
 - `menu-tests` (30): `MenuModel` (traducción en vivo, observer de cambios y reset).

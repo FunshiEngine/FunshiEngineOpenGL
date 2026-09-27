@@ -59,6 +59,7 @@ public:
     bool setTreeFilePath(const std::string& path, std::string name);
     const std::string& getRootName() const noexcept { return rootName; }
     bool eliminarCarpeta(const std::string& path);
+    bool eliminarArchivo(const std::string& path);
     bool crearCarpeta(const std::string& path);
     bool crearArchivo(const std::string& path, const std::string& contenido);
     bool copiarCarpeta(const std::string& origen, const std::string& destino);
