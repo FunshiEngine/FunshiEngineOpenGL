@@ -566,6 +566,24 @@ static void testContratoCompilacion() {
               "compartida");
     }
 
+    // H-3: los backslashes NO se duplican (cmd.exe no procesa escapes con
+    // backslash); solo se duplica el tramo final, que es el que el parser del
+    // compilador leeria como \" si quedara pegado a la comilla de cierre.
+    CHECK(CompilacionCpp::citar("C:\\Users\\gianf\\x.cpp") ==
+              "\"C:\\Users\\gianf\\x.cpp\"",
+          "H-3: una ruta con backslashes internos se cita sin duplicarlos");
+    CHECK(CompilacionCpp::citar("C:\\a\\b\\") == "\"C:\\a\\b\\\\\"",
+          "H-3: el tramo final de backslashes si se duplica");
+    CHECK(CompilacionCpp::citar("\\\\server\\share\\x.cpp") ==
+              "\"\\\\server\\share\\x.cpp\"",
+          "H-3: una ruta UNC conserva sus backslashes iniciales");
+    CHECK(CompilacionCpp::citar("C:\\Proyectos\\Nuevo Proyecto\\") ==
+              "\"C:\\Proyectos\\Nuevo Proyecto\\\\\"",
+          "H-3: ruta con espacios y barra final: se citan los espacios, no los "
+          "backslashes internos");
+    CHECK(cmdMsvc.find(" /Fo\"C:/Temp/funshi_scripts\\\\\"") != std::string::npos,
+          "el /Fo conserva la barra final que cl.exe pide para el directorio");
+
     // Comparacion por tokens: "/MD" no puede dar positivo sobre "/MDd".
     CHECK(!CompilacionCpp::tieneFlag("/MDd /EHsc", "/MD"),
           "el chequeo de flags compara tokens completos");

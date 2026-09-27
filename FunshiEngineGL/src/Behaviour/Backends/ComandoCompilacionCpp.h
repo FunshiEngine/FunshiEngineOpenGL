@@ -131,19 +131,36 @@ inline std::string flagsCompilador(const std::string& nombreClase) {
     return flagsFamilia(familiaCompilador(), nombreClase);
 }
 
-// Cita un argumento entre comillas y deja el interior tal como lo espera el
-// parser de la linea de comandos del proceso hijo.
+// Cita un argumento para la linea de comandos que BackendCpp ejecuta con
+// std::system (en Windows, `cmd.exe /c ...`) y que el compilador hijo vuelve a
+// parsear con las reglas de C. Son dos niveles distintos:
+//
+//  - cmd.exe NO procesa escapes con backslash: los backslashes de una ruta
+//    llegan tal cual, asi que duplicarlos no hace falta. Duplicarlos "por las
+//    dudas" es justo lo que volvia fragil una ruta con `\\` significativos
+//    (UNC) y lo que hacia ilegible el comando.
+//  - El parser del hijo (reglas de C) SI trata los backslashes que van delante
+//    de una comilla: una ruta que termina en `\` (el directorio que recibe
+//    `/Fo`, por ejemplo) dejaria `\"` y se comeria la comilla de cierre. Por
+//    eso solo se duplica el tramo FINAL de backslashes, el unico que puede
+//    quedar pegado a la comilla.
+//
+// Las rutas de Windows no pueden llevar comillas; si llegara una (un archivo de
+// proyecto tocado a mano) se escapa con `\"`, que es como la lee el parser del
+// hijo.
 inline std::string citar(const std::string& ruta) {
+    std::string::size_type fin = ruta.size();
+    while (fin > 0 && ruta[fin - 1] == '\\') --fin;
+
     std::string resultado = "\"";
-    for (char c : ruta) {
-        if (c == '"') {
+    for (std::string::size_type i = 0; i < fin; ++i) {
+        if (ruta[i] == '"')
             resultado += "\\\"";
-        } else if (c == '\\') {
-            resultado += "\\\\";
-        } else {
-            resultado += c;
-        }
+        else
+            resultado += ruta[i];
     }
+    for (std::string::size_type i = fin; i < ruta.size(); ++i)
+        resultado += "\\\\";
     resultado += "\"";
     return resultado;
 }
@@ -172,10 +189,9 @@ inline std::string comandoCompilacion(const DatosComando& datos) {
     cmd += " " + citar(datos.fuente);
     if (familia == Familia::Msvc) {
         if (!datos.dirObjetos.empty())
-            // El backslash final va doblado A PROPOSITO: con /Fo"dir\" el parser
-            // lee \" como comilla escapada, se traga el argumento siguiente y
-            // falla con C1083 sobre el archivo generado.
-            cmd += " /Fo\"" + datos.dirObjetos + "\\\\\"";
+            // /Fo necesita la barra final para que cl.exe lo lea como carpeta, y
+            // citar() la duplica porque queda pegada a la comilla de cierre.
+            cmd += " /Fo" + citar(datos.dirObjetos + "\\");
         cmd += " /Fe" + citar(datos.artefacto);
     } else {
         cmd += " -o " + citar(datos.artefacto);
