@@ -115,6 +115,12 @@ FunshiEngineGL/patch_cube.py
 FunshiEngineGL/refactor_all.py
 FunshiEngineGL/refactor_gui.py
 
+# Documento de trabajo local del lote de correcciones (rama
+# fix/plan-general-de-fix). No es documentación del proyecto: si algo pasa a
+# ser útil para el equipo se promueve a MANUAL_DE_USO.md / AGENTS.md en el
+# commit que lo justifica.
+PLAN GENERAL DE FIX.md
+
 # Local ImGui configuration
 imgui.ini
 
