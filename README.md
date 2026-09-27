@@ -64,7 +64,7 @@ Motor y editor 3D en tiempo real escrito en C++17, con interfaz ImGui y renderiz
 | nlohmann/json  | —              | Vendoriado en `FunshiEngineGL/External/nlohmann`             |
 | ncurses        | cualquiera     | `libncurses-dev` (solo Linux)                                |
 | X11            | —              | `libx11-dev`, `libxrandr-dev`, `libxi-dev`                   |
-| JDK            | 17+            | Solo scripts **Java**; se auto-habilita si el build encuentra el JDK (opcional en runtime via `JAVA_HOME`) |
+| JDK            | 17+            | Solo scripts **Java**; se auto-habilita si el build encuentra el JDK. En runtime el motor lo busca solo: `FUNSHI_LIBJVM`, `JAVA_HOME`, un `jre/` junto al `.exe`, el registro de Windows y `/usr/lib/jvm`. El instalador de Windows lo ofrece descargar si falta |
 
 ### Instalar dependencias en Ubuntu/Debian
 

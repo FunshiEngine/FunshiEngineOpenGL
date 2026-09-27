@@ -4,6 +4,14 @@
 
     <Description>
         Motor gráfico 3D desarrollado en C++ con OpenGL, ImGui, Bullet Physics y Assimp.
+
+        REQUISITO: JDK (Java Development Kit) 11 o superior.
+        Los scripts Java del motor se compilan con javac y se cargan en una JVM,
+        por eso hace falta un JDK y no un simple JRE. En la mayoria de las
+        distros ya viene instalado; si no, instalalo con el gestor de paquetes
+        (por ejemplo: sudo apt install default-jdk, o sudo dnf install java-17-openjdk-devel)
+        y reinicia la aplicacion. El motor detecta el JDK solo, en JAVA_HOME o
+        en /usr/lib/jvm.
     </Description>
 
     <Name>com.funshi.engine</Name>
