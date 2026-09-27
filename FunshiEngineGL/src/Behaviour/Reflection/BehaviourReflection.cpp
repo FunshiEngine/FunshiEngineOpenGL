@@ -630,13 +630,13 @@ std::vector<ValorCampo> cargarValoresCampos(std::ifstream& in) {
     return leerValoresCrudos(in);
 }
 
-std::vector<ValorCampo> cargarValoresCampos(
-    std::ifstream& in, const std::vector<DefCampo>& defs) {
-    std::vector<ValorCampo> leidos = leerValoresCrudos(in);
-
-    // Casar con los defs actuales POR NOMBRE (robusto a reordenamientos y a
-    // campos agregados/quitados en versiones nuevas del script): los campos
-    // desconocidos se ignoran y los nuevos quedan con su valor por defecto.
+std::vector<ValorCampo> alinearValores(std::vector<ValorCampo> leidos,
+                                       const std::vector<DefCampo>& defs) {
+    // Casa los valores leidos con los defs actuales POR NOMBRE (robusto a
+    // reordenamientos y a campos agregados/quitados en versiones nuevas del
+    // script): los campos desconocidos se ignoran y los nuevos quedan con su
+    // valor por defecto. El resultado tiene SIEMPRE un valor por DefCampo y en
+    // el mismo orden, que es el contrato que espera el resto del motor.
     std::vector<ValorCampo> resultado;
     resultado.reserve(defs.size());
     for (const DefCampo& def : defs) {
@@ -651,6 +651,11 @@ std::vector<ValorCampo> cargarValoresCampos(
         if (!casado) resultado.push_back(valorPorDefecto(def));
     }
     return resultado;
+}
+
+std::vector<ValorCampo> cargarValoresCampos(
+    std::ifstream& in, const std::vector<DefCampo>& defs) {
+    return alinearValores(leerValoresCrudos(in), defs);
 }
 
 } // namespace ReflejoScripts

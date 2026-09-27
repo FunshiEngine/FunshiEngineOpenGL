@@ -18,6 +18,7 @@
 */
 #include "SettingsScript.h"
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -166,7 +167,18 @@ void SettingsScript::showDataComponent() {
 	ImGui::Separator();
 	if (ImGui::CollapsingHeader("SerializeField",
 	                            ImGuiTreeNodeFlags_DefaultOpen)) {
-		for (int i = 0; i < static_cast<int>(campos.size()); ++i) {
+		// El bucle va por el MENOR de los dos cardinales, no solo por `campos`.
+		// Script::cargarSiNecesario deja `valores_` con una entrada por campo,
+		// pero una escena guardada puede traer menos valores que los que expone
+		// el script actual (un SerializeField agregado despues, o una reflexion
+		// que no llego a correr). Iterar solo por `campos` leia `valores[i]` fuera
+		// de rango, sobre basura, y el std::get siguiente lanzaba
+		// bad_variant_access: eso terminaba el proceso al abrir el inspector del
+		// script. El limite ya lo respetaba la escritura de la linea del
+		// escribirCampo(), pero no esta lectura.
+		const int nCampos = static_cast<int>(
+		    std::min(campos.size(), valores.size()));
+		for (int i = 0; i < nCampos; ++i) {
 			const DefCampo& def = campos[static_cast<std::size_t>(i)];
 			ValorCampo& valor = valores[static_cast<std::size_t>(i)];
 			bool camb = false;
@@ -425,7 +437,11 @@ void SettingsScript::showDataComponent() {
 			}
 			}
 
-			if (camb && i < static_cast<int>(valores.size()))
+			// `i` ya esta acotado por el menor de los dos cardinales, asi que
+			// `i < valores.size()` es siempre cierto: la comprobacion que habia
+			// aqui era la version correcta de un limite que faltaba en la
+			// lectura del bucle.
+			if (camb)
 				myScript->escribirCampo(i, valor); // sincroniza instancia viva
 			ImGui::PopID();
 		}
