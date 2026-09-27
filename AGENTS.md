@@ -133,10 +133,11 @@ cd FunshiEngineGL/build && ctest --output-on-failure
 - **Plantilla de descripción para pull requests**: todo PR debe llevar su
   descripción con la estructura de `.github/PULL_REQUEST_TEMPLATE.md`
   (Descripción / Tipo de cambio / Cambios realizados / Pruebas / Arquitectura /
-  Compatibilidad / Documentación / Información adicional), completada con
-  información real del cambio y sin dejar secciones en blanco sin justificar.
-  Cuando el agente redacte la descripción de un PR, debe usar exactamente esos
-  encabezados y esa estructura.
+  Compatibilidad / Documentación / Información adicional). Las secciones que
+  traen casillas se completan marcando la casilla que aplique, y las de texto
+  libre con información real del cambio: ninguna queda en blanco sin
+  justificar. Cuando el agente redacte la descripción de un PR, debe usar
+  exactamente esos encabezados, esas casillas y esa estructura.
 - **Comandos destructivos requieren permiso y justificación**: antes de
   ejecutar `git checkout`, `git reset`, `git restore`, `git clean` o cualquier
   comando que descarte cambios (staged o unstaged), el agente debe:
