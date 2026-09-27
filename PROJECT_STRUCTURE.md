@@ -537,6 +537,12 @@ solo como orquestador de arranque y bucle.
 - `BackendCpp` compila el `.cpp` a `.so`/`.dll` con el compilador configurado y lo
   carga con `dlopen`/`LoadLibrary`; `BackendJava` (opcional, `-DFUNSHI_JAVA=ON`)
   compila con `javac` y ejecuta sobre un JVM cargado dinámicamente vía JNI.
+  Los flags con los que se compila el script viven en
+  `Behaviour/Backends/ComandoCompilacionCpp.h` y cumplen el mismo contrato de
+  CRT que el engine (`/MD` o `/MDd` según la configuración, más `/EHsc`): la
+  reflexión cruza la frontera de la `.dll` con objetos STL que aloca un módulo y
+  libera el otro, así que un CRT distinto (p. ej. el estático `/MT`) separa los
+  heaps y corrompe la memoria.
 - El editor (`SettingsScript`) dibuja los campos reflejados (escalares, arrays,
   grupos y referencias a `GameObject`) y dispara la recompilación.
 

@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/ComandoCompilacionCpp.h"
 #include "../FunshiEngineGL/src/Behaviour/IScriptBehaviour.h"
 
 using namespace ReflejoScripts;
@@ -453,6 +454,63 @@ static void testAlinearValores() {
     }
 }
 
+// --- Contrato de compilacion de los scripts C++ (CRT compartido) -------------
+// El .dll del script comparte heap con el engine a traves de la reflexion
+// (std::string, std::vector<DefCampo> y los std::function de cada campo se
+// alocan de un lado y se liberan del otro), asi que los dos modulos tienen que
+// usar el MISMO runtime de C++. Este test no puede observar la corrupcion de
+// heap (haria falta MSVC y cargar el .dll en runtime), pero si verifica el
+// contrato de flags: sin /MD el heap vuelve a separarse y el crash regresa.
+static void testContratoCompilacion() {
+    const std::string msvc =
+        CompilacionCpp::flagsFamilia(CompilacionCpp::Familia::Msvc, "MiClase");
+
+    CHECK(CompilacionCpp::tieneFlag(msvc, "/MD") ||
+              CompilacionCpp::tieneFlag(msvc, "/MDd"),
+          "MSVC: el script se compila con el CRT dinamico (/MD), nunca con el "
+          "estatico");
+    CHECK(!CompilacionCpp::tieneFlag(msvc, "/MT") &&
+              !CompilacionCpp::tieneFlag(msvc, "/MTd"),
+          "MSVC: el CRT estatico (/MT) le da a la .dll su propio heap y rompe "
+          "la ABI con el engine");
+    CHECK(CompilacionCpp::tieneFlag(msvc, CompilacionCpp::runtimeFlag()),
+          "MSVC: el flag de runtime es el mismo que usa el engine en esta "
+          "configuracion (/MD o /MDd)");
+    CHECK(CompilacionCpp::tieneFlag(msvc, "/EHsc"),
+          "MSVC: sin /EHsc la primera excepcion del script mata el proceso");
+    CHECK(msvc.find("/DFUNSHI_NOMBRE_CLASE=MiClase") != std::string::npos,
+          "MSVC: el nombre de clase del script llega por define");
+    CHECK(!CompilacionCpp::tieneFlag(msvc, "-std=c++17"),
+          "MSVC: la linea no lleva flags de GCC");
+
+    const std::string gcc =
+        CompilacionCpp::flagsFamilia(CompilacionCpp::Familia::Gcc, "MiClase");
+
+    CHECK(CompilacionCpp::tieneFlag(gcc, "-shared"),
+          "GCC: el script se compila como biblioteca compartida");
+    CHECK(CompilacionCpp::tieneFlag(gcc, "-fPIC"),
+          "GCC: -fPIC, porque el artefacto se carga con dlopen");
+    CHECK(!CompilacionCpp::tieneFlag(gcc, "/MD") &&
+              !CompilacionCpp::tieneFlag(gcc, "/nologo") &&
+              !CompilacionCpp::tieneFlag(gcc, "/EHsc"),
+          "GCC: la linea no lleva flags de MSVC");
+
+    // El juego que usa ESTE build tambien cumple el contrato.
+    const std::string actual = CompilacionCpp::flagsCompilador("MiClase");
+#if defined(_WIN32)
+    CHECK(CompilacionCpp::tieneFlag(actual, CompilacionCpp::runtimeFlag()),
+          "Windows: el build en uso compila los scripts con el runtime de "
+          "C++ del engine");
+#else
+    CHECK(CompilacionCpp::tieneFlag(actual, "-shared"),
+          "Linux/macOS: el build en uso compila los scripts como .so/.dylib");
+#endif
+
+    // Comparacion por tokens: "/MD" no puede dar positivo sobre "/MDd".
+    CHECK(!CompilacionCpp::tieneFlag("/MDd /EHsc", "/MD"),
+          "el chequeo de flags compara tokens completos");
+}
+
 int main() {
     testValoresPorDefecto();
     testLecturaEscritura();
@@ -460,6 +518,7 @@ int main() {
     testObjetoResolucion();
     testSerializacionBinaria();
     testAlinearValores();
+    testContratoCompilacion();
 
     std::cout << "ScriptsTests: " << total << " verificaciones, " << fallos
               << " fallos" << std::endl;

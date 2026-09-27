@@ -15,6 +15,17 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Runtime de C++ de MSVC (CMP0091): el engine y las .dll de script que compila
+# en runtime tienen que usar el MISMO CRT. Los SerializeField cruzan la frontera
+# de la .dll con std::string, std::vector y std::function: la memoria se aloca
+# en un modulo y se libera en el otro, y cada CRT estatico (/MT) trae su propio
+# heap (liberar memoria del otro corrompe el heap y el motor muere). Se declara
+# explicito para que el contrato sea visible en el build y no un default
+# implicito de CMake. En Debug el runtime es /MDd, y FUNSHI_CXX_RUNTIME_FLAG
+# hornea ese mismo valor para la linea de compilacion del script.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+set(FUNSHI_CXX_RUNTIME_FLAG "$<IF:$<CONFIG:Debug>,/MDd,/MD>")
+
 # Configuración de rutas
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 
@@ -111,7 +122,10 @@ if(BUILD_ENGINE)
     endif()
     target_compile_definitions(funshi_engine
         PUBLIC FUNSHI_SRC_DIR="${FUNSHI_SRC_ESCAPADO}"
-               FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+               FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
+               # Runtime de C++ del build: lo usa la linea de compilacion de los
+               # scripts C++ (ComandoCompilacionCpp.h) para no desajustar el CRT.
+               FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
 
 # 1. Configuración de GLFW
 find_package(glfw3 REQUIRED)
@@ -501,6 +515,11 @@ add_executable(scripts-tests
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ScriptsTests.cpp
 )
+# El contrato de flags con el que se compilan los scripts C++ se verifica en
+# esta suite (headless y en las tres plataformas): el test necesita el mismo
+# runtime horneado que el engine, por eso recibe la definicion.
+target_compile_definitions(scripts-tests PRIVATE
+    FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
 set_target_properties(scripts-tests PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
@@ -529,7 +548,8 @@ set_target_properties(scripts-runtime-tests PROPERTIES
 target_include_directories(scripts-runtime-tests PRIVATE ${SRC_DIR})
 target_compile_definitions(scripts-runtime-tests
     PRIVATE FUNSHI_SRC_DIR="${SRC_DIR}"
-            FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+            FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
+            FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
 # dlopen/dlsym on Linux/macOS requiere -ldl (en glibc moderno esta en libc,
 # pero -ldl no molesta); sin backend C fallaria con dlopen.
 if(UNIX)

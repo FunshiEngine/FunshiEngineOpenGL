@@ -45,6 +45,7 @@
 #endif
 
 #include "BackendCpp.h"
+#include "ComandoCompilacionCpp.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -153,8 +154,18 @@ std::string BackendCpp::compiladorRuta() {
 std::string BackendCpp::cacheDir() { return directorioCache(); }
 
 std::string BackendCpp::artefacto(const std::string& fuente) {
-    std::size_t hash =
-        std::hash<std::string>{}(std::filesystem::weakly_canonical(fuente).string());
+    // La clave del artefacto incluye el CONTRATO de compilacion (compilador +
+    // flags), no solo la ruta del fuente: la recompilacion solo mira el mtime
+    // del fuente, asi que un cambio de flags reusaria el artefacto viejo para
+    // siempre (un .dll compilado con el CRT estatico seguiria cargandose y el
+    // desajuste de heap no se corregiria nunca). Cambiar la clave equivale a
+    // invalidar el cache: el artefacto anterior simplemente no se encuentra y
+    // se recompila en el proximo uso, sin que el usuario tenga que borrar
+    // %TEMP%/funshi_scripts a mano.
+    const std::string clave =
+        std::filesystem::weakly_canonical(fuente).string() + "|" + compilador() +
+        "|" + CompilacionCpp::flagsCompilador(std::string());
+    std::size_t hash = std::hash<std::string>{}(clave);
     return (std::filesystem::path(directorioCache()) /
             ("script_" + std::to_string(hash) + "." + FUNSHI_ARTEFACTO_EXT))
         .string();
@@ -208,20 +219,22 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
         // el primer espacio ("C:/Program" no se reconoce como comando interno).
         const std::string compiladorCmd = "\"" + compilador() + "\"";
         std::string cuerpo;
+        // Los flags del compilador viven en ComandoCompilacionCpp.h: son el
+        // contrato de ABI con el engine (CRT compartido) y el test de contrato
+        // los verifica sin necesidad de MSVC.
 #if defined(_WIN32)
         // /Fo y /Fe entrecomillados y con el backslash final duplicado: con
         // /Fo"dir\" el compilador lee \" como comilla escapada, se traga el
         // argumento siguiente y falla con C1083 sobre el archivo generado.
-        cuerpo = compiladorCmd +
-                 " /nologo /LD /std:c++17 /O2 /DFUNSHI_NOMBRE_CLASE=" +
-                 nombreClase + " " + logic + " /Fo\"" + directorioCache() +
+        cuerpo = compiladorCmd + " " +
+                 CompilacionCpp::flagsCompilador(nombreClase) + " " + logic +
+                 " /Fo\"" + directorioCache() +
                  "\\\\\" /Fe\"" + escapar(artefactoPath) + "\" > \"" + logPath +
                  "\" 2>&1";
 #else
-        cuerpo = compiladorCmd +
-                 " -std=c++17 -shared -fPIC -O2 -DFUNSHI_NOMBRE_CLASE=" +
-                 nombreClase + " " + logic + " -o " + escapar(artefactoPath) +
-                 " > " + logPath + " 2>&1";
+        cuerpo = compiladorCmd + " " +
+                 CompilacionCpp::flagsCompilador(nombreClase) + " " + logic +
+                 " -o " + escapar(artefactoPath) + " > " + logPath + " 2>&1";
 #endif
         std::string cmd = cuerpo;
 #if defined(_WIN32)

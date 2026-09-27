@@ -710,6 +710,18 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 - El fuente se compila a `.so` (Linux), `.dll` (Windows/MSVC) o `.dylib`
   (macOS) con `-std=c++17 -shared -fPIC -O2` y
   `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
+- **Runtime de C++ compartido (Windows/MSVC):** el `.dll` del script se compila
+  con el **mismo CRT dinamico que el engine** (`/MD` en Release, `/MDd` en
+  Debug) y con `/EHsc`. No es una preferencia de estilo: los `SerializeField`
+  cruzan la frontera del `.dll` con `std::string`, `std::vector` y
+  `std::function`, asi que la memoria se aloca en un modulo y se libera en el
+  otro. Compilar el script con el CRT estatico (`/MT`) le da a la `.dll` su
+  propio heap, y liberar memoria del otro lado corrompe el heap: el motor muere
+  al asignar el script, sin log ni backtrace. El runtime del engine se declara
+  en `CMakeLists.txt` (`CMAKE_MSVC_RUNTIME_LIBRARY`) y llega al script como
+  `FUNSHI_CXX_RUNTIME_FLAG`; el cache de artefactos incluye ese contrato, asi
+  que cambiar los flags recompila solo (no hay que borrar
+  `%TEMP%/funshi_scripts` a mano).
 - El `.so` del script **no enlaza contra el motor**: todo el acceso pasa por
   la tabla `api` de punteros a funcion. No incluyas cabeceras del motor mas
   alla de `IScriptBehaviour.h`; en particular evita arrastrar Bullet/Assimp
