@@ -196,19 +196,46 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   además de reflejar lo nuevo que se introduce. Los ajustes de documentación
   entran en el mismo commit que el código que los motiva: nunca "la
   documentación al final", ni entregar avances sin sus documentos al día.
-- **Hallazgos fuera de lo contemplado: contrastarlos contra la documentación
-  antes de agregarlos o arreglarlos.** Cuando aparece un problema que el
-  documento de trabajo del lote (o la investigación en curso) no contempla, el
-  orden es: (1) revisar si la documentación del repo ya afirma que eso funciona
-  —`README.md`, `MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`, `DOCUMENTACION.md`,
-  `DocuTecnicoBugs.md`, `AGENTS.md` y los documentos de diseño—: si la doc
-  afirma que el comportamiento es el correcto y el código no lo cumple, es un
-  bug real y se arregla el código; si el código es correcto y la doc quedó
-  vieja, lo que se arregla es la doc. (2) Recién después agregarlo al plan del
-  lote —sin borrar nada y marcando el estado— si aporta a la resolución, con
-  síntoma, evidencia, causa, fix y test como cualquier otro punto. (3) Cerrarlo
-  con su commit. Nunca se declara un bug ni se arregla algo "al vuelo" sin ese
-  contraste: la doc es la que dice cuál de los dos lados está mal.
+- **Análisis profundo de cada bug: contrastarlo contra TODAS las fuentes
+  disponibles antes de arreglarlo.** Un síntoma —aunque lo haya reportado el
+  usuario— no es un diagnóstico. Antes de tocar código hay que reconstruir la
+  cadena `síntoma → evidencia → causa → fix → test` contrastando el caso con
+  cada fuente que pueda contradecirlo:
+  1. **Evidencia primaria**: reproducirlo y aislar las variables (paso a paso
+     exacto, `logs/` junto al ejecutable, stdout/stderr, exit codes,
+     artefactos que quedan en disco). Lo que solo "se ve" sin evidencia
+     reproducible es hipótesis, no causa.
+  2. **Documentación del repo**: `README.md`, `MANUAL_DE_USO.md`,
+     `PROJECT_STRUCTURE.md`, `DOCUMENTACION.md`, `DocuTecnicoBugs.md`,
+     `AGENTS.md`, los documentos de diseño y el plan/issue del lote. Si la doc
+     afirma que ese comportamiento es el correcto y el código no lo cumple, es
+     bug de código; si el código es el correcto y la doc quedó vieja, se
+     arregla la doc; si nadie lo documenta, es un hallazgo nuevo.
+  3. **Código fuente**: rastrear el flujo completo —llamadores, estados,
+     ciclo de vida, caminos alternativos—, no solo la línea del síntoma, y
+     verificar si el comportamiento es intencional (comentarios, diseño) o si
+     otra parte del código ya lo compensa.
+  4. **Historial**: `git log` / `git blame` para saber si es una regresión
+     reciente, un bug conocido que recae o un fix dejado a medias.
+  5. **Tests existentes**: qué cubren, qué asumen y por qué no lo detectaron
+     (¿falta el test, o el test fija el comportamiento erróneo?).
+  6. **Fuentes externas**: documentación oficial de la API o herramienta
+     involucrada (`std::filesystem`, `cmd.exe`, GLFW, ImGui, JNI…) e issues
+     conocidas, para no "arreglar" algo que en realidad es el contrato de la
+     herramienta.
+  7. **Alternativa antes que el fix**: si el problema se puede sortear con
+     otra técnica (cambiar el enfoque, renombrar, aplazar, otra API), evaluarla
+     y compararla contra arreglar la causa; si no se arregla aún, dejarlo
+     anotado con su justificación.
+  Cierre del análisis: (a) **no se declara causa raíz sin evidencia que la
+  aisle** y descarte al menos la hipótesis competidora principal — si dos
+  hipótesis explican el síntoma, buscar el caso que las diferencie, no
+  quedarse con la primera plausible—; (b) el análisis queda escrito donde viva
+  el lote (plan, issue), con síntoma, evidencia, causa, fix y test, en la
+  posición por dependencias; (c) si el contraste no alcanza para decidir qué
+  lado está mal, se reporta y se esperan instrucciones en vez de elegir una
+  causa por conveniencia. Nunca se declara un bug ni se arregla algo "al
+  vuelo" sin ese contraste.
 - **Commits atómicos por tarea**: cada tarea terminada cierra con su commit
   (o los que sean necesarios si la tarea es grande), con mensaje descriptivo
   y convencionales (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). El
