@@ -1,46 +1,56 @@
-<!--
-  Plantilla de descripción de pull requests de FunshiEngineGL.
-  Completar todas las secciones con información real del cambio. Si una
-  sección no aplica, justificarlo en una línea en vez de dejarla en blanco.
-  Ver la regla correspondiente en AGENTS.md.
--->
-
 ## Descripción
 
-<!-- Qué resuelve este PR y por qué. En una o dos frases. -->
+Describe claramente qué modifica esta pull request y cuál es el motivo del cambio.
 
 ## Tipo de cambio
 
-<!-- Uno o varios de: fix, feature, refactor, docs, chore, performance, build, ci -->
+- [ ] Corrección de un error
+- [ ] Nueva funcionalidad
+- [ ] Refactorización
+- [ ] Documentación
+- [ ] Tests
+- [ ] Build / CMake
+- [ ] CI/CD
+- [ ] Otro
 
 ## Cambios realizados
 
-<!-- Lista de los cambios concretos, con referencia a archivo:línea cuando aporte. -->
+Describe brevemente los principales cambios realizados.
 
 ## Pruebas
 
-<!--
-  Qué se ejecutó y qué resultado dio. Indicar también lo que NO se pudo
-  verificar en este entorno y por qué (por ejemplo: sin compilador local, la
-  validación quedó en manos del CI).
--->
+Describe cómo se probó el cambio.
+
+- [ ] Las pruebas existentes pasan.
+- [ ] Se añadieron nuevas pruebas.
+- [ ] Se realizaron pruebas manuales.
+- [ ] La compilación funciona correctamente.
+- [ ] La CI pasa correctamente.
 
 ## Arquitectura
 
-<!--
-  Si el cambio afecta el diseño: componentes tocados, dependencias nuevas,
-  patrones seguidos (fachada, mediador, R7...) y alternativas descartadas con
-  su motivo. Si no afecta la arquitectura, decirlo explícitamente.
--->
+¿Este cambio modifica alguna abstracción o parte importante de la arquitectura?
+
+- [ ] No.
+- [ ] Sí.
+
+Si la respuesta es sí, explica los cambios:
 
 ## Compatibilidad
 
-<!-- Impacto en datos guardados, proyectos existentes, configuración, API o formatos en disco. -->
+¿El cambio puede afectar código o comportamiento existente?
+
+- [ ] No.
+- [ ] Sí.
+
+Describe los posibles cambios incompatibles:
 
 ## Documentación
 
-<!-- Qué documentos se actualizaron en este mismo commit y por qué. -->
+- [ ] No necesita cambios de documentación.
+- [ ] Se actualizó la documentación.
+- [ ] La documentación debe actualizarse posteriormente.
 
 ## Información adicional
 
-<!-- Riesgos conocidos, pasos para reproducir, contexto de la revisión. -->
+Añade cualquier información relevante para la revisión.

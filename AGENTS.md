@@ -119,7 +119,9 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   documentación al final", ni entregar avances sin sus documentos al día.
 - **Commits atómicos por tarea**: cada tarea terminada cierra con su commit
   (o los que sean necesarios si la tarea es grande), con mensaje descriptivo
-  y convencionales (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`).
+  y convencionales (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). El
+  formato completo, con los tipos admitidos, los ámbitos frecuentes y las
+  reglas de redacción, está en `.github/COMMIT_TEMPLATE.md`.
 - **Sin atribuciones ajenas al cambio**: los mensajes de commit (y cualquier
   metadato asociado) deben describir únicamente la implementación o los
   cambios realizados. No se permite adjudicar coautoría, autoría, firmas ni
@@ -133,10 +135,11 @@ cd FunshiEngineGL/build && ctest --output-on-failure
 - **Plantilla de descripción para pull requests**: todo PR debe llevar su
   descripción con la estructura de `.github/PULL_REQUEST_TEMPLATE.md`
   (Descripción / Tipo de cambio / Cambios realizados / Pruebas / Arquitectura /
-  Compatibilidad / Documentación / Información adicional), completada con
-  información real del cambio y sin dejar secciones en blanco sin justificar.
-  Cuando el agente redacte la descripción de un PR, debe usar exactamente esos
-  encabezados y esa estructura.
+  Compatibilidad / Documentación / Información adicional). Las secciones que
+  traen casillas se completan marcando la casilla que aplique, y las de texto
+  libre con información real del cambio: ninguna queda en blanco sin
+  justificar. Cuando el agente redacte la descripción de un PR, debe usar
+  exactamente esos encabezados, esas casillas y esa estructura.
 - **Comandos destructivos requieren permiso y justificación**: antes de
   ejecutar `git checkout`, `git reset`, `git restore`, `git clean` o cualquier
   comando que descarte cambios (staged o unstaged), el agente debe:
