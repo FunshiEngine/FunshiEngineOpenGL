@@ -46,9 +46,11 @@ inline bool ctrlOCmd() {
 // Suelta el elemento arrastrado (payload "ARCHIVO_PATH", con la ruta absoluta
 // en `origen`) dentro de la carpeta `destFolder`.
 //
-// Semantica: por defecto MUEVE, con Ctrl copia. Es lo que espera cualquiera que
-// venga de un explorador de archivos, y evita el susto de ver como desaparece
-// un archivo de su carpeta. El motivo real esta en el aviso del evento, abajo.
+// Semantica de `copiar`: la decide cada destino. El grid la ata a Ctrl/Cmd
+// (soltar mueve, con Ctrl copia) y el arbol de carpetas la fija en false:
+// soltar ahi es cortar y pegar. Mover es lo que espera cualquiera que venga de
+// un explorador de archivos, y evita el susto de ver como desaparece un
+// archivo de su carpeta. El motivo real esta en el aviso del evento, abajo.
 //
 // Mover cambia la ruta, asi que hay que avisar al resto del editor: se publica
 // ArchivosReubicados con la ruta anterior y la nueva, que es lo que ya consume
