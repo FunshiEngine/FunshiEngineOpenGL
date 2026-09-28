@@ -109,16 +109,20 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   Apache 2.0 (ver cabecera de cualquier `.h`/`.cpp` existente como modelo) o
   al menos `SPDX-License-Identifier: Apache-2.0`.
 - **Estilo**: 4 espacios, llaves en la línea siguiente para clases/funciones.
-- **Comentarios: solo el código y su funcionamiento.** Un comentario explica
-  qué hace una pieza, por qué existe, su contrato y sus límites. No debe
-  contener nada que pertenezca a la gestión del trabajo: identificadores de
-  tareas o de bugs, planes, fases, hitos, fechas, estados ("pendiente", "por
-  hacer") ni referencias a documentos o secciones fuera del código (p. ej.
-  "ver §22 del plan", "parte de H-19"). Ese contexto vive en el plan, en el
-  issue o en el mensaje de commit, y dentro del código envejece: más adelante
-  nadie tiene cómo resolverlo y solo distrae de la lectura. Si una decisión
-  solo se entiende con ese contexto, el comentario la explica por sí mismo, a
-  partir de lo que hace el código.
+- **Sin referencias de gestión en los textos del proyecto.** Los comentarios
+  del código, la documentación técnica (`README.md`, `MANUAL_DE_USO.md`,
+  `PROJECT_STRUCTURE.md`, `DOCUMENTACION.md`, `DocuTecnicoBugs.md` y los
+  documentos de diseño), los mensajes de los tests (`CHECK(...)`) y los
+  mensajes de log de la consola describen **piezas, comportamiento, contratos y
+  causas técnicas, nada más**. No llevan identificadores de tareas o de bugs,
+  planes, fases, hitos, fechas, estados ("pendiente", "por hacer") ni alusiones
+  a documentos o secciones ajenas al texto (p. ej. "ver §22 del plan",
+  "parte de H-19"). Ese contexto pertenece a los documentos de gestión — plan,
+  issues, historial de cambios y mensajes de commit/PR —, donde sí debe quedar;
+  dentro de los textos del código envejece, porque más adelante nadie sabe qué
+  era esa tarea y solo distrae de la lectura. Si una decisión o un texto solo
+  se entiende con ese contexto, se explica por sí mismo a partir de lo que hace
+  el código.
 - **Documentación**: los cambios de API visibles para usuarios se reflejan en
   `MANUAL_DE_USO.md` (especialmente la sección 13, scripting). Cambios de
   arquitectura en `PROJECT_STRUCTURE.md`.
