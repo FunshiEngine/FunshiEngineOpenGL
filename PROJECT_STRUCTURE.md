@@ -621,9 +621,10 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 `-DFUNSHI_JAVA=ON`; cinco de ellos enlazan `funshi_engine` y requieren
 `BUILD_ENGINE=ON`, el resto compila también con `BUILD_ENGINE=OFF`):
 
-- `filemanager-tests` (108): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
+- `filemanager-tests` (132): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
-  y el renombre por click derecho de las vistas del explorador.
+  con invalidación explícita de caché del grid en carpeta origen y destino, y el
+  renombre por click derecho de las vistas del explorador.
 - `proceso-tests` (26): el runner de procesos sin shell `Proceso`: round-trip
   de argv byte a byte (el binario se relanza a sí mismo copiado en una carpeta
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,

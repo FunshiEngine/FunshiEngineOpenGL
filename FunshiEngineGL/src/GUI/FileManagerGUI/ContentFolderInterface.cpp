@@ -230,11 +230,19 @@ void ContentFolderInterface::recorrer(const std::string& path) {
                     // El destino es la CARPETA, no su contenido.
                     // El mtime puede no haberse actualizado todavia tras el
                     // movimiento, asi que ademas de refrescar se invalida el
-                    // cache a proposito.
+                    // cache a proposito para AMBAS carpetas (origen y destino).
+                    std::string origenCarpeta;
                     if (origen &&
                         soltarEnCarpeta(fileManager, eventoArchivos_, origen,
-                                        fullPath, ctrlOCmd()))
+                                        fullPath, ctrlOCmd(), &origenCarpeta)) {
+                        // Invalidar cache de la carpeta destino (la visible)
                         invalidarCache();
+                        // Invalidar cache de la carpeta origen si es distinta
+                        if (!origenCarpeta.empty() && origenCarpeta != cacheCarpeta) {
+                            cacheCarpeta.clear();
+                            cacheMtime = std::filesystem::file_time_type{};
+                        }
+                    }
                 }
                 ImGui::EndDragDropTarget();
             }
@@ -503,10 +511,19 @@ void ContentFolderInterface::contentGUI() {
                             ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
                         const char* origen =
                             static_cast<const char*>(aceptado->Data);
+                        std::string origenCarpeta;
                         if (origen &&
                             soltarEnCarpeta(fileManager, eventoArchivos_,
-                                            origen, destFolder, ctrlOCmd()))
+                                            origen, destFolder, ctrlOCmd(),
+                                            &origenCarpeta)) {
+                            // Invalidar cache de la carpeta destino (la visible)
                             invalidarCache();
+                            // Invalidar cache de la carpeta origen si es distinta
+                            if (!origenCarpeta.empty() && origenCarpeta != cacheCarpeta) {
+                                cacheCarpeta.clear();
+                                cacheMtime = std::filesystem::file_time_type{};
+                            }
+                        }
                     }
                     ImGui::EndDragDropTarget();
                 }

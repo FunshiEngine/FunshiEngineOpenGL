@@ -58,6 +58,11 @@ inline bool ctrlOCmd() {
 // texturas, fuentes de script) y persistirlas. Sin ese aviso, mover un asset
 // dejaria la escena apuntando a la ruta vieja.
 //
+// Si `origenCarpetaOut` no es nullptr, se escribe ahi la carpeta que contenia
+// al elemento movido/copiado (padre de `origen`). Esto permite al llamador
+// invalidar el cache del grid tanto en la carpeta origen como en la destino
+// (R7: invalidacion explicita, no depender del mtime).
+//
 // Devuelve true si la operacion se completo. Quien la llama decide que invalidar
 // de su cache: el grid relee el listado de la carpeta visible, el arbol solo
 // reconstruye.
@@ -65,7 +70,8 @@ inline bool soltarEnCarpeta(FileManager* fileManager,
                             EditorEventBus* eventoArchivos,
                             const std::string& origen,
                             const std::string& destFolder,
-                            bool copiar) {
+                            bool copiar,
+                            std::string* origenCarpetaOut = nullptr) {
     if (fileManager == nullptr || origen.empty() || destFolder.empty())
         return false;
 
@@ -76,6 +82,9 @@ inline bool soltarEnCarpeta(FileManager* fileManager,
     // Soltar sobre la carpeta que ya contiene al elemento no hace nada: sin
     // este chequeo el mover intentaria renombrar un archivo sobre si mismo.
     if (finalDest == origen) return false;
+
+    // Carpeta origen (padre del elemento) para invalidacion de cache del grid
+    const std::string origenCarpeta = (sep != std::string::npos) ? origen.substr(0, sep) : "";
 
     const bool esCarpeta = fileManager->esDirectorio(origen);
     const bool ok = copiar
@@ -95,8 +104,14 @@ inline bool soltarEnCarpeta(FileManager* fileManager,
     }
 
     // El arbol de carpetas cambia si lo que se movio es una carpeta; los
-    // archivos no aparecen ahi.
-    if (esCarpeta) fileManager->getSelection()->contadorCambios++;
+    // archivos no aparecen ahi. PERO: para que la vista de arbol se rescanee
+    // tambien cuando se mueve un archivo (y el grid invalide su cache), siempre
+    // incrementamos contadorCambios en cualquier operacion exitosa.
+    fileManager->getSelection()->contadorCambios++;
+
+    // Devolver carpeta origen para invalidacion explicita del grid (R7)
+    if (origenCarpetaOut != nullptr) *origenCarpetaOut = origenCarpeta;
+
     return true;
 }
 

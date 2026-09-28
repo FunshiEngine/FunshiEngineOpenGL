@@ -62,6 +62,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | 1 | `ContentFolderInterface::contentGUI()` | Eliminar archivo (grid) | `std::filesystem` / NTFS / MSYS2 | Invalidación manual `cacheCarpeta.clear()` + `cacheMtime = {}` | `feat(gui): eliminar archivos y carpetas desde el grid del explorador` |
 | 2 | `ContentFolderInterface::contentGUI()` | Eliminar carpeta (grid) | Idem | Idem + `contadorCambios++` para árbol | Idem |
 | 3 | `TreeFilesInterface::contentGUI()` | Eliminar carpeta (árbol) | Idem | Ya usaba patrón R7: `carpetaAEliminar` diferida + rescaneo vía `contadorCambios` | Preexistente |
+| 4 | `SoltarEnCarpeta.h` + `ContentFolderInterface` | **Drop entre paneles** (grid → árbol / grid → grid carpeta distinta) | `std::filesystem` / NTFS / MSYS2 | `contadorCambios++` siempre (archivo o carpeta) + invalidación explícita cache grid origen **y** destino (`cacheCarpeta.clear(); cacheMtime = {}`) | `fix(explorador): invalidar cache grid al mover entre paneles` |
 
 > **Nota**: `TreeFilesInterface` **no tenía este bug** porque su patrón R7 ya forzaba `contadorCambios++` → `refrescarArbol()` → reconstrucción completa del árbol (que no usa `mtime` de directorio). El bug apareció al replicar la lógica en `ContentFolderInterface` **sin portar la invalidación explícita del cache de grid**.
 
@@ -479,6 +480,7 @@ Checklist de mitigación:
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el tercer concepto (Patrón R9, offsets engañosos de `tellg`/`seekg` en streams de texto con CRLF) con su instancia #1, a raíz del bug de los objetos fantasma "Scene" (H-17). |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el cuarto concepto (Patrón R10, `CREATE_UNICODE_ENVIRONMENT` obligatorio con bloques UTF-16 en `CreateProcessW`) con su instancia #1, a raíz del error 87 al pasar el entorno de vcvars/variable extra (H-3 nivel 2). |
 | 2026-09-28 | Gianfranco Ivan Enrique | Añadido el quinto concepto (Patrón R11, una imagen cargada bloquea su archivo en Windows) con su instancia #1, a raíz del `Permission denied` de `ld` al haber dos objetos sobre el mismo script (H-20). |
+| 2026-09-28 | Gianfranco Ivan Enrique | Añadida instancia #4 al primer concepto: drop entre paneles (ShowFolder → BrowseFile y ShowFolder → ShowFolder carpeta distinta) con invalidación explícita de cache grid en origen y destino. |
 
 ---
 

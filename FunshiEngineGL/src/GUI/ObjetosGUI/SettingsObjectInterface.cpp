@@ -40,6 +40,14 @@
 #include "../../Objetos/Componentes/AudioSource.h"
 #include "../../Objetos/Componentes/InterfaceComponent.h"
 #include "../../Objetos/Componentes/Grid.h"
+#include "../../Objetos/Componentes/Transform.h"
+#include "../../Objetos/Componentes/Color.h"
+#include "../../Objetos/Componentes/Script.h"
+#include "../../Objetos/Componentes/Model.h"
+#include "../../Objetos/Componentes/RigidBody/RigidBody.h"
+#include "../../Objetos/Componentes/Colliders/EsfereCollider.h"
+#include "../../Objetos/Componentes/Colliders/CubeCollider.h"
+#include "../../Objetos/Componentes/Colliders/MallaCollider.h"
 #include "../../Scenes/EditorController.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/TypeUtils.h"
@@ -257,6 +265,64 @@ void SettingsObjectInterface::contentGUI() {
 			               ? listaDESettingsComponent->next(position)
 			               : nullptr;
 		}
+	}
+
+	// Menu contextual en area vacia del inspector: agregar componente
+	if (ImGui::BeginPopupContextWindow(
+	        "InspectorAddComponentPopup",
+	        ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+		if (object && editor) {
+			Transform* transform = object->getComponent<Transform>();
+			Collider* collider = object->getComponent<Collider>();
+
+			if (ImGui::MenuItem("Transform")) {
+				editor->addComponent(object, std::make_unique<Transform>());
+			}
+			if (ImGui::MenuItem("Color")) {
+				editor->addComponent(object, std::make_unique<Color>());
+			}
+			if (ImGui::MenuItem("Material")) {
+				editor->addComponent(object, std::make_unique<Material>());
+			}
+			if (ImGui::MenuItem("Light")) {
+				editor->addComponent(object, std::make_unique<Light>());
+			}
+			if (ImGui::MenuItem("CameraComponent")) {
+				editor->addComponent(object, std::make_unique<CameraComponent>());
+			}
+			if (transform) {
+				if (ImGui::MenuItem("EsfereCollider")) {
+					editor->addComponent(object, std::make_unique<EsfereCollider>(5.0f, transform, object));
+				}
+				if (ImGui::MenuItem("CubeCollider")) {
+					editor->addComponent(object, std::make_unique<CubeCollider>(5.0f, transform, object));
+				}
+				if (ImGui::MenuItem("MallaCollider")) {
+					editor->addComponent(object, std::make_unique<MallaCollider>(5.0f, transform, object));
+				}
+			}
+			if (collider) {
+				if (ImGui::MenuItem("RigidBody")) {
+					editor->addComponent(object, std::make_unique<RigidBody>(collider, 1.0f));
+				}
+			}
+			if (ImGui::MenuItem("Script")) {
+				editor->addComponent(object, std::make_unique<Script>());
+			}
+			if (ImGui::MenuItem("Model")) {
+				editor->addComponent(object, std::make_unique<Model>());
+			}
+			if (ImGui::MenuItem("Grid")) {
+				editor->addComponent(object, std::make_unique<Grid>());
+			}
+			if (ImGui::MenuItem("AudioSource")) {
+				editor->addComponent(object, std::make_unique<AudioSource>());
+			}
+			if (ImGui::MenuItem("InterfaceComponent")) {
+				editor->addComponent(object, std::make_unique<InterfaceComponent>());
+			}
+		}
+		ImGui::EndPopup();
 	}
 }
 

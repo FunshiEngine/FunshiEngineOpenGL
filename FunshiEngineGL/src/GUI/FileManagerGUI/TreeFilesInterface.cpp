@@ -159,6 +159,19 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
         sel->navegacionPendiente.clear();
     }
 
+    // Obtener el rect exacto de la fila del TreeNode (header) para superponer
+    // un boton invisible que cubra TODA la anchura y sirva de drop target.
+    // SpanAvailWidth extiende la seleccion pero NO el rect de drag&drop.
+    // Este boton invisible se posiciona con SetCursorScreenPos sobre el rect
+    // del item recien dibujado (el TreeNode), asi no agrega espacio visual.
+    ImVec2 rowMin = ImGui::GetItemRectMin();
+    ImVec2 rowMax = ImGui::GetItemRectMax();
+    ImVec2 rowSize = ImVec2(rowMax.x - rowMin.x, rowMax.y - rowMin.y);
+    ImGui::SetCursorScreenPos(rowMin);
+    ImGui::InvisibleButton(
+        ("##DropTarget" + std::to_string(reinterpret_cast<uintptr_t>(folderRoot))).c_str(),
+        rowSize);
+
     // Destino de drag&drop: soltar un "ARCHIVO_PATH" (grid u otro origen)
     // sobre la fila lo MUEVE a esta carpeta, siempre: arrastrar desde el
     // panel de contenido hasta una carpeta del arbol es cortar y pegar, sin
@@ -180,7 +193,7 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
             const char* origen = static_cast<const char*>(aceptado->Data);
             if (origen)
                 soltarEnCarpeta(fileManager, eventoArchivos_, origen,
-                                rutaDe(folderRoot), false);
+                                rutaDe(folderRoot), false, nullptr);
         }
         ImGui::EndDragDropTarget();
     }
