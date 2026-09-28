@@ -47,7 +47,7 @@ void StatusBarInterface::setEstadoCompilacion(
     bool /*overlayProgreso*/, bool /*overlayResultado*/) {
     // Convertir a log simple: "cargando scripts: #######42%"
     if (enCurso && total > 0) {
-        int pct = static_cast<int>((static_cast<float>(hecha_) / total_) * 100.0f);
+        int pct = static_cast<int>((static_cast<float>(hecha) / total) * 100.0f);
         int bars = pct / 10;
         std::string bar(bars, '#');
         bar.append(10 - bars, ' ');
