@@ -108,6 +108,11 @@ FunshiEngineGL/packaging/instalador/
 FunshiEngineGL/packaging/ifw/output/
 FunshiEngineGL/*.run
 
+# Sondas de depuración desechables (evidencia empírica de los análisis de
+# bugs: compilan y se ejecutan fuera del build, pero no son código del motor
+# ni del juego)
+FunshiEngineGL/sondas/
+
 # Temporary refactoring/build scripts
 FunshiEngineGL/fix_build.py
 FunshiEngineGL/gui_contents.txt

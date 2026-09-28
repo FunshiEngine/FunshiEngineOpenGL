@@ -148,7 +148,11 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                              Y toda la E/S nativa (diálogos, abrir con la app del
         │   │                              sistema, listado de directorio, plantillas de scripts)
         │   ├── FileSelection.h          ← estado de navegación compartido entre vistas
-        │   └── FileSystemWatcher.h/.cpp ← vigilancia de cambios externos (inotify)
+        │   ├── FileSystemWatcher.h/.cpp ← vigilancia de cambios externos (inotify)
+        │   └── Proceso.h/.cpp           ← runner de procesos SIN shell (argv propio:
+        │                                  CreateProcessW / fork+execvp, log por handles/fd,
+        │                                  cwd, entorno extra; única vía a `cmd.exe` es la
+        │                                  receta cruda del harvest de vcvars)
         ├── GestorDeArchivos/            ← Binario (streams binarios), File, Carpeta,
         │                                  GestorDeArchivos (exploración del filesystem)
         ├── GUI/
@@ -586,18 +590,24 @@ La convención general es un par `.h`/`.cpp` por clase. Las excepciones son:
 al build sin enumerarlos manualmente. Los archivos de ImGui se recopilan por separado
 desde `src/ImGui/` y los de ImGuizmo desde `ImGuizmo/` (fuera de `src/`).
 
-Además del ejecutable, el proyecto define **doce targets de prueba headless**
-registrados en CTest (compilan en cualquier plataforma con `BUILD_ENGINE=OFF`;
-`scripts-java-tests` solo se registra con `-DFUNSHI_JAVA=ON`):
+Además del ejecutable, el proyecto define **veinte targets de prueba headless**
+registrados en CTest (`scripts-java-tests` solo se registra con
+`-DFUNSHI_JAVA=ON`; cinco de ellos enlazan `funshi_engine` y requieren
+`BUILD_ENGINE=ON`, el resto compila también con `BUILD_ENGINE=OFF`):
 
-- `filemanager-tests` (34): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
+- `filemanager-tests` (82): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica.
-- `configuracion-tests` (99): round-trip del JSON de `EditorConfig` (general y
+- `proceso-tests` (26): el runner de procesos sin shell `Proceso`: round-trip
+  de argv byte a byte (el binario se relanza a sí mismo copiado en una carpeta
+  con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,
+  entorno extra, tabla de `citar()` y, en Windows, la receta cruda de `cmd.exe`
+  del harvest de vcvars.
+- `configuracion-tests` (122): round-trip del JSON de `EditorConfig` (general y
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
   archivos ausentes/corruptos/parciales, prioridad de las claves modernas sobre
   el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido.
 - `eventbus-tests` (16): suscripción/publicación/unsubscribe del canal tipado de GUI.
-- `menu-tests` (30): lógica pura del menú (traducción, observer de cambios y reset).
+- `menu-tests` (38): lógica pura del menú (traducción, observer de cambios y reset).
 - `assetmanager-tests` (82): caché Flyweight de meshes (rutas `AssetPath`, geometría
   `Mesh` con `computeBounds`, `computeNormals` —incluido el modo `soloFaltantes`
   para assets que mezclan sub-mallas con y sin normales— y `computeTangents`) y el
@@ -614,16 +624,43 @@ registrados en CTest (compilan en cualquier plataforma con `BUILD_ENGINE=OFF`;
   distancia 3D a la cámara, difuminado por vértice y los rechazos defensivos
   (eje inválido, NaN/Inf, eje degenerado, horizonte degenerado, recta fuera del
   horizonte). Solo CPU, sin OpenGL.
-- `scripts-tests` (42): reflexión `SerializeField` (escalares, arrays, grupos
-  anidados) y el round-trip binario del árbol de valores.
+- `scripts-tests` (100): reflexión `SerializeField` (escalares, arrays, grupos
+  anidados) y su round-trip binario; el contrato de flags con el que
+  `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
+  ARGV armados sin shell ni redirección); el harvest del entorno de vcvars
+  (receta cruda de `cmd`, parser UTF-16, bloque multi-sz); y el contrato del
+  sondeo de toolchain (dispositivo nulo `NUL`/`/dev/null` abierto por el
+  runner, sin `std::system`).
 - `scripts-runtime-tests`: compila un `.cpp` real con `BackendCpp`, lo carga con
-  `dlopen` y ejecuta el ciclo + hot reload (en Windows sale con 77/SKIP).
+  `dlopen`/`LoadLibrary` y ejecuta el ciclo + hot reload (SKIP 77 solo si el
+  sondeo del compilador del build falla; con MSVC el entorno del toolset lo
+  obtiene `BackendCpp` del `vcvars64.bat`).
 - `scripts-java-tests`: end-to-end del backend Java (JNI); solo con `FUNSHI_JAVA=ON`.
+- `model-serialization-tests` (16): serialización binaria del componente `Model`
+  (path con prefijo de longitud; regresión del core al cargar escenas con paths
+  largos).
 - `audio-tests` (16): `AudioEngine`/`AudioClipsManager` con `NullAudioBackend`
   (contrato de la cola de comandos: clips, handles, encolado, detención, volumen).
 - `userinterface-tests` (34): `UserInterfaceCustom` (modelo del Creador de
   interfaces, `src/GUI/CreadorUI/`): round-trip JSON de los 5 tipos de widget,
   guardar/cargar y tolerancia a JSON parcial.
+- `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia`): el acento
+  llega a todos los roles de ImGui y el modo B/N deja la paleta monocroma.
+- `comandos-tests` (77): undo/redo del editor (7 comandos, cadena de redo
+  múltiple, límite de 50 entradas y descripción del comando aplicado).
+- `manifiesto-assets-tests` (29): manifiesto `SceneAssets.json` (JSON round-trip,
+  tolerancia a manifiestos corruptos y precedencia sobre el `.db`).
+- `orquestador-estado-tests` (38): la "función de marco" F5/F6/F7 (reglas por
+  estado de Play/Pausa/Stop) y los atajos del editor frente a ImGui.
+- `escena-serializacion-tests` (58): round-trip completo de escena (guardar →
+  recargar → conservar nombre, id y jerarquía), defensas del índice de escena
+  (H-17: líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0) y
+  apertura avisada de archivos `Binario` inexistente sin `std::remove()`
+  destructivo.
+
+Las cinco suites que enlazan el engine (`tema-tests`, `comandos-tests`,
+`manifiesto-assets-tests`, `orquestador-estado-tests` y
+`escena-serializacion-tests`) solo se compilan con `BUILD_ENGINE=ON`.
 
 La opción `BUILD_ENGINE=OFF` compila solo las pruebas (útil en CI y plataformas
 sin las librerías gráficas), y `ENABLE_ASAN` (ON por defecto en Debug) activa

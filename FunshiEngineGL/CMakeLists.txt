@@ -398,6 +398,24 @@ set_target_properties(filemanager-tests PROPERTIES
 )
 add_test(NAME filemanager-tests COMMAND filemanager-tests)
 
+# Runner de procesos sin shell (Proceso, H-3 nivel 2): round-trip de argv con
+# argumentos hostiles (espacios, &, comilla, barra final, vacio) relanzando
+# este mismo binario copiado a un directorio con espacios, exit codes,
+# truncado del log, cwd y entorno extra. En Windows ademas la receta cruda de
+# cmd.exe que usa el harvest de vcvars. Se compila Proceso.cpp directamente
+# (no hace falta funshi_engine: el modulo es std + API de SO).
+add_executable(proceso-tests
+    ${SRC_DIR}/FileManager/Proceso.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ProcesoTests.cpp
+)
+target_include_directories(proceso-tests PRIVATE ${SRC_DIR})
+set_target_properties(proceso-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME proceso-tests COMMAND proceso-tests)
+
 # EditorConfig (JSON tolerante) tambien se prueba headless y en las tres
 # plataformas: verifica round-trip y la carga ante ausencia/corrupcion.
 add_executable(configuracion-tests
@@ -538,6 +556,7 @@ add_test(NAME rendering-tests COMMAND rendering-tests)
 # anidados y vectores de grupos) y el round-trip binario del arbol de valores.
 add_executable(scripts-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
+    ${SRC_DIR}/FileManager/Proceso.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ScriptsTests.cpp
 )
@@ -564,6 +583,7 @@ add_executable(scripts-runtime-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
     ${SRC_DIR}/Behaviour/Backends/BackendCpp.cpp
     ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
+    ${SRC_DIR}/FileManager/Proceso.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ScriptsRuntimeTests.cpp
 )
@@ -639,6 +659,7 @@ if(FUNSHI_JAVA)
         ${SRC_DIR}/Behaviour/Backends/BackendJava.cpp
         ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
         ${SRC_DIR}/Configuracion/ProjectPaths.cpp
+        ${SRC_DIR}/FileManager/Proceso.cpp
         ${SRC_DIR}/Matematicas/StructVec3.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ScriptsJavaTests.cpp
     )

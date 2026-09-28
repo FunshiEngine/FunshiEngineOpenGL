@@ -20,24 +20,34 @@
 #define SONDEOTOOLCHAIN_H
 
 // Sondeo de version de una herramienta externa (javac, el compilador C++)
-// con el dispositivo nulo de la plataforma.
+// ejecutandola directamente y tirando stdout+stderr al dispositivo nulo de
+// la plataforma.
 //
 // Vive en un header propio (mismo criterio que ComandoCompilacionCpp.h: pocas
 // lineas y sin obligar a tocar la lista de fuentes de CMakeLists.txt) para que
 // el CONTRATO sea verificable headless.
 //
-// El bug que evita (H-14): el sondeo se hacia con `> /dev/null 2>&1`, que es
-// un redirect de POSIX. std::system en Windows invoca `cmd.exe /c`, y cmd.exe
-// no entiende /dev/null: lo toma como una ruta inexistente y el chequeo
-// devuelve error AUNQUE la herramienta este instalada. Por eso
-// scripts-java-tests se saltaba en Windows con el JDK perfectamente presente.
+// Historia de los dos bugs que va dejando atras:
+//  - H-14: el sondeo original redirigia con `> /dev/null 2>&1` via
+//    std::system. En Windows eso es `cmd.exe /c ...`, que no entiende
+//    /dev/null: lo toma como una ruta inexistente y el chequeo devolvia
+//    error AUNQUE la herramienta este instalada (por eso
+//    scripts-java-tests se saltaba en Windows con el JDK presente).
+//  - H-3 nivel 2: el envoltorio sobre `comandoVersion()` (que era un string
+//    de shell, con su cita y su redirect) y el std::system desaparecen:
+//    Proceso::ejecutar lanza la herramienta sin shell y el log es el
+//    dispositivo nulo AHI (abierto por el runner: NUL en Windows, /dev/null
+//    en POSIX). No hay redirect que un shell pueda no entender.
+//    Ver PLAN GENERAL DE FIX.md §21.
 
 #include <string>
 
+#include "../../FileManager/Proceso.h"
+
 namespace SondeoToolchain {
 
-// Dispositivo nulo del shell de la plataforma: `NUL` en cmd.exe (Windows),
-// `/dev/null` en los shells de POSIX (Linux/macOS/MSYS2).
+// Dispositivo nulo del shell de la plataforma: `NUL` en Windows,
+// `/dev/null` en POSIX. Se usa como destino del log de Proceso::ejecutar.
 inline const char* dispositivoNulo() {
 #if defined(_WIN32)
     return "NUL";
@@ -46,26 +56,16 @@ inline const char* dispositivoNulo() {
 #endif
 }
 
-// Comando de sondeo de version: `<herramienta> <flagVersion> > <nulo> 2>&1`.
-//
-// La herramienta va citada porque puede ser una ruta con espacios (un JDK en
-// "Program Files/Eclipse Adoptium/..."). En Windows el comando se envuelve
-// ademas en un par extra de comillas: std::system arma `cmd.exe /c <comando>`
-// y con comilla inicial cmd se come la primera y la ultima de la linea,
-// rompiendola (mismo motivo documentado en BackendJava.cpp para el comando de
-// javac). El par extra hace que cmd se coma el envoltorio y el cuerpo llegue
-// intacto.
-//
-// El flag de version no se unifica: javac usa `-version` y las familias de
-// C++ usan `--version`, asi que lo decide quien llama.
-inline std::string comandoVersion(const std::string& herramienta,
-                                  const std::string& flagVersion) {
-    std::string cmd = "\"" + herramienta + "\" " + flagVersion + " > " +
-                      dispositivoNulo() + " 2>&1";
-#if defined(_WIN32)
-    cmd = "\"" + cmd + "\"";
-#endif
-    return cmd;
+// Ejecuta `herramienta flagVersion` sin shell y devuelve true si arranco y
+// salio con 0. El output se descarta (dispositivo nulo); lo que se prueba es
+// que el proceso CORRE de verdad (existe, arranca, no requiere un shell que
+// no esta).
+inline bool sondear(const std::string& herramienta,
+                    const std::string& flagVersion) {
+    if (herramienta.empty())
+        return false;
+    return Proceso::ejecutar({herramienta, flagVersion},
+                              dispositivoNulo()) == 0;
 }
 
 } // namespace SondeoToolchain

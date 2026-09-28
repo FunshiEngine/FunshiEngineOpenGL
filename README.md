@@ -119,17 +119,18 @@ En Windows la misma receta funciona con el generador de Visual Studio, que deja 
 
 ## Pruebas y CI
 
-Las pruebas son headless (sin pila gráfica), corren con CTest y hay **19 targets**
-(deciocho siempre + `scripts-java-tests` si el build encontró el JDK):
+Las pruebas son headless (sin pila gráfica), corren con CTest y hay **20 targets**
+(decinueve siempre + `scripts-java-tests` si el build encontró el JDK):
 
 ```bash
 # Compilar TODAS las pruebas (la misma lista que compila la CI en el job del
 # engine: ver .github/workflows/ci.yml, release.yml y windows-release.yml)
-cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests tema-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests comandos-tests escena-serializacion-tests
+cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests tema-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests comandos-tests escena-serializacion-tests proceso-tests
 ctest --test-dir build --output-on-failure
 ```
 
 - `filemanager-tests` (82 verificaciones): explorador de archivos (`GestorDeArchivos`/`FileManager`/`FileSystemWatcher`) y el contrato de la plantilla de script C++ (la fábrica viaja con el macro portable de exportación, obligatorio en MSVC).
+- `proceso-tests` (26): el runner de procesos sin shell `Proceso` (H-3 nivel 2): round-trip de argv byte a byte relanzando el propio binario copiado a una carpeta **con espacios** con argumentos hostiles (espacios, operadores de shell, comilla interior, barra final, argumento vacío), exit codes, truncado del log, `cwd`, entorno extra, programa inexistente, la tabla de citación de `citar()` (antes en `scripts-tests`) y, en Windows, la receta cruda de `cmd.exe` del harvest de vcvars.
 - `configuracion-tests` (122): `EditorConfig` sobre `ConfigPersistence`/`ProjectPaths` (round-trip general y por proyecto, prioridad de las claves modernas sobre el `menu/*` legacy, tolerancia a archivos ausentes/corruptos/parciales, `restablecer`, escritura atómica sin temporales colgados y guardado diferido con `volcarGuardadoGeneral`).
 - `eventbus-tests` (16): canal tipado de GUI interna (`EditorEventBus`).
 - `menu-tests` (38): `MenuModel` (traducción en vivo, observer de cambios y reset).
@@ -137,8 +138,8 @@ ctest --test-dir build --output-on-failure
 - `assetmanager-tests` (82) y `texturemanager-tests` (15): caches Flyweight de meshes (incluido el cálculo de normales por cara, y el que rellena solo las normales que faltan en assets mixtos) e imágenes.
 - `estructuras-tests` (87): listas, árboles, heaps y ordenamiento propios.
 - `rendering-tests` (131): geometría de las líneas del pipeline moderno (`LineBuilder`: expansión de cada segmento al quad que ensancha el shader, color por extremo, polilíneas, aristas de collider y caja de 12 aristas), sin entrar a OpenGL.
-- `scripts-tests` (95): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario), el contrato de flags con el que `BackendCpp` compila el script C++ (mismo CRT dinámico que el engine, `/EHsc`, elección por familia de compilador —MSVC o GCC/Clang—, armado de la línea de comandos sin flags cruzadas, citado de rutas para `cmd.exe` y pedido de exportación de la fábrica en el link MSVC, `vcvars64Ruta` que termina en la raíz) y el contrato del comando de sondeo de toolchain (redirect `NUL`/`/dev/null` según SO y envoltorio de comillas de `cmd.exe`).
-- `scripts-runtime-tests` (según toolchain): compila un script C++ real con `BackendCpp`, lo carga con `dlopen`/`LoadLibrary` y ejecuta el ciclo; se omite solo con toolchain MSVC (SKIP, requiere `cl.exe` con el entorno de Visual Studio). En Windows con MinGW/GCC corre igual que en Linux.
+- `scripts-tests` (100): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario), el contrato de flags con el que `BackendCpp` compila el script C++ (mismo CRT dinámico que el engine, `/EHsc`, elección por familia de compilador —MSVC o GCC/Clang—, los ARGV armados sin flags cruzadas ni redirección de shell, y pedido de exportación de la fábrica en el link MSVC, `vcvars64Ruta` que termina en la raíz), el harvest del entorno de vcvars (receta cruda de `cmd` con `/U`, parser UTF-16 del `set /U` y bloque multi-sz ordenado) y el contrato del sondeo de toolchain (dispositivo nulo `NUL`/`/dev/null` abierto por el runner, sin `std::system` ni envoltorios de `cmd.exe`; un hijo `--hijo` ejercita el spawn real).
+- `scripts-runtime-tests` (según toolchain): compila un script C++ real con `BackendCpp`, lo carga con `dlopen`/`LoadLibrary` y ejecuta el ciclo; se omite si el sondeo del compilador de este build falla (SKIP: con MSVC hace falta `cl.exe` del toolchain de Visual Studio —el entorno del toolset, `INCLUDE`/`LIB`, lo obtiene `BackendCpp` del `vcvars64.bat` al compilar, no del shell—). En Windows con MinGW/GCC corre igual que en Linux.
 - `scripts-java-tests` (según toolchain): end-to-end del backend Java (JNI); se compila si el build detecta el JDK (SKIP 77 sin JDK). El sondeo de `javac` resuelve la ruta real —`JAVAC`, `JAVA_HOME`, rutas del JDK— en vez de asumir el `javac` del PATH, así que también corre en Windows.
 - `model-serialization-tests` (16): serialización binaria del componente `Model` (path con prefijo de longitud; regresión del core al cargar escenas con paths largos).
 - `audio-tests` (16): `AudioEngine`/`AudioClipsManager` con `NullAudioBackend` (contrato de la cola de comandos: clips, handles, encolado, detención, volumen).

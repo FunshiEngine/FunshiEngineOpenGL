@@ -46,13 +46,16 @@
 
 #include "BackendCpp.h"
 #include "ComandoCompilacionCpp.h"
+#include "../../FileManager/Proceso.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <string>
+#include <vector>
 
 #include "../ScriptGameObject.h"
 #include "../IScriptBehaviour.h"
@@ -161,9 +164,11 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
     bool hayQueRecompilar = !std::filesystem::exists(artefactoPath, ec) ||
                             salida.mtimeFuente != mtime;
     if (hayQueRecompilar) {
-        // La linea de comandos se arma en ComandoCompilacionCpp.h: la familia
-        // del compilador (MSVC o GCC/Clang) decide flags, include y salida, y el
-        // contrato de CRT con el engine lo verifica el test de esa suite.
+        // Los ARGV del proceso hijo se arman en ComandoCompilacionCpp.h: la
+        // familia del compilador (MSVC o GCC/Clang) decide flags, include y
+        // salida, y el contrato de CRT con el engine lo verifica el test de
+        // esa suite. Sin shell (H-3 nivel 2): cada token va como argumento
+        // propio y la salida la redirige Proceso por handles/fd.
         const std::string logPath =
             (std::filesystem::path(directorioCache()) / "compilar.log")
                 .string();
@@ -174,28 +179,34 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
         datos.dirSrc = directorioSrcMotor();
         datos.dirObjetos = directorioCache();
         datos.artefacto = artefactoPath;
-        datos.log = logPath;
-        // El compilador va entrecomillado dentro del armado: en Windows vive en
-        // una ruta con espacios (C:/Program Files/...) y sin comillas el shell
-        // corta en el primer espacio ("C:/Program" no se reconoce como comando).
-        std::string cmd = CompilacionCpp::comandoCompilacion(datos);
-#if defined(_WIN32)
-        // std::system arma `cmd.exe /c <comando>`: si el comando arranca con
-        // comilla, cmd aplica su regla vieja y se come la PRIMERA y la ULTIMA
-        // comilla de la linea, desarmadolo (cl.exe no arranca y el log queda
-        // con '"C:/Program" no se reconoce'). Dos envoltorios resuelven:
-        // 1) cl.exe necesita el entorno del toolset (INCLUDE/LIB): si existe,
-        //    se antepone vcvars64.bat con `call` (sin comilla inicial no hay
-        //    strip, y el && encadena cl con el entorno ya armado).
-        // 2) Sin vcvars (compilador no MSVC), se envuelve el comando entero en
-        //    una comilla extra: cmd se come esas dos y el cuerpo queda intacto.
+        const std::vector<std::string> argv =
+            CompilacionCpp::argumentosCompilacion(datos);
+
+        int rc = -1;
         const std::string vcvars = CompilacionCpp::vcvars64Ruta(compilador());
-        if (!vcvars.empty())
-            cmd = "call \"" + vcvars + "\" >nul 2>&1 && " + cmd;
-        else
-            cmd = "\"" + cmd + "\"";
+#if defined(_WIN32)
+        if (!vcvars.empty()) {
+            // MSVC: cl.exe necesita el entorno del toolset (INCLUDE/LIB/
+            // link.exe). Lo unico que todavia pasa por cmd.exe es la receta
+            // fija del harvest (sin datos de usuario, ver
+            // comandoEntornoVcvars); el compilador corre solo, con ese bloque
+            // UTF-16 como entorno. Si el harvest falla se hereda el entorno
+            // del motor y el error exacto de cl queda en el log.
+            const std::wstring& bloque =
+                CompilacionCpp::entornoVcvars(vcvars);
+            if (!bloque.empty())
+                rc = Proceso::ejecutarConBloque(argv, bloque, logPath);
+            else {
+                std::cerr << "[scripts] entorno de vcvars no disponible; se "
+                             "compila con el entorno heredado\n";
+                rc = Proceso::ejecutar(argv, logPath);
+            }
+        } else
 #endif
-        int rc = std::system(cmd.c_str());
+        {
+            (void)vcvars; // fuera de MSVC siempre viene vacio
+            rc = Proceso::ejecutar(argv, logPath);
+        }
         if (rc != 0) {
             std::ifstream log(logPath);
             std::string contenido((std::istreambuf_iterator<char>(log)),

@@ -36,8 +36,16 @@
 // del otro lado corrompe el heap.
 
 #include <cctype>
+#include <chrono>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <map>
 #include <string>
+#include <vector>
+
+// Proceso::ejecutarCmdCrudo (solo para el harvest del entorno de vcvars).
+#include "../../FileManager/Proceso.h"
 
 namespace CompilacionCpp {
 
@@ -139,42 +147,9 @@ inline std::string flagsCompilador(const std::string& nombreClase) {
     return flagsFamilia(familiaCompilador(), nombreClase);
 }
 
-// Cita un argumento para la linea de comandos que BackendCpp ejecuta con
-// std::system (en Windows, `cmd.exe /c ...`) y que el compilador hijo vuelve a
-// parsear con las reglas de C. Son dos niveles distintos:
-//
-//  - cmd.exe NO procesa escapes con backslash: los backslashes de una ruta
-//    llegan tal cual, asi que duplicarlos no hace falta. Duplicarlos "por las
-//    dudas" es justo lo que volvia fragil una ruta con `\\` significativos
-//    (UNC) y lo que hacia ilegible el comando.
-//  - El parser del hijo (reglas de C) SI trata los backslashes que van delante
-//    de una comilla: una ruta que termina en `\` (el directorio que recibe
-//    `/Fo`, por ejemplo) dejaria `\"` y se comeria la comilla de cierre. Por
-//    eso solo se duplica el tramo FINAL de backslashes, el unico que puede
-//    quedar pegado a la comilla.
-//
-// Las rutas de Windows no pueden llevar comillas; si llegara una (un archivo de
-// proyecto tocado a mano) se escapa con `\"`, que es como la lee el parser del
-// hijo.
-inline std::string citar(const std::string& ruta) {
-    std::string::size_type fin = ruta.size();
-    while (fin > 0 && ruta[fin - 1] == '\\') --fin;
-
-    std::string resultado = "\"";
-    for (std::string::size_type i = 0; i < fin; ++i) {
-        if (ruta[i] == '"')
-            resultado += "\\\"";
-        else
-            resultado += ruta[i];
-    }
-    for (std::string::size_type i = fin; i < ruta.size(); ++i)
-        resultado += "\\\\";
-    resultado += "\"";
-    return resultado;
-}
-
-// Todo lo que necesita la linea de comandos. Las rutas van SIN citar: el armado
-// de abajo las pasa por `citar()`.
+// Todo lo que necesita la linea de comandos. Las rutas van SIN citar: el
+// argv se arma con los valores crudos y quien cita al lanzar es Proceso
+// (CreateProcessW en Windows; en POSIX execvp los recibe tal cual).
 struct DatosComando {
     std::string compilador; // ruta al compilador (o el nombre, si esta en PATH)
     std::string nombreClase;
@@ -182,30 +157,52 @@ struct DatosComando {
     std::string dirSrc;     // carpeta de cabeceras del motor; vacia si no hay
     std::string dirObjetos; // solo MSVC (/Fo)
     std::string artefacto;  // .so/.dll/.dylib de salida
-    std::string log;        // archivo que recibe stdout+stderr
 };
 
-// Linea de comandos completa. La familia del compilador decide flags, include y
-// salida; la plataforma (BackendCpp) decide la extension del artefacto y como se
-// lanza el proceso.
-inline std::string comandoCompilacion(const DatosComando& datos) {
+// Argumentos del proceso hijo (H-3 nivel 2): SIN shell, SIN citar y SIN el
+// redirect `> log 2>&1` — la salida la redirige Proceso::ejecutar por
+// handles/fd. La familia del compilador decide flags, include y salida; la
+// plataforma (BackendCpp) decide la extension del artefacto y como se lanza
+// el proceso.
+inline std::vector<std::string>
+argumentosCompilacion(const DatosComando& datos) {
     const Familia familia = familiaDe(datos.compilador);
-    std::string cmd =
-        citar(datos.compilador) + " " + flagsFamilia(familia, datos.nombreClase);
+    std::vector<std::string> argv;
+    argv.reserve(10);
+    argv.push_back(datos.compilador);
+
+    // Los flags de la familia son tokens literales sin espacios: partirlos
+    // por espacio conserva el orden (y los que llevan valor pegado, como
+    // /DFUNSHI_NOMBRE_CLASE=X o -std=c++17, son un solo token).
+    const std::string flags = flagsFamilia(familia, datos.nombreClase);
+    std::string::size_type inicio = 0;
+    while (inicio < flags.size()) {
+        const std::string::size_type fin = flags.find(' ', inicio);
+        const std::string token = flags.substr(
+            inicio, fin == std::string::npos ? std::string::npos : fin - inicio);
+        if (!token.empty())
+            argv.push_back(token);
+        if (fin == std::string::npos)
+            break;
+        inicio = fin + 1;
+    }
+
     if (!datos.dirSrc.empty())
-        cmd += (familia == Familia::Msvc ? " /I" : " -I") + citar(datos.dirSrc);
-    cmd += " " + citar(datos.fuente);
+        argv.push_back((familia == Familia::Msvc ? "/I" : "-I") +
+                       datos.dirSrc);
+    argv.push_back(datos.fuente);
     if (familia == Familia::Msvc) {
         if (!datos.dirObjetos.empty())
-            // /Fo necesita la barra final para que cl.exe lo lea como carpeta, y
-            // citar() la duplica porque queda pegada a la comilla de cierre.
-            cmd += " /Fo" + citar(datos.dirObjetos + "\\");
-        cmd += " /Fe" + citar(datos.artefacto);
+            // /Fo necesita la barra final para que cl.exe lo lea como carpeta;
+            // Proceso::citar() la duplica al armar la linea para que el hijo
+            // no se coma la comilla de cierre.
+            argv.push_back("/Fo" + datos.dirObjetos + "\\");
+        argv.push_back("/Fe" + datos.artefacto);
     } else {
-        cmd += " -o " + citar(datos.artefacto);
+        argv.push_back("-o");
+        argv.push_back(datos.artefacto);
     }
-    cmd += " > " + citar(datos.log) + " 2>&1";
-    return cmd;
+    return argv;
 }
 
 // Ruta a vcvars64.bat subiendo desde la carpeta del compilador: el toolset
@@ -237,6 +234,136 @@ inline std::string vcvars64Ruta(const std::string& compiladorRuta) {
     }
     return std::string();
 }
+
+// --- Entorno de vcvars sin shell (H-3 nivel 2) --------------------------------
+//
+// cl.exe no arranca sin el entorno del toolset (INCLUDE/LIB/PATH con
+// link.exe). Antes eso se lograba encadenando `call vcvars64.bat && cl ...`
+// DENTRO de cmd.exe — junto con el comando completo, con todos los datos de
+// usuario. Ahora el compilador corre solo (Proceso::ejecutar) y lo unico que
+// pasa por cmd es la receta fija de abajo, que no lleva datos de usuario:
+// solo la ruta de vcvars, balanceada a mano. Ver PLAN GENERAL DE FIX.md §21.
+
+// Receta cruda para Proceso::ejecutarCmdCrudo. Detalles:
+//  - `call`: sin el, cmd entrega el control al .bat y al terminar sale sin
+//    ejecutar lo que sigue del `&&`;
+//  - `/U`: la salida de `set` en UTF-16LE. Sin /U escribe en la CP OEM
+//    (sonda: en espanol, CP850) y una ruta no-ASCII se corromperia al
+//    reconvertirla (el round-trip con /U quedo byte-exacto);
+//  - `/d`: ignora el AutoRun del registro;
+//  - el remainder arranca con `call` (no con comilla), asi que no aplica el
+//    strip de primera/ultima comilla de cmd.exe.
+inline std::string comandoEntornoVcvars(const std::string& vcvarsRuta) {
+    return "/U /d /c call \"" + vcvarsRuta + "\" && set";
+}
+
+// Parsea la salida UTF-16 de `cmd /U ... set` y devuelve el bloque de
+// entorno (multi-sz: pares clave=valor\0 terminado con un \0 extra),
+// ordenado alfabeticamente como pide CreateProcessW. Solo entran lineas con
+// nombre de variable valido: el banner de vcvars (sin `=` o con formas que
+// no son CLAVE=valor) se descarta. El valor puede contener `=` (se corta en
+// el PRIMERO). Devuelve vacio si no hay ni 3 variables: no es una salida de
+// `set` utilizable (archivo vacio, cmd no corrio, archivo viejo).
+inline std::wstring bloqueDesdeSet(const std::wstring& salida) {
+    std::map<std::wstring, std::wstring> variables;
+    std::wstring::size_type inicio = 0;
+    while (inicio < salida.size()) {
+        std::wstring::size_type fin = salida.find(L'\n', inicio);
+        if (fin == std::wstring::npos)
+            fin = salida.size();
+        std::wstring linea = salida.substr(inicio, fin - inicio);
+        inicio = fin + 1;
+        if (!linea.empty() && linea.back() == L'\r')
+            linea.pop_back();
+
+        const std::wstring::size_type igual = linea.find(L'=');
+        if (igual == std::wstring::npos || igual == 0)
+            continue; // banner u otras lineas sin clave
+        bool nombreValido = true;
+        for (std::wstring::size_type i = 0; i < igual; ++i) {
+            const wchar_t c = linea[i];
+            const bool ok = (c >= L'A' && c <= L'Z') || (c >= L'a' && c <= L'z') ||
+                            (c >= L'0' && c <= L'9') || c == L'_';
+            if (!ok || (i == 0 && c >= L'0' && c <= L'9')) {
+                nombreValido = false;
+                break;
+            }
+        }
+        if (!nombreValido)
+            continue;
+        variables[linea.substr(0, igual)] = linea.substr(igual + 1);
+    }
+    if (variables.size() < 3)
+        return std::wstring();
+
+    std::wstring bloque;
+    for (const auto& par : variables) {
+        bloque += par.first;
+        bloque += L'=';
+        bloque += par.second;
+        bloque += L'\0';
+    }
+    bloque += L'\0';
+    return bloque;
+}
+
+#if defined(_WIN32)
+
+// Entorno completo de vcvars, ejecutado y parseado UNA vez por proceso
+// (cache: el primer script MSVC paga los ~200 ms del .bat). Devuelve el
+// bloque multi-sz listo para Proceso::ejecutarConBloque, o VACIO si algo
+// fallo (vcvars inexistente, cmd no corrio, salida ilegible): en ese caso
+// BackendCpp compila con el entorno heredado y el error exacto de cl queda
+// en el log. El archivo se lee como bytes (UTF-16LE) sin windows.h, para
+// que el header siga siendo seguro en cualquier TU.
+inline const std::wstring& entornoVcvars(const std::string& vcvarsRuta) {
+    static std::wstring cache;
+    static std::string cacheLlave;
+    if (vcvarsRuta == cacheLlave && !cache.empty())
+        return cache;
+    cacheLlave = vcvarsRuta;
+    cache.clear();
+    if (vcvarsRuta.empty())
+        return cache;
+
+    std::error_code ec;
+    const std::filesystem::path tmp =
+        std::filesystem::temp_directory_path(ec) /
+        ("funshi_vcvars_entorno_" +
+         std::to_string(std::chrono::steady_clock::now()
+                            .time_since_epoch()
+                            .count()) +
+         ".txt");
+    if (ec)
+        return cache;
+
+    Proceso::ejecutarCmdCrudo(comandoEntornoVcvars(vcvarsRuta), tmp.string());
+
+    std::ifstream archivo(tmp, std::ios::binary);
+    if (archivo) {
+        const std::string bytes((std::istreambuf_iterator<char>(archivo)),
+                                std::istreambuf_iterator<char>());
+        archivo.close();
+        // UTF-16LE: pares de bytes (posible BOM FF FE inicial; los pares
+        // incompletos de un archivo truncado se ignoran).
+        std::size_t i = 0;
+        if (bytes.size() >= 2 &&
+            static_cast<unsigned char>(bytes[0]) == 0xFF &&
+            static_cast<unsigned char>(bytes[1]) == 0xFE)
+            i = 2;
+        std::wstring salida;
+        salida.reserve((bytes.size() - i) / 2);
+        for (; i + 1 < bytes.size(); i += 2)
+            salida.push_back(static_cast<wchar_t>(
+                static_cast<unsigned char>(bytes[i]) |
+                (static_cast<unsigned char>(bytes[i + 1]) << 8)));
+        cache = bloqueDesdeSet(salida);
+    }
+    std::filesystem::remove(tmp, ec);
+    return cache;
+}
+
+#endif // _WIN32
 
 // Verdadero si `flags` contiene el flag exacto, comparando por tokens: "/MD" no
 // tiene que dar positivo sobre "/MDd" ni "-O2" sobre "-O2x". Se usa en el test

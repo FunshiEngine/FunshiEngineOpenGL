@@ -101,6 +101,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **Contador de Cambios (`contadorCambios`)** | Señal simple para forzar rescaneo de estructuras complejas (árboles) | `FileSelection`, `TreeFilesInterface` |
 | **R8 — Resolver la Ruta y Probar la Escritura** | No asumir que el destino es escribible: probar creando y borrando un archivo; si falla, usar la carpeta de datos del usuario y avisar | `ProjectPaths::directorioBase()` (ver §6.4) |
 | **R9 — Texto estructurado con seek en binario** | Si el lector hace `seekg(tellg())` para releer (look-ahead/peek), abrir en **binario** y normalizar las líneas (recortar `\r`): en modo texto el CRT de Windows traduce CRLF y los offsets dejan de ser bytes exactos | `SceneSerializer::load()` + `getlineLimpio()` (ver §7.4) |
+| **R10 — La bandera de encoding viaja junto al dato** | Si una API acepta un bloque/cadena cuyo encoding depende de una bandera (`CREATE_UNICODE_ENVIRONMENT`), la bandera se decide **dentro** de la función que recibe el dato, nunca en el llamador | `Proceso::lanzar()` (ver §8.4) |
 
 ---
 
@@ -303,14 +304,91 @@ Reglas complementarias:
 
 ---
 
-## 8. Historial de Cambios
+## 8. Cuarto concepto: **Bloques de entorno UTF-16 rechazados por falta de `CREATE_UNICODE_ENVIRONMENT`**
+
+Distinto de §1 (cache viejo), §6 (permisos de escritura) y §7 (offsets de
+texto): aquí la llamada **falla en el momento**, con un código de error
+genérico, y lo engañoso es que *todo* bloque parece inválido — hasta el que
+el propio sistema te dio. La duda se va hacia el contenido del bloque
+("mi parser corrompe el UTF-16") cuando el problema está en una bandera
+que no se pasó.
+
+### 8.1 Descripción del problema
+
+`CreateProcessW(..., lpEnvironment, ...)` interpreta `lpEnvironment` como
+**ANSI a menos que se pase `CREATE_UNICODE_ENVIRONMENT` (0x400)** en
+`dwCreationFlags`. El contrato está documentado en MSDN, pero es invisible
+en la firma de la función: no hay parámetro de encoding, solo la bandera.
+Sin ella, un bloque UTF-16 perfectamente formado se lee byte a byte:
+
+```text
+bloque UTF-16:   'P' 00 'A' 00 'T' 00 'H' 00 ...
+leído como ANSI: "P"      ← termina en el primer NUL
+```
+
+queda una "clave" sin `=` (o directamente una cadena vacía) y el sistema
+responde `ERROR_INVALID_PARAMETER` (87).
+
+### 8.2 Síntomas
+
+- `CreateProcessW` devuelve **87** con **cualquier** bloque que contenga
+  variables, incluida una **copia literal** del bloque del propio proceso
+  padre y el bloque **oficial** de `CreateEnvironmentBlock` (userenv): el
+  contenido no importa, así que "revisar el parser" es un callejón sin
+  salida.
+- Un bloque **vacío** (dos NULs) **sí** funciona — se parece a un fallo
+  intermitente o dependiente de alguna variable concreta.
+- El mismo bloque pasado por `CreateProcessA` (ANSI es su default) **sí**
+  funciona, y .NET (`ProcessStartInfo.Environment`, que sí agrega la
+  bandera) también: solo cae la combinación *W + UTF-16 + sin bandera*.
+- Como `lpEnvironment=NULL` (heredar el entorno) nunca falla, el bug
+  permanece latente hasta que aparece un único código que pasa bloque
+  (entorno extra, harvest de vcvars).
+
+### 8.3 Causa raíz
+
+La bandera falta en la llamada. Diagnóstico por reducción (sonda
+`FunshiEngineGL/sondas/sonda_bloque.cpp`): bloque vacío ✓ / `A` con
+bloque ✓ / sin bloque ✓ / `.NET` ✓ / copia literal ✗ / userenv ✗ /
+cualquier mapa ✗ → el único diferenciador era `dwCreationFlags=0`.
+
+### 8.4 Solución canónica (Patrón R10 — la bandera de encoding viaja junto al dato)
+
+```cpp
+const DWORD flags = bloque ? CREATE_UNICODE_ENVIRONMENT : 0;
+CreateProcessW(nullptr, linea, nullptr, nullptr, heredar, flags,
+               bloque, cwd, &si, &pi);
+```
+
+Reglas complementarias:
+
+- La bandera se decide **dentro** de la función que recibe el bloque: una
+  API que acepta bloques no puede delegar al llamador el encoding — si el
+  llamador puede equivocarse, ese error no tiene test posible en la capa
+  que llama.
+- `CreateProcessA` con bloque ANSI no necesita bandera; al portar de `A` a
+  `W` hay que acordarse de agregarla (el compilador no avisa).
+- **Testear con un hijo que reciba y reporte la variable** (no solo
+  `rc==0`): un bloque aceptado pero ignorado daría `rc=0` con el entorno
+  heredado y pasaría inadvertido.
+
+### 8.5 Registro de instancias
+
+| # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
+|---|-----------|-----------|----------------|--------------|--------|
+| 1 | `Proceso::lanzar()` (`src/FileManager/Proceso.cpp`) | Spawn con entorno propio (variable extra y bloque de vcvars) | Win32 `CreateProcessW` | R10: `CREATE_UNICODE_ENVIRONMENT` condicional a que haya bloque | `fix(scripts): invocar el compilador y los sondajes sin cmd.exe` |
+
+---
+
+## 9. Historial de Cambios
 
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
 | 2026-09-27 | Gianfranco Ivan Enrique | Creación del documento; registro de instancias #1–3; definición de plantilla y checklist para agentes. |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) con su registro de instancias, a raíz del crash al asignar un script en el binario instalado. |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el tercer concepto (Patrón R9, offsets engañosos de `tellg`/`seekg` en streams de texto con CRLF) con su instancia #1, a raíz del bug de los objetos fantasma "Scene" (H-17). |
+| 2026-09-27 | Gianfranco Ivan Enrique | Añadido el cuarto concepto (Patrón R10, `CREATE_UNICODE_ENVIRONMENT` obligatorio con bloques UTF-16 en `CreateProcessW`) con su instancia #1, a raíz del error 87 al pasar el entorno de vcvars/variable extra (H-3 nivel 2). |
 
 ---
 
-*Este documento es vivo: cada nuevo bug de esta clase debe registrarse en la tabla de su concepto (§2 para el primero, §6.5 para el segundo, §7.5 para el tercero) y, si revela un patrón nuevo, añadirse a §4.*
+*Este documento es vivo: cada nuevo bug de esta clase debe registrarse en la tabla de su concepto (§2 para el primero, §6.5 para el segundo, §7.5 para el tercero, §8.5 para el cuarto) y, si revela un patrón nuevo, añadirse a §4.*

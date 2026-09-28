@@ -123,11 +123,18 @@ static std::string fuenteScript(const std::string& clase) {
 static bool hayCompilador() {
     const char* cxx = std::getenv("FUNSHI_CXX");
     const std::string ruta = cxx && *cxx ? cxx : FUNSHI_CXX_COMPILER;
-    // Sondeo con el dispositivo nulo de la plataforma (H-14): `> /dev/null`
-    // cmd.exe no lo entiende y el chequeo fallaria en Windows aunque el
-    // compilador exista.
-    return std::system(
-               SondeoToolchain::comandoVersion(ruta, "--version").c_str()) == 0;
+    // Sondeo SIN shell (H-3 nivel 2): Proceso::ejecutar tira el output al
+    // dispositivo nulo de la plataforma (H-14: NUL / /dev/null — ahora
+    // abierto por el runner en vez de escrito por cmd.exe). El flag depende
+    // de la familia: g++/clang++ entienden --version; cl.exe usa /?, porque
+    // `cl --version` no existe y dejaba el test en skip. Con MSVC el test
+    // puede seguir: el entorno del toolset (INCLUDE/LIB/PATH) lo harvesta
+    // BackendCpp el mismo.
+    const std::string flag = CompilacionCpp::familiaCompilador() ==
+                                     CompilacionCpp::Familia::Msvc
+                                 ? "/?"
+                                 : "--version";
+    return SondeoToolchain::sondear(ruta, flag);
 }
 
 static void escribirFuente(const std::string& ruta,
