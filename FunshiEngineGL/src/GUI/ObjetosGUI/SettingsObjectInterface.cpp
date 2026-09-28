@@ -50,9 +50,8 @@ SettingsObjectInterface::SettingsObjectInterface(GameObject* object,
                                                  bool stateGUI)
 	: GeneralUserInterface("Settings", stateGUI, ImGuiWindowFlags_MenuBar) {
 	this->object = object;
-	momentaneantID = object ? object->getId() : 0;
 	listaDESettingsComponent = new ListaDE<SettingsComponent*>();
-	if (!object->getComponents()->isEmpty()) {
+	if (object && !object->getComponents()->isEmpty()) {
 		loadComponents();
 	}
 }
@@ -79,7 +78,6 @@ void SettingsObjectInterface::desvincular() {
         listaDESettingsComponent->remove(pos);
     }
     object = nullptr;
-    momentaneantID = 0;
 }
 
 void SettingsObjectInterface::setEventBus(EventBus* bus) {
@@ -181,7 +179,6 @@ void SettingsObjectInterface::setTargetObject(GameObject* newObject) {
         delete pos->getElement();
         listaDESettingsComponent->remove(pos);
     }
-    momentaneantID = object->getId();
     loadComponents();
 }
 
@@ -191,160 +188,6 @@ void SettingsObjectInterface::initGUI() {
 }
 
 void SettingsObjectInterface::contentGUI() {
-	ImGui::InputInt("Id", &momentaneantID);
-
-	// H-17 (ver PLAN GENERAL DE FIX.md §20): el id 0 lo usa la raiz
-	// (ObjectN0.db en el indice de escena). Aplicarlo a un hijo hacia que el
-	// guardado pisara el binario de la raiz y el indice quedara con dos
-	// "ObjectN0.db", semilla del fantasma "Scene" que se auto-propaga. El
-	// campo ademas quedaba en 0 tras cada "Confirmar" y un segundo click
-	// (p. ej. para confirmar un renombre) fijaba id 0 sin querer: ahora se
-	// rechaza el id invalido y el campo siempre vuelve al id real.
-	const bool esRaiz = object->getParentEntity() == nullptr;
-	const bool idValido = momentaneantID > 0 || (esRaiz && momentaneantID >= 0);
-	if (!idValido) {
-		ImGui::TextColored(ImVec4(1.f, 0.45f, 0.45f, 1.f),
-		                   "Id invalido: 0 es de la raiz; un hijo necesita id > 0");
-	}
-
-	if (ImGui::Button("Confirmar")) {
-		if (idValido) {
-			object->setId(momentaneantID);
-		}
-		momentaneantID = object->getId();
-	}
-
-	ImGui::InputText("Nombre", object->inputName, IM_ARRAYSIZE(object->inputName));
-
-	ImGui::Separator();
-
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1.f));
-	if (ImGui::Button("Eliminar Objeto", ImVec2(-1, 0)) && editor) {
-		GameObject* target = object;
-		editor->deleteGameObject(target);
-		stateGUI = false;
-		ImGui::PopStyleColor();
-		return;
-	}
-	ImGui::PopStyleColor();
-
-	if (ImGui::BeginPopupContextWindow("AddComponentPopup",
-	                                   ImGuiPopupFlags_MouseButtonRight)) {
-		if (ImGui::MenuItem("Agregar Transform") &&
-		    object->getComponent<Transform>() == nullptr) {
-			object->addComponent(new Transform());
-			listaDESettingsComponent->addLast(
-			    new SettingsTransform(object->getComponent<Transform>(),
-			                          object));
-		}
-		if (ImGui::MenuItem("Agregar Color") &&
-		    object->getComponent<Color>() == nullptr) {
-			object->addComponent(new Color());
-			listaDESettingsComponent->addLast(new SettingsColor(object));
-		}
-		if (ImGui::MenuItem("Agregar Material") &&
-		    object->getComponent<Material>() == nullptr) {
-			object->addComponent(new Material());
-			listaDESettingsComponent->addLast(new SettingsMaterial(object));
-		}
-		if (ImGui::MenuItem("Agregar Luz") &&
-		    object->getComponent<Light>() == nullptr) {
-			object->addComponent(new Light());
-			listaDESettingsComponent->addLast(new SettingsLight(object));
-		}
-		if (ImGui::MenuItem("Agregar Camara") &&
-		    object->getComponent<CameraComponent>() == nullptr) {
-			object->addComponent(new CameraComponent());
-			listaDESettingsComponent->addLast(new SettingsCamera(object));
-		}
-		if (ImGui::TreeNodeEx("Agregar Collider",
-		                      ImGuiTreeNodeFlags_OpenOnArrow |
-		                          ImGuiTreeNodeFlags_SpanAvailWidth)) {
-			if (ImGui::Selectable("EsfereCollider")) {
-				if (object->getComponent<Collider>() == nullptr &&
-				    object->getComponent<Transform>() != nullptr) {
-					object->addComponent(
-					    new EsfereCollider(5.0f,
-					                       object->getComponent<Transform>(),
-					                       object));
-					listaDESettingsComponent->addLast(
-					    new SettingsColliderEsfera(object));
-				}
-			}
-			if (ImGui::Selectable("CubeCollider")) {
-				if (object->getComponent<Collider>() == nullptr &&
-				    object->getComponent<Transform>() != nullptr) {
-					object->addComponent(
-					    new CubeCollider(5.0f,
-					                     object->getComponent<Transform>(),
-					                     object));
-					listaDESettingsComponent->addLast(
-					    new SettingsColliderCubo(object));
-				}
-			}
-			if (ImGui::Selectable("MallaCollider")) {
-				if (object->getComponent<Collider>() == nullptr &&
-				    object->getComponent<Transform>() != nullptr) {
-					object->addComponent(
-					    new MallaCollider(
-					        5.0f, object->getComponent<Transform>(), object));
-					listaDESettingsComponent->addLast(
-					    new SettingsColliderMalla(object));
-				}
-			}
-			ImGui::TreePop();
-		}
-		if (ImGui::MenuItem("RigidBody")) {
-			if (object->getComponent<RigidBody>() == nullptr &&
-			    object->getComponent<Collider>() != nullptr) {
-				RigidBody* rb =
-				    new RigidBody(object->getComponent<Collider>(), 1.0f);
-				if (editor) {
-					// El controller agrega el componente y lo registra en la
-					// fisica de forma centralizada.
-					editor->addComponent(object,
-					                     std::unique_ptr<RigidBody>(rb));
-				} else {
-					object->addComponent(rb);
-				}
-				listaDESettingsComponent->addLast(new SettingsRigidBody(object));
-			}
-		}
-		if (ImGui::MenuItem("Script")) {
-			if (object->getComponent<Script>() == nullptr) {
-				object->addComponent(new Script());
-				listaDESettingsComponent->addLast(new SettingsScript(object));
-			}
-		}
-		if (ImGui::MenuItem("Model")) {
-			if (object->getComponent<Model>() == nullptr) {
-				object->addComponent(new Model());
-				listaDESettingsComponent->addLast(new SettingsModel(object));
-			}
-		}
-		if (ImGui::MenuItem("Agregar Fuente de audio")) {
-			if (object->getComponent<AudioSource>() == nullptr) {
-				object->addComponent(new AudioSource());
-				SettingsAudioSource* settingsAudioSource =
-				    new SettingsAudioSource(object);
-				settingsAudioSource->setAudioEngine(audioMotor);
-				listaDESettingsComponent->addLast(settingsAudioSource);
-			}
-		}
-		if (ImGui::MenuItem("Grilla") &&
-		    object->getComponent<Grid>() == nullptr &&
-		    object->getComponent<Transform>() != nullptr) {
-			object->addComponent(new Grid());
-			listaDESettingsComponent->addLast(new SettingsGrid(object));
-		}
-		if (ImGui::MenuItem("Agregar Interfaz") &&
-		    object->getComponent<InterfaceComponent>() == nullptr) {
-			object->addComponent(new InterfaceComponent());
-			listaDESettingsComponent->addLast(new SettingsInterface(object));
-		}
-		ImGui::EndPopup();
-	}
-
 	// MOSTRAMOS COMPONENTES
 	if (!listaDESettingsComponent->isEmpty()) {
 		Position<SettingsComponent*>* position =

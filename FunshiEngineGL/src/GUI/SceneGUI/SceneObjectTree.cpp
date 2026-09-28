@@ -84,9 +84,12 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
     std::string etiqueta = object->inputName;
     if (etiqueta.empty()) etiqueta = demangle(typeid(*object).name());
 
+    // Mostrar ID a la izquierda del nombre: "123 Nombre"
+    std::string labelConID = std::to_string(object->getId()) + " " + etiqueta;
+
     if (renombrando == object) {
-        // Renombrado en linea: Enter commitea, Escape cancela. No se dibujan
-        // los hijos mientras se edita (evita TreePop sin TreeNode).
+        // Renombrado en linea (doble click o menu Renombrar): Enter commitea,
+        // Escape cancela. No se dibujan los hijos mientras se edita.
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
         const bool commit = ImGui::InputText(
             "##renombrar", object->inputName, IM_ARRAYSIZE(object->inputName),
@@ -113,13 +116,16 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
     if (selected) nodeFlags |= ImGuiTreeNodeFlags_Selected;
     if (wasOpen) nodeFlags |= ImGuiTreeNodeFlags_DefaultOpen;
 
-    // El label se pasa tambien como formato para que ni "##" ni "#" del
-    // nombre alteren la construccion del ID interno.
-    const bool nodeOpen = ImGui::TreeNodeEx(etiqueta.c_str(), nodeFlags, "%s",
-                                            etiqueta.c_str());
-    // Leer "toggled" justo despues del TreeNodeEx: el menu contextual y el
-    // drag&drop sobreescriben el "last item" de ImGui.
+    const bool nodeOpen = ImGui::TreeNodeEx(labelConID.c_str(), nodeFlags, "%s",
+                                            labelConID.c_str());
     const bool toggled = ImGui::IsItemToggledOpen();
+
+    // Doble click izquierdo -> iniciar renombrado inline
+    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && editor) {
+        editor->selectObject(object);
+        renombrando = object;
+        ImGui::SetKeyboardFocusHere(-1);
+    }
 
     if ((ImGui::IsItemClicked(ImGuiMouseButton_Left) ||
          ImGui::IsItemClicked(ImGuiMouseButton_Right)) &&
@@ -128,22 +134,34 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("ID: %d", object->getId());
 
+    // Menu contextual con 3 opciones: Cambiar ID, Renombrar, Eliminar
     if (ImGui::BeginPopupContextItem("MenuObjeto")) {
         ImGui::Text("%s", etiqueta.c_str());
         ImGui::Separator();
-        if (ImGui::MenuItem("Renombrar")) renombrando = object;
+        if (ImGui::MenuItem("Cambiar ID")) {
+            dialogoActivo = DialogoTipo::CambiarID;
+            objetoEnDialogo = object;
+            std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%d", object->getId());
+            ImGui::OpenPopup("DialogoCambiarID");
+        }
+        if (ImGui::MenuItem("Renombrar")) {
+            dialogoActivo = DialogoTipo::Renombrar;
+            objetoEnDialogo = object;
+            std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
+            ImGui::OpenPopup("DialogoRenombrar");
+        }
         if (ImGui::MenuItem("Eliminar")) {
-            // Diferido: borrar durante el recorrido invalidaria iteradores.
-            if (editor) editor->clearSelection();
-            renombrando = nullptr;
-            objetoAEliminar = object;
+            dialogoActivo = DialogoTipo::Eliminar;
+            objetoEnDialogo = object;
+            ImGui::OpenPopup("DialogoEliminar");
         }
         ImGui::EndPopup();
     }
 
-    // Drag & drop con la identidad del objeto (GameObject*), no con el nodo
-    // interno del arbol: el puntero del objeto sobrevive a una reconstruccion
-    // del arbol durante el arrastre.
+    // Dialogos modales
+    dibujarDialogosModales();
+
+    // Drag & drop...
     if (ImGui::BeginDragDropSource()) {
         GameObject* draggable = object;
         ImGui::SetDragDropPayload("ENTITY_NODE", &draggable,
@@ -166,6 +184,97 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
     }
 
     return {nodeOpen, toggled};
+}
+
+void SceneObjectTree::dibujarDialogosModales() {
+    if (dialogoActivo == DialogoTipo::Ninguno || !objetoEnDialogo) return;
+
+    // Dialogo Cambiar ID
+    if (dialogoActivo == DialogoTipo::CambiarID) {
+        if (ImGui::BeginPopupModal("DialogoCambiarID", nullptr,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Nuevo ID para '%s':", objetoEnDialogo->inputName);
+            ImGui::InputText("##id", bufferDialogo, sizeof(bufferDialogo),
+                             ImGuiInputTextFlags_CharsDecimal);
+            ImGui::Separator();
+            if (ImGui::Button("Aceptar", ImVec2(120, 0))) {
+                int nuevoId = std::atoi(bufferDialogo);
+                const bool esRaiz = objetoEnDialogo->getParentEntity() == nullptr;
+                if (nuevoId > 0 || (esRaiz && nuevoId >= 0)) {
+                    objetoEnDialogo->setId(nuevoId);
+                    if (events)
+                        events->publish({SceneEventType::ComponentChanged,
+                                         objetoEnDialogo, nullptr});
+                }
+                dialogoActivo = DialogoTipo::Ninguno;
+                objetoEnDialogo = nullptr;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+                dialogoActivo = DialogoTipo::Ninguno;
+                objetoEnDialogo = nullptr;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+    }
+
+    // Dialogo Renombrar
+    if (dialogoActivo == DialogoTipo::Renombrar) {
+        if (ImGui::BeginPopupModal("DialogoRenombrar", nullptr,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Nuevo nombre:");
+            ImGui::SetKeyboardFocusHere();
+            ImGui::InputText("##nombre", bufferDialogo, sizeof(bufferDialogo),
+                             ImGuiInputTextFlags_EnterReturnsTrue);
+            ImGui::Separator();
+            bool confirmado = ImGui::Button("Aceptar", ImVec2(120, 0));
+            bool cancelado = ImGui::IsKeyPressed(ImGuiKey_Escape) ||
+                             ImGui::Button("Cancelar", ImVec2(120, 0));
+            if (ImGui::SameLine(); confirmado || cancelado) {
+                if (confirmado && bufferDialogo[0] != '\0') {
+                    std::snprintf(objetoEnDialogo->inputName,
+                                  sizeof(objetoEnDialogo->inputName), "%s",
+                                  bufferDialogo);
+                    if (events)
+                        events->publish({SceneEventType::ComponentChanged,
+                                         objetoEnDialogo, nullptr});
+                }
+                dialogoActivo = DialogoTipo::Ninguno;
+                objetoEnDialogo = nullptr;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+    }
+
+    // Dialogo Eliminar
+    if (dialogoActivo == DialogoTipo::Eliminar) {
+        if (ImGui::BeginPopupModal("DialogoEliminar", nullptr,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Eliminar '%s' (ID: %d)?",
+                        objetoEnDialogo->inputName, objetoEnDialogo->getId());
+            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f),
+                               "Esta accion no se puede deshacer.");
+            ImGui::Separator();
+            if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
+                if (editor) editor->clearSelection();
+                renombrando = nullptr;
+                objetoAEliminar = objetoEnDialogo;
+                dialogoActivo = DialogoTipo::Ninguno;
+                objetoEnDialogo = nullptr;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+                dialogoActivo = DialogoTipo::Ninguno;
+                objetoEnDialogo = nullptr;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+    }
 }
 
 void SceneObjectTree::applyDeferredOperations() {

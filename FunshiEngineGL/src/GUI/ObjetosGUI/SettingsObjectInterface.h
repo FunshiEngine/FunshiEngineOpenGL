@@ -36,7 +36,6 @@ private:
 	AudioEngine* audioMotor = nullptr;
 	EventBus* events = nullptr;
 	size_t eventSubscription = 0;
-	int momentaneantID = 0;
 
 	void desvincular();
 
