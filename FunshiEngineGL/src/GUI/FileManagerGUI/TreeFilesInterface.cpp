@@ -159,6 +159,16 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
         sel->navegacionPendiente.clear();
     }
 
+    // Drag source: arrastrar esta carpeta a otra carpeta del arbol
+    // (mismo payload ARCHIVO_PATH que usa el grid, para reutilizar drop target)
+    if (ImGui::BeginDragDropSource()) {
+        const std::string rutaCarpeta = rutaDe(folderRoot);
+        ImGui::SetDragDropPayload("ARCHIVO_PATH", rutaCarpeta.c_str(),
+                                  rutaCarpeta.size() + 1);
+        ImGui::Text("Moviendo carpeta %s", folderRoot->getPathName().c_str());
+        ImGui::EndDragDropSource();
+    }
+
     // Obtener el rect exacto de la fila del TreeNode (header) para superponer
     // un boton invisible que cubra TODA la anchura y sirva de drop target.
     // SpanAvailWidth extiende la seleccion pero NO el rect de drag&drop.
