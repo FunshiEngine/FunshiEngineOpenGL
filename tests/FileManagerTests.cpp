@@ -35,6 +35,9 @@
 //   - Arrastre-y-suelta (soltarEnCarpeta): mueve con Ctrl copia, y solo el
 //     movimiento publica ArchivosReubicados (lo que reescribe las rutas de la
 //     escena).
+//   - Renombre por click derecho (RenombrarElemento, compartido por el arbol y
+//     el grid): la ruta nueva es hermana de la vieja, el disco lo hace
+//     FileManager y solo un cambio real publica ArchivosReubicados.
 //   - Busqueda por ruta en el arbol vigente.
 //   - FileSystemWatcher (solo en Linux, donde usa inotify): deteccion de
 //     cambios externos y de ramas multi-nivel.
@@ -51,6 +54,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/FileManager/FileManager.h"
+#include "../FunshiEngineGL/src/GUI/FileManagerGUI/RenombrarElemento.h"
 #include "../FunshiEngineGL/src/GUI/FileManagerGUI/SoltarEnCarpeta.h"
 
 #if defined(__linux__)
@@ -381,6 +385,94 @@ int main() {
               "carpeta dentro de si misma: la operacion se cancela");
         CHECK(recibidos.size() == 1,
               "una carpeta en si misma no publica evento");
+    }
+
+    // --- Renombre por click derecho: helper compartido arbol/grid ------------
+    // Renombrar no cambia de carpeta: la ruta nueva es hermana de la vieja. El
+    // disco lo hace FileManager (que rechaza separadores en el nombre) y el
+    // exito se avisa una sola vez, porque de ese evento depende que la escena
+    // reescriba las referencias que apuntaban a la ruta vieja.
+    {
+        CHECK(RenombrarElemento::rutaConNombreNuevo("a/b/c.txt", "d.txt") ==
+                  "a/b/d.txt",
+              "la ruta nueva es hermana de la vieja");
+        CHECK(RenombrarElemento::rutaConNombreNuevo("suelto.txt", "otro.txt") ==
+                  "otro.txt",
+              "sin separadores, la ruta nueva es el nombre nuevo");
+#ifdef _WIN32
+        // En Windows el motor mezcla separadores: la parte de carpeta se
+        // conserva byte a byte, no se reescribe con el separador nativo.
+        CHECK(RenombrarElemento::rutaConNombreNuevo("C:\\a\\b", "c") ==
+                  "C:\\a\\c",
+              "el separador de la ruta original se conserva");
+#endif
+        EditorEventBus bus;
+        std::vector<EditorEvent> recibidos;
+        bus.subscribe([&recibidos](const EditorEvent& ev) {
+            recibidos.push_back(ev);
+        });
+
+        const std::string carpetaVieja = unir(proy, "Assets/Renombrable");
+        CHECK(fm.crearCarpeta(carpetaVieja), "carpeta para renombrar");
+        CHECK(fm.crearArchivo(unir(carpetaVieja, "dato.txt"), "x"),
+              "contenido de la carpeta a renombrar");
+
+        CHECK(RenombrarElemento::ejecutar(&fm, &bus, carpetaVieja, "Renombrada"),
+              "renombrar la carpeta se completa");
+        const std::string carpetaNueva =
+            RenombrarElemento::rutaConNombreNuevo(carpetaVieja, "Renombrada");
+        CHECK(recibidos.size() == 1, "renombrar publica un unico evento");
+        CHECK(recibidos.size() == 1 &&
+                  recibidos[0].type == EditorEventType::ArchivosReubicados,
+              "el evento es ArchivosReubicados");
+        CHECK(recibidos.size() == 1 && recibidos[0].rutaAnterior == carpetaVieja,
+              "el evento lleva la ruta anterior");
+        CHECK(recibidos.size() == 1 && recibidos[0].rutaNueva == carpetaNueva,
+              "el evento lleva la ruta nueva");
+        CHECK(fs::is_directory(carpetaNueva),
+              "renombrar renombra la carpeta en disco");
+        CHECK(!fs::exists(carpetaVieja), "la ruta vieja ya no existe");
+        CHECK(fs::is_regular_file(unir(carpetaNueva, "dato.txt")),
+              "renombrar arrastra el contenido de la carpeta");
+
+        // El arbol vigente refleja el nombre nuevo tras el rescaneo.
+        fm.refrescar();
+        CHECK(fm.buscarCarpetaPorRuta(carpetaNueva) != nullptr,
+              "tras el rescaneo el arbol tiene la carpeta con el nombre nuevo");
+        CHECK(fm.buscarCarpetaPorRuta(carpetaVieja) == nullptr,
+              "tras el rescaneo la ruta vieja no esta en el arbol");
+
+        // Rechazos: nada de esto toca disco ni publica.
+        CHECK(!RenombrarElemento::ejecutar(&fm, &bus, carpetaNueva, ""),
+              "un nombre vacio no renombra");
+        CHECK(!RenombrarElemento::ejecutar(&fm, &bus, carpetaNueva, "a/b"),
+              "un nombre con separadores no renombra (no crea una ruta nueva)");
+        CHECK(!RenombrarElemento::ejecutar(&fm, &bus, carpetaNueva, "Renombrada"),
+              "el mismo nombre no es un cambio");
+        CHECK(recibidos.size() == 1,
+              "los renombres rechazados no publican evento");
+        CHECK(fs::is_directory(carpetaNueva),
+              "los rechazos dejan la carpeta intacta");
+
+        // Renombrar no pisa un destino existente (mismo criterio que mover):
+        // rename reemplazaria en silencio el archivo destino y se perderia su
+        // contenido con un renombre accidental. Se permite el renombre al MISMO
+        // elemento (cambiar mayusculas/minusculas) mediante equivalent.
+        const std::string destinoProtegido = unir(proy, "Assets/protegido.txt");
+        const std::string archivoARenombrar = unir(proy, "Assets/cambiable.txt");
+        CHECK(fm.crearArchivo(destinoProtegido, "conservar"),
+              "archivo destino que no debe tocarse");
+        CHECK(fm.crearArchivo(archivoARenombrar, "cambiar"),
+              "archivo fuente para el renombre rechazado");
+        CHECK(!RenombrarElemento::ejecutar(&fm, &bus, archivoARenombrar,
+                                           "protegido.txt"),
+              "renombrar se niega a pisar un archivo existente");
+        CHECK(contenidoDe(destinoProtegido) == "conservar",
+              "el archivo existente quedo intacto tras el renombre rechazado");
+        CHECK(fs::is_regular_file(archivoARenombrar),
+              "el origen sigue en su sitio tras el renombre rechazado");
+        CHECK(recibidos.size() == 1,
+              "el renombre a un destino ocupado no publica evento");
     }
 
     // --- Resultado ----------------------------------------------------------

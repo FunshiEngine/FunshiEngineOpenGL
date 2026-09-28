@@ -153,11 +153,9 @@ void ContentFolderInterface::recorrer(const std::string& path) {
         // R6/R7: menu contextual de la celda -> Renombrar / Eliminar (archivo o carpeta).
         if (ImGui::BeginPopupContextItem("PopRenombrar")) {
             if (ImGui::MenuItem("Renombrar")) {
-                renombrarRuta = fullPath;
-                renombrarEsCarpeta = esCarpeta;
-                memset(bufferRenombrar, 0, sizeof(bufferRenombrar));
-                strncpy(bufferRenombrar, nombre.c_str(), sizeof(bufferRenombrar) - 1);
-                abrirPopupRenombrar = true;
+                // El modal compartido se encarga del disco y del aviso a la
+                // escena; aca solo se le pasa el elemento y su nombre actual.
+                modalRenombrar.solicitar(fullPath, esCarpeta, nombre);
                 ImGui::CloseCurrentPopup();
             }
             ImGui::Separator();
@@ -372,50 +370,16 @@ void ContentFolderInterface::initGUI() {
         ImGui::EndPopup();
     }
 
-    // R6: modal de renombrado de un elemento del grid.
-    if (abrirPopupRenombrar) {
-        ImGui::OpenPopup("Renombrar");
-        abrirPopupRenombrar = false;
-    }
-    if (!renombrarRuta.empty() &&
-        ImGui::BeginPopupModal("Renombrar", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Nuevo nombre del %s:",
-                    renombrarEsCarpeta ? "folder" : "archivo");
-        ImGui::InputText("##renombrarElemento", bufferRenombrar, IM_ARRAYSIZE(bufferRenombrar));
-        const bool confirmado = ImGui::Button("Renombrar", ImVec2(120, 0)) ||
-                                (ImGui::IsItemFocused() &&
-                                 ImGui::IsKeyPressed(ImGuiKey_Enter));
-        if (confirmado) {
-            const std::string nuevo = bufferRenombrar;
-            if (!nuevo.empty() &&
-                fileManager->renombrar(renombrarRuta, nuevo)) {
-                // Referencias de la escena bajo la ruta vieja (mallas,
-                // texturas, scripts): main las reescribe y persiste.
-                if (eventoArchivos_ != nullptr) {
-                    const std::string::size_type sep =
-                        renombrarRuta.find_last_of("/\\");
-                    if (sep != std::string::npos) {
-                        EditorEvent ev;
-                        ev.type = EditorEventType::ArchivosReubicados;
-                        ev.rutaAnterior = renombrarRuta;
-                        ev.rutaNueva =
-                            renombrarRuta.substr(0, sep) + PATH_SEP + nuevo;
-                        eventoArchivos_->publish(ev);
-                    }
-                }
-                // Si es carpeta, el arbol se rescancea; el cache del grid se
-                // invalida solo por mtime en el proximo recorrer().
-                if (renombrarEsCarpeta) sel->contadorCambios++;
-            }
-            renombrarRuta.clear();
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
-            renombrarRuta.clear();
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
+    // R6: renombre del elemento del grid. El modal (campo enfocado al abrir,
+    // Enter confirma) y el camino de disco/aviso viven en RenombrarElemento.h,
+    // compartidos con el arbol.
+    const RenombrarElemento::Resultado renombre = modalRenombrar.dibujar();
+    if (renombre.confirmado &&
+        RenombrarElemento::ejecutar(fileManager, eventoArchivos_,
+                                    renombre.ruta, renombre.nombreNuevo)) {
+        // Si era carpeta, el arbol se rescancea; el cache del grid se invalida
+        // solo por mtime en el proximo recorrer().
+        if (renombre.esCarpeta) sel->contadorCambios++;
     }
 
     // Modal para seleccionar tipo de script (C++ o Java)

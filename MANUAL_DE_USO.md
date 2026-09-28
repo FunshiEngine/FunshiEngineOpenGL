@@ -127,7 +127,10 @@ proyecto** (`src<nombre>`).
 **Operaciones sobre los archivos.** En el **grid** de la carpeta seleccionada
 (clic derecho sobre un elemento) el menu contextual ofrece "Renombrar",
 "Eliminar Archivo" o "Eliminar Carpeta" (segun corresponda); en el **arbol**, el
-mismo menu aparece sobre la carpeta. Eliminar pide confirmacion en un dialogo y
+mismo menú aparece sobre la carpeta (además de "Nueva Carpeta"), y el renombre
+pide el nombre en un **diálogo** con el campo ya listo para escribir: `Enter`
+confirma y `Escape` (o **Cancelar**) descarta. En los dos paneles el diálogo es
+el mismo. Eliminar pide confirmacion en un dialogo y
 **no se puede deshacer**: al borrar una carpeta desaparece tambien todo su
 contenido, y el arbol y el grid se refrescan en el acto. El **undo/redo**
 (`Ctrl+Z` / `Ctrl+Y`) no cubre el borrado de archivos.

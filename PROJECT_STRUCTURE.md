@@ -168,9 +168,13 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                  y grises azulados de fábrica a gris neutro; ver tests/TemaEditorTests.cpp)
         │   ├── FileManagerGUI/             ← TreeFilesInterface + ContentFolderInterface
         │   │                                  (vistas del explorador; conversan con FileManager)
-        │   │   └── SoltarEnCarpeta.h       ← helper header-only del arrastre: mueve y publica
-        │   │                                  ArchivosReubicados; lo usan las dos vistas (en el
-        │   │                                  grid Ctrl copia; soltar en el árbol siempre mueve)
+        │   │   ├── SoltarEnCarpeta.h       ← helper header-only del arrastre: mueve y publica
+        │   │   │                              ArchivosReubicados; lo usan las dos vistas (en el
+        │   │   │                              grid Ctrl copia; soltar en el árbol siempre mueve)
+        │   │   └── RenombrarElemento.h     ← helper header-only del renombre por click derecho:
+        │   │                                  modal (campo enfocado al abrir, Enter confirma) y
+        │   │                                  camino único de disco + ArchivosReubicados, también
+        │   │                                  compartido por el grid y el árbol
         │   ├── MenusGUI/                   ← paquete del menú de inicio (MVP); ver su README.md
         │   │   ├── MenuModel.h/.cpp        ← lógica pura sin ImGui/GLFW
         │   │   ├── MenuView.h/.cpp         ← dibujo ImGui
@@ -465,7 +469,14 @@ solo como orquestador de arranque y bucle.
   referencias de la escena; el cotejo de ese prefijo vive en
   `PathUtils::rutaBajo` y trata `/` y `\` como el mismo separador en Windows,
   porque el explorador trae las rutas de `std::filesystem` con `\` y
-  la escena las resuelve con `/`. `GestorDeArchivos::mover` usa `rename`, que es
+  la escena las resuelve con `/`. El **renombre por click derecho** (grid y
+  árbol) vive en `RenombrarElemento.h`: mismo modal en los dos paneles y un
+  único camino de disco que, si el cambio se hizo, publica el mismo
+  `ArchivosReubicados`; quien renombra sigue siendo dueño de su navegación (el
+  árbol reubica `rutaVisible` y la expansión por ruta de la rama antes del
+  rescaneo). `GestorDeArchivos::renombrar` también se niega a pisar un destino
+  existente (mismo criterio que mover, permitido solo el MISMO elemento, p. ej.
+  para cambios de mayúsculas); `GestorDeArchivos::mover` usa `rename`, que es
   atómico, y solo cae a copiar+borrar si el destino está en otro volumen;
   rechaza pisar un destino ocupado y meter una carpeta en sí misma. Al cargar
   la escena, `GameScene::loadScene` invoca el mismo módulo para sanar las
@@ -606,8 +617,9 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 `-DFUNSHI_JAVA=ON`; cinco de ellos enlazan `funshi_engine` y requieren
 `BUILD_ENGINE=ON`, el resto compila también con `BUILD_ENGINE=OFF`):
 
-- `filemanager-tests` (82): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
-  contra un proyecto temporal, sin ventanas ni pila gráfica.
+- `filemanager-tests` (108): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
+  contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
+  y el renombre por click derecho de las vistas del explorador.
 - `proceso-tests` (26): el runner de procesos sin shell `Proceso`: round-trip
   de argv byte a byte (el binario se relanza a sí mismo copiado en una carpeta
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,

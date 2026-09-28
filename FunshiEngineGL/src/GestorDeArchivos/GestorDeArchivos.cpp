@@ -214,8 +214,18 @@ bool GestorDeArchivos::renombrar(const std::string& ruta,
     // Cualquier separador / \ es invalido en un nombre de salida; no dejar
     // que un nombre malicioso cree una ruta nueva por accidente.
     if (nuevoNombre.find_first_of("/\\") != std::string::npos) return false;
+    const std::filesystem::path destino = objetivo.parent_path() / nuevoNombre;
     std::error_code ec;
-    std::filesystem::rename(objetivo, objetivo.parent_path() / nuevoNombre, ec);
+    // No se pisa un destino existente (mismo criterio que mover): en POSIX un
+    // rename sobre un archivo lo reemplaza en silencio y se perderia su
+    // contenido con un renombre accidental. Se permite renombrar al MISMO
+    // elemento (cambiar "assets" por "Assets" en Windows, donde resuelven al
+    // mismo directorio).
+    if (std::filesystem::exists(destino, ec)) {
+        std::error_code otro;
+        if (!std::filesystem::equivalent(objetivo, destino, otro)) return false;
+    }
+    std::filesystem::rename(objetivo, destino, ec);
     return !ec;
 }
 
