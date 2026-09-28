@@ -39,10 +39,15 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Assets/AssetManager.h"
+#include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Events/EventBus.h"
+#include "../FunshiEngineGL/src/Herramientas/PathUtils.h"
+#include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
 #include "../FunshiEngineGL/src/Scenes/EditorController.h"
+#include "../FunshiEngineGL/src/Scenes/RutasReescritura.h"
 #include "../FunshiEngineGL/src/Scenes/SceneRegistry.h"
 #include "../FunshiEngineGL/src/Scenes/SceneSerializer.h"
 
@@ -582,6 +587,90 @@ void hermanosConsecutivosSinPerdida() {
           "sin lineas invalidas: la releertura del look-ahead es exacta");
 }
 
+// --- Reescritura de referencias al mover/renombrar (H-18) ---------------------
+// El explorador publica la ruta con el separador nativo (std::filesystem) y la
+// escena resuelve sus rutas con '/': el cotejo de prefijos tiene que tratar
+// ambos como el mismo separador (en Windows) para que mover o renombrar una
+// carpeta reescriba mallas, texturas y scripts en vez de devolver 0 cambios
+// en silencio y dejar los .db apuntando al lugar viejo.
+void reescrituraDeReferencias() {
+    EditorConfig::limpiarRaizAssets();
+    const std::string raiz = "C:\\base\\MotorGrafico/Proyects/JuegoX/srcJuegoX";
+    EditorConfig::fijarRaizAssets(raiz);
+
+    // Rutas en memoria tal como quedan al cargar la escena (absolutizar
+    // concatena la raiz con '/').
+    const std::string scriptEnEscena =
+        EditorConfig::absolutizarRuta("Scripts/cpp.cpp");
+    const std::string mallaEnEscena =
+        EditorConfig::absolutizarRuta("Mallas/Auto.fbx");
+    const std::string texturaEnEscena =
+        EditorConfig::absolutizarRuta("Texturas/difuso.png");
+
+    // 1. Mover `Scripts` dentro de `Assets`: solo la fuente esta bajo el
+    //    prefijo movido; malla y textura quedan intactas.
+    const std::string prefijoScripts = raiz + PATH_SEP + "Scripts";
+    const std::string destinoScripts =
+        raiz + PATH_SEP + "Assets" + PATH_SEP + "Scripts";
+
+    // Componentes con las tres familias de asset que reescribe el modulo.
+    GameObject objeto;
+    auto script = std::make_unique<Script>();
+    script->setDllPath(scriptEnEscena);
+    Script* refScript = script.get();
+    objeto.addComponent(std::move(script));
+
+    auto modelo = std::make_unique<Model>();
+    modelo->setPath(mallaEnEscena);
+    Model* refModelo = modelo.get();
+    objeto.addComponent(std::move(modelo));
+
+    auto material = std::make_unique<Material>();
+    material->setDiffuseMapPath(texturaEnEscena);
+    Material* refMaterial = material.get();
+    objeto.addComponent(std::move(material));
+
+    ListaDE<GameObject*> escena;
+    escena.addLast(&objeto);
+
+    const int mover = RutasReescritura::reescribirEnEscena(
+        &escena, prefijoScripts, destinoScripts);
+    CHECK(mover == 1, "H-18: mover la carpeta reescribe la fuente del script");
+    CHECK(refScript->getPath() == destinoScripts + "/cpp.cpp",
+          "H-18: la fuente del script queda bajo la carpeta destino");
+    CHECK(refModelo->getPath() == mallaEnEscena,
+          "H-18: la malla (fuera del prefijo movido) no se toca");
+    CHECK(refMaterial->getDiffuseMapPath() == texturaEnEscena,
+          "H-18: la textura (fuera del prefijo movido) no se toca");
+
+    // 2. Renombrar la carpeta de la malla: reescribe la malla y nada mas.
+    const int renombrarMalla = RutasReescritura::reescribirEnEscena(
+        &escena, raiz + PATH_SEP + "Mallas", raiz + PATH_SEP + "MallasNuevas");
+    CHECK(renombrarMalla == 1,
+          "H-18: renombrar una carpeta reescribe la referencia de la malla");
+    CHECK(refModelo->getPath() ==
+              raiz + PATH_SEP + "MallasNuevas/Auto.fbx",
+          "H-18: la malla queda bajo el nombre nuevo");
+
+    // 3. Renombrar la carpeta de texturas: reescribe la textura.
+    const int renombrarTextura = RutasReescritura::reescribirEnEscena(
+        &escena, raiz + PATH_SEP + "Texturas",
+        raiz + PATH_SEP + "TexturasNuevas");
+    CHECK(renombrarTextura == 1,
+          "H-18: renombrar una carpeta reescribe la textura del material");
+    CHECK(refMaterial->getDiffuseMapPath() ==
+              raiz + PATH_SEP + "TexturasNuevas/difuso.png",
+          "H-18: la textura queda bajo el nombre nuevo");
+
+    // 4. Un prefijo que no corresponde a ninguna referencia no cambia nada.
+    const int sinCambios = RutasReescritura::reescribirEnEscena(
+        &escena, raiz + PATH_SEP + "OtraCarpeta",
+        raiz + PATH_SEP + "NadaCarpeta");
+    CHECK(sinCambios == 0, "H-18: prefijo que no matchea no cambia nada");
+
+    EditorConfig::limpiarRaizAssets();
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -590,6 +679,7 @@ int main() {
     indiceCorruptoSinFantasmas();
     hijoConIdCeroSeReasignaAlGuardar();
     hermanosConsecutivosSinPerdida();
+    reescrituraDeReferencias();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

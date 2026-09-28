@@ -198,7 +198,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   └── GUIManager.h/.cpp         ← fábrica y registro de ventanas; posee FileManager
         ├── Herramientas/
         │   ├── TypeUtils.h/.cpp          ← nombres legibles de tipos
-        │   ├── PathUtils.h               ← PATH_SEP multiplataforma compartido
+        │   ├── PathUtils.h               ← PATH_SEP + regla de cotejo de rutas (rutaBajo)
         │   ├── MaterialPresets.h         ← presets de Material como datos (reemplaza a materiales.h)
         │   ├── TreeGUI/TreeGUI.h         ← widget de árbol genérico para ImGui
         │   └── IconosGUI/                ← carga de íconos con stb_image
@@ -458,7 +458,10 @@ solo como orquestador de arranque y bucle.
   El **arrastre** lo resuelve `SoltarEnCarpeta.h`, compartido por las dos
   vistas: soltar mueve (con `Ctrl` copia) y, al mover, publica
   `ArchivosReubicados` para que el gestor de proyectos reescriba y guarde las
-  referencias de la escena. `GestorDeArchivos::mover` usa `rename`, que es
+  referencias de la escena; el cotejo de ese prefijo vive en
+  `PathUtils::rutaBajo` y trata `/` y `\` como el mismo separador en Windows
+  (H-18), porque el explorador trae las rutas de `std::filesystem` con `\` y
+  la escena las resuelve con `/`. `GestorDeArchivos::mover` usa `rename`, que es
   atómico, y solo cae a copiar+borrar si el destino está en otro volumen;
   rechaza pisar un destino ocupado y meter una carpeta en sí misma.
 - `SceneSelectedInterface` observa la escena inyectada y delega las
@@ -602,10 +605,11 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,
   entorno extra, tabla de `citar()` y, en Windows, la receta cruda de `cmd.exe`
   del harvest de vcvars.
-- `configuracion-tests` (122): round-trip del JSON de `EditorConfig` (general y
+- `configuracion-tests` (128): round-trip del JSON de `EditorConfig` (general y
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
   archivos ausentes/corruptos/parciales, prioridad de las claves modernas sobre
-  el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido.
+  el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, y el
+  cotejo de prefijos `rutaBajo` (H-18: en Windows `/` y `\` equivalen).
 - `eventbus-tests` (16): suscripción/publicación/unsubscribe del canal tipado de GUI.
 - `menu-tests` (38): lógica pura del menú (traducción, observer de cambios y reset).
 - `assetmanager-tests` (82): caché Flyweight de meshes (rutas `AssetPath`, geometría
@@ -652,11 +656,12 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   tolerancia a manifiestos corruptos y precedencia sobre el `.db`).
 - `orquestador-estado-tests` (38): la "función de marco" F5/F6/F7 (reglas por
   estado de Play/Pausa/Stop) y los atajos del editor frente a ImGui.
-- `escena-serializacion-tests` (58): round-trip completo de escena (guardar →
+- `escena-serializacion-tests` (67): round-trip completo de escena (guardar →
   recargar → conservar nombre, id y jerarquía), defensas del índice de escena
-  (H-17: líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0) y
+  (H-17: líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
   apertura avisada de archivos `Binario` inexistente sin `std::remove()`
-  destructivo.
+  destructivo, y la reescritura de referencias al mover/renombrar (H-18:
+  script, malla y textura bajo el prefijo reubicado, los demás intactos).
 
 Las cinco suites que enlazan el engine (`tema-tests`, `comandos-tests`,
 `manifiesto-assets-tests`, `orquestador-estado-tests` y
@@ -787,7 +792,11 @@ cargar, así que mover la raíz no invalida las escenas existentes.
   global compuesta del dueño, de modo que mover un collider no desincroniza el cuerpo.
 - Las rutas de usuario (`<directorioEjecutable>/MotorGrafico`) están
   centralizadas en `EditorConfig` para la configuración y el layout, pero los assets
-  del proyecto todavía se resuelven a mano; `PathUtils.h` solo comparte el separador.
+  del proyecto todavía se resuelven a mano; `PathUtils.h` comparte el separador
+  (`PATH_SEP`) y la regla única de cotejo de rutas (`rutaBajo`/`esSeparadorPath`):
+  en Windows `/` y `\` equivalen, que es lo que permite reescribir las
+  referencias de la escena cuando el explorador trae rutas con `\` y
+  `ProjectPaths` arma las suyas con `/` (H-18).
 - La serialización binaria no tiene versionado ni validación formal de tamaños. Un
   cambio en la estructura de atributos invalida escenas guardadas.
 - `SettingsObjectInterface` y algunos componentes todavía incluyen y construyen

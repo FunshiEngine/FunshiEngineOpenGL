@@ -21,6 +21,7 @@
 #include "ConfigPersistence.h"
 #include "ProjectManager.h"
 #include "ProjectPaths.h"
+#include "../Herramientas/PathUtils.h"
 
 // ============================================================================
 // Configuracion del editor: fachada sobre la UNICA implementacion del esquema
@@ -165,17 +166,11 @@ std::string& raizAssets() {
     return raiz;
 }
 
-// Dada una ruta y un prefijo candidato, dice si ruta cae exactamente bajo
-// prefijo (igual o seguida de un separador), respetando NUNCA igualar un
-// prefijo que no cierre en un separador (p.ej. "srcA" no debe cubrir "srcAb").
-bool rutaBajo(const std::string& ruta, const std::string& prefijo) {
-    if (ruta.size() < prefijo.size() ||
-        ruta.compare(0, prefijo.size(), prefijo) != 0)
-        return false;
-    if (ruta.size() == prefijo.size()) return true;
-    const char sep = ruta[prefijo.size()];
-    return sep == '/' || sep == '\\';
-}
+// La regla de "esta ruta cae bajo este prefijo" vive en PathUtils (rutaBajo),
+// compartida por todos los que cotejan rutas: en Windows '/' y '\' equivalen
+// para el sistema de archivos y el motor mezcla los dos (ProjectPaths arma
+// con '/', el explorador trae '\' de std::filesystem). Cotejarlos en literal
+// hacia que mover/renombrar no reescribiera ninguna referencia (H-18).
 
 // Heuristica de ruta absoluta (legacy): empieza con separador (unix/windows)
 // o con letra de unidad ("C:"). Los almacenados relativos (nuevo formato)

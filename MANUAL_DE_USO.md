@@ -140,9 +140,14 @@ entera con el proyecto. Dentro del explorador, al **renombrar** o al **mover**
 un archivo o carpeta el motor reescribe al instante las referencias de la
 escena que apuntaban a esa ruta y guarda la escena modificada. Limitaciones:
 una **copia** (arrastre con `Ctrl`) no se rastrea, porque no cambia ninguna de
-las dos rutas; y los sonidos de `Sonidos/` e interfaces de `Interfaces/` se
+las dos rutas; los cambios hechos **fuera** del motor (explorador de Windows,
+una terminal, un `mv`) solo sirven para refrescar el arbol de archivos, no
+reescriben nada, asi que ahi si hay que volver a arrastrar el asset en su
+inspector; y los sonidos de `Sonidos/` e interfaces de `Interfaces/` se
 referencian por **nombre**: un move con el mismo nombre conserva la referencia
 y un rename la rompe (vuelve a seleccionar el clip/interfaz en su dropdown).
+Si una referencia quedo apuntando a un archivo que ya no existe, el inspector
+del script avisa `El fuente del script no existe` con la ruta que busco.
 
 **Manifiesto de assets (`SceneAssets.json`).** Junto a los binarios de la
 escena se mantiene `Memory/Binarios/SceneAssets.json`, un add-on legible que
