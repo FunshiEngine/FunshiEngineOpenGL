@@ -37,6 +37,14 @@ private:
 	EventBus* events = nullptr;
 	size_t eventSubscription = 0;
 
+	// Para evitar reentrencia durante iteracion: si ComponentChanged llega
+	// mientras iteramos en contentGUI, no recargamos ya; lo hace el caller.
+	bool iterandoComponentes = false;
+
+	// Borrado diferido: el componente a eliminar se encola y se borra
+	// al final de contentGUI, fuera de la iteracion.
+	SettingsComponent* componenteABorrar = nullptr;
+
 	void desvincular();
 
 public:

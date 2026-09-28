@@ -103,6 +103,17 @@ void SettingsObjectInterface::setEventBus(EventBus* bus) {
                 }
             } else if (event.type == SceneEventType::SceneCleared) {
                 desvincular();
+            } else if (event.type == SceneEventType::ComponentChanged) {
+                if (event.object == object && !iterandoComponentes) {
+                    // Recargar lista de componentes tras add/remove (solo si NO estamos iterando)
+                    while (!listaDESettingsComponent->isEmpty()) {
+                        Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+                        delete pos->getElement();
+                        listaDESettingsComponent->remove(pos);
+                    }
+                    loadComponents();
+                }
+                // Si estamos iterando, el caller (contentGUI) se encarga del reload diferido
             }
         });
     }
@@ -197,6 +208,9 @@ void SettingsObjectInterface::initGUI() {
 
 void SettingsObjectInterface::contentGUI() {
 	// MOSTRAMOS COMPONENTES
+	iterandoComponentes = true;
+	componenteABorrar = nullptr;
+
 	if (!listaDESettingsComponent->isEmpty()) {
 		Position<SettingsComponent*>* position =
 		    listaDESettingsComponent->first();
@@ -247,8 +261,8 @@ void SettingsObjectInterface::contentGUI() {
 					} else {
 						object->deleteComponent(target);
 					}
-					listaDESettingsComponent->remove(position);
-					delete comp;
+					// Borrado diferido: encolar para procesar DESPUÉS de la iteracion
+					componenteABorrar = comp;
 					ImGui::EndPopup();
 					ImGui::PopID();
 					break;
@@ -265,6 +279,25 @@ void SettingsObjectInterface::contentGUI() {
 			               ? listaDESettingsComponent->next(position)
 			               : nullptr;
 		}
+	}
+
+	iterandoComponentes = false;
+
+	// Procesar borrado diferido fuera de la iteracion
+	if (componenteABorrar) {
+		listaDESettingsComponent->remove(
+		    listaDESettingsComponent->whatElementPosition(componenteABorrar));
+		delete componenteABorrar;
+		componenteABorrar = nullptr;
+		// Recargar lista completa tras el borrado (el evento ComponentChanged
+		// ya se publico, pero como iterandoComponentes=true no recargo;
+		// lo hacemos aqui explicitamente)
+		while (!listaDESettingsComponent->isEmpty()) {
+			Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+			delete pos->getElement();
+			listaDESettingsComponent->remove(pos);
+		}
+		loadComponents();
 	}
 
 	// Menu contextual en area vacia del inspector: agregar componente
@@ -291,14 +324,17 @@ void SettingsObjectInterface::contentGUI() {
 				editor->addComponent(object, std::make_unique<CameraComponent>());
 			}
 			if (transform) {
-				if (ImGui::MenuItem("EsfereCollider")) {
-					editor->addComponent(object, std::make_unique<EsfereCollider>(5.0f, transform, object));
-				}
-				if (ImGui::MenuItem("CubeCollider")) {
-					editor->addComponent(object, std::make_unique<CubeCollider>(5.0f, transform, object));
-				}
-				if (ImGui::MenuItem("MallaCollider")) {
-					editor->addComponent(object, std::make_unique<MallaCollider>(5.0f, transform, object));
+				if (ImGui::BeginMenu("Add Collider")) {
+					if (ImGui::MenuItem("EsfereCollider")) {
+						editor->addComponent(object, std::make_unique<EsfereCollider>(5.0f, transform, object));
+					}
+					if (ImGui::MenuItem("CubeCollider")) {
+						editor->addComponent(object, std::make_unique<CubeCollider>(5.0f, transform, object));
+					}
+					if (ImGui::MenuItem("MallaCollider")) {
+						editor->addComponent(object, std::make_unique<MallaCollider>(5.0f, transform, object));
+					}
+					ImGui::EndMenu();
 				}
 			}
 			if (collider) {
