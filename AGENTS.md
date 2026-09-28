@@ -187,15 +187,30 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   conflictos por commits ajenos, reportarlos y esperar instrucciones en lugar de
   resolverlos por cuenta propia.
 - **Documentación sincronizada**: la documentación no es un extra, es parte de
-  la tarea. Antes de empezar, revisar los `.md` que describen el área afectada
-  (`README.md`, `MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`,
-  `FLUJO_DE_RAMAS.md`, `DocuTecnicoBugs.md` y los de diseño); durante el trabajo,
-  ir comparando en paralelo lo que la documentación afirma contra lo que el
-  código realmente hace y corregir todo lo que quedó desactualizado — APIs,
-  arquitectura, comandos y conteo de tests, atajos, limitaciones, ejemplos —,
-  además de reflejar lo nuevo que se introduce. Los ajustes de documentación
-  entran en el mismo commit que el código que los motiva: nunca "la
-  documentación al final", ni entregar avances sin sus documentos al día.
+  la tarea. Antes de empezar, revisar dos cosas: (1) los `.md` que describen el
+  área afectada — `README.md`, `MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`,
+  `FLUJO_DE_RAMAS.md`, `DocuTecnicoBugs.md` y los de diseño —; (2) **el
+  directorio `.github/`, que también es documentación del proyecto** (aunque
+  viva fuera de la raíz y ya se lo cite en reglas puntuales, existen estas
+  fuentes):
+
+  - `.github/COMMIT_TEMPLATE.md`: tipos admitidos, ámbitos frecuentes y reglas
+    de redacción de los mensajes de commit.
+  - `.github/PULL_REQUEST_TEMPLATE.md`: estructura y casillas obligatorias de
+    la descripción de todo PR.
+  - `.github/workflows/*.yml` (`ci.yml`, `release.yml`, `windows-release.yml`):
+    qué plataformas, flags y targets de test compila y ejecuta la CI. Es la
+    fuente para saber qué debe seguir en verde: si el cambio agrega un `.cpp`,
+    un target de test o una dependencia, ahí hay que mantenerlo al día (los
+    targets se listan explícitamente, ver `ci.yml`).
+
+  Durante el trabajo, ir comparando en paralelo lo que la documentación afirma
+  contra lo que el código realmente hace y corregir todo lo que quedó
+  desactualizado — APIs, arquitectura, comandos y conteo de tests, atajos,
+  limitaciones, ejemplos —, además de reflejar lo nuevo que se introduce. Los
+  ajustes de documentación entran en el mismo commit que el código que los
+  motiva: nunca "la documentación al final", ni entregar avances sin sus
+  documentos al día.
 - **Exploraciones con subagentes: delegarlas cuando el análisis lo pida.**
   Para recorrer el código hay disponibles subagentes exploradores, y conviene
   lanzarlos cuando la tarea es mayor que un vistazo puntual. Habitualmente es
