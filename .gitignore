@@ -126,6 +126,11 @@ FunshiEngineGL/refactor_gui.py
 # commit que lo justifica.
 PLAN GENERAL DE FIX.md
 
+# Lista de trabajo local: referencias a tareas en los textos del código que
+# quedan por limpiar (mismo criterio que el plan: documento de gestión, no
+# documentación del proyecto; se lista en `PENDIENTE_REFERENCIAS_TAREAS.md`).
+PENDIENTE_REFERENCIAS_TAREAS.md
+
 # Local ImGui configuration
 imgui.ini
 
