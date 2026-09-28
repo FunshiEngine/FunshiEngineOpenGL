@@ -196,6 +196,21 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   además de reflejar lo nuevo que se introduce. Los ajustes de documentación
   entran en el mismo commit que el código que los motiva: nunca "la
   documentación al final", ni entregar avances sin sus documentos al día.
+- **Exploraciones con subagentes: delegarlas cuando el análisis lo pida.**
+  Para recorrer el código hay disponibles subagentes exploradores, y conviene
+  lanzarlos cuando la tarea es mayor que un vistazo puntual. Habitualmente es
+  necesario en dos casos: (1) **análisis técnico de varias funcionalidades** —
+  varios módulos implicados, rastrear un flujo de punta a punta o comparar
+  vías alternativas de una misma operación (p. ej. todas las formas de
+  renombrar algo y qué actualiza cada una)—; (2) **comparación contra la
+  documentación** — contrastar lo que afirman `README.md`, `MANUAL_DE_USO.md`
+  u otros `.md` con lo que el código realmente hace, idealmente con los
+  recorridos separados por tema y lanzados en paralelo. Si la razón de
+  lanzarlos es otra, mencionar antes el porqué (p. ej. un recorrido largo de
+  `git log`, una búsqueda que cruza todo el árbol) y proseguir. Para tareas
+  acotadas y lineales se sigue con las herramientas directas. Lo que los
+  subagentes devuelven es **insumo** de la regla siguiente (fuentes 2 y 3),
+  no una conclusión: contrastarlo antes de declarar una causa.
 - **Análisis profundo de cada bug: contrastarlo contra TODAS las fuentes
   disponibles antes de arreglarlo.** Un síntoma —aunque lo haya reportado el
   usuario— no es un diagnóstico. Antes de tocar código hay que reconstruir la
