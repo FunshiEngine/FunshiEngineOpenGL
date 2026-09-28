@@ -65,6 +65,12 @@ protected:
     // puntero: un rescaneo reconstruye el arbol y los File* quedan colgando
     // (mismo invariante que rutaVisible y navegacionPendiente).
     RenombrarElemento::Modal modalRenombrar;
+    // Crear nueva carpeta con dialogo de nombre (patron del grid: abrir popup,
+    // input texto, confirmar). Estado aislado para no colisionar con renombrado.
+    bool creandoCarpeta = false;
+    bool abrirPopupNombre = false;
+    char nombreNuevo[256] = {0};
+    std::string rutaPadreNuevaCarpeta;
     // Ultimo contador de cambios que este panel ya rescaneco.
     unsigned long ultimoContadorVisto = 0;
 

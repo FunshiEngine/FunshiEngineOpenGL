@@ -212,13 +212,11 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
                                      folderRoot->getPathName());
         }
         if (ImGui::MenuItem("Nueva Carpeta")) {
-            const std::string rutaNuevaCarpeta =
-                rutaDe(folderRoot) + PATH_SEP + "Nueva Carpeta";
-            if (fileManager->crearCarpeta(rutaNuevaCarpeta)) {
-                // No mutamos el arbol durante el recorrido (invalidaba
-                // iteradores, B4): el rescaneo del proximo frame lo agrega.
-                sel->contadorCambios++;
-            }
+            creandoCarpeta = true;
+            abrirPopupNombre = true;
+            memset(nombreNuevo, 0, sizeof(nombreNuevo));
+            rutaPadreNuevaCarpeta = rutaDe(folderRoot);
+            ImGui::CloseCurrentPopup();
         }
         if (!esRaiz && ImGui::MenuItem("Eliminar Carpeta")) {
             carpetaAConfirmar = rutaDe(folderRoot);
@@ -263,6 +261,38 @@ void TreeFilesInterface::initGUI() {
                 carpetaAConfirmar.clear();
                 ImGui::CloseCurrentPopup();
             }
+        }
+        ImGui::EndPopup();
+    }
+
+    // Crear nueva carpeta: modal para ingresar nombre (patron del grid)
+    if (abrirPopupNombre) {
+        ImGui::OpenPopup("Ingresar nombre");
+        abrirPopupNombre = false;
+    }
+    if (ImGui::BeginPopupModal("Ingresar nombre", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Escribe el nombre de la carpeta:");
+        ImGui::InputText("##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo));
+        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) ||
+                                (ImGui::IsItemFocused() &&
+                                 ImGui::IsKeyPressed(ImGuiKey_Enter));
+        if (confirmado && nombreNuevo[0] != '\0') {
+            const std::string rutaNueva =
+                rutaPadreNuevaCarpeta + PATH_SEP + nombreNuevo;
+            if (fileManager->crearCarpeta(rutaNueva)) {
+                FileSelection* sel = fileManager->getSelection();
+                sel->contadorCambios++;
+            }
+            creandoCarpeta = false;
+            memset(nombreNuevo, 0, sizeof(nombreNuevo));
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            creandoCarpeta = false;
+            memset(nombreNuevo, 0, sizeof(nombreNuevo));
+            ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
     }
