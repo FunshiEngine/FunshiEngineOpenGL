@@ -168,9 +168,9 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                  y grises azulados de fábrica a gris neutro; ver tests/TemaEditorTests.cpp)
         │   ├── FileManagerGUI/             ← TreeFilesInterface + ContentFolderInterface
         │   │                                  (vistas del explorador; conversan con FileManager)
-        │   │   └── SoltarEnCarpeta.h       ← helper header-only del arrastre: mueve (Ctrl=copia) y
-        │   │                                  publica ArchivosReubicados; lo usan las dos vistas
-        │   │                                  para que arrastrar al árbol y al grid se comporten igual
+        │   │   └── SoltarEnCarpeta.h       ← helper header-only del arrastre: mueve y publica
+        │   │                                  ArchivosReubicados; lo usan las dos vistas (en el
+        │   │                                  grid Ctrl copia; soltar en el árbol siempre mueve)
         │   ├── MenusGUI/                   ← paquete del menú de inicio (MVP); ver su README.md
         │   │   ├── MenuModel.h/.cpp        ← lógica pura sin ImGui/GLFW
         │   │   ├── MenuView.h/.cpp         ← dibujo ImGui
@@ -459,7 +459,8 @@ solo como orquestador de arranque y bucle.
   propios).
   `FileSystemWatcher` avisa de cambios externos (inotify) para re-escanear.
   El **arrastre** lo resuelve `SoltarEnCarpeta.h`, compartido por las dos
-  vistas: soltar mueve (con `Ctrl` copia) y, al mover, publica
+  vistas: dentro del grid soltar mueve (con `Ctrl` copia) y sobre una fila del
+  árbol siempre mueve (cortar y pegar, sin opción de copia); al mover, publica
   `ArchivosReubicados` para que el gestor de proyectos reescriba y guarde las
   referencias de la escena; el cotejo de ese prefijo vive en
   `PathUtils::rutaBajo` y trata `/` y `\` como el mismo separador en Windows,

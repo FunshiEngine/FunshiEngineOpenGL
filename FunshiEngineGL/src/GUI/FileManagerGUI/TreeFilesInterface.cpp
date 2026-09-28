@@ -192,21 +192,18 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
         }
 
         // Destino de drag&drop: soltar un "ARCHIVO_PATH" (grid u otro origen)
-        // sobre la fila lo MUEVE a esta carpeta, o lo copia con Ctrl. Es el
-        // mismo helper que usa el grid, para que soltar en el arbol y soltar en
-        // el grid no hagan cosas distintas.
+        // sobre la fila lo MUEVE a esta carpeta, siempre: arrastrar desde el
+        // panel de contenido hasta una carpeta del arbol es cortar y pegar, sin
+        // opcion de copia. Es el mismo helper que usa el grid, y al mover
+        // publica ArchivosReubicados para que el gestor de proyectos
+        // reescriba las referencias de la escena (mallas, texturas, scripts).
         //
         // El tooltip va ANTES de aceptar el payload: en cuanto se acepta, el
         // arrastre termina y ya no hay nada sobre lo que hovering.
         if (const ImGuiPayload* arrastre = ImGui::GetDragDropPayload()) {
             if (strcmp(arrastre->DataType, "ARCHIVO_PATH") == 0 &&
                 ImGui::IsItemHovered()) {
-                if (ctrlOCmd())
-                    ImGui::SetTooltip("Copiar dentro de %s",
-                                      folderRoot->getPathName().c_str());
-                else
-                    ImGui::SetTooltip("Mover a %s  (Ctrl = copiar)",
-                                      folderRoot->getPathName().c_str());
+                ImGui::SetTooltip("Mover a %s", folderRoot->getPathName().c_str());
             }
         }
         if (ImGui::BeginDragDropTarget()) {
@@ -215,7 +212,7 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
                 const char* origen = static_cast<const char*>(aceptado->Data);
                 if (origen)
                     soltarEnCarpeta(fileManager, eventoArchivos_, origen,
-                                    rutaDe(folderRoot), ctrlOCmd());
+                                    rutaDe(folderRoot), false);
             }
             ImGui::EndDragDropTarget();
         }

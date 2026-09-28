@@ -304,8 +304,11 @@ de la izquierda -- y arrastrar un archivo o una carpeta sirve para las dos:
 | Una fila de **carpeta** del arbol | Mueve el elemento dentro de esa carpeta |
 | El espacio vacio del grid | Mueve el elemento a la carpeta que se esta viendo |
 
-Manteniendo `Ctrl` (o `Cmd` en macOS) el arrastre **copia** en vez de mover. El
-tooltip indica cual de las dos va a ocurrir antes de soltar.
+Soltar sobre una fila del arbol **siempre mueve** (cortar y pegar): hacia el
+explorador no hay opcion de copia, con o sin Ctrl. Dentro del grid —sobre una
+celda de carpeta o sobre el espacio vacio— manteniendo `Ctrl` (o `Cmd` en
+macOS) el arrastre **copia** en vez de mover; el tooltip indica cual de las dos
+va a ocurrir antes de soltar.
 
 Al mover se actualizan al instante las referencias de la escena que apuntaban
 a la ruta anterior (mallas, texturas, fuentes de script) y se guarda la escena;
