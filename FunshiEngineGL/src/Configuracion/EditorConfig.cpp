@@ -196,6 +196,10 @@ bool EditorConfig::hayRaizAssets() noexcept {
     return !raizAssets().empty();
 }
 
+const std::string& EditorConfig::raizAssetsFijada() noexcept {
+    return raizAssets();
+}
+
 std::string EditorConfig::relativizarRuta(const std::string& rutaAbsoluta) {
     const std::string& raiz = raizAssets();
     if (raiz.empty() || !rutaBajo(rutaAbsoluta, raiz)) return rutaAbsoluta;

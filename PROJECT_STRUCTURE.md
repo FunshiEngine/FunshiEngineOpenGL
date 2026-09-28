@@ -279,7 +279,10 @@ FunshiEngineGL/                          ← raíz del repo
             ├── EditorController.h/.cpp   ← mutaciones + GizmoTarget + registro de física
             ├── SceneSerializer.h/.cpp    ← save/load binario preorden con marcadores =>/<=
             ├── RutasReescritura.h/.cpp   ← reescribe referencias (model/textura/script) al
-            │                                mover/renombrar assets en el explorador
+            │                                mover/renombrar assets en el explorador y sanea
+            │                                al cargar las que apuntan a un archivo que ya no
+            │                                existe (una coincidencia del nombre bajo la raíz
+            │                                → repara y guarda; varias/ninguna → avisa)
             ├── ManifiestoAssets.h/.cpp   ← manifiesto SceneAssets.json (add-on del .db):
             │                                guarda/carga rutas de asset por objeto con
             │                                precedencia sobre el binario (Ctrl+S)
@@ -463,7 +466,11 @@ solo como orquestador de arranque y bucle.
   (H-18), porque el explorador trae las rutas de `std::filesystem` con `\` y
   la escena las resuelve con `/`. `GestorDeArchivos::mover` usa `rename`, que es
   atómico, y solo cae a copiar+borrar si el destino está en otro volumen;
-  rechaza pisar un destino ocupado y meter una carpeta en sí misma.
+  rechaza pisar un destino ocupado y meter una carpeta en sí misma. Al cargar
+  la escena, `GameScene::loadScene` invoca el mismo módulo para sanar las
+  referencias rotas (busca el nombre bajo la raíz del proyecto): con una sola
+  coincidencia repara y guarda; con varias o con ninguna avisa en el log y no
+  adivina.
 - `SceneSelectedInterface` observa la escena inyectada y delega las
   operaciones de edición a `EditorController`. Usa `GameObjectFactory` para crear objetos.
 - `SceneObjectTree` dibuja el árbol de objetos (con drag & drop para reparentar).
@@ -656,12 +663,14 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   tolerancia a manifiestos corruptos y precedencia sobre el `.db`).
 - `orquestador-estado-tests` (38): la "función de marco" F5/F6/F7 (reglas por
   estado de Play/Pausa/Stop) y los atajos del editor frente a ImGui.
-- `escena-serializacion-tests` (67): round-trip completo de escena (guardar →
+- `escena-serializacion-tests` (75): round-trip completo de escena (guardar →
   recargar → conservar nombre, id y jerarquía), defensas del índice de escena
   (H-17: líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
   apertura avisada de archivos `Binario` inexistente sin `std::remove()`
-  destructivo, y la reescritura de referencias al mover/renombrar (H-18:
-  script, malla y textura bajo el prefijo reubicado, los demás intactos).
+  destructivo, la reescritura de referencias al mover/renombrar (H-18:
+  script, malla y textura bajo el prefijo reubicado, los demás intactos) y el
+  sanado de referencias rotas al cargar (una sola coincidencia del nombre bajo
+  la raíz → repara; varias o ninguna → no adivina y avisa).
 
 Las cinco suites que enlazan el engine (`tema-tests`, `comandos-tests`,
 `manifiesto-assets-tests`, `orquestador-estado-tests` y

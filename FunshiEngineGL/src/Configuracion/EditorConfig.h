@@ -167,6 +167,10 @@ public:
     static void fijarRaizAssets(const std::string& srcRoot) noexcept;
     static void limpiarRaizAssets() noexcept;
     static bool hayRaizAssets() noexcept;
+    // La raiz fijada, para leerla desde afuera (vacia si no hay proyecto
+    // abierto). La busqueda de assets por nombre necesita saber donde
+    // mirar; fijar/limpiar siguen siendo los unicos setters.
+    static const std::string& raizAssetsFijada() noexcept;
 
     // Convierte una ruta absoluta que cae bajo la raiz de assets en relativa;
     // cualquier otra ruta se devuelve sin tocar.

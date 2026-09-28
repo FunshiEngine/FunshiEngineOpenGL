@@ -31,6 +31,7 @@
 
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -671,6 +672,101 @@ void reescrituraDeReferencias() {
     EditorConfig::limpiarRaizAssets();
 }
 
+// --- Sanado de rutas rotas al cargar -------------------------------
+// Una escena guardada con referencias que ya no resuelven (daño anterior al
+// arreglo de los separadores, o archivos movidos fuera del motor) no puede
+// quedarse asi: si el nombre base aparece UNA vez bajo la raiz de assets, la
+// referencia se repara y se avisa en el log; con varias coincidencias o con
+// ninguna no se adivina y la ruta queda como estaba. Sin raiz de assets no hay
+// donde buscar, asi que no se hace nada.
+void sanadoDeRutasRotas() {
+    TempPruebas::CarpetaPrueba carpeta("funshi_sanado_rutas");
+    const fs::path raiz = carpeta.ruta();
+    std::error_code ec;
+
+    // El asset real vive en Assets/Scripts, mientras que la escena cree que
+    // sigue en Scripts: una sola coincidencia del nombre base.
+    fs::create_directories(raiz / "Assets" / "Scripts", ec);
+    {
+        std::ofstream fuente(
+            (raiz / "Assets" / "Scripts" / "cpp.cpp").string());
+        fuente << "// fuente del script\n";
+    }
+    const fs::path real = raiz / "Assets" / "Scripts" / "cpp.cpp";
+
+    EditorConfig::fijarRaizAssets(raiz.string());
+
+    GameObject objeto;
+
+    // Rota + unica coincidencia -> se repara.
+    auto script = std::make_unique<Script>();
+    script->setDllPath(EditorConfig::absolutizarRuta("Scripts/cpp.cpp"));
+    Script* refScript = script.get();
+    objeto.addComponent(std::move(script));
+
+    // Rota + ninguna coincidencia -> se avisa y no se toca.
+    auto material = std::make_unique<Material>();
+    material->setDiffuseMapPath(
+        EditorConfig::absolutizarRuta("Texturas/difuso.png"));
+    Material* refMaterial = material.get();
+    objeto.addComponent(std::move(material));
+
+    // Sana desde el inicio -> no se toca.
+    auto modelo = std::make_unique<Model>();
+    const std::string existente = real.string();
+    modelo->setPath(existente);
+    Model* refModelo = modelo.get();
+    objeto.addComponent(std::move(modelo));
+
+    ListaDE<GameObject*> escena;
+    escena.addLast(&objeto);
+
+    const int reparadas = RutasReescritura::sanarRutasInexistentes(&escena);
+    CHECK(reparadas == 1, "con una coincidencia unica se repara");
+    CHECK(fs::path(refScript->getPath()).generic_string() ==
+              real.generic_string(),
+          "la fuente del script queda apuntando al archivo que existe");
+    CHECK(refMaterial->getDiffuseMapPath() ==
+              EditorConfig::absolutizarRuta("Texturas/difuso.png"),
+          "sin ninguna coincidencia la ruta queda como estaba");
+    CHECK(refModelo->getPath() == existente,
+          "una referencia que ya resuelve no se toca");
+
+    // Un segundo cpp.cpp en otra carpeta: ahora el nombre es ambiguo.
+    fs::create_directories(raiz / "OtraCarpeta", ec);
+    {
+        std::ofstream otro((raiz / "OtraCarpeta" / "cpp.cpp").string());
+        otro << "// otro\n";
+    }
+    auto duplicado = std::make_unique<Script>();
+    const std::string rotaAmbigua =
+        EditorConfig::absolutizarRuta("Scripts/duplicado.cpp");
+    duplicado->setDllPath(rotaAmbigua);
+    Script* refAmbigua = duplicado.get();
+    objeto.addComponent(std::move(duplicado));
+
+    const int conAmbiguedad =
+        RutasReescritura::sanarRutasInexistentes(&escena);
+    CHECK(conAmbiguedad == 0,
+          "con dos coincidencias del mismo nombre no se adivina");
+    CHECK(refAmbigua->getPath() == rotaAmbigua,
+          "la referencia ambigua queda como estaba");
+
+    // Sin raiz de assets no hay donde buscar.
+    EditorConfig::limpiarRaizAssets();
+    auto suelto = std::make_unique<Script>();
+    const std::string rotaSinRaiz = "Scripts/definitivamente_no_existe.cpp";
+    suelto->setDllPath(rotaSinRaiz);
+    Script* refSuelto = suelto.get();
+    objeto.addComponent(std::move(suelto));
+
+    const int sinRaiz = RutasReescritura::sanarRutasInexistentes(&escena);
+    CHECK(sinRaiz == 0,
+          "sin raiz de assets no hay donde buscar y no se repara nada");
+    CHECK(refSuelto->getPath() == rotaSinRaiz,
+          "sin raiz la referencia queda como estaba");
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -680,6 +776,7 @@ int main() {
     hijoConIdCeroSeReasignaAlGuardar();
     hermanosConsecutivosSinPerdida();
     reescrituraDeReferencias();
+    sanadoDeRutasRotas();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

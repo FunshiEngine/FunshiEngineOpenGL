@@ -146,8 +146,13 @@ reescriben nada, asi que ahi si hay que volver a arrastrar el asset en su
 inspector; y los sonidos de `Sonidos/` e interfaces de `Interfaces/` se
 referencian por **nombre**: un move con el mismo nombre conserva la referencia
 y un rename la rompe (vuelve a seleccionar el clip/interfaz en su dropdown).
-Si una referencia quedo apuntando a un archivo que ya no existe, el inspector
-del script avisa `El fuente del script no existe` con la ruta que busco.
+Si una referencia quedo apuntando a un archivo que ya no existe, al **abrir la
+escena** el motor busca ese archivo por nombre dentro de la carpeta del
+proyecto: con **una sola coincidencia** repara la referencia, lo anota en el
+log (`[escena] ruta reparada: ...`) y guarda la escena; con **varias** o con
+**ninguna** no adivina y deja la ruta como estaba, y ahi si hay que volver a
+arrastrar el asset en su inspector (el inspector de script ademas avisa
+`El fuente del script no existe` con la ruta que busco).
 
 **Manifiesto de assets (`SceneAssets.json`).** Junto a los binarios de la
 escena se mantiene `Memory/Binarios/SceneAssets.json`, un add-on legible que
