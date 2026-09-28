@@ -393,6 +393,36 @@ void EditorInput::onKey(GLFWwindow* window, int key, int scancode, int action,
             case GLFW_KEY_LEFT_SHIFT: teclaAbajo = true; break;
             default: break;
         }
+        // Ajustar radio de orbita con W/S durante orbita (editor oculto + clic derecho).
+        // W = aumentar radio (alejarse), S = disminuir radio (acercarse).
+        if (orbitando && (key == GLFW_KEY_W || key == GLFW_KEY_S)) {
+            const float factor = 1.01f;  // ~1% por pulsacion
+            float radioAnterior = radioOrbita;
+            if (key == GLFW_KEY_W) { // W = aumentar radio
+                radioOrbita *= factor;
+                if (radioOrbita > CameraComponent::radioMax) radioOrbita = CameraComponent::radioMax;
+            } else if (key == GLFW_KEY_S) { // S = disminuir radio
+                radioOrbita /= factor;
+                if (radioOrbita < CameraComponent::radioMin) radioOrbita = CameraComponent::radioMin;
+            }
+            // Desplazar camara sobre la recta del radio (mismo logico que onScroll).
+            if (CameraComponent* camara = scene ? scene->getActiveCamera() : nullptr) {
+                camara->refreshFromTransform();
+                const float* origen = origenOrbita;
+                const float radX = camara->getYawX() * (3.14159265358979f / 180.f);
+                float horizDir[3] = { std::sin(radX), 0.f, -std::cos(radX) };
+                float deltaRadio = radioOrbita - radioAnterior;
+                const float* pos = camara->getPosition();
+                float nuevaPos[3] = {
+                    pos[0] - horizDir[0] * deltaRadio,
+                    pos[1],
+                    pos[2] - horizDir[2] * deltaRadio
+                };
+                camara->setPosition(nuevaPos);
+                camara->escribirATransform();
+            }
+            return;
+        }
     } else if (action == GLFW_RELEASE) {
         switch (key) {
             case GLFW_KEY_W: teclaAdelante = false; break;
