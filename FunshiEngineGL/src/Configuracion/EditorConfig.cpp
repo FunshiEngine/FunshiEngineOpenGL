@@ -170,7 +170,7 @@ std::string& raizAssets() {
 // compartida por todos los que cotejan rutas: en Windows '/' y '\' equivalen
 // para el sistema de archivos y el motor mezcla los dos (ProjectPaths arma
 // con '/', el explorador trae '\' de std::filesystem). Cotejarlos en literal
-// hacia que mover/renombrar no reescribiera ninguna referencia (H-18).
+// hacia que mover/renombrar no reescribiera ninguna referencia.
 
 // Heuristica de ruta absoluta (legacy): empieza con separador (unix/windows)
 // o con letra de unidad ("C:"). Los almacenados relativos (nuevo formato)

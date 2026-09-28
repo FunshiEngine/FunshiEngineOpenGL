@@ -22,7 +22,7 @@
 //
 // Es la prueba que faltaba: la unica suite de serializacion era
 // model-serialization-tests, que cubre el componente Model AISLADO. Sin
-// round-trip de escena, un objeto sin nombre (H-6) o cualquier regresion de
+// round-trip de escena, un objeto sin nombre o cualquier regresion de
 // guardado pasaban sin que nada lo notara.
 //
 // Patron de autoria (ver AGENTS.md): CHECK definido en este archivo,
@@ -66,7 +66,7 @@ int fallos = 0;
         }                                                                      \
     } while (0)
 
-// --- Nombres por defecto (H-6) ------------------------------------------------
+// --- Nombres por defecto ------------------------------------------------------
 // Un objeto creado desde la UI tiene que nacer con nombre no vacio y sin
 // repetir el de otro objeto del arbol. Si nace vacio, el arbol muestra el
 // nombre de la clase y el vacio se guarda y se recarga fielmente.
@@ -110,7 +110,7 @@ void nombresPorDefecto() {
     }
 }
 
-// --- Guardar con el arbol vacio (H-8) -----------------------------------------
+// --- Guardar con el arbol vacio -----------------------------------------------
 // Decision: una escena vacia es un estado valido y se guarda vacia a PROPOSITO,
 // pero con aviso en el log. Lo que no se permite es el retorno silencioso entre
 // el trunc y la escritura: un BBDDObjetos.txt de 0 bytes sin explicar es
@@ -145,7 +145,7 @@ void guardadoConArbolVacio() {
     auto* arbol = registry.getEntitysTree();
     CHECK(arbol != nullptr, "el arbol existe");
     while (arbol && !arbol->isEmpty()) arbol->deleteRoot();
-    CHECK(arbol && arbol->isEmpty(), "se vacia el arbol para el caso de H-8");
+    CHECK(arbol && arbol->isEmpty(), "se vacia el arbol al guardarlo vacio");
 
     std::ostringstream aviso;
     std::streambuf* buferAnterior = std::cerr.rdbuf(aviso.rdbuf());
@@ -161,7 +161,7 @@ void guardadoConArbolVacio() {
 
 // --- Round-trip de escena -----------------------------------------------------
 // Guardar y recargar tiene que conservar nombre, id y jerarquia: es el hueco
-// por el que H-6 (objetos sin nombre) pudo pasar sin que nada lo notara.
+// por el que un objeto sin nombre pudo pasar sin que nada lo notara.
 void roundTripDeEscena() {
     TempPruebas::CarpetaPrueba carpetaDir("funshi_escena_roundtrip");
     const fs::path base = carpetaDir.ruta();
@@ -252,7 +252,7 @@ void roundTripDeEscena() {
     }
 }
 
-// --- Reporte de fallos en Binario (H-9) ---------------------------------------
+// --- Reporte de fallos en Binario ---------------------------------------------
 // Si el archivo no se pudo abrir para escritura (directorio inexistente, sin
 // permisos), ofOpenBinary() debe devolver false y avisar en el log, en vez de
 // dejar que cada write() falle en silencio. Lo mismo al leer: ifOpenBinary()
@@ -307,7 +307,7 @@ void reporteFalloBinario() {
     binBueno.ifCloseBinary();
 }
 
-// --- H-17: lineas corruptas en SceneBBDDObjetos.txt ----------------------------
+// --- Lineas corruptas en SceneBBDDObjetos.txt ---------------------------------
 // Una linea del indice que resuelve a id=0 dentro del bloque de hijos hacia que
 // loadPreOrder lea ObjectN0.db (el contenido de la raiz): nace un hijo que se
 // llama "Scene" como la raiz y, al guardarse con id propio, se auto-propaga para
@@ -315,8 +315,6 @@ void reporteFalloBinario() {
 // ObjectN2..N5) era exactamente eso. Tres variantes de linea que hoy reproducen
 // el fantasma; tras el fix tienen que saltarse con aviso y sin romper la
 // estructura del arbol.
-//
-// Ver PLAN GENERAL DE FIX.md §20 (H-17).
 namespace {
 
 // Guarda la escena base (raiz + hijo "Victima") y devuelve la ruta del indice.
@@ -449,7 +447,7 @@ void indiceCorruptoSinFantasmas() {
     }
 }
 
-// --- H-17 (variante de guardado): hijo con id=0 --------------------------------
+// --- Variante de guardado: hijo con id=0 --------------------------------------
 // El campo "Id" del inspector no validaba nada y un segundo "Confirmar"
 // fijaba id=0 en cualquier hijo (SettingsObjectInterface). Al guardar, ese
 // hijo escribia ObjectN0.db: pisaba el contenido de la RAIZ y dejaba una
@@ -515,7 +513,7 @@ void hijoConIdCeroSeReasignaAlGuardar() {
           "el hijo reasignado guarda su propio .db con su nombre");
 }
 
-// --- H-17 (causa raíz): el look-ahead pierde la posición con ≥2 hermanos -----
+// --- Causa raíz: el look-ahead pierde la posición con ≥2 hermanos -------------
 // loadPreOrder lee SceneBBDDObjetos.txt en modo texto y el look-ahead hace
 // seekg(tellg()) tras getline; en MinGW/Windows eso no es idempotente: la
 // releitura de la linea del siguiente hermano arranca en un offset erroneo
@@ -588,7 +586,7 @@ void hermanosConsecutivosSinPerdida() {
           "sin lineas invalidas: la releertura del look-ahead es exacta");
 }
 
-// --- Reescritura de referencias al mover/renombrar (H-18) ---------------------
+// --- Reescritura de referencias al mover/renombrar ----------------------------
 // El explorador publica la ruta con el separador nativo (std::filesystem) y la
 // escena resuelve sus rutas con '/': el cotejo de prefijos tiene que tratar
 // ambos como el mismo separador (en Windows) para que mover o renombrar una
@@ -636,43 +634,43 @@ void reescrituraDeReferencias() {
 
     const int mover = RutasReescritura::reescribirEnEscena(
         &escena, prefijoScripts, destinoScripts);
-    CHECK(mover == 1, "H-18: mover la carpeta reescribe la fuente del script");
+    CHECK(mover == 1, "mover la carpeta reescribe la fuente del script");
     CHECK(refScript->getPath() == destinoScripts + "/cpp.cpp",
-          "H-18: la fuente del script queda bajo la carpeta destino");
+          "la fuente del script queda bajo la carpeta destino");
     CHECK(refModelo->getPath() == mallaEnEscena,
-          "H-18: la malla (fuera del prefijo movido) no se toca");
+          "la malla (fuera del prefijo movido) no se toca");
     CHECK(refMaterial->getDiffuseMapPath() == texturaEnEscena,
-          "H-18: la textura (fuera del prefijo movido) no se toca");
+          "la textura (fuera del prefijo movido) no se toca");
 
     // 2. Renombrar la carpeta de la malla: reescribe la malla y nada mas.
     const int renombrarMalla = RutasReescritura::reescribirEnEscena(
         &escena, raiz + PATH_SEP + "Mallas", raiz + PATH_SEP + "MallasNuevas");
     CHECK(renombrarMalla == 1,
-          "H-18: renombrar una carpeta reescribe la referencia de la malla");
+          "renombrar una carpeta reescribe la referencia de la malla");
     CHECK(refModelo->getPath() ==
               raiz + PATH_SEP + "MallasNuevas/Auto.fbx",
-          "H-18: la malla queda bajo el nombre nuevo");
+          "la malla queda bajo el nombre nuevo");
 
     // 3. Renombrar la carpeta de texturas: reescribe la textura.
     const int renombrarTextura = RutasReescritura::reescribirEnEscena(
         &escena, raiz + PATH_SEP + "Texturas",
         raiz + PATH_SEP + "TexturasNuevas");
     CHECK(renombrarTextura == 1,
-          "H-18: renombrar una carpeta reescribe la textura del material");
+          "renombrar una carpeta reescribe la textura del material");
     CHECK(refMaterial->getDiffuseMapPath() ==
               raiz + PATH_SEP + "TexturasNuevas/difuso.png",
-          "H-18: la textura queda bajo el nombre nuevo");
+          "la textura queda bajo el nombre nuevo");
 
     // 4. Un prefijo que no corresponde a ninguna referencia no cambia nada.
     const int sinCambios = RutasReescritura::reescribirEnEscena(
         &escena, raiz + PATH_SEP + "OtraCarpeta",
         raiz + PATH_SEP + "NadaCarpeta");
-    CHECK(sinCambios == 0, "H-18: prefijo que no matchea no cambia nada");
+    CHECK(sinCambios == 0, "prefijo que no matchea no cambia nada");
 
     EditorConfig::limpiarRaizAssets();
 }
 
-// --- Sanado de rutas rotas al cargar -------------------------------
+// --- Sanado de rutas rotas al cargar ------------------------------------------
 // Una escena guardada con referencias que ya no resuelven (daño anterior al
 // arreglo de los separadores, o archivos movidos fuera del motor) no puede
 // quedarse asi: si el nombre base aparece UNA vez bajo la raiz de assets, la

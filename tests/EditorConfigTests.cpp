@@ -356,7 +356,7 @@ int main() {
               "sin raiz la relativa almacenada queda como estaba");
     }
 
-    // 6c. H-18: cotejo de prefijos del explorador contra las rutas de la
+    // 6c. Cotejo de prefijos del explorador contra las rutas de la
     //     escena. ProjectPaths arma la raiz con '/' y absolutizarRuta
     //     concatena con '/', mientras que el explorador publica la ruta con
     //     el separador nativo (std::filesystem: '\' en Windows). Antes del
@@ -382,37 +382,37 @@ int main() {
             enMemoria, prefijoExplorador, destino);
 #ifdef _WIN32
         CHECK(reescrita == destino + "/cpp.cpp",
-              "H-18: prefijo con '\\' reescribe la ruta resuelta con '/'");
+              "prefijo con '\\' reescribe la ruta resuelta con '/'");
         // El prefijo con '/' (caso de 6a/6b) tiene que seguir funcionando.
         CHECK(EditorConfig::reemplazarPrefijoRuta(enMemoria, raiz + "/Scripts",
                                                   raiz + "/Assets/Scripts") ==
                   raiz + "/Assets/Scripts/cpp.cpp",
-              "H-18: el prefijo con '/' no se rompe");
+              "el prefijo con '/' no se rompe");
         // Frontera: el prefijo cierra solo si le sigue un separador.
         CHECK(EditorConfig::reemplazarPrefijoRuta(
                   raiz + "/ScriptsEx/cpp.cpp", prefijoExplorador, destino)
                   .empty(),
-              "H-18: 'Scripts' no cubre 'ScriptsEx' (frontera con separadores "
+              "'Scripts' no cubre 'ScriptsEx' (frontera con separadores "
               "mixtos)");
         // '\\' cierra el prefijo tambien en rutas con '/' puro (raiz unix).
         CHECK(EditorConfig::reemplazarPrefijoRuta("/dato/a\\b/f.fbx", "/dato/a",
                                                   "/dato/z") ==
                   "/dato/z\\b/f.fbx",
-              "H-18: en Windows '\\' es separador para el cotejo");
+              "en Windows '\\' es separador para el cotejo");
 #else
         CHECK(reescrita.empty(),
-              "H-18: en Linux '\\' NO es separador de rutas");
+              "en Linux '\\' NO es separador de rutas");
         CHECK(EditorConfig::reemplazarPrefijoRuta("/dato/a\\b/f.fbx", "/dato/a",
                                                   "/dato/z")
                   .empty(),
-              "H-18: en Linux '\\' es un caracter normal de nombre");
+              "en Linux '\\' es un caracter normal de nombre");
 #endif
         // Sin falsos positivos en ninguna plataforma: el prefijo tiene que
         // cerrar en un separador (mismo contrato que 6a).
         CHECK(EditorConfig::reemplazarPrefijoRuta(
                   raiz + "Ab/cpp.cpp", prefijoExplorador, destino)
                   .empty(),
-              "H-18: srcJuegoX no cubre srcJuegoXAb");
+              "srcJuegoX no cubre srcJuegoXAb");
 
         EditorConfig::limpiarRaizAssets();
     }

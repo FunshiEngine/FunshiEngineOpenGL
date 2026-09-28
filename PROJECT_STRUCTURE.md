@@ -462,8 +462,8 @@ solo como orquestador de arranque y bucle.
   vistas: soltar mueve (con `Ctrl` copia) y, al mover, publica
   `ArchivosReubicados` para que el gestor de proyectos reescriba y guarde las
   referencias de la escena; el cotejo de ese prefijo vive en
-  `PathUtils::rutaBajo` y trata `/` y `\` como el mismo separador en Windows
-  (H-18), porque el explorador trae las rutas de `std::filesystem` con `\` y
+  `PathUtils::rutaBajo` y trata `/` y `\` como el mismo separador en Windows,
+  porque el explorador trae las rutas de `std::filesystem` con `\` y
   la escena las resuelve con `/`. `GestorDeArchivos::mover` usa `rename`, que es
   atómico, y solo cae a copiar+borrar si el destino está en otro volumen;
   rechaza pisar un destino ocupado y meter una carpeta en sí misma. Al cargar
@@ -616,7 +616,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
   archivos ausentes/corruptos/parciales, prioridad de las claves modernas sobre
   el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, y el
-  cotejo de prefijos `rutaBajo` (H-18: en Windows `/` y `\` equivalen).
+  cotejo de prefijos `rutaBajo` (en Windows `/` y `\` equivalen).
 - `eventbus-tests` (16): suscripción/publicación/unsubscribe del canal tipado de GUI.
 - `menu-tests` (38): lógica pura del menú (traducción, observer de cambios y reset).
 - `assetmanager-tests` (82): caché Flyweight de meshes (rutas `AssetPath`, geometría
@@ -665,10 +665,10 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   estado de Play/Pausa/Stop) y los atajos del editor frente a ImGui.
 - `escena-serializacion-tests` (75): round-trip completo de escena (guardar →
   recargar → conservar nombre, id y jerarquía), defensas del índice de escena
-  (H-17: líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
+  (líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
   apertura avisada de archivos `Binario` inexistente sin `std::remove()`
-  destructivo, la reescritura de referencias al mover/renombrar (H-18:
-  script, malla y textura bajo el prefijo reubicado, los demás intactos) y el
+  destructivo, la reescritura de referencias al mover/renombrar (script,
+  malla y textura bajo el prefijo reubicado, los demás intactos) y el
   sanado de referencias rotas al cargar (una sola coincidencia del nombre bajo
   la raíz → repara; varias o ninguna → no adivina y avisa).
 
@@ -805,7 +805,7 @@ cargar, así que mover la raíz no invalida las escenas existentes.
   (`PATH_SEP`) y la regla única de cotejo de rutas (`rutaBajo`/`esSeparadorPath`):
   en Windows `/` y `\` equivalen, que es lo que permite reescribir las
   referencias de la escena cuando el explorador trae rutas con `\` y
-  `ProjectPaths` arma las suyas con `/` (H-18).
+  `ProjectPaths` arma las suyas con `/`.
 - La serialización binaria no tiene versionado ni validación formal de tamaños. Un
   cambio en la estructura de atributos invalida escenas guardadas.
 - `SettingsObjectInterface` y algunos componentes todavía incluyen y construyen

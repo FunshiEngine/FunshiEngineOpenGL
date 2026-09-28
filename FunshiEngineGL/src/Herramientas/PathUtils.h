@@ -39,7 +39,7 @@ inline constexpr char PATH_SEP = '/';
 // y absolutizarRuta concatena con '/', mientras que el explorador publica lo
 // que devuelve std::filesystem, que concatena con '\'. Cotejar literalmente
 // hacia que mover o renombrar una carpeta no reescribiera ninguna referencia
-// de la escena (H-18).
+// de la escena.
 //
 // En Linux '\' es un caracter perfectamente valido en un nombre de archivo
 // (p. ej. "a\b.fbx"), asi que ahi SOLO '/' separa: tratarlo como separador
