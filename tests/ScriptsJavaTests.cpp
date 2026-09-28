@@ -171,6 +171,31 @@ int main() {
     vid = buscar(valores, "vidas");
     CHECK(vid && vid->como<int>() == -1, "detener deja vidas = -1");
 
+    // Segundo componente sobre el MISMO fuente: la cola de la escena lo
+    // entrega con un ComportamientoCargado vacio (estado por componente).
+    // La clase ya esta compilada, asi que no hay que volver a pasar por javac.
+    {
+        const fs::path claseCompilada =
+            fs::path(BackendJava::cacheDir()) / "clases" / "MiPruebaJava.class";
+        std::error_code ecClase;
+        const auto mtimeAntes = fs::last_write_time(claseCompilada, ecClase);
+        CHECK(!ecClase, "la clase del primer componente existe");
+
+        ComportamientoCargado segundo;
+        const bool okSegundo = ScriptRuntime::compilarYCargar(
+            fuente, "MiPruebaJava", segundo, error);
+        CHECK(okSegundo, "segundo componente Java sobre el mismo fuente carga bien");
+        if (!okSegundo) std::cout << "  Error: " << error << std::endl;
+        if (!ecClase) {
+            std::error_code ecDespues;
+            const auto mtimeDespues =
+                fs::last_write_time(claseCompilada, ecDespues);
+            CHECK(!ecDespues && mtimeDespues == mtimeAntes,
+                  "la clase no se volvio a compilar (sigue al dia)");
+        }
+        ScriptRuntime::descargar(segundo);
+    }
+
     ScriptRuntime::descargar(comportamiento);
     CHECK(!comportamiento.valido(), "descargar invalida el comportamiento Java");
 

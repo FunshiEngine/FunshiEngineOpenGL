@@ -19,7 +19,9 @@
 // Prueba de punta a punta del runtime de scripts: escribe un fuente C++ en un
 // directorio temporal, lo compila con el BackendCpp a .so, lo carga con
 // dlopen, inyecta valores SerializeField, ejecuta onInicio/onActualizar/onStop
-// y valida el hot reload (recompilacion al cambiar el fuente + mtime).
+// y valida el hot reload (recompilacion al cambiar el fuente + mtime) y la
+// carga de un segundo componente sobre el MISMO fuente (reutiliza el
+// artefacto al dia sin volver a enlazar).
 // Si no hay compilador C++ en el entorno el test sale con SKIP (77) para que
 // CI de maquinas minimalistas no lo marque como fallo.
 
@@ -230,7 +232,37 @@ int main() {
         }
     }
 
-    // 5. Hot reload: reescribir el fuente agregando un campo nuevo y tocando
+    // 5. Segundo componente sobre el MISMO fuente: la cola de compilacion de
+    //    la escena lo entrega con un ComportamientoCargado vacio (estado por
+    //    componente), mientras el primero sigue cargado en este proceso. El
+    //    artefacto ya esta al dia, asi que no hay que volver a enlazarlo:
+    //    reescribir una imagen que esta cargada es un error de escritura que
+    //    el enlazador reporta como permiso denegado.
+    if (comportamiento.valido()) {
+        std::error_code ecArtefacto;
+        const auto mtimeAntes =
+            fs::last_write_time(comportamiento.artefacto, ecArtefacto);
+        CHECK(!ecArtefacto, "el artefacto del primer componente existe");
+
+        ComportamientoCargado segundo;
+        std::string errorSegundo;
+        const bool okSegundo = ScriptRuntime::compilarYCargar(
+            fuente, clase, segundo, errorSegundo);
+        CHECK(okSegundo, "segundo componente sobre el mismo fuente carga bien");
+        if (!okSegundo)
+            std::cout << "  Error del backend: " << errorSegundo << std::endl;
+        CHECK(segundo.valido(), "segundo comportamiento valido");
+        if (!ecArtefacto) {
+            std::error_code ecDespues;
+            const auto mtimeDespues =
+                fs::last_write_time(comportamiento.artefacto, ecDespues);
+            CHECK(!ecDespues && mtimeDespues == mtimeAntes,
+                  "el artefacto no se volvio a escribir (sigue al dia)");
+        }
+        ScriptRuntime::descargar(segundo, nullptr);
+    }
+
+    // 6. Hot reload: reescribir el fuente agregando un campo nuevo y tocando
     // el mtime; descargar y recargar. Los valores conocidos se conservan.
     if (comportamiento.valido()) {
         std::string fuente2 =
@@ -287,7 +319,7 @@ int main() {
         }
     }
 
-    // 6. Limpieza.
+    // 7. Limpieza.
     fs::remove_all(dir, ec);
 
     std::cout << "ScriptsRuntime: " << total << " verificaciones, " << fallos

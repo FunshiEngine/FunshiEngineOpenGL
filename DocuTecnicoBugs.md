@@ -102,6 +102,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **R8 — Resolver la Ruta y Probar la Escritura** | No asumir que el destino es escribible: probar creando y borrando un archivo; si falla, usar la carpeta de datos del usuario y avisar | `ProjectPaths::directorioBase()` (ver §6.4) |
 | **R9 — Texto estructurado con seek en binario** | Si el lector hace `seekg(tellg())` para releer (look-ahead/peek), abrir en **binario** y normalizar las líneas (recortar `\r`): en modo texto el CRT de Windows traduce CRLF y los offsets dejan de ser bytes exactos | `SceneSerializer::load()` + `getlineLimpio()` (ver §7.4) |
 | **R10 — La bandera de encoding viaja junto al dato** | Si una API acepta un bloque/cadena cuyo encoding depende de una bandera (`CREATE_UNICODE_ENVIRONMENT`), la bandera se decide **dentro** de la función que recibe el dato, nunca en el llamador | `Proceso::lanzar()` (ver §8.4) |
+| **R11 — La frescura del artefacto manda, no el estado del que pide** | Antes de reescribir una salida, decidir por los tiempos de **archivo** (existe y no es más viejo que su fuente); una `.dll` cargada en el proceso no se puede reescribir en Windows | `BackendCpp::compilarYCargar()` (ver §9.4) |
 
 ---
 
@@ -380,7 +381,96 @@ Reglas complementarias:
 
 ---
 
-## 9. Historial de Cambios
+## 9. Quinto concepto: **Una imagen cargada bloquea su archivo (Windows)**
+
+Distinto de §1 (cache con `mtime` viejo), §6 (permisos de la carpeta) y §8
+(encoding del entorno): acá el archivo es escribible, el proceso tiene permiso
+y la operación sale bien las demás veces. Lo que cambia es que **otra parte
+del proceso ya tiene la imagen cargada** y el sistema mantiene el fichero
+mientras viva esa carga. El error —permiso denegado— apunta justo a lo que no
+falta, y ahí se pierde una tarde probando permisos, antivirus y borrado de
+temporales.
+
+### 9.1 Descripción del problema
+
+`dlopen`/`LoadLibrary` mapea la `.dll` en el proceso y el sistema deja el
+archivo con bloqueo de escritura mientras la imagen siga cargada (en POSIX no
+hay bloqueo: reescribir un fichero mapeado está permitido). Si el proceso
+vuelve a invocar al enlazador con **la misma ruta de salida** —recompilar el
+mismo artefacto—, `ld` no puede abrir su archivo de salida y aborta:
+
+```text
+ld.exe: cannot open output file C:\...\script_<hash>.dll: Permission denied
+collect2.exe: error: ld returned 1 exit status
+```
+
+La clave del artefacto se calcula por ruta de fuente + compilador + flags, así
+que todos los componentes que apuntan al mismo fuente comparten la misma
+salida: recompilar para el segundo componente es, inevitablemente, intentar
+reescribir lo que el primero ya cargó. `FreeLibrary`/`dlclose` es lo único que
+libera el archivo.
+
+### 9.2 Síntomas
+
+- El fallo **no es de compilación sino de enlace**, y aparece donde `ld` abre
+  su salida: el código traducido del fuente está bien.
+- Ocurre solo cuando **dos componentes comparten el mismo fuente** y el
+  primero ya cargó el artefacto; con un único componente por fuente no se
+  reproduce.
+- El mismo archivo, con los mismos permisos, se escribe sin problemas
+  segundos antes y segundos después (fuera de la ventana en que la imagen
+  está cargada): parece un problema de permisos o de antivirus y no lo es.
+- En POSIX no se manifiesta, lo que sugiere un problema del sistema de
+  archivos cuando es del sistema operativo.
+
+### 9.3 Causa raíz
+
+1. La recompilación se decidía por el `mtime` **guardado en el componente**
+   (`salida.mtimeFuente`), vacío en un componente recién cargado de la
+   escena: recompila siempre, aunque el artefacto se haya escrito hace
+   milisegundos.
+2. La cola de compilación encola **por componente**, sin agrupar por fuente,
+   así que los dos llegan en la misma pasada y en serie.
+3. El primero enlaza, hace `dlopen` y deja el archivo bloqueado; el segundo
+   vuelve a enlazar sobre esa misma ruta: denegado.
+
+### 9.4 Solución canónica (Patrón R11 — decidir por la frescura del artefacto, no por el estado de quien pide compilar)
+
+- La recompilación se condiciona a que **falte el artefacto o sea más viejo
+  que su fuente** (`last_write_time(artefacto) < last_write_time(fuente)`).
+  Es una propiedad del **archivo**, no del componente que pide la carga: un
+  artefacto al día se usa tal cual y el segundo componente solo lo vuelve a
+  abrir (la biblioteca se referencia, no se duplica), sin pasar por el
+  enlazador.
+- La clave del artefacto sigue llevando el contrato de compilación
+  (compilador + flags): cambiar los flags cambia la clave, la salida "nueva"
+  no existe y se recompila sola, sin borrar temporales a mano.
+- Cuando sí hay que recompilar (el fuente se editó), quien lo tiene cargado
+  descarga **antes** de volver a compilar (`Script::recargar` →
+  `ScriptRuntime::descargar` → `FreeLibrary`): así el archivo queda libre
+  para el enlazador.
+
+Checklist de mitigación:
+
+- [ ] No invocar al enlazador sobre un artefacto que **este proceso** tenga
+      cargado: comprobarlo por frescura de archivo antes de compilar.
+- [ ] Si hay que reescribirlo, descargar **primero** todas las instancias que
+      lo carguen y solo después compilar y volver a cargar.
+- [ ] Mirar los dos frentes: quién pide la compilación y quién tiene el
+      archivo abierto en este proceso.
+- [ ] Test: dos componentes sobre el mismo fuente, el segundo con la
+      estructura de carga vacía, y comprobar que carga **sin** reescribir el
+      artefacto.
+
+### 9.5 Registro de instancias
+
+| # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
+|---|-----------|-----------|----------------|--------------|--------|
+| 1 | `BackendCpp::compilarYCargar()` (`src/Behaviour/Backends/BackendCpp.cpp`) | Compilar el script al entrar en Play con dos objetos sobre el mismo `.cpp` | MinGW `ld` sobre Windows (`LoadLibrary`) | R11: `artefactoVigente()` (existe y no es más viejo que el fuente) decide la recompilación; mismo criterio en `BackendJava` sobre la `.class` | `fix(scripts): no recompilar un artefacto que ya esta al dia` |
+
+---
+
+## 10. Historial de Cambios
 
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
@@ -388,7 +478,8 @@ Reglas complementarias:
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) con su registro de instancias, a raíz del crash al asignar un script en el binario instalado. |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el tercer concepto (Patrón R9, offsets engañosos de `tellg`/`seekg` en streams de texto con CRLF) con su instancia #1, a raíz del bug de los objetos fantasma "Scene" (H-17). |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el cuarto concepto (Patrón R10, `CREATE_UNICODE_ENVIRONMENT` obligatorio con bloques UTF-16 en `CreateProcessW`) con su instancia #1, a raíz del error 87 al pasar el entorno de vcvars/variable extra (H-3 nivel 2). |
+| 2026-09-28 | Gianfranco Ivan Enrique | Añadido el quinto concepto (Patrón R11, una imagen cargada bloquea su archivo en Windows) con su instancia #1, a raíz del `Permission denied` de `ld` al haber dos objetos sobre el mismo script (H-20). |
 
 ---
 
-*Este documento es vivo: cada nuevo bug de esta clase debe registrarse en la tabla de su concepto (§2 para el primero, §6.5 para el segundo, §7.5 para el tercero, §8.5 para el cuarto) y, si revela un patrón nuevo, añadirse a §4.*
+*Este documento es vivo: cada nuevo bug de esta clase debe registrarse en la tabla de su concepto (§2 para el primero, §6.5 para el segundo, §7.5 para el tercero, §8.5 para el cuarto, §9.5 para el quinto) y, si revela un patrón nuevo, añadirse a §4.*

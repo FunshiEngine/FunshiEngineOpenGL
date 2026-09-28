@@ -840,6 +840,11 @@ public class MiScript implements Comportamiento {
   fuente con el del artefacto cargado. Los valores SerializeField se extraen
   antes de descargar y se reinyectan por nombre de campo al terminar, de modo
   que reordenar campos en el fuente no pierde valores.
+- **Varios objetos sobre el mismo script:** si dos objetos apuntan al mismo
+  `.cpp` (o al mismo `.java`), solo se compila una vez: el segundo componente
+  usa el artefacto que ya está al día en vez de compilarlo otra vez, que en
+  Windows sería reescribir una `.dll` que está cargada (y el sistema lo
+  rechaza).
 - **Java:** igual, con el classloader child-first; la JVM se reutiliza.
 - **Ventana Estado:** para cada script muestra nombre, ok/error y mensaje
   (errores de compilacion incluidos), ademas del toolchain detectado.

@@ -596,8 +596,20 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
     const std::string claseCompilada =
         (fs::path(clasesDir) / (nombreClase + ".class")).string();
     const std::string mtimeFuente = mtime(fuente);
-    const bool recompilar = !fs::exists(claseCompilada, ec) ||
-                            salida.mtimeFuente != mtimeFuente;
+    // La clase esta vigente si existe y no es mas vieja que el fuente: la
+    // salida la comparten los componentes que apuntan al mismo .java, asi
+    // que manda la frescura del archivo, no el mtime que guarda cada
+    // componente (vacio en uno recien cargado), igual que en BackendCpp.
+    auto claseVigente = [&]() {
+        std::error_code ecClase;
+        const auto tClase = fs::last_write_time(claseCompilada, ecClase);
+        if (ecClase) return false; // no existe o ilegible: hay que compilar
+        std::error_code ecFuente;
+        const auto tFuente = fs::last_write_time(fuente, ecFuente);
+        if (ecFuente) return false;
+        return tClase >= tFuente;
+    };
+    const bool recompilar = !claseVigente();
     if (recompilar) {
         const std::string javac = javacExe();
         const std::string sdkComportamiento =

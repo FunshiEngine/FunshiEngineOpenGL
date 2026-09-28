@@ -114,6 +114,28 @@ std::string mtimeDe(const std::string& ruta) {
     if (ec) return "";
     return std::to_string(t.time_since_epoch().count());
 }
+
+// El artefacto esta vigente si existe y no es mas viejo que su fuente. La
+// clave del artefacto es por fuente (con compilador y flags), asi que dos
+// componentes de la escena que apuntan al mismo .cpp comparten la salida:
+// decidir la recompilacion por la frescura del ARCHIVO, y no por el mtime
+// que guarda cada componente (vacio en uno recien cargado), evita volver a
+// enlazar una salida que otro componente del mismo proceso ya dejo cargada.
+// En Windows una imagen cargada bloquea su archivo y el enlazador no puede
+// reescribirlo (permiso denegado); con el artefacto al dia, el segundo
+// componente solo lo vuelve a abrir (la biblioteca se referencia, no se
+// duplica).
+bool artefactoVigente(const std::string& artefactoPath,
+                      const std::string& fuente) {
+    std::error_code ecArtefacto;
+    const auto tArtefacto =
+        std::filesystem::last_write_time(artefactoPath, ecArtefacto);
+    if (ecArtefacto) return false; // no existe o ilegible: hay que compilar
+    std::error_code ecFuente;
+    const auto tFuente = std::filesystem::last_write_time(fuente, ecFuente);
+    if (ecFuente) return false;
+    return tArtefacto >= tFuente;
+}
 } // namespace
 
 const char* BackendCpp::lenguaje() const { return "cpp"; }
@@ -126,13 +148,13 @@ std::string BackendCpp::cacheDir() { return directorioCache(); }
 
 std::string BackendCpp::artefacto(const std::string& fuente) {
     // La clave del artefacto incluye el CONTRATO de compilacion (compilador +
-    // flags), no solo la ruta del fuente: la recompilacion solo mira el mtime
-    // del fuente, asi que un cambio de flags reusaria el artefacto viejo para
-    // siempre (un .dll compilado con el CRT estatico seguiria cargandose y el
-    // desajuste de heap no se corregiria nunca). Cambiar la clave equivale a
-    // invalidar el cache: el artefacto anterior simplemente no se encuentra y
-    // se recompila en el proximo uso, sin que el usuario tenga que borrar
-    // %TEMP%/funshi_scripts a mano.
+    // flags), no solo la ruta del fuente: la decision de recompilar compara
+    // tiempos de archivo y no mira los flags, asi que un cambio de flags
+    // reusaria el artefacto viejo para siempre (un .dll compilado con el CRT
+    // estatico seguiria cargandose y el desajuste de heap no se corregiria
+    // nunca). Cambiar la clave equivale a invalidar el cache: el artefacto
+    // anterior simplemente no se encuentra y se recompila en el proximo uso,
+    // sin que el usuario tenga que borrar %TEMP%/funshi_scripts a mano.
     const std::string clave =
         std::filesystem::weakly_canonical(fuente).string() + "|" + compilador() +
         "|" + CompilacionCpp::flagsCompilador(std::string());
@@ -160,9 +182,10 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
     const std::string artefactoPath = artefacto(fuente);
     const std::string mtime = mtimeDe(fuente);
 
-    // Compilar solo si cambio el fuente (hot reload; recompila en play mode).
-    bool hayQueRecompilar = !std::filesystem::exists(artefactoPath, ec) ||
-                            salida.mtimeFuente != mtime;
+    // Compilar solo si el artefacto quedo por detras del fuente (hot reload
+    // y primera carga); si ya esta al dia se usa tal cual, aunque el
+    // componente que lo trae no lo haya cargado nunca.
+    const bool hayQueRecompilar = !artefactoVigente(artefactoPath, fuente);
     if (hayQueRecompilar) {
         // Los ARGV del proceso hijo se arman en ComandoCompilacionCpp.h: la
         // familia del compilador (MSVC o GCC/Clang) decide flags, include y

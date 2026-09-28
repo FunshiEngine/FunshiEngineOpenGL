@@ -643,7 +643,9 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   sondeo de toolchain (dispositivo nulo `NUL`/`/dev/null` abierto por el
   runner, sin `std::system`).
 - `scripts-runtime-tests`: compila un `.cpp` real con `BackendCpp`, lo carga con
-  `dlopen`/`LoadLibrary` y ejecuta el ciclo + hot reload (SKIP 77 solo si el
+  `dlopen`/`LoadLibrary` y ejecuta el ciclo + hot reload, y comprueba que un
+  segundo componente sobre el **mismo** fuente reutiliza el artefacto ya al
+  día en vez de volver a enlazarlo (SKIP 77 solo si el
   sondeo del compilador del build falla; con MSVC el entorno del toolset lo
   obtiene `BackendCpp` del `vcvars64.bat`).
 - `scripts-java-tests`: end-to-end del backend Java (JNI); solo con `FUNSHI_JAVA=ON`.
