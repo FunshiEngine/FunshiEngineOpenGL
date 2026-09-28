@@ -483,10 +483,14 @@ static int EjecutarMotor(int argc, char* argv[])
         // cuando el usuario la cambia en Opciones; ya no se relee el menu y se
         // reaplica estilo/fondo cada frame.
 
-        if (scene->isStart()) { //MODIFICAR , si se activa comenzar normal , si se quita volver todo al comienzo.
-            //loadNewComponents(); // Buscar y cargar componentes nuevas
-            scene->update(deltaTime);
-        }
+        // GameScene::update() se llama siempre: adentro cada bloque se auto-gatea
+        // por start (fisicas, scripts, cola de compilacion solo corren en play).
+        // Gatearlo desde aca hacia afuera dejaba inalcanzable el bloque de
+        // transicion play->editor (limpieza de audio, desconexion de servicios y
+        // cola) porque ese bloque vive en el flanco de bajada, que solo se evalua
+        // con update() corriendo; ademas previousStart quedaba pegado en true y
+        // el segundo arranque no disparaba su flanco de subida.
+        scene->update(deltaTime);
 
         
         // Limpieza del framebuffer de la ventana con el color de fondo vigente

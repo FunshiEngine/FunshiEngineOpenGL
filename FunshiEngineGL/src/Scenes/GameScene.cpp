@@ -667,6 +667,10 @@ void GameScene::update(float value) {
         // Todos los scripts que necesitan (re)compilarse entran a la cola: su
         // progreso se ve en la barra "Estado" antes de bloquear con g++/javac.
         encolarScriptsIniciales();
+
+        std::cout << "[escena] simulacion iniciada: audio, servicios de "
+                     "scripts y cola de compilacion armados"
+                  << std::endl;
     }
 
     // Transicion play->editor: avisar a los scripts para que hagan limpieza
@@ -689,6 +693,10 @@ void GameScene::update(float value) {
                                                    : nullptr;
             }
         }
+
+        std::cout << "[escena] simulacion detenida: audio cortado, servicios "
+                     "desconectados y scripts avisados con onStop"
+                  << std::endl;
     }
     previousStart = start;
 

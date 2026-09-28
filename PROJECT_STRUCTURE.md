@@ -326,8 +326,11 @@ main.cpp
       ├── EngineTime::update (deltaTime)
       ├── ImGui::NewFrame
       ├── refleja el estado del menú en la fachada MenuGUI (guardia de cambio)
-      ├── si Playing → GameScene::update(dt) = física (start==true, F5) + scripts, con
-      │   F6 pausando fisica/scripts sin salir de play y F7 cortando (Playing → Editing)
+      ├── GameScene::update(dt) SIEMPRE: dentro, física y scripts se auto-gatean por start
+      │   y el resto corre en los flancos de transición (editor→play: pose a los cuerpos
+      │   Bullet + audio + servicios de script + cola de compilación; play→editor: vacía la
+      │   cola, desconecta los servicios, corta el audio y avisa onStop), con F6 pausando
+      │   y F7 cortando (Playing → Editing)
       ├── pasada de la grilla (batch de líneas + shader de ancho en píxeles; color según apariencia)
       ├── dibujarGameObjects (MeshRenderer VBO/VAO+shader; único pipeline)
       ├── gizmo ImGuizmo sobre el objetivo activo (objeto o collider)
@@ -717,8 +720,11 @@ main.cpp
   │           └─ SettingsObjectInterface ──► EditorController (add/removeComponent,
   │                                          sync colliders, "Gizmo activo")
   │
-  ├─ GameScene::update(dt)
+  ├─ GameScene::update(dt)  (siempre, también con start en false: es donde viven los
+  │                          flancos de transición; física/scripts se auto-gatean)
   │     ├─ transición editor→play: empuja la pose visual a los cuerpos Bullet
+  │     ├─ transición play→editor: cola de compilación vacía, servicios de script
+  │     │   desconectados, audio cortado y onStop a cada script
   │     ├─ si start y gizmo libre: PhysicsEngine::stepSimulation(dt)
   │     │               └─ btDiscreteDynamicsWorld::stepSimulation
   │     └─ scripts: IScriptBehaviour::onUpdate (si compilados)
