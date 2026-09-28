@@ -147,6 +147,15 @@ void SettingsScript::showDataComponent() {
 		ImGui::EndDragDropTarget();
 	}
 
+	// Indicador de carga mientras se compila/carga el script
+	if (cargaDiferidaPendiente_) {
+		ImGui::SameLine();
+		ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(200, 200, 100, 255));
+		ImGui::TextUnformatted("Compilando...");
+		ImGui::PopStyleColor();
+		ImGui::ProgressBar(-1.0f, ImVec2(150.0f, 0.0f), "");
+	}
+
 	// Procesar la carga diferida al comienzo del siguiente frame (fuera de
 	// cualquier contexto de drag & drop).
 	if (cargaDiferidaPendiente_) {
