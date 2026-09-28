@@ -69,7 +69,8 @@ cmake --build FunshiEngineGL/build -j$(nproc)
    eliminabas el proyecto abierto, el motor vuelve al estado "sin proyecto".
    "Iniciar Estudio" crea el proyecto y sus carpetas automaticamente.
 2. Navega la escena con `W`/`A`/`S`/`D`, `Espacio`/`Shift` y el mouse (nav FPS).
-   `E` oculta la UI; `Escape` vuelve al menu.
+   `E` oculta la UI; `Escape` vuelve al menu (y durante el play, detiene la
+   simulacion y deja el editor).
 
 ---
 
@@ -180,17 +181,17 @@ de estado avisa en vez de ignorar el atajo.
 
 | Tecla / accion | Funcion |
 |---|---|
-| `W` `A` `S` `D` | Mover la camara activa (diagonales normalizadas). Solo con las interfaces del editor ocultas (`E`) o con el clic derecho sostenido sobre el viewport |
+| `W` `A` `S` `D` | Mover la camara activa (diagonales normalizadas). Solo con las interfaces del editor ocultas (`E`) o con el clic derecho sostenido sobre el viewport. Funciona en edicion y tambien durante el play |
 | `Espacio` / `Shift izq.` | Subir / bajar la camara (misma condicion que `WASD`) |
 | Mouse / clic der. | Nav FPS; el clic derecho sostenido sobre el viewport navega **sin** esconder las interfaces (sensibilidad en Opciones) |
-| `E` | Mostrar/ocultar interfaces del editor (solo funciona dentro del editor, no en el menu de inicio) |
+| `E` | Mostrar/ocultar interfaces del editor (en edicion y durante el play; no en el menu de inicio) |
 | `F5` | Simular (Play): arranca la simulacion de la escena (fisica, scripts y audio) desde el editor |
 | `F6` | Pausar/reanudar la simulacion (solo durante el play; congela fisica y scripts sin salir) |
 | `F7` | Detener la simulacion y volver al modo edicion |
 | `Ctrl+S` | Guardar el proyecto en caliente (escena + manifiesto + config) |
 | `Ctrl+Z` | Deshacer ultima accion del editor (undo) |
 | `Ctrl+Y` | Rehacer accion deshecha (redo) |
-| `Escape` | Volver al menu de inicio |
+| `Escape` | Durante el play: detener la simulacion y volver al modo edicion (igual que `F7`). En edicion: volver al menu de inicio. En el menu: no hace nada |
 | `1` / `T` | Gizmo: traslacion (apaga la guia de eje) |
 | `2` / `R` | Gizmo: rotacion (apaga la guia de eje) |
 | `3` / `U` | Gizmo: escala (la `Y` suelta la tomo la guia de eje; apaga la guia) |
@@ -198,8 +199,9 @@ de estado avisa en vez de ignorar el atajo.
 | `G` | Gizmo local / mundo (gizmo y guia de eje) |
 | Clic en objeto | Seleccionar en viewport |
 
-El modo Play/Stop se controla desde la barra de menu de la escena; la fisica y
-los scripts solo se ejecutan en Play. Clic en un objeto del arbol o del
+El modo Play/Stop tambien se controla con el boton **Activar/Detener** de la
+barra de menu de la escena, que hace exactamente lo mismo que `F5` y `F7`; la
+fisica y los scripts solo se ejecutan en Play. Clic en un objeto del arbol o del
 viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 
 ---

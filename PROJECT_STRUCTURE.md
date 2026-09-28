@@ -326,6 +326,7 @@ main.cpp
       ├── EngineTime::update (deltaTime)
       ├── ImGui::NewFrame
       ├── refleja el estado del menú en la fachada MenuGUI (guardia de cambio)
+      ├── refleja en la escena lo que pide el orquestador (start + pausa de la simulación)
       ├── GameScene::update(dt) SIEMPRE: dentro, física y scripts se auto-gatean por start
       │   y el resto corre en los flancos de transición (editor→play: pose a los cuerpos
       │   Bullet + audio + servicios de script + cola de compilación; play→editor: vacía la
@@ -679,8 +680,10 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   múltiple, límite de 50 entradas y descripción del comando aplicado).
 - `manifiesto-assets-tests` (29): manifiesto `SceneAssets.json` (JSON round-trip,
   tolerancia a manifiestos corruptos y precedencia sobre el `.db`).
-- `orquestador-estado-tests` (38): la "función de marco" F5/F6/F7 (reglas por
-  estado de Play/Pausa/Stop) y los atajos del editor frente a ImGui.
+- `orquestador-estado-tests` (54): la "función de marco" F5/F6/F7 y el botón
+  Activar/Detener (reglas por estado de Play/Pausa/Stop), Escape por estado (en
+  play detiene, en editor vuelve al menú), la condición compartida de las teclas
+  del editor (editor o play) y los atajos del editor frente a ImGui.
 - `escena-serializacion-tests` (75): round-trip completo de escena (guardar →
   recargar → conservar nombre, id y jerarquía), defensas del índice de escena
   (líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
@@ -709,10 +712,12 @@ main.cpp
   │                                       ──► tecla E: toggleEditorInterfaces()
   │                                       ──► 1/T, 2/R, 3/U: operación del gizmo (y apagan la guía)
   │                                       ──► X/Y/Z: guía de eje del objeto seleccionado
-  │                                       ──► Escape: volver al menú (máquina de estados)
+  │                                       ──► Escape: en play detiene (como F7), en editor
+  │                                         vuelve al menú (regla en el orquestador)
   │
   ├─ GameScene::GUI()
-  │     ├─ SceneMenuBarInterface ──► flag start (Play/Stop) ──► GameScene::update
+  │     ├─ SceneMenuBarInterface ──► botón Activar/Detener ──► Orquestador::alternarSimulacion
+  │     │                          (misma regla que F5/F7; el bool solo muestra el estado)
   │     ├─ SceneSelectedInterface ──► EditorController (crear/borrar/reparentar GO)
   │     │                         ──► EventBus.publish(ObjectCreated/Deleted/Selected)
   │     ├─ SceneObjectTree ──► selección y reparentado por drag & drop

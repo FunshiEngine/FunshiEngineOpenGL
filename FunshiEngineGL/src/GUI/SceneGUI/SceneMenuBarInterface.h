@@ -19,6 +19,7 @@
 #ifndef SCENEMENUBARINTERFACE_H
 #define SCENEMENUBARINTERFACE_H
 #include <iostream>
+#include <functional>
 #include <map>
 #include <string>
 #include <memory>
@@ -35,6 +36,11 @@ protected:
     bool* toggleBool = nullptr;
     bool* gizmoGlobal = nullptr;
     bool cargarScripts = false;
+    // Peticion de arrancar/detener la simulacion. La inyecta main y delega en
+    // el orquestador de estados, el dueno de esa decision: el boton no escribe
+    // el estado de la simulacion, lo pide. Sin accion inyectada el boton no
+    // puede decidir nada.
+    std::function<void()> accionAlternarSimulacion;
     EditorEventBus* busEditor = nullptr;
     std::map<std::string, bool> ventanas_;
     std::unique_ptr<ExportDialog> exportDialog_;
@@ -45,6 +51,9 @@ public:
     SceneMenuBarInterface(bool stateGUI);
     void setActivador(bool* targetBool);
     bool* getActivador();
+    // El boton Activar/Detener pide el cambio de play/stop por esta accion (la
+    // inyecta main). El bool de activator queda solo para mostrar el estado.
+    void setAccionAlternarSimulacion(std::function<void()> accion);
     void setGizmoGlobal(bool* target);
     bool getCargarScripts();
     void setCargarScripts(bool value);

@@ -23,11 +23,12 @@
 
 // Orquestador de estados de GUI: centraliza las transiciones que gobiernan
 // "que GUI es visible este frame" (menu de inicio vs editor) y la simulacion
-// (F5/F6/F7). Encapsula las REGLAS (no los if sueltos de main): Escape en
-// editor -> volver al menu, "Iniciar Estudio" -> entrar al editor, F5 -> play,
-// F6 -> pausa, F7 -> stop. Ni la escena ni las fachadas de GUI conocen esta
-// clase; main le pregunta por frame y ella es la unica fuente de verdad sobre
-// cuando hay que mostrar menu, correr la escena o simular.
+// (F5/F6/F7 y el boton Activar/Detener). Encapsula las REGLAS (no los if sueltos
+// de main): Escape en editor -> volver al menu, Escape en play -> detener y
+// volver al editor, "Iniciar Estudio" -> entrar al editor, F5 -> play, F6 ->
+// pausa, F7 -> stop. Ni la escena ni las fachadas de GUI conocen esta clase;
+// main le pregunta por frame y ella es la unica fuente de verdad sobre cuando
+// hay que mostrar menu, correr la escena o simular.
 //
 // Es una orquestacion PURA de estado (sin ImGui ni OpenGL): recibe un
 // puntero no propietario a la maquina de estados y solo la transiciona.
@@ -49,8 +50,9 @@ public:
 public:
     explicit OrquestadorEstadoGUI(ApplicationStateMachine* maquina) noexcept;
 
-    // Centraliza "Escape en editor vuelve al menu principal" (antes colgaba en
-    // el callback de teclado de main). Inofensivo si ya estamos en el menu.
+    // Centraliza "Escape en editor vuelve al menu principal" y "Escape durante
+    // el play detiene la simulacion y vuelve al editor" (antes colgaba en el
+    // callback de teclado de main). Inofensivo si ya estamos en el menu.
     void manejarTeclaEscape() noexcept;
 
     // Centraliza "Iniciar Estudio" -> el menu pide cierre y se entra al
@@ -62,12 +64,21 @@ public:
     // main solo refleja la decision: setStart(estaEnSimulacion()).
     void manejarTeclaSimulacion(TeclaSimulacion tecla) noexcept;
 
+    // El boton "Activar/Detener" del menu de escena pide el mismo cambio que
+    // F5/F7: arranca la simulacion si no corre y la corta si corre, aplicando
+    // las reglas por estado de arriba (fuera del editor es inofensivo).
+    void alternarSimulacion() noexcept;
+
     // Reflejos por frame (lo que main pregunta en el bucle):
     bool menuDebeEstarVisible() const noexcept;   // MainMenu activo
     bool escenaDebeCorrer() const noexcept;       // cualquier estado no-menu
     bool cerrarMenuPendiente() const noexcept;    // quedo solicitud sin aplicar
     bool enSimulacion() const noexcept;           // estado Playing
     bool simulacionPausada() const noexcept;      // F6 dentro de Playing
+    // Editor o play: la condicion compartida por las teclas del editor que
+    // tambien tienen sentido con la simulacion en marcha (E, WASD, guia de
+    // eje, modo del cursor). Solo el menu de inicio queda afuera.
+    bool dentroDelEditor() const noexcept;
 
     ApplicationState getEstado() const noexcept;
 
