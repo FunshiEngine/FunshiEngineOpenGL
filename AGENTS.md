@@ -210,6 +210,37 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   que headers o comportamientos de un SO existen en el otro; probar o validar
   compilación cruzada en CI antes de confirmar cambios.
 
+## Memoria de trabajo: documentos locales ignorados por git
+
+Dos documentos de trabajo viven en la raíz del repo y están en `.gitignore` a
+propósito: no son documentación del proyecto ni se versionan, pero son la
+memoria con la que un agente retoma el trabajo sin re-investigarlo desde cero:
+
+| Archivo | Para qué sirve |
+|---|---|
+| `PLAN GENERAL DE FIX.md` | Lote de correcciones: cada hallazgo con su cadena `síntoma → evidencia → causa → fix → test`, la tabla de avance con los commits que cierran cada ítem y lo que queda por validar. |
+| `MemoryaAgente` | Memoria de contexto entre sesiones: estado del trabajo en curso, sistemas del código ya analizados (con punteros a archivos y líneas), supuestos abiertos, comandos de build/test que funcionan en el entorno y archivos que no se deben tocar. |
+
+Reglas:
+
+- **Si falta uno de los dos, recrearlo**: reconstruir su contenido desde el
+  estado real (git log, código fuente, esta guía) y tratarlo desde ese momento
+  como la fuente de contexto de la tarea — no empezar de cero sin comprobar
+  antes qué ya sabía el documento.
+- **Leerlos al arrancar** una tarea que toque temas que cubren, y **escribir
+  en ellos** lo nuevo relevante (decisiones, evidencia, estado verificado) de
+  forma incremental durante el trabajo: así la siguiente sesión no repaga el
+  análisis y no arrastra contexto que ya no sirve.
+- **Actualizarlos al cerrar cada paso** (mismo criterio que la lista de
+  tareas): lo que quedó hecho, verificado y con qué commit queda registrado
+  ahí.
+- Lo que se vuelva regla estable del proyecto **se promueve** a los `.md` del
+  repo (`MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`, esta guía) en el commit
+  que lo justifica; mientras tanto vive solo en el documento local.
+- Al commitear, **nunca** incluir estos archivos: están ignorados a propósito
+  y un `git add <ruta>` explícito de los archivos propios de la tarea es la
+  única forma correcta de agregar cambios.
+
 ## Flujo de trabajo
 
 - **Lista de tareas antes de escribir código**: si la tarea requiere más de un

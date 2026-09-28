@@ -131,6 +131,12 @@ PLAN GENERAL DE FIX.md
 # documentación del proyecto; se lista en `PENDIENTE_REFERENCIAS_TAREAS.md`).
 PENDIENTE_REFERENCIAS_TAREAS.md
 
+# Memoria de contexto de los agentes (documento local de trabajo, mismo
+# criterio que el plan). Si falta, el agente la recrea y la mantiene al día;
+# ver la sección de memoria en AGENTS.md.
+MemoryaAgente
+
+
 # Local ImGui configuration
 imgui.ini
 
