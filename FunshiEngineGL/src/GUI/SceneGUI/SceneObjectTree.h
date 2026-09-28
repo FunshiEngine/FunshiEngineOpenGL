@@ -81,6 +81,7 @@ private:
     DialogoTipo dialogoActivo = DialogoTipo::Ninguno;
     GameObject* objetoEnDialogo = nullptr;
     char bufferDialogo[256] = "";
+    bool dialogoRecienAbierto = false; // para abrir el popup solo la primera vez
 };
 
 #endif

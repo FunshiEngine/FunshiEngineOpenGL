@@ -145,18 +145,18 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
             dialogoActivo = DialogoTipo::CambiarID;
             objetoEnDialogo = object;
             std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%d", object->getId());
-            ImGui::OpenPopup("DialogoCambiarID");
+            dialogoRecienAbierto = true;
         }
         if (ImGui::MenuItem("Renombrar")) {
             dialogoActivo = DialogoTipo::Renombrar;
             objetoEnDialogo = object;
             std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
-            ImGui::OpenPopup("DialogoRenombrar");
+            dialogoRecienAbierto = true;
         }
         if (ImGui::MenuItem("Eliminar")) {
             dialogoActivo = DialogoTipo::Eliminar;
             objetoEnDialogo = object;
-            ImGui::OpenPopup("DialogoEliminar");
+            dialogoRecienAbierto = true;
         }
         ImGui::EndPopup();
     }
@@ -191,6 +191,10 @@ void SceneObjectTree::dibujarDialogosModales() {
 
     // Dialogo Cambiar ID
     if (dialogoActivo == DialogoTipo::CambiarID) {
+        if (dialogoRecienAbierto) {
+            ImGui::OpenPopup("DialogoCambiarID");
+            dialogoRecienAbierto = false;
+        }
         if (ImGui::BeginPopupModal("DialogoCambiarID", nullptr,
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Nuevo ID para '%s':", objetoEnDialogo->inputName);
@@ -222,10 +226,16 @@ void SceneObjectTree::dibujarDialogosModales() {
 
     // Dialogo Renombrar
     if (dialogoActivo == DialogoTipo::Renombrar) {
+        if (dialogoRecienAbierto) {
+            ImGui::OpenPopup("DialogoRenombrar");
+        }
         if (ImGui::BeginPopupModal("DialogoRenombrar", nullptr,
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
+            if (dialogoRecienAbierto) {
+                ImGui::SetKeyboardFocusHere();
+                dialogoRecienAbierto = false;
+            }
             ImGui::Text("Nuevo nombre:");
-            ImGui::SetKeyboardFocusHere();
             bool enterPresionado = ImGui::InputText("##nombre", bufferDialogo, sizeof(bufferDialogo),
                                                      ImGuiInputTextFlags_EnterReturnsTrue);
             ImGui::Separator();
@@ -251,6 +261,10 @@ void SceneObjectTree::dibujarDialogosModales() {
 
     // Dialogo Eliminar
     if (dialogoActivo == DialogoTipo::Eliminar) {
+        if (dialogoRecienAbierto) {
+            ImGui::OpenPopup("DialogoEliminar");
+            dialogoRecienAbierto = false;
+        }
         if (ImGui::BeginPopupModal("DialogoEliminar", nullptr,
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Eliminar '%s' (ID: %d)?",
