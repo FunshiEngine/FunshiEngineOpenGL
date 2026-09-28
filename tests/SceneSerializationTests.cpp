@@ -25,6 +25,11 @@
 // round-trip de escena, un objeto sin nombre o cualquier regresion de
 // guardado pasaban sin que nada lo notara.
 //
+// Tambien cubre el vinculo del Inspector (Settings) con el objeto que muestra:
+// es el estado de GUI que mas depende de la vida del objeto, y su ciclo de vida
+// se puede verificar headless sin dibujar (borrar el objeto -> el inspector
+// tiene que desvincularse).
+//
 // Patron de autoria (ver AGENTS.md): CHECK definido en este archivo,
 // TempPruebas::CarpetaPrueba para la carpeta temporal que se limpia sola, y
 // salida final "OK/FALLOS: N comprobaciones" saliendo con 0 o 1.
@@ -42,10 +47,12 @@
 #include "../FunshiEngineGL/src/Assets/AssetManager.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Events/EventBus.h"
+#include "../FunshiEngineGL/src/GUI/ObjetosGUI/SettingsObjectInterface.h"
 #include "../FunshiEngineGL/src/Herramientas/PathUtils.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
 #include "../FunshiEngineGL/src/Scenes/EditorController.h"
 #include "../FunshiEngineGL/src/Scenes/RutasReescritura.h"
@@ -765,6 +772,177 @@ void sanadoDeRutasRotas() {
           "sin raiz la referencia queda como estaba");
 }
 
+// --- El Inspector se desvincula cuando se borra el objeto que muestra ---------
+// El Inspector (Settings) guarda el GameObject que muestra y un Settings por
+// cada componente, y solo se recarga cuando cambia el PUNTERO. Al borrar, el
+// objeto se libera pero el Inspector seguia apuntando a el: si el allocator
+// reutiliza el bloque para un objeto nuevo, la comparacion de punteros lo toma
+// por el mismo objeto y se dibujan los Settings de componentes ya liberados
+// (lectura de memoria liberada: valores absurdos y caida al interactuar).
+//
+// Por eso el vinculo tiene que caducar en el mismo acto en que el objeto deja
+// de estar en la escena, y no cuando vuelve a tocarlo un objeto nuevo.
+void elInspectorSeDesvinculaAlBorrar() {
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    GameObject* raiz = registry.getRoot();
+
+    auto objeto = GameObjectFactory::createSimpleObject(raiz);
+    // Entity ya crea un Transform por defecto; lo usamos en lugar de agregar
+    // uno duplicado (lo que haria que getComponent<Transform>() devolviera el
+    // primero con valores 0,0,0 y el segundo con los valores fijados).
+    Transform* transform = objeto->getComponent<Transform>();
+    transform->setTranslatef(7.f, -3.f, 11.f);
+    GameObject* a = editor.createGameObject(std::move(objeto), raiz);
+    CHECK(a != nullptr, "el objeto con Transform entra en la escena");
+    if (!a) return;
+
+    SettingsObjectInterface inspector(a, true);
+    inspector.setEditor(&editor);
+    inspector.setEventBus(&events);
+    CHECK(inspector.getObjectInInspector() == a,
+          "el inspector muestra el objeto recien creado");
+
+    const GameObject* direccionLiberada = a;
+    CHECK(editor.deleteGameObject(a), "el objeto inspeccionado se borra");
+    CHECK(inspector.getObjectInInspector() == nullptr,
+          "al borrar el objeto inspeccionado el inspector se desvincula");
+    CHECK(!registry.contains(inspector.getObjectInInspector()),
+          "el inspector no queda apuntando a memoria liberada");
+
+    // Alta de un objeto nuevo. Si el allocator reutiliza el bloque del
+    // borrado, una comparacion de punteros lo daria por el mismo objeto: por
+    // eso la desvinculacion de arriba tiene que ocurrir en el borrado y no
+    // aqui. El dato se imprime porque depende del allocator de cada maquina.
+    auto nuevo = GameObjectFactory::createSimpleObject(raiz);
+    GameObject* b = editor.createGameObject(std::move(nuevo), raiz);
+    CHECK(b != nullptr, "el objeto nuevo entra en la escena");
+    std::cout << "  [info] el allocator "
+              << (b == direccionLiberada ? "reutilizo" : "no reutilizo")
+              << " la direccion del bloque liberado" << std::endl;
+
+    // El GUI revincula el inspector con la seleccion vigente cada frame.
+    if (inspector.getObjectInInspector() != b) inspector.setTargetObject(b);
+    CHECK(inspector.getObjectInInspector() == b,
+          "el inspector muestra el objeto nuevo");
+
+    // Borrar el objeto nuevo tambien lo desvincula (no solo el primero).
+    CHECK(editor.deleteGameObject(b), "el objeto nuevo tambien se borra");
+    CHECK(inspector.getObjectInInspector() == nullptr,
+          "el inspector se desvincula al borrar el objeto nuevo");
+
+    // Y al limpiar la escena entera.
+    auto tercero = GameObjectFactory::createSimpleObject(raiz);
+    GameObject* c = editor.createGameObject(std::move(tercero), raiz);
+    CHECK(c != nullptr, "un tercer objeto entra en la escena");
+    inspector.setTargetObject(c);
+    CHECK(inspector.getObjectInInspector() == c,
+          "el inspector muestra el tercer objeto");
+    editor.clearScene();
+    CHECK(inspector.getObjectInInspector() == nullptr,
+          "limpiar la escena desvincula el inspector");
+}
+
+// --- Renombrar -> borrar -> crear -> borrar: el binario no se desalinea -------
+// Secuencia reportada en la que el Transform aparece con datos basura. Antes de
+// mirar el ciclo de vida del Inspector, hay que descartar la otra hipotesis: que
+// el binario quede desalineado y la carga lea basura en los componentes. Se
+// reproduce la secuencia completa con guardar y recargar: si el Transform
+// vuelve con sus valores, el problema no es del formato del archivo.
+void borrarCrearBorrarNoDesalineaElBinario() {
+    TempPruebas::CarpetaPrueba carpeta("funshi_secuencia_borrar_crear");
+    const fs::path base = carpeta.ruta();
+    std::error_code ec;
+    fs::create_directories(base / "Scene", ec);
+
+    const std::string prefijo = (base / "Scene").string();
+    const std::string pathTxt = (base / "SceneBBDDObjetos.txt").string();
+    const std::string semiPath = (base / "Scene").string() + "/";
+
+    const float tx = 5.f, ty = -2.f, tz = 13.f;
+
+    {
+        SceneRegistry registry;
+        EventBus events;
+        AssetManager assets;
+        EditorController editor(&registry, nullptr, &events, &assets);
+        SceneSerializer serializer(&registry, &editor, &assets);
+        GameObject* raiz = registry.getRoot();
+
+        // 1. Un objeto con Transform (testigo: si el binario se desalinea, este
+        //    tambien aparece con basura).
+        auto testigo = GameObjectFactory::createSimpleObject(raiz);
+        // Entity ya crea un Transform por defecto; lo modificamos en lugar de
+        // agregar uno duplicado (getComponent devuelve el primero).
+        Transform* transformTestigo = testigo->getComponent<Transform>();
+        transformTestigo->setTranslatef(tx, ty, tz);
+        GameObject* testigoVivo =
+            editor.createGameObject(std::move(testigo), raiz);
+        CHECK(testigoVivo != nullptr, "el objeto testigo entra en la escena");
+
+        // 2. Otro objeto, renombrado sin confirmar, y borrado enseguida.
+        auto doomed = GameObjectFactory::createSimpleObject(raiz);
+        Transform* transformDoomed = doomed->getComponent<Transform>();
+        transformDoomed->setTranslatef(-40.f, -50.f, -60.f);
+        GameObject* paraBorrar = editor.createGameObject(std::move(doomed), raiz);
+        CHECK(paraBorrar != nullptr, "el objeto a borrar entra en la escena");
+        if (paraBorrar) {
+            std::snprintf(paraBorrar->inputName,
+                          sizeof(paraBorrar->inputName), "Renombrado");
+        }
+        CHECK(editor.deleteGameObject(paraBorrar), "el objeto renombrado se borra");
+
+        // 3. Crear otro y borrarlo tambien.
+        auto nuevo = GameObjectFactory::createSimpleObject(raiz);
+        GameObject* creado = editor.createGameObject(std::move(nuevo), raiz);
+        CHECK(creado != nullptr, "tras el borrado se crea otro objeto");
+        CHECK(editor.deleteGameObject(creado),
+              "el objeto creado despues tambien se borra");
+
+        serializer.save(prefijo);
+    }
+
+    // Recargar y verificar que el testigo vuelve con sus valores intactos.
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    SceneSerializer serializer(&registry, &editor, &assets);
+
+    std::ostringstream aviso;
+    std::streambuf* buferAnterior = std::cerr.rdbuf(aviso.rdbuf());
+    serializer.load(pathTxt, semiPath);
+    std::cerr.rdbuf(buferAnterior);
+
+    GameObject* raiz = registry.getRoot();
+    CHECK(raiz != nullptr, "la escena recargada tiene raiz");
+    CHECK(raiz && raiz->getChildEntities().size() == 1,
+          "solo sobrevive el objeto testigo (los otros dos se borraron)");
+
+    Transform* recargado = nullptr;
+    if (raiz) {
+        for (auto* hijo : raiz->getChildEntities()) {
+            auto* go = dynamic_cast<GameObject*>(hijo);
+            if (go) recargado = go->getComponent<Transform>();
+        }
+    }
+    CHECK(recargado != nullptr,
+          "el objeto superviviente conserva su componente Transform");
+    if (recargado) {
+        const float* t = recargado->getTranslatef();
+        CHECK(t[0] == tx && t[1] == ty && t[2] == tz,
+              "el Transform recargado conserva sus valores (el binario no se "
+              "desalineo con la secuencia borrar-crear-borrar)");
+    }
+    CHECK(aviso.str().find("Nombre de componente invalido") ==
+              std::string::npos,
+          "ningun nombre de componente invalido al cargar");
+    CHECK(aviso.str().find("linea invalida") == std::string::npos,
+          "ninguna linea invalida en el indice");
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -775,6 +953,8 @@ int main() {
     hermanosConsecutivosSinPerdida();
     reescrituraDeReferencias();
     sanadoDeRutasRotas();
+    elInspectorSeDesvinculaAlBorrar();
+    borrarCrearBorrarNoDesalineaElBinario();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

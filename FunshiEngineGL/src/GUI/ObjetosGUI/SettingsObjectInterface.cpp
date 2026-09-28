@@ -41,6 +41,7 @@
 #include "../../Objetos/Componentes/InterfaceComponent.h"
 #include "../../Objetos/Componentes/Grid.h"
 #include "../../Scenes/EditorController.h"
+#include "../../Events/EventBus.h"
 #include "../../Herramientas/TypeUtils.h"
 #include <imgui.h>
 #include <typeinfo>
@@ -57,16 +58,48 @@ SettingsObjectInterface::SettingsObjectInterface(GameObject* object,
 }
 
 SettingsObjectInterface::~SettingsObjectInterface() {
-	while (!listaDESettingsComponent->isEmpty()) {
-		Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
-		delete pos->getElement();
-		listaDESettingsComponent->remove(pos);
-	}
-	delete listaDESettingsComponent;
+    if (events && eventSubscription != 0) {
+        events->unsubscribe(eventSubscription);
+        eventSubscription = 0;
+    }
+    desvincular();
+    delete listaDESettingsComponent;
 }
 
 void SettingsObjectInterface::setEditor(EditorController* editor) {
 	this->editor = editor;
+}
+
+// Desvincula el inspector del objeto actual: libera los Settings* y deja
+// object = nullptr. Se llama desde la suscripcion al bus y desde el destructor.
+void SettingsObjectInterface::desvincular() {
+    while (!listaDESettingsComponent->isEmpty()) {
+        Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+        delete pos->getElement();
+        listaDESettingsComponent->remove(pos);
+    }
+    object = nullptr;
+    momentaneantID = 0;
+}
+
+void SettingsObjectInterface::setEventBus(EventBus* bus) {
+    if (events == bus) return;
+    if (events && eventSubscription != 0) {
+        events->unsubscribe(eventSubscription);
+        eventSubscription = 0;
+    }
+    events = bus;
+    if (events) {
+        eventSubscription = events->subscribe([this](const SceneEvent& event) {
+            if (event.type == SceneEventType::ObjectDeleted) {
+                if (event.object == object) {
+                    desvincular();
+                }
+            } else if (event.type == SceneEventType::SceneCleared) {
+                desvincular();
+            }
+        });
+    }
 }
 
 void SettingsObjectInterface::loadComponents() {

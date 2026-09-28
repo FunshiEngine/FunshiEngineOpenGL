@@ -26,6 +26,7 @@ class GameObject;
 class SettingsComponent;
 class EditorController;
 class AudioEngine;
+class EventBus;
 
 class SettingsObjectInterface : public GeneralUserInterface {
 private:
@@ -33,7 +34,11 @@ private:
 	ListaDE<SettingsComponent*>* listaDESettingsComponent;
 	EditorController* editor = nullptr;
 	AudioEngine* audioMotor = nullptr;
+	EventBus* events = nullptr;
+	size_t eventSubscription = 0;
 	int momentaneantID = 0;
+
+	void desvincular();
 
 public:
 	SettingsObjectInterface(GameObject* object, bool stateGUI);
@@ -43,6 +48,9 @@ public:
 	// El motor de audio se inyecta desde la escena para que los inspectores de
 	// AudioSource puedan probar la reproduccion. Puede ser nullptr.
 	void setAudioEngine(AudioEngine* motor) { audioMotor = motor; }
+	// Canal de eventos de la escena: el inspector se suscribe para desvincularse
+	// cuando el objeto inspeccionado se borra o se limpia la escena.
+	void setEventBus(EventBus* bus);
 	void loadComponents();
 
 	// Cambia el objeto inspeccionado sin recrear la ventana: limpia y recarga
