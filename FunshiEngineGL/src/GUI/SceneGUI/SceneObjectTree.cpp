@@ -76,6 +76,9 @@ void SceneObjectTree::draw() {
                          return drawRow(element, wasOpen);
                      });
     applyDeferredOperations();
+    // Los dialogos modales deben dibujarse cada frame, fuera del recorrido
+    // del arbol, para que ImGui los mantenga abiertos.
+    dibujarDialogosModales();
 }
 
 TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
@@ -158,9 +161,6 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
         ImGui::EndPopup();
     }
 
-    // Dialogos modales
-    dibujarDialogosModales();
-
     // Drag & drop...
     if (ImGui::BeginDragDropSource()) {
         GameObject* draggable = object;
@@ -226,14 +226,14 @@ void SceneObjectTree::dibujarDialogosModales() {
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Nuevo nombre:");
             ImGui::SetKeyboardFocusHere();
-            ImGui::InputText("##nombre", bufferDialogo, sizeof(bufferDialogo),
-                             ImGuiInputTextFlags_EnterReturnsTrue);
+            bool enterPresionado = ImGui::InputText("##nombre", bufferDialogo, sizeof(bufferDialogo),
+                                                     ImGuiInputTextFlags_EnterReturnsTrue);
             ImGui::Separator();
             bool confirmado = ImGui::Button("Aceptar", ImVec2(120, 0));
-            bool cancelado = ImGui::IsKeyPressed(ImGuiKey_Escape) ||
-                             ImGui::Button("Cancelar", ImVec2(120, 0));
-            if (ImGui::SameLine(); confirmado || cancelado) {
-                if (confirmado && bufferDialogo[0] != '\0') {
+            ImGui::SameLine();
+            bool cancelado = ImGui::Button("Cancelar", ImVec2(120, 0));
+            if (confirmado || cancelado || enterPresionado) {
+                if ((confirmado || enterPresionado) && bufferDialogo[0] != '\0') {
                     std::snprintf(objetoEnDialogo->inputName,
                                   sizeof(objetoEnDialogo->inputName), "%s",
                                   bufferDialogo);
