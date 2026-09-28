@@ -49,6 +49,58 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   `ctest` los reporta como *skipped* aparte; no son tests rotos. El skip es por
   **familia de toolchain**, nunca por sistema operativo (H-14).
 
+## Depuración de bugs: instrumentación y validación
+
+Cuando un bug no se resuelve leyendo el código, se depura con instrumentación y
+evidencia: reproducirlo de forma **determinista**, aislar la causa cambiando
+**una sola variable** por corrida y comprobar que el fix lo cierra en **más de
+una circunstancia** (distintos estados, órdenes de pasos y plataformas). Esta
+sección es el "cómo" de la evidencia que pide el análisis de bugs: la cadena
+`síntoma → evidencia → causa → fix → test` se sostiene con estas técnicas, no
+con suposiciones.
+
+- **Bajar el fallo a un test antes que a una corrida manual**: si el síntoma se
+  observa sin UI (lógica, rutas, serialización, ciclo de compilación/carga de
+  scripts), se escribe un test headless (ver "Pruebas") y se exige **rojo antes
+  y verde después**: un test que pasa con el bug y con el fix no prueba nada.
+  El test queda además como regresión permanente de esa causa.
+- **Sondas y laboratorios en directorios locales ignorados por git**: los
+  artefactos desechables de una depuración —sondas C++ que compilan y corren
+  sueltos (`FunshiEngineGL/sondas/*.cpp`), scripts de observación, volcados de
+  log, copias locales de proyecto/escena usadas como laboratorio de
+  experimentación— se viven en carpetas registradas en `.gitignore`
+  (`FunshiEngineGL/sondas/`, `vgcore.*`). Producen la evidencia del análisis y
+  se quedan en local: no son código del motor ni del juego, no entran en
+  commits y se retiran cuando el análisis cierra.
+- **Experimentos deterministas**: para que dos corridas sean comparables hay que
+  fijar todo lo que no es la variable bajo prueba — mismo proyecto/escena y
+  estado inicial, mismo cwd (las rutas relativas se resuelven contra él), mismo
+  orden de pasos, timeouts acotados —. Las hipótesis se comparan con un
+  experimento A/B: con y sin la condición sospechada, **una sola condición
+  cambiada por corrida**, nunca varias a la vez.
+- **Comparar hechos, no apariencias**: bytes, mtimes y tamaños con las
+  herramientas del toolchain (`cmp`, `od`/`xxd`, `stat`, `grep -a`) y exit
+  codes, en vez de "se veía igual". El log del motor es fuente primaria: cuando
+  algo se descarta o se elige un camino, que el log diga **por qué** (prefijo
+  del módulo + causa técnica), no solo qué pasó.
+- **Sanitizadores en C++**: la opción `ENABLE_ASAN` de `CMakeLists.txt`
+  (por defecto `ON`) agrega `-fsanitize=address` y `-fsanitize=undefined` con
+  `-fno-omit-frame-pointer -O1 -g` cuando el compilador es GNU/Clang. Un fix de
+  memoria —fuga, doble liberación, use-after-free, buffer overflow— debe correr
+  contra un build con sanitizer antes de darse por cerrado. Ojo: con el GCC de
+  MSYS2 esos runtimes no linkean (ver "Comandos esenciales"), por eso los
+  builds de trabajo y la CI usan `-DENABLE_ASAN=OFF`; cuando el toolchain local
+  no los soporte, el build con sanitizer se hace donde sí compile (Linux con
+  GCC/Clang), idealmente sobre los targets de test que cubren el caso.
+- **Otras herramientas**: `gdb`/`lldb` (breakpoint y backtrace) cuando la causa
+  no se alcanza por log; en Linux, `valgrind` como respaldo del sanitizer; y la
+  compilación aislada de la sonda o del test que reproduce el caso —sin compilar
+  todo el engine— para iterar rápido.
+- **Varias circunstancias, un solo fix**: antes de cerrar, reproducir el caso
+  también en las variantes que existan —distintos estados de la máquina, con y
+  sin interacción previa, rutas con y sin espacios, plataforma cuando esté
+  disponible—. Un fix validado en una sola corrida sigue siendo una hipótesis.
+
 ## Depuración por orden de dependencia
 
 Cuando un lote de correcciones tiene varios ítems (bugs, hallazgos nuevos,
@@ -248,7 +300,10 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   1. **Evidencia primaria**: reproducirlo y aislar las variables (paso a paso
      exacto, `logs/` junto al ejecutable, stdout/stderr, exit codes,
      artefactos que quedan en disco). Lo que solo "se ve" sin evidencia
-     reproducible es hipótesis, no causa.
+     reproducible es hipótesis, no causa. El "cómo" consigue esa evidencia —
+     tests rojo/verde, experimento A/B determinista, sondas y laboratorios en
+     carpetas ignoradas por git, sanitizadores, gdb/valgrind — está en
+     "Depuración de bugs: instrumentación y validación".
   2. **Documentación del repo**: `README.md`, `MANUAL_DE_USO.md`,
      `PROJECT_STRUCTURE.md`, `DOCUMENTACION.md`, `DocuTecnicoBugs.md`,
      `AGENTS.md`, los documentos de diseño y el plan/issue del lote. Si la doc
@@ -274,7 +329,10 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   Cierre del análisis: (a) **no se declara causa raíz sin evidencia que la
   aisle** y descarte al menos la hipótesis competidora principal — si dos
   hipótesis explican el síntoma, buscar el caso que las diferencie, no
-  quedarse con la primera plausible—; (b) el análisis queda escrito donde viva
+  quedarse con la primera plausible—, y esa evidencia se consigue con las
+  técnicas de "Depuración de bugs: instrumentación y validación"
+  (experimento A/B con una sola variable, test rojo→verde, sanitizer cuando
+  toque memoria); (b) el análisis queda escrito donde viva
   el lote (plan, issue), con síntoma, evidencia, causa, fix y test, en la
   posición por dependencias; (c) si el contraste no alcanza para decidir qué
   lado está mal, se reporta y se esperan instrucciones en vez de elegir una
@@ -312,7 +370,10 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   3. Esperar confirmación antes de ejecutarlo.
   Esto evita pérdida accidental de trabajo del usuario o cambios ajenos sin
   commitear.
-- Validar antes de commitear: build completo + `ctest` en verde.
+- Validar antes de commitear: build completo + `ctest` en verde. Si el cambio
+  cierra un bug, además la comprobación que corresponda según "Depuración de
+  bugs: instrumentación y validación": test rojo→verde, sanitizer cuando toque
+  memoria, y la reproducción del caso en más de una circunstancia.
 - **Build con cambios ajenos**: si el build falla y hay archivos modificados
   por otros colaboradores (no tocados por el agente), reportar el fallo,
   indicar que hay cambios ajenos pendientes, y esperar instrucciones;
@@ -323,4 +384,7 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   como "resuelto" o "fix real" hasta que el usuario lo pruebe y lo confirme
   explícitamente. Los tests automatizados (ctest) no cubren flujos visuales
   de UI (dock, layout, ventanas); el criterio de aceptación lo define el
-  usuario probando la aplicación real.
+  usuario probando la aplicación real. El fix llega a esa validación con su
+  evidencia técnica ya lista (test rojo→verde, sanitizer, experimento en más
+  de una circunstancia, ver "Depuración de bugs: instrumentación y
+  validación"), no solo con la impresión de haberlo visto funcionar una vez.
