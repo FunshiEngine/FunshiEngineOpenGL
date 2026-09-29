@@ -24,6 +24,7 @@
 #include <cmath>
 #include <iostream>
 
+#include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
 #include "../FunshiEngineGL/src/Rendering/GuiaEje.h"
 #include "../FunshiEngineGL/src/Rendering/LineBuilder.h"
 
@@ -534,6 +535,69 @@ void testGuiaColor() {
     CHECK(x[3] == 1.0f && y[3] == 1.0f && z[3] == 1.0f,
           "los colores base son opacos (el fade va aparte)");
 }
+
+// El color con el que se dibuja la guia es el del eje AJUSTADO por contraste
+// contra el color de referencia (el de la grilla): sin ese ajuste el eje se
+// pierde sobre una grilla de su mismo color, y el ajuste no puede cambiar de
+// eje, porque reconocer el eje de un vistazo es justamente lo que aporta el
+// color.
+//
+// El ajuste escala el brillo, asi que con un color de eje saturado no siempre
+// puede llegar al contraste minimo (el canal se recorta en 1.0 y no hay mas
+// margen): lo que se exige aqui es que la diferencia CREZCA y que se aleje en
+// la direccion correcta.
+void testGuiaColorEfectivo() {
+    float baseX[4];
+    GuiaEje::colorEje(GuiaEje::kEjeX, baseX);
+
+    // Referencia que ya contrasta con el eje: el color base se respeta tal cual.
+    const float oscura[3] = {0.0f, 0.0f, 0.0f};
+    float sobreOscura[4];
+    GuiaEje::colorEfectivo(GuiaEje::kEjeX, oscura, sobreOscura);
+    CHECK(cerca(sobreOscura[0], baseX[0]) && cerca(sobreOscura[1], baseX[1]) &&
+              cerca(sobreOscura[2], baseX[2]),
+          "con una grilla que ya contrasta, el eje conserva su color base");
+    CHECK(sobreOscura[3] == 1.0f, "el color ajustado sigue siendo opaco");
+
+    // Referencia con la MISMA luminancia que el eje (grilla del mismo color):
+    // sin ajuste la guia se pierde, con ajuste tiene que alejarse.
+    const float misma[3] = {baseX[0], baseX[1], baseX[2]};
+    const float lBase = AparienciaUtil::luminancia(baseX[0], baseX[1], baseX[2]);
+    float ajustada[4];
+    GuiaEje::colorEfectivo(GuiaEje::kEjeX, misma, ajustada);
+    const float lAjustada =
+        AparienciaUtil::luminancia(ajustada[0], ajustada[1], ajustada[2]);
+    CHECK(std::fabs(lAjustada - lBase) > kEps,
+          "con una grilla del mismo color el eje se aleja de ella");
+    CHECK(lAjustada > lBase,
+          "el ajuste aleja el eje hacia el lado mas claro que la grilla");
+    CHECK(ajustada[0] > ajustada[1] && ajustada[0] > ajustada[2],
+          "el ajuste no cambia de eje: X sigue siendo roja");
+
+    // Los tres ejes contra la misma referencia: cada uno conserva su convencion
+    // (X roja, Y verde, Z azul), que es la del gizmo y la de la grilla.
+    const int ejes[3] = {GuiaEje::kEjeX, GuiaEje::kEjeY, GuiaEje::kEjeZ};
+    const int dominante[3] = {0, 1, 2};
+    for (int i = 0; i < 3; ++i) {
+        float color[4];
+        GuiaEje::colorEfectivo(ejes[i], misma, color);
+        CHECK(color[dominante[i]] >= color[(dominante[i] + 1) % 3] &&
+                  color[dominante[i]] >= color[(dominante[i] + 2) % 3],
+              "el ajuste por contraste conserva la convencion de cada eje");
+    }
+
+    // Sin referencia no hay contraste que aplicar: el eje conserva su color
+    // base (y no se lee memoria).
+    float sinReferencia[4] = {-1.0f, -1.0f, -1.0f, -1.0f};
+    GuiaEje::colorEfectivo(GuiaEje::kEjeY, nullptr, sinReferencia);
+    float baseY[4];
+    GuiaEje::colorEje(GuiaEje::kEjeY, baseY);
+    CHECK(cerca(sinReferencia[0], baseY[0]) && cerca(sinReferencia[1], baseY[1]) &&
+              cerca(sinReferencia[2], baseY[2]),
+          "sin color de referencia el eje conserva su color base");
+    CHECK(sinReferencia[3] == 1.0f,
+          "sin color de referencia el eje sigue siendo opaco");
+}
 } // namespace
 
 int main() {
@@ -554,6 +618,7 @@ int main() {
     testGuiaDefensiva();
     testEmiteDefensiva();
     testGuiaColor();
+    testGuiaColorEfectivo();
 
     std::cout << "Resultado: " << (total - fallos) << "/" << total
               << " OK" << std::endl;

@@ -364,7 +364,8 @@ cmake --build build --target FunshiEngineGL -j4
    "Cámaras" y las vistas previas).
 2. Posicionar la vista actual (WASD + mouse FPS).
 3. En "Cámaras" → **Agregar camara**: se crea un objeto vacío con cámara en esa
-   posición/orientación, queda seleccionado (moverlo con el gizmo `W/E/R`), su
+   posición/orientación, queda seleccionado (se mueve con el gizmo, `1`/`T` para
+   traslación, `2`/`R` para rotación, `3`/`U` para escala), su
    vista previa "Vista previa: Camara N" aparece activa y pasa a ser la cámara
    activa.
 4. **Usar** en otra cámara → la navegación y la vista principal cambian a esa.

@@ -123,6 +123,12 @@ private:
                              const float camaraMundo[3]);
     void dibujarGrilla(const FrameContext& ctx, GameObject* object,
                        const float camaraMundo[3]);
+    // Color contra el que se mide el contraste de la guia de eje: el color
+    // EFECTIVO de la grilla del suelo (el mismo que usa su propio dibujado, con
+    // el modo blanco y negro ya resuelto) y, cuando no hay grilla visible, el
+    // fondo del viewport. Devuelve false si la pasada no trae perfil de
+    // apariencia.
+    bool colorReferenciaGuia(const FrameContext& ctx, float out[3]) const;
 
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;

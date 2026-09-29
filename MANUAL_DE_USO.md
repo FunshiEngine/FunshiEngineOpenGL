@@ -105,7 +105,8 @@ MotorGrafico/
 │           ├── Sonidos/              ← clips de audio (.wav/.mp3/...)
 │           └── Scripts/              ← scripts del usuario (.cpp/.java)
 ├── Configuraciones/
-│   └── Configuracion.json            ← configuracion global (tema, idioma, sensibilidad)
+│   └── Configuracion.json            ← configuracion global (ultimo proyecto, idioma,
+│                                       sensibilidades y apariencia: tema, B/N, acento, fondo)
 └── Exportaciones/
     └── <nombreExportacion>/          ← juegos exportados (ver seccion 10.1)
         ├── <Juego>.exe / <Juego>     ← ejecutable standalone
@@ -211,7 +212,7 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 - **Crear objetos:** "New GameObject" (crea un objeto simple en la escena que posee únicamente el componente `Transform`).
 - **Menú contextual en la jerarquía:** clic derecho sobre un objeto despliega "Renombrar" y "Eliminar"; clic derecho en espacio vacío del panel despliega "New GameObject".
 - **Componentes:** `Transform`, `Color`, `Model`, `Material`, `Light`,
-  `CameraComponent`, colliders (esfera / cubo / malla), `RigidBody`,
+  `CameraComponent`, `Grid`, colliders (esfera / cubo / malla), `RigidBody`,
   `AudioSource`, `InterfaceComponent` y `Script`.
 - **Inspector:** boton "Agregar componente" abre el popup de componentes; cada
   uno tiene su panel propio (Transform, Luz con tipo/atenuacion/color, etc.).
@@ -220,7 +221,32 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
   los hijos durante la edicion del padre.
 - **Gizmos** (ImGuizmo): traslacion/rotacion/escala con `1`/`2`/`3` o
   `T`/`R`/`U`, local/mundo con `G`; la fisica tiene su gizmo propio para el
-  collider activo.
+  collider activo. El checkbox **"Gizmo activo"** del panel `Transform` apaga
+  el gizmo de ese objeto (y el del collider, si el que se edita es el offset de
+  un collider) sin sacarlo de la seleccion.
+
+### Grilla del suelo
+
+La escena trae un objeto llamado **"Grilla"** con el componente `Grid`: es el
+piso del editor y se dibuja siempre que el componente este visible. Su panel en
+el Inspector tiene solo dos controles:
+
+- **Visible**: enciende o apaga la grilla.
+- **Color**: el color de las lineas. El que trae de fabrica es un blanco hielo
+  casi blanco (`0.88, 0.91, 0.89`).
+
+No hay tamano ni separacion: la grilla es **infinita** y de densidad fija
+(secundarias cada unidad, una linea principal cada cinco). El circulo en el que
+se dibuja persigue a la camara y las lineas se **difuminan con la distancia**:
+opacas hasta 40 unidades de la camara y desvanciendose por completo en el
+horizonte, a 150 unidades, que es tambien el limite: mas alla no se dibuja
+nada. Los tres ejes de la grilla (X rojo, Y verde, Z azul, los mismos colores
+que el gizmo) se dibujan mas gruesos y se ajustan de brillo para que siempre
+se vean contra el color de la grilla.
+
+El componente `Grid` se puede agregar a cualquier objeto desde "Agregar
+componente", pero solo se dibuja el **primer** objeto de la escena que lo tenga,
+y siempre con la misma densidad y el mismo horizonte.
 
 ### Guia de eje (`X` / `Y` / `Z`)
 
@@ -232,11 +258,13 @@ Por ejemplo, un objeto en `(3, 2, -5)` y se pulsa `X`: la recta es `(t, 2, -5)`
 para todo `t`. Es decir, el objeto solo se desplaza en X y su altura (Y) y su
 profundidad (Z) no se mueven. Con `Y` el efecto es el inverso: quedan fijos X y Z.
 
-- Cada eje tiene su color (X rojo, Y verde, Z azul) y la recta llega hasta el
+- Cada eje tiene su color (X rojo, Y verde, Z azul, los mismos que los ejes de
+  la grilla y que el gizmo) y la recta llega hasta el
   **horizonte**, difuminandose con el mismo criterio que la grilla: opaca cerca de
   la camara y desvanciendose en el mismo punto donde el piso se acaba. Asi la
   guia se lee como un eje que atraviesa la escena entera, no como un palo corto
-  pegado al objeto.
+  pegado al objeto. Si el color de la grilla se parece al del eje, el motor
+  ajusta el brillo de la guia hasta que se los distingue.
 - Es un interruptor: apretar dos veces la misma tecla la apaga. Al activarla o
   apagarla aparece un aviso en la barra de estado que dice que guia quedo
   prendida y sobre que eje se puede mover el objeto. Tambien se apaga sola al
@@ -393,8 +421,9 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 - `CameraComponent` con **vistas previas en vivo** (render a FBO); detalle
   completo en [CAMARAS_VISTAS_PREVIAS.md](CAMARAS_VISTAS_PREVIAS.md).
-- "Usar" en el panel de la camara la marca como activa; el id se persiste en
-  `Configuracion.json` (default automatica si el id ya no existe al cargar).
+- "Usar" en el panel de la camara la marca como activa; el id se persiste en la
+  configuracion del proyecto (`ConfiguracionProyecto.json`), con default
+  automatica si el id ya no existe al cargar.
 
 ---
 
@@ -462,26 +491,44 @@ MotorGrafico\Exportaciones\MiJuego\MiJuego.exe
 
 ## 12. Apariencia y configuración del editor
 
-- Tema claro/oscuro, modo blanco y negro (desatura la interfaz completa y
-  acompaña fondo y grilla del viewport), color de acento (solo RGB: la
-  transparencia de cada elemento la define el tema, no el color elegido) y color
-  de fondo de la escena, aplicados en vivo por `TemaEditor` / `AparienciaUtil`.
-  El acento alcanza **todos** los roles de la interfaz (botones, solapas del
-  dock, campos de entrada, sliders, checkboxes, enlaces, bordes, separadores y
-  tablas) y los grises azulados de fábrica quedan en gris neutro, así que al
-  cambiar de color no quedan restos del azul clásico ni hace falta reiniciar el
-  editor.
-- Sensibilidad de camara, ventana de camaras, visibilidad de ventanas y la
-  apariencia se guardan en la raíz de datos del motor, que es
-  `MotorGrafico/Configuraciones/Configuracion.json` —junto al binario si el
-  motor puede escribir ahí, o en la carpeta de datos del usuario si no (ver
-  "Dónde quedan los datos" en la sección 2)—. La configuración por proyecto
-  vive en `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json`. La escritura es
-  **atómica** (archivo temporal + rename: un corte no deja el JSON cortado) y
-  la configuración general se guarda de forma **diferida**: mientras cambiás
-  opciones en vivo se escribe como máximo una vez cada 250 ms, y siempre al
-  salir o con Ctrl+S. Tolera archivos ausentes o corruptos.
-- Idioma del editor: Espanol / English desde Opciones.
+La vista **Opciones** del menú de inicio tiene tres bloques:
+
+- **Juego:** idioma (Espanol / English), *Sensibilidad de camara* (mouse-look,
+  0.02 a 5.0) y *Sensibilidad de movimiento* (velocidad de `WASD`, 0.1 a 5.0).
+- **Apariencia:**
+  - *Tema claro de la interfaz* — arranca en **oscuro**.
+  - *Modo blanco y negro (interfaz y viewport)* — desatura la interfaz completa y
+    fuerza el fondo del viewport y el color de la grilla a **blanco con el tema
+    claro o negro con el oscuro**: en ese modo el color de fondo y el de la
+    grilla que se hayan elegido se ignoran, y con el fondo blanco la grilla se
+    pone negra (y al reves), para que siempre se vea.
+  - *Color de acento de la interfaz* — solo RGB: la transparencia de cada
+    elemento la define el tema, no el color elegido.
+  - *Color de fondo de la escena* — el color tras el que se ve la escena 3D.
+  - *Restablecer apariencia* — vuelve el perfil completo a los valores de
+    fabrica (tema oscuro, sin modo blanco y negro, acento azul, fondo gris
+    oscuro).
+- **Configuracion:** *Restablecer configuracion* — vuelve **toda** la
+  configuracion a los defaults, conservando el nombre del proyecto.
+
+Los cambios se aplican **en vivo**, sin reiniciar: el acento alcanza **todos** los
+roles de la interfaz (botones, solapas del dock, campos de entrada, sliders,
+checkboxes, enlaces, bordes, separadores y tablas) y los grises azulados de
+fabrica quedan en gris neutro, así que al cambiar de color no quedan restos del
+azul clasico.
+
+- Persistencia: la **apariencia**, el idioma y las dos sensibilidades se guardan
+  en la configuracion general, en la raiz de datos del motor
+  (`MotorGrafico/Configuraciones/Configuracion.json` —junto al binario si el
+  motor puede escribir ahi, o en la carpeta de datos del usuario si no (ver
+  "Donde quedan los datos" en la seccion 2)—). El **gizmo** (operacion y sistema
+  de coordenadas), la **ventana de camaras**, la **visibilidad de las ventanas**
+  y la **camara activa** se guardan por proyecto, en
+  `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json`. La escritura es
+  **atomica** (archivo temporal + rename: un corte no deja el JSON cortado) y
+  la configuracion general se guarda de forma **diferida**: mientras cambias
+  opciones en vivo se escribe como maximo una vez cada 250 ms, y siempre al salir
+  o con Ctrl+S. Tolera archivos ausentes o corruptos.
 
 ---
 

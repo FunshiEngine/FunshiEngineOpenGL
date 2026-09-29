@@ -110,12 +110,15 @@ inline void grillaEfectiva(const Apariencia& ap, const float componente[3],
 // Contraste minimo de luminancia (Rec. 709) entre un eje y la grilla.
 inline constexpr float kContrasteEjeMin = 0.35f;
 
-// Ajusta el color de un eje (rojo/verde/amarillo) para que SIEMPRE contraste
-// con el color de la grilla: si la diferencia de luminancia es menor al
-// umbral, se escala el color manteniendo su tono pero empujando su brillo en
-// la direccion que ya llevaba (mas claro si era mas claro, mas oscuro si era
-// mas oscuro) hasta distanciarse de la grilla. Con grilla blanca los ejes
-// quedan como estan (rojo, verde y amarillo puros).
+// Ajusta el color de un eje para que contraste con el color de la grilla: si la
+// diferencia de luminancia es menor al umbral, se escala el color manteniendo
+// su tono pero empujando su brillo en la direccion que ya llevaba (mas claro si
+// era mas claro, mas oscuro si era mas oscuro) hasta distanciarse de la
+// grilla. Los tres ejes (X rojo, Y verde, Z azul) quedan como estan sobre una
+// grilla blanca o negra, que es el caso de partida; el ajuste solo entra
+// cuando el usuario pone una grilla de un color parecido al del eje. Como el
+// ajuste es una escala acotada a 1.0 por canal, con un eje ya saturado puede no
+// alcanzar el minimo: se aleja todo lo que el rango permite.
 inline void ejeContraste(const float base[3], const float grilla[3],
                          float out[3]) {
     const float lGrilla = luminancia(grilla[0], grilla[1], grilla[2]);

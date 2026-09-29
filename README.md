@@ -25,24 +25,26 @@ Motor y editor 3D en tiempo real escrito en C++17, con interfaz ImGui y renderiz
 - **EventBus** con suscripción tipada (creación, eliminación, reparentado, selección y cambios de componentes) + **EditorEventBus**: canal tipado de GUI interna (apariencia, idioma, sensibilidad, cámara activa y visibilidad de ventanas) que median entre el menú, las ventanas del editor y la escena sin pasarse punteros.
 - **Máquina de estados** de la aplicación: `MainMenu`, `Editing`, `Playing`, `Exiting`, con reglas de transición centralizadas en `OrquestadorEstadoGUI`.
 - **Input modularizado** (`src/Input/EditorInput`): las callbacks de teclado/mouse de GLFW viven en su propio módulo (extraídas de `main.cpp`); traducen los eventos a acciones del editor (E, G, gizmos, Escape, clic derecho para navegar) y mantienen una máquina de estado de teclas WASD/Espacio/Shift con movimiento continuo normalizado por frame (diagonales a la misma velocidad que un eje).
-- **Render de un solo pipeline**: los `Modelos3D` se dibujan con `MeshRenderer` (VBO/VAO + shaders vía `ShaderProgram`); una malla sin normales por vértice no se dibuja y se avisa una vez por consola (`Mesh::computeNormals()` las genera). La **grilla** es un componente (`Grid`, con visible/color/tamaño/separación) en una pasada independiente, cuyo color acompaña a la apariencia (incluido el modo blanco y negro); al igual que los marcadores de luz/cámara y los gizmos de los colliders, se dibuja con el pipeline de líneas (batch en GPU + shader de ancho en píxeles, con el difuminado del horizonte resuelto por alpha por vértice).
+- **Render de un solo pipeline**: los `Modelos3D` se dibujan con `MeshRenderer` (VBO/VAO + shaders vía `ShaderProgram`); una malla sin normales por vértice no se dibuja y se avisa una vez por consola (`Mesh::computeNormals()` las genera). La **grilla** es un componente (`Grid`, con `visible` y `color`, en una pasada independiente) que se dibuja como un plano infinito de densidad fija —secundarias cada unidad, una principal cada cinco— recortado a un círculo-horizonte de radio 150 unidades centrado en la cámara, con opacidad plena hasta 40 y caída cuadrática hasta 0 en el propio horizonte, resuelto por alpha por vértice; su color efectivo sale del perfil de apariencia (en modo blanco y negro se ignoran tanto el color del componente como el elegido por el usuario, y se usa blanco o negro según el tema). Al igual que los marcadores de luz/cámara y los gizmos de los colliders, se dibuja con el pipeline de líneas (batch en GPU + shader de ancho en píxeles: 1 px las secundarias, 2 px las principales, 3 px los ejes). Los tres ejes (X rojo, Y verde, Z azul) tienen un único color de base en toda la escena, el de la guía de eje —que a su vez usa el gizmo como referencia—, y la grilla y la guía ajustan ese color por contraste contra lo que tienen debajo.
 - **Audio en runtime** (`src/Audio/`): `AudioEngine` (fachada thread-safe con cola + hilo de audio) sobre backends intercambiables (`MiniAudioBackend` con miniaudio, `NullAudioBackend`); `AudioClipsManager` descubre los clips de `Sonidos/` y los registra por nombre; `AudioSource` reproduce con volumen, loop y autoplay.
 - **Ventana "Estado"** (`StatusBarInterface`): muestra el toolchain externo (compilador C++, javac, libjvm) y el estado de compilación/carga de los scripts de la escena.
 - Explorador de archivos del proyecto con fachada propia (`FileManager`), estado de navegación compartido (`FileSelection`) y vigilancia de cambios externos (`FileSystemWatcher`).
 - **Apariencia del editor configurable** (perfil persistido en `Configuracion.json`):
-  tema claro/oscuro, **modo blanco y negro** (desatura toda la interfaz y
-  acompaña al fondo y la grilla del viewport), color de acento de la interfaz y
-  color de fondo de la escena, aplicados en vivo por `TemaEditor`/`AparienciaUtil`.
+  tema claro/oscuro (arranca en **oscuro**), **modo blanco y negro** (desatura toda
+  la interfaz y fuerza el fondo del viewport y el color de la grilla a blanco o
+  negro según el tema, ignorando los colores elegidos), color de acento de la
+  interfaz (solo RGB: la transparencia la define el tema) y color de fondo de la
+  escena, aplicados en vivo por `TemaEditor`/`AparienciaUtil`.
   El acento se inyecta en **todos** los roles visuales de ImGui (botones,
   solapas del dock, campos de entrada, sliders, checks, enlaces, cabeceras de
   tabla) y los grises azulados de fábrica pasan a gris neutro: la interfaz no
   queda coloreada a medias ni con restos del azul clásico.
 - La **cámara activa** elegida con "Usar" se persiste por id en la configuración
-  (default automática si el id ya no existe al cargar).
+  del proyecto (default automática si el id ya no existe al cargar).
 - **Cámaras como componente** con vistas previas en vivo (render a FBO) — ver [CAMARAS_VISTAS_PREVIAS.md](CAMARAS_VISTAS_PREVIAS.md).
 - **Iluminación** gestionada por `LightSystem` (slots `GL_LIGHT0..7`, marcadores de luz y cámara en escena) y **materiales** con presets (`MaterialPresets`).
-- Menú de inicio modular (paquete `MenusGUI`, patrón MVP): idioma, nombre del proyecto y sensibilidad de cámara.
-- **Configuración del editor persistida en JSON** (nlohmann/json): proyecto, idioma, sensibilidad, gizmo activo, ventana de cámaras, estado de las ventanas y perfil de apariencia. Una sola implementación: `ConfigPersistence` (JSON puro) sobre `ProjectPaths` (rutas), con `EditorConfig` como fachada estable. Dos archivos junto al binario: `<directorioEjecutable>/MotorGrafico/Configuraciones/Configuracion.json` (general) y `MotorGrafico/Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` (por proyecto). **Escritura atómica** (temporal + rename: un corte no corrompe el archivo) y **guardado diferido** de la general (los cambios en vivo de Opciones se escriben como máximo una vez cada 250 ms, y siempre al salir o con Ctrl+S). Tolerante a archivos ausentes o corruptos.
+- Menú de inicio modular (paquete `MenusGUI`, patrón MVP): nombre del proyecto y una vista **Opciones** con idioma, las dos sensibilidades y la apariencia (tema, modo blanco y negro, acento y fondo).
+- **Configuración del editor persistida en JSON** (nlohmann/json): una sola implementación, `ConfigPersistence` (JSON puro) sobre `ProjectPaths` (rutas), con `EditorConfig` como fachada estable. Dos archivos junto al binario: `<directorioEjecutable>/MotorGrafico/Configuraciones/Configuracion.json` (general: último proyecto, idioma, las dos sensibilidades y el perfil de apariencia) y `MotorGrafico/Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` (por proyecto: gizmo, ventana de cámaras, estado de las ventanas y cámara activa). **Escritura atómica** (temporal + rename: un corte no corrompe el archivo) y **guardado diferido** de la general (los cambios en vivo de Opciones se escriben como máximo una vez cada 250 ms, y siempre al salir o con Ctrl+S). Tolerante a archivos ausentes o corruptos.
 - **Caché de assets compartida** (Flyweight): `AssetManager` (meshes CPU) y `TextureManager` (imágenes), con rutas normalizadas (`AssetPath`) y loader inyectable.
 - Estructuras de datos propias (listas, árboles, heaps, mergesort) y jerarquía de excepciones propia: las usadas por el motor (`ListaDE`, `ArbolEnlazado`, `PriorityListaDE`) están corregidas y verificadas, y las implementadas para el motor (`MinHeap`, `MaxHeap`, `ListMergeSort`, `ArbolBinarioEnlazado`) cuentan con pruebas headless.
 - **Pruebas headless** (`tests/`, CTest) y **CI multiplataforma** en GitHub Actions.
@@ -137,7 +139,7 @@ ctest --test-dir build --output-on-failure
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia` al estilo ImGui): el acento llega a **todos** los roles y ningún rol conserva el azul de fábrica de Dear ImGui (regresión "el color de acento no se aplica a toda la interfaz"), el acento por defecto no cambia el aspecto histórico, un acento translúcido no apaga los roles de primer plano, la aplicación es idempotente y el modo B/N deja la paleta monocroma.
 - `assetmanager-tests` (82) y `texturemanager-tests` (15): caches Flyweight de meshes (incluido el cálculo de normales por cara, y el que rellena solo las normales que faltan en assets mixtos) e imágenes.
 - `estructuras-tests` (87): listas, árboles, heaps y ordenamiento propios.
-- `rendering-tests` (131): geometría de las líneas del pipeline moderno (`LineBuilder`: expansión de cada segmento al quad que ensancha el shader, color por extremo, polilíneas, aristas de collider y caja de 12 aristas), sin entrar a OpenGL.
+- `rendering-tests` (141): geometría de las líneas del pipeline moderno (`LineBuilder`: expansión de cada segmento al quad que ensancha el shader, color por extremo, polilíneas, aristas de collider y caja de 12 aristas) y la guía de eje (`GuiaEje`: rectas hasta el horizonte con difuminado por vértice, convención de color por eje y el color efectivo que ajusta el contraste contra la grilla), sin entrar a OpenGL.
 - `scripts-tests` (100): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario), el contrato de flags con el que `BackendCpp` compila el script C++ (mismo CRT dinámico que el engine, `/EHsc`, elección por familia de compilador —MSVC o GCC/Clang—, los ARGV armados sin flags cruzadas ni redirección de shell, y pedido de exportación de la fábrica en el link MSVC, `vcvars64Ruta` que termina en la raíz), el harvest del entorno de vcvars (receta cruda de `cmd` con `/U`, parser UTF-16 del `set /U` y bloque multi-sz ordenado) y el contrato del sondeo de toolchain (dispositivo nulo `NUL`/`/dev/null` abierto por el runner, sin `std::system` ni envoltorios de `cmd.exe`; un hijo `--hijo` ejercita el spawn real).
 - `scripts-runtime-tests` (según toolchain): compila un script C++ real con `BackendCpp`, lo carga con `dlopen`/`LoadLibrary` y ejecuta el ciclo; además valida que un segundo componente sobre el **mismo** fuente reutiliza el artefacto al día en vez de volver a enlazarlo (en Windows una `.dll` cargada no se puede reescribir). Se omite si el sondeo del compilador de este build falla (SKIP: con MSVC hace falta `cl.exe` del toolchain de Visual Studio —el entorno del toolset, `INCLUDE`/`LIB`, lo obtiene `BackendCpp` del `vcvars64.bat` al compilar, no del shell—). En Windows con MinGW/GCC corre igual que en Linux.
 - `scripts-java-tests` (según toolchain): end-to-end del backend Java (JNI); se compila si el build detecta el JDK (SKIP 77 sin JDK). El sondeo de `javac` resuelve la ruta real —`JAVAC`, `JAVA_HOME`, rutas del JDK— en vez de asumir el `javac` del PATH, así que también corre en Windows.
@@ -196,12 +198,20 @@ Ver **PROJECT_STRUCTURE.md** para la descripción completa de cada módulo, las 
 | `Espacio` / `Shift izq` | Subir / bajar la cámara                                        |
 | Mouse (sin UI capturada)| Navegación FPS de la cámara activa (sensibilidad de Opciones)  |
 | `E`                     | Mostrar / ocultar las interfaces del editor                    |
-| `Escape`                | Volver al menú de inicio                                       |
+| `F5` / `F6` / `F7`      | Simular / pausar-reanudar / detener la simulación              |
+| `Escape`                | En play: detener. En edición: volver al menú de inicio        |
+| `Ctrl+S`                | Guardar el proyecto en caliente                                |
+| `Ctrl+Z` / `Ctrl+Y`     | Deshacer / rehacer la última acción del editor                |
 | `1` o `T`               | Gizmo: traslación                                              |
 | `2` o `R`               | Gizmo: rotación                                                |
-| `3` o `Y`               | Gizmo: escala                                                  |
+| `3` o `U`               | Gizmo: escala                                                  |
+| `G`                     | Gizmo local / mundo (también la guía de eje)                   |
+| `X` / `Y` / `Z`         | Guía de eje del objeto seleccionado                            |
 | Clic en objeto          | Seleccionar objeto en el viewport                              |
 
+> El movimiento con `WASD` y `Espacio` solo actúa con las interfaces ocultas
+> (`E`) o con el clic derecho sostenido sobre el viewport, y funciona tanto en
+> edición como durante el play.
 > El modo Play/Stop se controla desde la barra de menú de la escena; la física solo simula en Play.
 
 ---

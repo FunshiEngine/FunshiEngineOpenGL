@@ -26,6 +26,7 @@
 
 #include "../Configuracion/Apariencia.h"
 #include "Backend/IRenderBackend.h"
+#include "GuiaEje.h"
 #include "LineRenderer.h"
 
 namespace {
@@ -115,11 +116,17 @@ void emitirLineaPlano(LineBuilder& out, const float color[3], float fija,
     }
 }
 
-// Colores base de los ejes (X rojo, Z verde, Y amarillo). Se pasan por
-// ejeContraste contra el color efectivo de la grilla para que siempre se vean.
-const float kEjeBaseRojo[3] = {1.0f, 0.3f, 0.3f};
-const float kEjeBaseVerde[3] = {0.3f, 1.0f, 0.3f};
-const float kEjeBaseAmarillo[3] = {1.0f, 1.0f, 0.3f};
+// Colores base de los ejes: los MISMOS que la guia de eje y el gizmo (X rojo,
+// Y verde, Z azul), para que un eje se reconozca igual en las tres piezas. Se
+// ajustan por contraste contra el color efectivo de la grilla para que siempre
+// se vean.
+void colorEjeConContraste(int eje, const float colorGrilla[3], float out[3]) {
+    float rgba[4];
+    GuiaEje::colorEfectivo(eje, colorGrilla, rgba);
+    out[0] = rgba[0];
+    out[1] = rgba[1];
+    out[2] = rgba[2];
+}
 
 } // namespace
 
@@ -168,10 +175,10 @@ void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
     // grilla, pero en su color). Eje Y perpendicular solo hacia arriba: no vive
     // en el plano y no lo recorta el circulo; se difumina con la distancia
     // horizontal de la camara al origen.
-    float colorEjeX[3], colorEjeZ[3], colorEjeY[3];
-    AparienciaUtil::ejeContraste(kEjeBaseRojo, colorGrilla, colorEjeX);
-    AparienciaUtil::ejeContraste(kEjeBaseVerde, colorGrilla, colorEjeZ);
-    AparienciaUtil::ejeContraste(kEjeBaseAmarillo, colorGrilla, colorEjeY);
+    float colorEjeX[3], colorEjeY[3], colorEjeZ[3];
+    colorEjeConContraste(GuiaEje::kEjeX, colorGrilla, colorEjeX);
+    colorEjeConContraste(GuiaEje::kEjeY, colorGrilla, colorEjeY);
+    colorEjeConContraste(GuiaEje::kEjeZ, colorGrilla, colorEjeZ);
 
     emitirLineaPlano(ejes_, colorEjeX, 0.0f, camX, camZ, false);
     emitirLineaPlano(ejes_, colorEjeZ, 0.0f, camX, camZ, true);
