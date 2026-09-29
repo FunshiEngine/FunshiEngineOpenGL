@@ -20,8 +20,10 @@
 #define SCENERENDERER_H
 
 #include <memory>
+#include <string>
 #include <vector>
 
+#include "Backend/IRenderBackend.h"
 #include "Cielo.h"
 #include "GrillaRenderer.h"
 #include "GuiaEje.h"
@@ -128,6 +130,10 @@ private:
     // Skybox visible con 6 caras validas. Mismo estado de depth que el cielo.
     void dibujarSkyboxCubemap(const Skybox* skybox, const float view[16],
                               const float projection[16]);
+    // Sube a GPU las 6 caras dadas y deja el handle en skyboxCubemap_. Devuelve
+    // false si alguna cara no se pudo decodificar o la textura no se pudo crear;
+    // en ese caso no queda nada cacheado y la pasada cae al degradado.
+    bool cargarCubemap(const std::string rutas[6]);
     // Recta de la guia de eje (X/Y/Z) sobre el objeto seleccionado: va hasta el
     // horizonte con el difuminado de la grilla y el color del eje.
     void dibujarGuiaEje(const FrameContext& ctx, const float camaraMundo[3]);
@@ -160,6 +166,14 @@ private:
     bool cieloShaderFallado_ = false;
     std::unique_ptr<ShaderProgram> skyboxProgram_;
     bool skyboxShaderFallado_ = false;
+    // Cubemap cacheado del componente Skybox: la textura GPU, la malla del cubo
+    // y la clave (rutas + fechas de modificacion de las 6 caras) que valido la
+    // textura. Se sube una sola vez por conjunto de caras y se reemplaza solo si
+    // cambia algun archivo; la malla del cubo no depende de las caras y se crea
+    // una sola vez. Se liberan en destruir().
+    Rendering::Backend::Handle skyboxCubemap_ = Rendering::Backend::kInvalidHandle;
+    Rendering::Backend::Handle skyboxCuboMalla_ = Rendering::Backend::kInvalidHandle;
+    std::string skyboxClave_;
     // Batch de lineas compartido por los marcadores de luz y de camara (ambos
     // son 12 aristas): se sube y se dibuja por gizmo, en un solo draw cada uno.
     LineBatch marcadoresBatch_;

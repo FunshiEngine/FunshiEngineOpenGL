@@ -19,14 +19,17 @@
 #include "SceneRenderer.h"
 
 #include <cmath>
+#include <cstdint>
+#include <filesystem>
 #include <iostream>
+#include <system_error>
 
 #include <glm/gtc/type_ptr.hpp>
 
 #include <imgui.h>
 
 #include "Backend/IRenderBackend.h"
-#include "Backend/GLFuncs.h"
+#include "CacheCubemap.h"
 #include "Cielo.h"
 #include "../Objetos/Componentes/Skybox.h"
 
@@ -58,7 +61,23 @@ void SceneRenderer::setTextureManager(TextureManager* textureManager) noexcept {
     if (meshRenderer_) meshRenderer_->setTextureManager(textureManager);
 }
 
-void SceneRenderer::destruir() { grillaRenderer_.destruir(); }
+void SceneRenderer::destruir() {
+    grillaRenderer_.destruir();
+    // Recursos GPU del Skybox cacheados (malla del cubo y textura del cubemap).
+    // Se libera aca con el contexto vivo y se vacia la clave, para que si la
+    // escena vuelve a dibujar la pasada suba el cubemap de nuevo en lugar de
+    // dar por buena una textura ya borrada.
+    auto& backend = Rendering::Backend::activeBackend();
+    if (skyboxCubemap_ != Rendering::Backend::kInvalidHandle) {
+        backend.destroyTextureCube(skyboxCubemap_);
+        skyboxCubemap_ = Rendering::Backend::kInvalidHandle;
+    }
+    if (skyboxCuboMalla_ != Rendering::Backend::kInvalidHandle) {
+        backend.destroyMesh(skyboxCuboMalla_);
+        skyboxCuboMalla_ = Rendering::Backend::kInvalidHandle;
+    }
+    skyboxClave_.clear();
+}
 
 // ---------------------------------------------------------------------------
 // Pasada principal
@@ -284,6 +303,17 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     ShaderProgram::unbind();
 }
 
+// Ultima modificacion del archivo en unidades del reloj de la filesystem
+// (segundos desde el epoch en la mayoria de los SO); 0 si el archivo no existe
+// o no se puede consultar. La variante con error_code no lanza: una cara que
+// falte es un dato para la clave, no una excepcion.
+static std::int64_t mtimeSegundos(const std::string& ruta) {
+    std::error_code ec;
+    const auto t = std::filesystem::last_write_time(std::filesystem::path(ruta), ec);
+    if (ec) return 0;
+    return static_cast<std::int64_t>(t.time_since_epoch().count());
+}
+
 // Skybox cubemap: renderiza un cubo centrado en la camara con el cubemap
 // del componente Skybox. Se dibuja con depth test ON + depth mask OFF para
 // quedar "detras" de toda la geometria sin escribir profundidad.
@@ -294,7 +324,7 @@ void SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
 
     auto& backend = Rendering::Backend::activeBackend();
 
-    // Cargar las 6 caras usando stb_image.
+    // Caras del cubemap en el orden del backend (+X, -X, +Y, -Y, +Z, -Z).
     const std::string rutas[6] = {
         skybox->getCaraMasX(),
         skybox->getCaraMenosX(),
@@ -308,38 +338,25 @@ void SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
         if (rutas[i].empty()) return; // Si falta alguna cara, caemos al degradado
     }
 
-    int width = 0, height = 0, channels = 0;
-    unsigned char* facePixels[6] = {nullptr};
-    bool ok = true;
-
-    for (int i = 0; i < 6; ++i) {
-        int w, h, ch;
-        unsigned char* data = stbi_load(rutas[i].c_str(), &w, &h, &ch, 4); // Forzar RGBA
-        if (!data) { ok = false; break; }
-        if (i == 0) { width = w; height = h; }
-        else if (w != width || h != height) { ok = false; stbi_image_free(data); break; }
-        facePixels[i] = data;
+    // Identidad de las caras: ruta + fecha de modificacion de cada archivo. La
+    // textura se sube una sola vez por identidad y se reemplaza solo si cambia
+    // algo que la afecta. Sin esto la pasada decodificaba seis imagenes desde
+    // disco, creaba una textura nueva con sus mipmaps y la destruia en CADA
+    // frame, ademas de cada vista previa abierta.
+    std::int64_t mtimes[6];
+    for (int i = 0; i < 6; ++i) mtimes[i] = mtimeSegundos(rutas[i]);
+    const std::string clave = CacheCubemap::claveDeCaras(rutas, mtimes);
+    if (clave != skyboxClave_) {
+        // El intento (exitoso o no) queda registrado: si las caras no se pueden
+        // decodificar, no se vuelve a intentar hasta que cambie un archivo.
+        skyboxClave_ = clave;
+        if (skyboxCubemap_ != Rendering::Backend::kInvalidHandle) {
+            backend.destroyTextureCube(skyboxCubemap_);
+            skyboxCubemap_ = Rendering::Backend::kInvalidHandle;
+        }
+        if (!cargarCubemap(rutas)) return;
     }
-    if (!ok) {
-        for (int i = 0; i < 6; ++i) if (facePixels[i]) stbi_image_free(facePixels[i]);
-        return; // Caer al degradado si falla la carga
-    }
-
-    // Crear textura cubemap.
-    Rendering::Backend::IRenderBackend::ImageCube imgCube;
-    imgCube.width = width;
-    imgCube.height = height;
-    for (int i = 0; i < 6; ++i) imgCube.faces[i] = facePixels[i];
-    imgCube.generateMipmaps = true;
-
-    Rendering::Backend::Handle cubemapHandle = backend.createTextureCube(imgCube);
-    if (cubemapHandle == Rendering::Backend::kInvalidHandle) {
-        for (int i = 0; i < 6; ++i) if (facePixels[i]) stbi_image_free(facePixels[i]);
-        return; // Caer al degradado
-    }
-
-    // Liberar memoria CPU ya subida a GPU.
-    for (int i = 0; i < 6; ++i) stbi_image_free(facePixels[i]);
+    if (skyboxCubemap_ == Rendering::Backend::kInvalidHandle) return;
 
     // Programa del cubemap (cubo centrado en la camara), creacion perezosa.
     if (!skyboxProgram_ && !skyboxShaderFallado_) {
@@ -377,14 +394,11 @@ void main() {
     }
     if (!skyboxProgram_) return;
 
-    // Cubo unitario centrado en el origen (8 vertices, 36 indices).
-    static GLuint cuboVAO = 0;
-    static GLuint cuboVBO = 0;
-    static GLuint cuboEBO = 0;
-    static bool cuboInicializado = false;
-
-    if (!cuboInicializado) {
-        float vertices[] = {
+    // Cubo unitario centrado en el origen (8 vertices, 36 indices): malla del
+    // backend, creada una sola vez y compartida por todos los skyboxes (a
+    // diferencia de la textura, no depende de las caras).
+    if (skyboxCuboMalla_ == Rendering::Backend::kInvalidHandle) {
+        static const float vertices[] = {
             // posiciones
             -1.0f,  1.0f, -1.0f,
             -1.0f, -1.0f, -1.0f,
@@ -395,7 +409,7 @@ void main() {
              1.0f, -1.0f,  1.0f,
              1.0f,  1.0f,  1.0f
         };
-        unsigned int indices[] = {
+        static const unsigned int indices[] = {
             0, 1, 2, 2, 3, 0, // -Z
             4, 5, 6, 6, 7, 4, // +Z
             0, 3, 7, 7, 4, 0, // +Y
@@ -403,18 +417,13 @@ void main() {
             3, 2, 6, 6, 7, 3, // +X
             0, 1, 5, 5, 4, 0  // -X
         };
-        GLFuncs::pfnGenVertexArrays(1, &cuboVAO);
-        GLFuncs::pfnGenBuffers(1, &cuboVBO);
-        GLFuncs::pfnGenBuffers(1, &cuboEBO);
-        GLFuncs::pfnBindVertexArray(cuboVAO);
-        GLFuncs::pfnBindBuffer(GL_ARRAY_BUFFER, cuboVBO);
-        GLFuncs::pfnBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-        GLFuncs::pfnBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cuboEBO);
-        GLFuncs::pfnBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-        GLFuncs::pfnEnableVertexAttribArray(0);
-        GLFuncs::pfnVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        GLFuncs::pfnBindVertexArray(0);
-        cuboInicializado = true;
+        Rendering::Backend::MeshData datos;
+        datos.vertices = vertices;
+        datos.vertexCount = sizeof(vertices) / (3 * sizeof(float));
+        datos.indices = indices;
+        datos.indexCount = sizeof(indices) / sizeof(indices[0]);
+        skyboxCuboMalla_ = backend.createMesh(datos);
+        if (skyboxCuboMalla_ == Rendering::Backend::kInvalidHandle) return;
     }
 
     backend.setDepthTestEnabled(true);
@@ -426,18 +435,66 @@ void main() {
     skyboxProgram_->setMat4("uProjection", glm::make_mat4(projection));
     skyboxProgram_->setInt("uSkybox", 0);
 
-    backend.bindTextureCube(cubemapHandle, 0);
-
-    GLFuncs::pfnBindVertexArray(cuboVAO);
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-    GLFuncs::pfnBindVertexArray(0);
+    backend.bindTextureCube(skyboxCubemap_, 0);
+    backend.drawMesh(skyboxCuboMalla_, 36);
 
     // Restaurar estado.
     backend.setDepthMask(true);
     ShaderProgram::unbind();
+}
 
-    // Liberar textura cubemap temporal (para MVP; en produccion se cachearia).
-    backend.destroyTextureCube(cubemapHandle);
+// ---------------------------------------------------------------------------
+// Skybox: carga de las 6 caras y utilidades de su cache
+// ---------------------------------------------------------------------------
+
+// Decodifica las 6 caras con stb_image y sube el cubemap a GPU (con mipmaps),
+// dejando el handle en skyboxCubemap_. Devuelve false sin dejar nada cacheado
+// si alguna cara no se puede decodificar (o si no todas miden lo mismo) o si el
+// backend no puede crear la textura: la pasada cae al degradado. El aviso es
+// una sola vez por clave de caras, no por frame.
+bool SceneRenderer::cargarCubemap(const std::string rutas[6]) {
+    auto& backend = Rendering::Backend::activeBackend();
+
+    int width = 0, height = 0;
+    unsigned char* facePixels[6] = {nullptr, nullptr, nullptr,
+                                    nullptr, nullptr, nullptr};
+    bool ok = true;
+
+    for (int i = 0; i < 6; ++i) {
+        int w = 0, h = 0, ch = 0;
+        // Forzar RGBA para que las 6 caras queden con el mismo layout sin
+        // depender de cuantos canales trae cada archivo.
+        unsigned char* data = stbi_load(rutas[i].c_str(), &w, &h, &ch, 4);
+        if (!data) { ok = false; break; }
+        if (i == 0) { width = w; height = h; }
+        else if (w != width || h != height) { ok = false; stbi_image_free(data); break; }
+        facePixels[i] = data;
+    }
+    if (!ok) {
+        for (int i = 0; i < 6; ++i) if (facePixels[i]) stbi_image_free(facePixels[i]);
+        std::cerr << "[Skybox] no se pudieron decodificar las 6 caras del cubemap "
+                     "(faltan, no son legibles o no tienen el mismo tamano): "
+                  << rutas[0] << " ...; se usa el cielo degradado\n";
+        return false;
+    }
+
+    Rendering::Backend::IRenderBackend::ImageCube imgCube;
+    imgCube.width = width;
+    imgCube.height = height;
+    for (int i = 0; i < 6; ++i) imgCube.faces[i] = facePixels[i];
+    imgCube.generateMipmaps = true;
+
+    skyboxCubemap_ = backend.createTextureCube(imgCube);
+
+    // Liberar memoria CPU ya subida a GPU.
+    for (int i = 0; i < 6; ++i) stbi_image_free(facePixels[i]);
+
+    if (skyboxCubemap_ == Rendering::Backend::kInvalidHandle) {
+        std::cerr << "[Skybox] el backend no pudo crear la textura cubemap "
+                     "(caras: " << rutas[0] << " ...); se usa el cielo degradado\n";
+        return false;
+    }
+    return true;
 }
 
 // Recta guia del objeto seleccionado (teclas X/Y/Z): la recta sobre la que

@@ -213,8 +213,8 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 - **Crear objetos:** "New GameObject" (crea un objeto simple en la escena que posee únicamente el componente `Transform`).
 - **Menú contextual en la jerarquía:** clic derecho sobre un objeto despliega "Renombrar" y "Eliminar"; clic derecho en espacio vacío del panel despliega "New GameObject".
 - **Componentes:** `Transform`, `Color`, `Model`, `Material`, `Light`,
-  `CameraComponent`, `Grid`, colliders (esfera / cubo / malla), `RigidBody`,
-  `AudioSource`, `InterfaceComponent` y `Script`.
+  `CameraComponent`, `Grid`, `Skybox`, colliders (esfera / cubo / malla),
+  `RigidBody`, `AudioSource`, `InterfaceComponent` y `Script`.
 - **Inspector:** boton "Agregar componente" abre el popup de componentes; cada
   uno tiene su panel propio (Transform, Luz con tipo/atenuacion/color, etc.).
 - **Jerarquia:** arrastra un objeto sobre otro en el arbol para reparentar; el
@@ -284,6 +284,27 @@ profundidad (Z) no se mueven. Con `Y` el efecto es el inverso: quedan fijos X y 
   no necesita `Ctrl` (`Ctrl+Y`/`Ctrl+Z` siguen siendo redo/undo).
 
 ---
+
+### Skybox (cubemap de seis caras)
+
+El componente `Skybox` reemplaza el cielo degradado por una imagen de seis
+caras. Se agrega desde "Agregar componente"; no hay limite de cuantos Skybox
+puede haber en la escena, pero el que se dibuja es el **primer objeto visible**
+que lo tenga, igual que con `Grid`.
+
+- **Visible**: enciende o apaga el cubemap. Apagado, o con una casilla sin
+  asignar, vuelve a dibujarse el cielo degradado de la seccion 12.
+- Seis campos de texto con la ruta de cada cara: `Cara +X (Right)`,
+  `Cara -X (Left)`, `Cara +Y (Top)`, `Cara -Y (Bottom)`, `Cara +Z (Front)` y
+  `Cara -Z (Back)`. Las rutas son relativas al proyecto y los formatos admitidos
+  son los que carga el motor de imagenes (PNG, JPG, TGA, BMP, PSD, HDR).
+- Las seis caras deben ser del **mismo tamano**: si una falta, no es legible o
+  no coincide con las demas, el motor avisa una vez por conjunto de caras y
+  dibuja el degradado en su lugar.
+- La imagen se decodifica y se sube a la tarjeta de video **una sola vez** por
+  conjunto de caras; se vuelve a subir solo si cambia alguna de las rutas o si
+  se reescribe algun archivo, asi que editar la escena con un Skybox cargado no
+  tiene costo extra por frame.
 
 ## 5. Undo / redo de operaciones del editor
 
@@ -536,8 +557,11 @@ azul clasico.
   se guardan tal como los elige el usuario —un cielo claro es una eleccion
   valida— y el degradado los mezcla de arriba hacia abajo. En modo
   blanco y negro ambas partes se fuerzan a blanco (tema claro) o negro (tema
-  oscuro). En el futuro se podra cargar un cubemap de seis caras para un cielo
-  con textura.
+  oscuro). El degradado se dibuja como primera pasada del viewport, con la
+  prueba de profundidad activa pero sin escribir en ella, asi que queda por
+  detras de la grilla y de los objetos. Si un objeto tiene el componente
+  **Skybox** visible con sus seis caras asignadas, su cubemap reemplaza al
+  degradado (ver "Skybox (cubemap de seis caras)" en la seccion 4).
 
 - Persistencia: la **apariencia**, el idioma y las dos sensibilidades se guardan
   en la configuracion general, en la raiz de datos del motor

@@ -25,6 +25,7 @@
 #include <iostream>
 
 #include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
+#include "../FunshiEngineGL/src/Rendering/CacheCubemap.h"
 #include "../FunshiEngineGL/src/Rendering/Cielo.h"
 #include "../FunshiEngineGL/src/Rendering/Difuminado.h"
 #include "../FunshiEngineGL/src/Rendering/GuiaEje.h"
@@ -723,6 +724,38 @@ void testCieloColoresEfectivos() {
           "normal: inferior personalizado");
 }
 
+// CacheCubemap: la clave que decide cuando hay que volver a subir el cubemap a
+// GPU cambia exactamente cuando cambia algo que lo altera (una ruta o su fecha
+// de modificacion), y solo entonces.
+void testCacheCubemapClave() {
+    const std::string rutas[6] = {"+x.png", "-x.png", "+y.png",
+                                  "-y.png", "+z.png", "-z.png"};
+    const std::int64_t mtimes[6] = {10, 20, 30, 40, 50, 60};
+    const std::string base = CacheCubemap::claveDeCaras(rutas, mtimes);
+
+    CHECK(!base.empty(), "clave no vacia");
+    CHECK(base == CacheCubemap::claveDeCaras(rutas, mtimes),
+          "mismas caras y mismo mtime -> misma clave (se reusa la textura)");
+
+    std::int64_t mtimesOtraCara[6] = {10, 20, 31, 40, 50, 60};
+    CHECK(CacheCubemap::claveDeCaras(rutas, mtimesOtraCara) != base,
+          "una cara reescrita cambia la clave (se vuelve a subir)");
+
+    std::int64_t mtimesAusentes[6] = {0, 0, 0, 0, 0, 0};
+    CHECK(CacheCubemap::claveDeCaras(rutas, mtimesAusentes) != base,
+          "caras inexistentes dan otra clave (mtime 0 != mtime real)");
+
+    std::string rutasOtra[6] = {"+x.png", "-x.png", "+y.png",
+                                "-y.png", "+z.png", "otro.png"};
+    CHECK(CacheCubemap::claveDeCaras(rutasOtra, mtimes) != base,
+          "ruta distinta en una cara cambia la clave");
+
+    std::string rutasIntercambiadas[6] = {"-x.png", "+x.png", "+y.png",
+                                          "-y.png", "+z.png", "-z.png"};
+    CHECK(CacheCubemap::claveDeCaras(rutasIntercambiadas, mtimes) != base,
+          "el orden de las caras importa (+X y -X intercambiadas no emparejan)");
+}
+
 int main() {
     testConstantes();
     testVacio();
@@ -746,6 +779,7 @@ int main() {
     testDifuminadoAcotaElRadio();
     testDifuminadoOpacidad();
     testCieloColoresEfectivos();
+    testCacheCubemapClave();
 
     std::cout << "Resultado: " << (total - fallos) << "/" << total
               << " OK" << std::endl;

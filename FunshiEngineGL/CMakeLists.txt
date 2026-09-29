@@ -534,11 +534,13 @@ set_target_properties(estructuras-tests PROPERTIES
 )
 add_test(NAME estructuras-tests COMMAND estructuras-tests)
 
-# Geometria de las lineas del pipeline moderno (headless y portatil): solo la
+# Geometria y logica de color del pipeline moderno (headless y portatil): solo la
 # parte CPU (LineBuilder, la expansion de cada segmento al quad que dibuja el
-# shader de lineas) y el calculo de la recta de la guia de eje (GuiaEje). No
-# entra OpenGL ni glm a proposito, asi el layout del VAO, la cuenta de vertices
-# y los extremos de la guia se pueden verificar sin pila grafica.
+# shader de lineas; el calculo de la recta de la guia de eje; el difuminado del
+# piso; los colores efectivos del cielo degradado y la clave de identidad del
+# cubemap del Skybox). No entra OpenGL ni glm a proposito, asi el layout del VAO,
+# la cuenta de vertices y los extremos de la guia se pueden verificar sin pila
+# grafica.
 add_executable(rendering-tests
     ${SRC_DIR}/Rendering/LineBuilder.cpp
     ${SRC_DIR}/Rendering/GuiaEje.cpp

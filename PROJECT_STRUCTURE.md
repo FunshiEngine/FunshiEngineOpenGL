@@ -235,11 +235,15 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                opacidad; lo comparten la grilla y la
         │   │                                guía de eje para que se desvanezcan en el
         │   │                                mismo círculo-horizonte
-        │   ├── Cielo.h/.cpp              ← cielo degradado (CPU puro): a partir del
+        │   ├── Cielo.h                   ← cielo degradado (CPU puro): a partir del
         │   │                                perfil de apariencia devuelve los dos
         │   │                                colores efectivos (superior/inferior)
         │   │                                resolviendo B/N y tema; usado por el
         │   │                                shader fullscreen triangle del cielo
+        │   ├── CacheCubemap.h             ← identidad del cubemap del Skybox (CPU
+        │   │                                puro): clave de las 6 caras por ruta y
+        │   │                                fecha de modificacion, que decide cada
+        │   │                                cuando hay que volver a subirlo a GPU
         │   ├── GrillaRenderer.h/.cpp        ← geometría de la grilla del suelo: plano
         │   │                                infinito de densidad fija (secundarias cada
         │   │                                kSeparacionMenor, una principal cada
@@ -677,7 +681,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 - `texturemanager-tests` (15): caché Flyweight de imágenes CPU (sin entrar la pila gráfica).
 - `estructuras-tests` (87): `ListaDE`, `ArbolEnlazado`, `PriorityListaDE`,
   `MinHeap`/`MaxHeap`, `ListMergeSort` y `ArbolBinarioEnlazado`.
-- `rendering-tests` (172): geometría de las líneas del pipeline moderno
+- `rendering-tests` (178): geometría de las líneas del pipeline moderno
   (`LineBuilder`): expansión de cada segmento al quad que ensancha el shader,
   color por extremo (difuminado de la grilla), polilíneas, aristas con índices
   fuera de rango y caja de 12 aristas; más la guía de eje (`GuiaEje`): origen y
@@ -689,8 +693,11 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   (eje inválido, NaN/Inf, eje degenerado, horizonte degenerado, recta fuera del
   horizonte); más el difuminado del piso (`Difuminado`): el inicio derivado en
   proporción constante del radio elegido, el radio acotado (finito, enorme,
-  negativo y nulo) y la forma de la curva, que no depende del radio. Solo CPU,
-  sin OpenGL.
+  negativo y nulo) y la forma de la curva, que no depende del radio; más los
+  colores efectivos del cielo degradado (`Cielo`): los dos extremos con B/N y
+  tema resueltos; y la identidad del cubemap del Skybox (`CacheCubemap`): la
+  clave que decide cada cuanto volver a subirlo a GPU cambia solo si cambia una
+  ruta o su fecha de modificación. Solo CPU, sin OpenGL.
 - `scripts-tests` (100): reflexión `SerializeField` (escalares, arrays, grupos
   anidados) y su round-trip binario; el contrato de flags con el que
   `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
