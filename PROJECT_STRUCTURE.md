@@ -660,11 +660,11 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 `-DFUNSHI_JAVA=ON`; cinco de ellos enlazan `funshi_engine` y requieren
 `BUILD_ENGINE=ON`, el resto compila también con `BUILD_ENGINE=OFF`):
 
-- `filemanager-tests` (132): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
+- `filemanager-tests` (136): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
   con invalidación explícita de caché del grid en carpeta origen y destino, y el
   renombre por click derecho de las vistas del explorador.
-- `proceso-tests` (26): el runner de procesos sin shell `Proceso`: round-trip
+- `proceso-tests` (24): el runner de procesos sin shell `Proceso`: round-trip
   de argv byte a byte (el binario se relanza a sí mismo copiado en una carpeta
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,
   entorno extra, tabla de `citar()` y, en Windows, la receta cruda de `cmd.exe`
@@ -675,7 +675,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, los colores del cielo
   (se conservan tal como se guardaron —un cielo claro incluido— y solo se
   acotan los componentes fuera de `[0, 1]`), y el cotejo de prefijos `rutaBajo` (en Windows `/` y `\` equivalen).
-- `eventbus-tests` (16): suscripción/publicación/unsubscribe del canal tipado de GUI.
+- `eventbus-tests` (17): suscripción/publicación/unsubscribe del canal tipado de GUI.
 - `menu-tests` (38): lógica pura del menú (traducción, observer de cambios y reset).
 - `assetmanager-tests` (82): caché Flyweight de meshes (rutas `AssetPath`, geometría
   `Mesh` con `computeBounds`, `computeNormals` —incluido el modo `soloFaltantes`
@@ -701,7 +701,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   tema resueltos; y la identidad del cubemap del Skybox (`CacheCubemap`): la
   clave que decide cada cuanto volver a subirlo a GPU cambia solo si cambia una
   ruta o su fecha de modificación. Solo CPU, sin OpenGL.
-- `scripts-tests` (100): reflexión `SerializeField` (escalares, arrays, grupos
+- `scripts-tests` (99): reflexión `SerializeField` (escalares, arrays, grupos
   anidados) y su round-trip binario; el contrato de flags con el que
   `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
   ARGV armados sin shell ni redirección); el harvest del entorno de vcvars
@@ -733,7 +733,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   Activar/Detener (reglas por estado de Play/Pausa/Stop), Escape por estado (en
   play detiene, en editor vuelve al menú), la condición compartida de las teclas
   del editor (editor o play) y los atajos del editor frente a ImGui.
-- `escena-serializacion-tests` (75): round-trip completo de escena (guardar →
+- `escena-serializacion-tests` (98): round-trip completo de escena (guardar →
   recargar → conservar nombre, id y jerarquía), defensas del índice de escena
   (líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
   apertura avisada de archivos `Binario` inexistente sin `std::remove()`
