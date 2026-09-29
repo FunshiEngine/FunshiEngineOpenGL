@@ -226,14 +226,17 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     }
 
     // Creacion perezosa del programa del cielo degradado.
-    if (skyProgram_ == Rendering::Backend::kInvalidHandle) {
+    if (!cieloProgram_ && !cieloShaderFallado_) {
         try {
-            skyProgram_ = backend.createProgram(kSkyVertexShader, kSkyFragmentShader);
-        } catch (const std::exception&) {
-            skyProgram_ = Rendering::Backend::kInvalidHandle;
+            cieloProgram_ = std::make_unique<ShaderProgram>(
+                ShaderProgram::fromSource(kSkyVertexShader, kSkyFragmentShader));
+        } catch (const std::exception& e) {
+            std::cerr << "[Cielo] shader del degradado no disponible: " << e.what()
+                      << '\n';
+            cieloShaderFallado_ = true;
             return;
         } catch (...) {
-            skyProgram_ = Rendering::Backend::kInvalidHandle;
+            cieloShaderFallado_ = true;
             return;
         }
     }
@@ -253,7 +256,7 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
         }
     }
 
-    if (skyProgram_ == Rendering::Backend::kInvalidHandle) return;
+    if (!cieloProgram_) return;
 
     // Colores efectivos del degradado (resuelven B/N y tema).
     float colorSup[3], colorInf[3];
@@ -263,21 +266,15 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     backend.setDepthTestEnabled(true);
     backend.setDepthMask(false);
 
-    backend.useProgram(skyProgram_);
-
-    int locTop = backend.uniformLocation(skyProgram_, "uColorTop");
-    int locBottom = backend.uniformLocation(skyProgram_, "uColorBottom");
-    int locView = backend.uniformLocation(skyProgram_, "uView");
-    int locProj = backend.uniformLocation(skyProgram_, "uProjection");
-
-    if (locTop >= 0)
-        backend.setUniformVec3(locTop, glm::vec3(colorSup[0], colorSup[1], colorSup[2]));
-    if (locBottom >= 0)
-        backend.setUniformVec3(locBottom, glm::vec3(colorInf[0], colorInf[1], colorInf[2]));
-    if (locView >= 0)
-        backend.setUniformMat4(locView, glm::make_mat4(view));
-    if (locProj >= 0)
-        backend.setUniformMat4(locProj, glm::make_mat4(projection));
+    // Los set por nombre no buscan en GL mas alla del primer frame:
+    // ShaderProgram cachea la location de cada uniform contra el backend.
+    cieloProgram_->use();
+    cieloProgram_->setVec3("uColorTop",
+                           glm::vec3(colorSup[0], colorSup[1], colorSup[2]));
+    cieloProgram_->setVec3("uColorBottom",
+                           glm::vec3(colorInf[0], colorInf[1], colorInf[2]));
+    cieloProgram_->setMat4("uView", glm::make_mat4(view));
+    cieloProgram_->setMat4("uProjection", glm::make_mat4(projection));
 
     // Fullscreen triangle: 3 vertices, sin VBO (gl_VertexID en el vertex shader).
     backend.drawFullscreenTriangle();
@@ -344,9 +341,8 @@ void SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
     // Liberar memoria CPU ya subida a GPU.
     for (int i = 0; i < 6; ++i) stbi_image_free(facePixels[i]);
 
-    // Shader para skybox cubemap (cubo centrado en camara).
-    static Rendering::Backend::Handle skyboxProgram = Rendering::Backend::kInvalidHandle;
-    if (skyboxProgram == Rendering::Backend::kInvalidHandle) {
+    // Programa del cubemap (cubo centrado en la camara), creacion perezosa.
+    if (!skyboxProgram_ && !skyboxShaderFallado_) {
         static const char* skyboxVert = R"(#version 330 core
 layout(location = 0) in vec3 aPos;
 out vec3 vTexCoord;
@@ -367,12 +363,19 @@ void main() {
 }
 )";
         try {
-            skyboxProgram = backend.createProgram(skyboxVert, skyboxFrag);
+            skyboxProgram_ = std::make_unique<ShaderProgram>(
+                ShaderProgram::fromSource(skyboxVert, skyboxFrag));
+        } catch (const std::exception& e) {
+            std::cerr << "[Skybox] shader del cubemap no disponible: " << e.what()
+                      << '\n';
+            skyboxShaderFallado_ = true;
+            return;
         } catch (...) {
+            skyboxShaderFallado_ = true;
             return;
         }
     }
-    if (skyboxProgram == Rendering::Backend::kInvalidHandle) return;
+    if (!skyboxProgram_) return;
 
     // Cubo unitario centrado en el origen (8 vertices, 36 indices).
     static GLuint cuboVAO = 0;
@@ -417,15 +420,11 @@ void main() {
     backend.setDepthTestEnabled(true);
     backend.setDepthMask(false);
 
-    backend.useProgram(skyboxProgram);
-
-    int locView = backend.uniformLocation(skyboxProgram, "uView");
-    int locProj = backend.uniformLocation(skyboxProgram, "uProjection");
-    int locSkybox = backend.uniformLocation(skyboxProgram, "uSkybox");
-
-    if (locView >= 0) backend.setUniformMat4(locView, glm::make_mat4(view));
-    if (locProj >= 0) backend.setUniformMat4(locProj, glm::make_mat4(projection));
-    if (locSkybox >= 0) backend.setUniformInt(locSkybox, 0);
+    // Las locations de los uniforms quedan cacheadas en ShaderProgram.
+    skyboxProgram_->use();
+    skyboxProgram_->setMat4("uView", glm::make_mat4(view));
+    skyboxProgram_->setMat4("uProjection", glm::make_mat4(projection));
+    skyboxProgram_->setInt("uSkybox", 0);
 
     backend.bindTextureCube(cubemapHandle, 0);
 

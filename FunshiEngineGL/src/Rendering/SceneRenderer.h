@@ -31,6 +31,7 @@ class GameObject;
 class CameraComponent;
 class RenderTarget;
 class TextureManager;
+class ShaderProgram;
 struct Apariencia;
 struct LightData;
 class Skybox;
@@ -148,9 +149,17 @@ private:
 
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;
-    // Programa de shader del cielo (fullscreen triangle con degradado
-    // superior/inferior). Se crea en la primera pasada y se reusa.
-    Rendering::Backend::Handle skyProgram_ = Rendering::Backend::kInvalidHandle;
+    // Programas del cielo: el del degradado (triangulo a pantalla completa) y el
+    // del cubemap del componente Skybox. Se crean en la primera pasada que los
+    // necesita y se reusan: ShaderProgram cachea las locations de los uniforms
+    // (buscarlas por pasada era trabajo repetido) y libera el handle al
+    // destruirse. El flag de fallo evita reintentar compilar un shader roto
+    // frame a frame (el texto de origen no cambia, no puede pasar de rojo a
+    // verde) y con el, tambien, repetir su mensaje de error.
+    std::unique_ptr<ShaderProgram> cieloProgram_;
+    bool cieloShaderFallado_ = false;
+    std::unique_ptr<ShaderProgram> skyboxProgram_;
+    bool skyboxShaderFallado_ = false;
     // Batch de lineas compartido por los marcadores de luz y de camara (ambos
     // son 12 aristas): se sube y se dibuja por gizmo, en un solo draw cada uno.
     LineBatch marcadoresBatch_;
