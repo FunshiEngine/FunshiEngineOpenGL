@@ -710,6 +710,26 @@ void OpenGL3Backend::setDepthMask(bool enabled) {
 }
 
 // ---------------------------------------------------------------------------
+// Pasada a pantalla completa (sin atributos)
+// ---------------------------------------------------------------------------
+
+void OpenGL3Backend::drawFullscreenTriangle() {
+    // El VAO se crea una sola vez y queda vacio a proposito: el shader de la
+    // pasada no declara atributos (arma los tres vertices con gl_VertexID), pero
+    // un contexto core exige un VAO ligado para CUALQUIER dibujo. Sin el, el
+    // glDrawArrays se rechaza con GL_INVALID_OPERATION y no dibuja nada, que es
+    // lo que dejaba el viewport con el color de limpieza del framebuffer.
+    if (vaoPantallaCompleta_ == 0) {
+        if (!GLFuncs::pfnGenVertexArrays) return;
+        GLFuncs::pfnGenVertexArrays(1, &vaoPantallaCompleta_);
+        if (vaoPantallaCompleta_ == 0) return;
+    }
+    GLFuncs::pfnBindVertexArray(vaoPantallaCompleta_);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    GLFuncs::pfnBindVertexArray(0);
+}
+
+// ---------------------------------------------------------------------------
 // Backend activo (singleton del proceso con un solo contexto de OpenGL).
 // ---------------------------------------------------------------------------
 

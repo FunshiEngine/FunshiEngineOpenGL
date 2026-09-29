@@ -299,9 +299,6 @@ static int EjecutarMotor(int argc, char* argv[])
     if (eventosGUI) {
         eventosGUI->subscribe([scene, &editorConfig](const EditorEvent& ev) {
             if (ev.type != EditorEventType::AparienciaCambio) return;
-            std::cerr << "[MAIN] AparienciaCambio recibido: fondoSuperior=(" 
-                      << ev.apariencia.fondoSuperior[0] << "," << ev.apariencia.fondoSuperior[1] << "," << ev.apariencia.fondoSuperior[2]
-                      << ") fondoInferior=(" << ev.apariencia.fondoInferior[0] << "," << ev.apariencia.fondoInferior[1] << "," << ev.apariencia.fondoInferior[2] << ")" << std::endl;
             // scene->setApariencia es seguro en cualquier momento; TemaEditor::aplicarEstilo
             // requiere contexto ImGui creado (se llama despues de ImGui::CreateContext).
             scene->setApariencia(ev.apariencia);

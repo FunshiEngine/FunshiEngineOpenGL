@@ -171,9 +171,6 @@ void MenuGUI::publicarCambio(MenuModel::Campo campo) {
     case MenuModel::Campo::Apariencia:
         ev.type = EditorEventType::AparienciaCambio;
         ev.apariencia = model.getApariencia();
-        std::cerr << "[MenuGUI] Publicando AparienciaCambio: fondoSuperior=(" 
-                  << ev.apariencia.fondoSuperior[0] << "," << ev.apariencia.fondoSuperior[1] << "," << ev.apariencia.fondoSuperior[2]
-                  << ") fondoInferior=(" << ev.apariencia.fondoInferior[0] << "," << ev.apariencia.fondoInferior[1] << "," << ev.apariencia.fondoInferior[2] << ")" << std::endl;
         break;
     case MenuModel::Campo::Reiniciar:
         ev.type = EditorEventType::ReiniciarConfiguracion;

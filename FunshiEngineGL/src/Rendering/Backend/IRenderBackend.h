@@ -164,6 +164,14 @@ public:
     // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
     virtual void setDepthTestEnabled(bool enabled) = 0;
     virtual void setDepthMask(bool enabled) = 0;
+
+    // --- Pasada a pantalla completa (sin atributos) ---------------------------
+    // Dibuja un triangulo que cubre el viewport con el programa YA en uso. El
+    // vertex shader lo arma con gl_VertexID y no lee atributos, asi que no lleva
+    // geometria ni VBO. Va por el backend y no por un glDrawArrays suelto porque
+    // en un contexto core todo dibujo necesita un VAO ligado (el VAO 0 no
+    // existe): el backend posee ese VAO y lo liga por dentro.
+    virtual void drawFullscreenTriangle() = 0;
 };
 
 // Backend activo del engine (un solo contexto GL; el singleton se cambia en la
