@@ -291,8 +291,7 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
                             !skybox->getCaraMenosY().empty() &&
                             !skybox->getCaraMasZ().empty() &&
                             !skybox->getCaraMenosZ().empty();
-        if (tieneCubemap) {
-            dibujarSkyboxCubemap(skybox, view, projection);
+        if (tieneCubemap && dibujarSkyboxCubemap(skybox, view, projection)) {
             return;
         }
     }
@@ -350,10 +349,10 @@ static std::int64_t mtimeSegundos(const std::string& ruta) {
 // Skybox cubemap: renderiza un cubo centrado en la camara con el cubemap
 // del componente Skybox. Se dibuja con depth test ON + depth mask OFF para
 // quedar "detras" de toda la geometria sin escribir profundidad.
-void SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
+bool SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
                                          const float view[16],
                                          const float projection[16]) {
-    if (!skybox) return;
+    if (!skybox) return false;
 
     auto& backend = Rendering::Backend::activeBackend();
 
@@ -372,7 +371,7 @@ void SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
     };
 
     for (int i = 0; i < 6; ++i) {
-        if (rutas[i].empty()) return; // Si falta alguna cara, caemos al degradado
+        if (rutas[i].empty()) return false; // Si falta alguna cara, caemos al degradado
     }
 
     // Identidad de las caras: ruta + fecha de modificacion de cada archivo. La
@@ -391,9 +390,9 @@ void SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
             backend.destroyTextureCube(skyboxCubemap_);
             skyboxCubemap_ = Rendering::Backend::kInvalidHandle;
         }
-        if (!cargarCubemap(rutas)) return;
+        if (!cargarCubemap(rutas)) return false;
     }
-    if (skyboxCubemap_ == Rendering::Backend::kInvalidHandle) return;
+    if (skyboxCubemap_ == Rendering::Backend::kInvalidHandle) return false;
 
     // Programa del cubemap (cubo centrado en la camara), creacion perezosa.
     if (!skyboxProgram_ && !skyboxShaderFallado_) {
@@ -423,13 +422,13 @@ void main() {
             std::cerr << "[Skybox] shader del cubemap no disponible: " << e.what()
                       << '\n';
             skyboxShaderFallado_ = true;
-            return;
+            return false;
         } catch (...) {
             skyboxShaderFallado_ = true;
-            return;
+            return false;
         }
     }
-    if (!skyboxProgram_) return;
+    if (!skyboxProgram_) return false;
 
     // Cubo unitario centrado en el origen (8 vertices, 36 indices): malla del
     // backend, creada una sola vez y compartida por todos los skyboxes (a
@@ -460,7 +459,7 @@ void main() {
         datos.indices = indices;
         datos.indexCount = sizeof(indices) / sizeof(indices[0]);
         skyboxCuboMalla_ = backend.createMesh(datos);
-        if (skyboxCuboMalla_ == Rendering::Backend::kInvalidHandle) return;
+        if (skyboxCuboMalla_ == Rendering::Backend::kInvalidHandle) return false;
     }
 
     backend.setDepthTestEnabled(true);
@@ -499,6 +498,8 @@ void main() {
     backend.setDepthMask(true);
     backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
     ShaderProgram::unbind();
+
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -523,15 +524,17 @@ bool SceneRenderer::cargarCubemap(const std::string rutas[6]) {
         // Forzar RGBA para que las 6 caras queden con el mismo layout sin
         // depender de cuantos canales trae cada archivo.
         unsigned char* data = stbi_load(rutas[i].c_str(), &w, &h, &ch, 4);
+
         if (!data) { ok = false; break; }
         if (i == 0) { width = w; height = h; }
         else if (w != width || h != height) { ok = false; stbi_image_free(data); break; }
+        else if (w != h) { ok = false; stbi_image_free(data); break; }  // caras deben ser cuadradas
         facePixels[i] = data;
     }
     if (!ok) {
         for (int i = 0; i < 6; ++i) if (facePixels[i]) stbi_image_free(facePixels[i]);
         std::cerr << "[Skybox] no se pudieron decodificar las 6 caras del cubemap "
-                     "(faltan, no son legibles o no tienen el mismo tamano): "
+                     "(faltan, no son legibles, no tienen el mismo tamano o no son cuadradas): "
                   << rutas[0] << " ...; se usa el cielo degradado\n";
         return false;
     }
@@ -541,6 +544,7 @@ bool SceneRenderer::cargarCubemap(const std::string rutas[6]) {
     imgCube.height = height;
     for (int i = 0; i < 6; ++i) imgCube.faces[i] = facePixels[i];
     imgCube.generateMipmaps = true;
+
 
     skyboxCubemap_ = backend.createTextureCube(imgCube);
 

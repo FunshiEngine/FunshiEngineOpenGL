@@ -97,12 +97,12 @@ MotorGrafico/
 │   └── <proyecto>/
 │       ├── Memory/
 │       │   ├── Binarios/Scene        ← escenas binarias
-│       │   ├── Interfaces/           ← assets JSON del CreadorDeInterfaces
+│       │   # ├── Interfaces/           ← assets JSON del CreadorDeInterfaces
 │       │   ├── ConfiguracionProyecto.json
 │       │   └── imgui.ini
 │       └── src<proyecto>/            ← assets del proyecto (raiz del explorador)
 │           ├── modelos/              ← .obj/.fbx que arrastra el editor
-│           ├── Sonidos/              ← clips de audio (.wav/.mp3/...)
+│           # ├── Sonidos/              ← clips de audio (.wav/.mp3/...)
 │           └── Scripts/              ← scripts del usuario (.cpp/.java)
 ├── Configuraciones/
 │   └── Configuracion.json            ← configuracion global (ultimo proyecto, idioma,
@@ -113,12 +113,12 @@ MotorGrafico/
         ├── <Juego>.exe / <Juego>     ← ejecutable standalone
         ├── Data/
         │   ├── Memory/
-        │   ├── Sonidos/
+        │   # ├── Sonidos/
         │   └── ConfiguracionProyecto.json
         └── lib/                      ← dependencias runtime (Bullet, miniaudio, GLFW, etc.)
 ```
 
-La convencion de assets por nombre usa carpetas `Sonidos/` e `Interfaces/` con
+La convencion de assets por nombre usa carpetas `Sonidos/` y `Interfaces/` (el usuario las crea al agregar el primer asset) con
 mayuscula inicial. El arbol de archivos del editor lista la **raiz del
 proyecto** (`src<nombre>`).
 
@@ -303,6 +303,22 @@ que lo tenga, igual que con `Grid`.
   explorador. Si escribís una ruta con `/` o `\` indistinto, también funciona.
   Los formatos admitidos son los que carga el motor de imagenes (PNG, JPG, TGA,
   BMP, PSD, HDR).
+- **Elegir el archivo con el explorador**: cada campo tiene un botón `...` que
+  abre un selector dentro del editor, con las carpetas primero y un filtro de
+  texto. Arranca en la carpeta de la cara que estás editando (si no tiene ruta,
+  en la raíz de assets del proyecto), se navega con doble clic o con el botón
+  `Arriba`, y se elige con doble clic o con el botón `Elegir`. No hace falta
+  escribir ni recordar la ruta.
+- **Arrastrar y soltar**: también podés arrastrar el archivo desde el
+  explorador y soltarlo directamente sobre el campo de su cara, igual que la
+  malla y el script.
+- El panel avisa de las dos condiciones que hacen que el motor descarte el
+  cubemap sin explicar nada en la pantalla: cuántas caras quedan sin asignar, y
+  si alguna no mide lo mismo que la `+X`. Cuando es así te dice la resolución de
+  cada una. La medida se hace en **píxeles**, igual que la comprobación del
+  render, y leyendo solo la cabecera del archivo: no decodifica la imagen. No se
+  compara el peso del archivo, porque dos imágenes idénticas con distinta
+  compresión pesan distinto sin que midan distinto.
 - Las seis caras deben ser del **mismo tamano**: si una falta, no es legible o
   no coincide con las demas, el motor avisa una vez por conjunto de caras y
   dibuja el degradado en su lugar.
@@ -430,10 +446,10 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 ## 8. Audio
 
-- Coloca los clips en `Sonidos/` (wav/mp3/etc.). `AudioClipsManager` los
+- Crea la carpeta `Sonidos/` (si no existe) y coloca los clips en `Sonidos/` (wav/mp3/etc.). `AudioClipsManager` los
   descubre y los registra **por nombre** en el `AudioEngine` al escanear.
 - Agrega `AudioSource` a un objeto; en su panel elige el clip del dropdown
-  (o arrastralo desde `Sonidos/`), ajusta volumen, loop y "reproduccion
+  (o arrastralo desde `Sonidos/` tras crearla), ajusta volumen, loop y "reproduccion
   automatica". En Play, el AudioEngine reproduce en su hilo de audio.
 - Cambiar de proyecto re-escanea y limpia el registro de clips.
 
@@ -498,7 +514,7 @@ Al pulsar **Exportar**, el motor:
 3. Compila el ejecutable del juego linkando contra `funshi_runtime`.
 4. Empaqueta en `MotorGrafico/Exportaciones/<nombre>/`:
    - Ejecutable (`<nombre>.exe` en Windows, `<nombre>` en Linux).
-   - Carpeta `Data/` con `Memory/`, `Sonidos/`, `ConfiguracionProyecto.json`.
+   - Carpeta `Data/` con `Memory/`, `Sonidos/` (si hay audio), `ConfiguracionProyecto.json`.
    - Carpeta `lib/` con dependencias bundleadas (`.dll` / `.so`).
 
 El dialogo muestra un **spinner indeterminado** (barra de progreso falsa) mientras
@@ -807,7 +823,7 @@ Misma convencion APPEND-ONLY con `servicios->version` al final.
 
 | Funcion | Firma | Descripcion |
 |---|---|---|
-| `servicios->reproducirSonido(clip, vol, loop)` | `int (const char*, float, bool)` | reproduce un clip de `Sonidos/` por **nombre**; devuelve handle >= 0, o -1 si el clip no existe |
+| `servicios->reproducirSonido(clip, vol, loop)` | `int (const char*, float, bool)` | reproduce un clip de `Sonidos/` (la carpeta debe existir) por **nombre**; devuelve handle >= 0, o -1 si el clip no existe |
 | `servicios->detenerSonido(handle)` | `void (int)` | detiene la reproduccion del handle |
 | `servicios->objetoPorNombre("Enemigo")` | `void* (const char*)` | busca un GameObject por nombre en la escena; `nullptr` si no existe. El puntero vale mientras el objeto viva (todavia no se crean/destruyen objetos desde scripts) |
 | `servicios->teclaSostiene("W")` | `bool (const char*)` | tecla mantenida apretada |

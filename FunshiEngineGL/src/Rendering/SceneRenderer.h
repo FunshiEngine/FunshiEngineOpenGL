@@ -131,7 +131,13 @@ private:
                       const float projection[16], const float camaraMundo[3]);
     // Skybox cubemap: se dibuja en lugar del degradado si hay un componente
     // Skybox visible con 6 caras validas. Mismo estado de depth que el cielo.
-    void dibujarSkyboxCubemap(const Skybox* skybox, const float view[16],
+    //
+    // Dibuja el cubemap del Skybox alrededor de la camara. Devuelve si se
+    // dibujo de verdad: cuando no hay cubemap utilizable (falta una cara, no
+    // decodifica, el backend no crea la textura o no hay malla) el llamador
+    // tiene que caer al degradado. Antes devolvia void y el llamador hacia
+    // return igual, con lo que esos casos dejaban el fondo en negro.
+    bool dibujarSkyboxCubemap(const Skybox* skybox, const float view[16],
                               const float projection[16]);
     // Sube a GPU las 6 caras dadas y deja el handle en skyboxCubemap_. Devuelve
     // false si alguna cara no se pudo decodificar o la textura no se pudo crear;

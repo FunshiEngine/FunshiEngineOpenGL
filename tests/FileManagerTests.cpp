@@ -56,6 +56,7 @@
 #include "../FunshiEngineGL/src/FileManager/FileManager.h"
 #include "../FunshiEngineGL/src/GUI/FileManagerGUI/RenombrarElemento.h"
 #include "../FunshiEngineGL/src/GUI/FileManagerGUI/SoltarEnCarpeta.h"
+#include "../FunshiEngineGL/src/GUI/ObjetosGUI/Skybox/SelectorArchivoCubemap.h"
 
 #if defined(__linux__)
 #include "../FunshiEngineGL/src/FileManager/FileSystemWatcher.h"
@@ -570,6 +571,79 @@ int main() {
               "el origen sigue en su sitio tras el renombre rechazado");
         CHECK(recibidos.size() == 1,
               "el renombre a un destino ocupado no publica evento");
+    }
+
+    // --- Selector de caras del cubemap: filtro y validacion ------------------
+    // La logica del modal vive en funciones puras aparte del dibujo, para poder
+    // ejercitarla sin ventana. Cubre las dos condiciones que hacen que el motor
+    // descarte el cubemap sin avisar en pantalla: una cara sin asignar y dos
+    // caras que no midan lo mismo.
+    {
+        CHECK(SelectorArchivoCubemap::esImagenCubemap("cielo_px.png"),
+              "una .png sirve como cara del cubemap");
+        CHECK(SelectorArchivoCubemap::esImagenCubemap("cielo_px.PNG"),
+              "el filtro no distingue mayusculas");
+        CHECK(SelectorArchivoCubemap::esImagenCubemap("a/b/cielo.tga"),
+              "una .tga anidada en carpetas sirve");
+        CHECK(SelectorArchivoCubemap::esImagenCubemap("cielo.hdr"),
+              "una .hdr sirve");
+        CHECK(!SelectorArchivoCubemap::esImagenCubemap("cielo.obj"),
+              "una malla no es una cara del cubemap");
+        CHECK(!SelectorArchivoCubemap::esImagenCubemap("notas.txt"),
+              "un texto no es una cara del cubemap");
+        CHECK(!SelectorArchivoCubemap::esImagenCubemap("cielo"),
+              "un archivo sin extension no es una cara");
+
+        const std::string vacias[6] = {"", "", "", "", "", ""};
+        CHECK(SelectorArchivoCubemap::carasSinAsignar(vacias) == 6,
+              "sin nada asignado faltan las seis caras");
+
+        const SelectorArchivoCubemap::Dimensiones iguales[6] = {
+            {512, 512}, {512, 512}, {512, 512},
+            {512, 512}, {512, 512}, {512, 512},
+        };
+        CHECK(SelectorArchivoCubemap::caraConDimensionDistinta(iguales) == -1,
+              "seis caras de las mismas dimensiones no se descartan");
+
+        // El caso que la comparacion por peso de archivo nocia: dos archivos con
+        // distinto peso pero los mismos pixeles. Con el criterio de pixeles no
+        // hay nada que avisar.
+        SelectorArchivoCubemap::Dimensiones mismoTamano[6];
+        for (int i = 0; i < 6; ++i) mismoTamano[i] = {1024, 1024};
+        CHECK(SelectorArchivoCubemap::caraConDimensionDistinta(mismoTamano) == -1,
+              "caras con los mismos pixeles no se descartan aunque pesen distinto");
+
+        // Una cara exportada a otra resolucion: el motor descarta el cubemap
+        // entero, asi que el selector avisa cual es.
+        SelectorArchivoCubemap::Dimensiones dispares[6];
+        for (int i = 0; i < 6; ++i) dispares[i] = {512, 512};
+        dispares[3] = {256, 256};
+        CHECK(SelectorArchivoCubemap::caraConDimensionDistinta(dispares) == 3,
+              "avisa la cara cuya resolucion no coincide");
+
+        // Ancho y alto se comparan por separado: 512x256 no es lo mismo que
+        // 256x512 aunque los dos produzcan el mismo numero de pixeles.
+        SelectorArchivoCubemap::Dimensiones transpuesta[6];
+        for (int i = 0; i < 6; ++i) transpuesta[i] = {512, 256};
+        transpuesta[1] = {256, 512};
+        CHECK(SelectorArchivoCubemap::caraConDimensionDistinta(transpuesta) == 1,
+              "avisa una cara transpuesta aunque tenga igual cantidad de pixeles");
+
+        // Una cara que no se pudo medir (no existe, o formato que no se pudo
+        // leer) queda en 0x0 y no falsea la comparacion.
+        SelectorArchivoCubemap::Dimensiones conIlegible[6];
+        for (int i = 0; i < 6; ++i) conIlegible[i] = {512, 512};
+        conIlegible[5] = {};
+        CHECK(SelectorArchivoCubemap::caraConDimensionDistinta(conIlegible) == -1,
+              "una cara ilegible no se reporta como dimension distinta");
+
+        // Si la +X no se pudo medir no hay contra que comparar: el motor igual
+        // va a avisar por su cuenta al no poder decodificar.
+        SelectorArchivoCubemap::Dimensiones sinReferencia[6];
+        for (int i = 0; i < 6; ++i) sinReferencia[i] = {512, 512};
+        sinReferencia[0] = {};
+        CHECK(SelectorArchivoCubemap::caraConDimensionDistinta(sinReferencia) == -1,
+              "sin dimensiones de la +X no se reporta desajuste");
     }
 
     // --- Resultado ----------------------------------------------------------

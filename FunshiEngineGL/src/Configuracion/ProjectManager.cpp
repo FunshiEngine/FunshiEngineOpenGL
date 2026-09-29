@@ -115,8 +115,6 @@ bool ProjectManager::crearEstructuraProyecto(const std::string& nombre) {
 
     return crearDirs(mem + "/Binarios/Scene", ec) &&
            crearDirs(src, ec) &&
-           crearDirs(sonidos, ec) &&
-           crearDirs(interfaces, ec) &&
            crearDirs(binScene, ec);
 }
 

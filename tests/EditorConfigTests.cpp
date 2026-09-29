@@ -396,19 +396,18 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "asegurarEstructuraProyecto creo Memory/Binarios/Scene");
         CHECK(fs::is_directory(srcDir),
               "asegurarEstructuraProyecto creo srcJuegoPrueba");
-        // Sonidos es un asset: vive dentro del src (raiz del explorador).
+        // Sonidos es un asset: el usuario decide cuando crearlo (no auto-creado).
         const std::string sonidosDir = EditorConfig::directorioSonidos(proyNombre);
         CHECK(sonidosDir == srcDir + "/Sonidos",
               "directorioSonidos dentro de src<proyecto>");
-        CHECK(fs::is_directory(sonidosDir),
-              "asegurarEstructuraProyecto creo src<proyecto>/Sonidos");
+        // El directorio NO se crea automaticamente: lo decide el usuario.
 
         // Limpieza de prueba
         std::error_code ec;
         fs::remove_all(proyDir, ec);
     }
 
-    // 5b. Migracion de Sonidos: la carpeta que vivia en la raiz del proyecto
+    // 5b. Migracion de Sonidos: si el usuario habia creado la carpeta en la raiz,
     //     se mueve al src conservando sus clips.
     {
         const std::string proyNombre = "JuegoMigracion";

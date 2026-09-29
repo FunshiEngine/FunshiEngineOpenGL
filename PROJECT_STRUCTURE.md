@@ -90,7 +90,9 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── AssetException.h / TextureException.h ← errores de carga con mensaje y ruta
         │   ├── Mesh.h/.cpp              ← geometría CPU (vértices, normales, índices)
         │   ├── AssimpMeshLoader.*       ← loader Assimp→Mesh
-        │   └── StbImageLoader.*         ← loader stb_image→Image (solo engine)
+        │   └── StbImageLoader.*         ← loader stb_image→Image (solo engine) +
+        │                                   `dimensiones()`: lee la cabecera del
+        │                                   archivo sin decodificar
         ├── Audio/                       ← audio del motor (backend inyectable)
         │   ├── AudioEngine.h/.cpp       ← fachada thread-safe (cola de comandos + hilo)
         │   ├── AudioClipsManager.h/.cpp ← descubre clips en Sonidos/ y registra por nombre
@@ -194,6 +196,12 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   │                                 densidad fija: no hay tamaño/separación)
         │   │   ├── AudioSource/SettingsAudioSource.* ← dropdown de clip (Sonidos/), volumen, loop
         │   │   ├── Interface/SettingsInterface.* ← dropdown de asset de interfaz (Interfaces/)
+        │   │   ├── Skybox/SettingsSkybox.*       ← visible + las seis caras del cubemap
+        │   │   │   └── SelectorArchivoCubemap.h ← modal de elección de cara (header-only):
+        │   │   │                                la lógica que decide (extensiones válidas,
+        │   │   │                                caras faltantes, resolución dispares) son
+        │   │   │                                `inline` puras fuera del dibujo, para que
+        │   │   │                                las ejercite un target headless sin ImGui
         │   │   ├── RigidBody/SettingsRigidBody.*
         │   │   └── Colliders/ (Esfera, Cubo, Malla) ← sync transform/shape con física
         │   ├── CreadorUI/                        ← Creador de interfaces (editor de HUD;
@@ -665,10 +673,13 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 `-DFUNSHI_JAVA=ON`; cinco de ellos enlazan `funshi_engine` y requieren
 `BUILD_ENGINE=ON`, el resto compila también con `BUILD_ENGINE=OFF`):
 
-- `filemanager-tests` (136): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
+- `filemanager-tests` (150): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
   con invalidación explícita de caché del grid en carpeta origen y destino, y el
-  renombre por click derecho de las vistas del explorador.
+  renombre por click derecho de las vistas del explorador. También la lógica
+  pura de `SelectorArchivoCubemap` (filtro de extensiones del cubemap y aviso
+  de caras faltantes o de resolución dispares), que al vivir fuera del dibujo del
+  modal se ejercita aquí sin crear contexto de ImGui.
 - `proceso-tests` (24): el runner de procesos sin shell `Proceso`: round-trip
   de argv byte a byte (el binario se relanza a sí mismo copiado en una carpeta
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,

@@ -29,6 +29,19 @@ class StbImageLoader : public ITextureLoader {
 public:
     // Lanza TextureLoadException si el archivo no existe o no decodifica.
     std::shared_ptr<Image> load(const std::string& path) override;
+
+    // Dimensiones en pixeles sin decodificar la imagen: lee solo la cabecera
+    // del archivo. Devuelve false si el archivo no existe o si su formato no se
+    // puede sondear. A diferencia de load, no lanza excepcion.
+    //
+    // Existe para preguntar "¿miden todas las caras del cubemap lo mismo?"
+    // ANTES de subirlas a la GPU. El criterio es el mismo que usa el render al
+    // decodificar, asi que lo que el panel avisa y lo que el render acepta
+    // coinciden; y sale mucho mas barato que decodificar las imagenes enteras
+    // para tirar los pixeles que ya estan en disco. Comparar el peso del
+    // archivo en bytes no sirve: dos imagenes identicas con distinta compresion
+    // pesan distinto sin que midan distinto.
+    static bool dimensiones(const std::string& path, int& ancho, int& alto);
 };
 
 #endif
