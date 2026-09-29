@@ -206,7 +206,11 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
 // oculta nada).
 void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
                                  const float projection[16]) {
-    if (!ctx.apariencia) return;
+    std::cerr << "[Cielo Debug] dibujarCielo llamado, ctx.apariencia=" << ctx.apariencia << std::endl;
+    if (!ctx.apariencia) {
+        std::cerr << "[Cielo Debug] ctx.apariencia es NULL, retornando" << std::endl;
+        return;
+    }
 
     auto& backend = Rendering::Backend::activeBackend();
 
@@ -257,7 +261,13 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
 
     // Colores efectivos del degradado (resuelven B/N y tema).
     float colorSup[3], colorInf[3];
+    std::cerr << "[Cielo Debug] ctx.apariencia ptr=" << ctx.apariencia 
+              << " fondoSuperior=(" << ctx.apariencia->fondoSuperior[0] << "," << ctx.apariencia->fondoSuperior[1] << "," << ctx.apariencia->fondoSuperior[2] 
+              << ") fondoInferior=(" << ctx.apariencia->fondoInferior[0] << "," << ctx.apariencia->fondoInferior[1] << "," << ctx.apariencia->fondoInferior[2] 
+              << ") blancoYNegro=" << ctx.apariencia->blancoYNegro << " temaClaro=" << ctx.apariencia->temaClaro << std::endl;
     Cielo::coloresEfectivos(*ctx.apariencia, colorSup, colorInf);
+    std::cerr << "[Cielo Debug] colorSup=(" << colorSup[0] << "," << colorSup[1] << "," << colorSup[2] 
+              << ") colorInf=(" << colorInf[0] << "," << colorInf[1] << "," << colorInf[2] << ")" << std::endl;
 
     // Configurar estado: depth test habilitado, depth mask deshabilitado.
     backend.setDepthTestEnabled(true);
@@ -270,10 +280,18 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     int locView = backend.uniformLocation(skyProgram_, "uView");
     int locProj = backend.uniformLocation(skyProgram_, "uProjection");
 
-    if (locTop >= 0)
+    if (locTop >= 0) {
+        std::cerr << "[Cielo Debug] setUniformVec3 uColorTop=(" << colorSup[0] << "," << colorSup[1] << "," << colorSup[2] << ")" << std::endl;
         backend.setUniformVec3(locTop, glm::vec3(colorSup[0], colorSup[1], colorSup[2]));
-    if (locBottom >= 0)
+    } else {
+        std::cerr << "[Cielo Debug] uColorTop uniform location = -1 (NOT FOUND)" << std::endl;
+    }
+    if (locBottom >= 0) {
+        std::cerr << "[Cielo Debug] setUniformVec3 uColorBottom=(" << colorInf[0] << "," << colorInf[1] << "," << colorInf[2] << ")" << std::endl;
         backend.setUniformVec3(locBottom, glm::vec3(colorInf[0], colorInf[1], colorInf[2]));
+    } else {
+        std::cerr << "[Cielo Debug] uColorBottom uniform location = -1 (NOT FOUND)" << std::endl;
+    }
     if (locView >= 0)
         backend.setUniformMat4(locView, glm::make_mat4(view));
     if (locProj >= 0)

@@ -18,6 +18,7 @@
 */
 #include "ConfigPersistence.h"
 
+#include <iostream>
 #include <nlohmann/json.hpp>
 #include <cmath>
 #include <filesystem>
@@ -139,13 +140,17 @@ Apariencia ConfigPersistence::jsonToApariencia(const nlohmann::json& j) {
     // Esto evita que una configuracion guardada con valores casi blancos
     // (p. ej. 0.95/0.94/0.94) produzca un cielo blanco en modo normal.
     auto sanearCielo = [](float c[3]) {
+        std::cerr << "[Sanitize] Antes: (" << c[0] << "," << c[1] << "," << c[2] << ")" << std::endl;
         if (c[0] > 0.8f && c[1] > 0.8f && c[2] > 0.8f &&
             std::abs(c[0] - c[1]) < 0.05f && std::abs(c[1] - c[2]) < 0.05f) {
             c[0] = c[1] = c[2] = 0.10f;
+            std::cerr << "[Sanitize] SANEADO a (0.1, 0.1, 0.1)" << std::endl;
+        } else {
+            std::cerr << "[Sanitize] No sanitizado (condicion no se cumple)" << std::endl;
         }
     };
-    sanearCielo(a.fondoSuperior);
-    sanearCielo(a.fondoInferior);
+    std::cerr << "[Sanitize] fondoSuperior: "; sanearCielo(a.fondoSuperior);
+    std::cerr << "[Sanitize] fondoInferior: "; sanearCielo(a.fondoInferior);
 
     // Radio del difuminado...
     // por defecto, que es el que venia implicito en las constantes de la grilla.
