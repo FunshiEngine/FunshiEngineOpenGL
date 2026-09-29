@@ -137,7 +137,7 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("ID: %d", object->getId());
 
-    // Menu contextual con 3 opciones: Cambiar ID, Renombrar, Eliminar
+    // Menu contextual con 4 opciones: Cambiar ID, Renombrar, Desanidar a raiz, Eliminar
     if (ImGui::BeginPopupContextItem("MenuObjeto")) {
         ImGui::Text("%s", etiqueta.c_str());
         ImGui::Separator();
@@ -152,6 +152,15 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
             objetoEnDialogo = object;
             std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
             dialogoRecienAbierto = true;
+        }
+        // Desanidar a raiz: solo si el objeto tiene padre (no es la raiz)
+        if (object->getParentEntity() != nullptr) {
+            if (ImGui::MenuItem("Desanidar a raiz")) {
+                if (editor) {
+                    GameObject* raiz = scene ? scene->getRoot() : nullptr;
+                    if (raiz) editor->reparentGameObject(object, raiz);
+                }
+            }
         }
         if (ImGui::MenuItem("Eliminar")) {
             dialogoActivo = DialogoTipo::Eliminar;
