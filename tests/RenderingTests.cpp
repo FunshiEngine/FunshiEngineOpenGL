@@ -25,6 +25,7 @@
 #include <iostream>
 
 #include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
+#include "../FunshiEngineGL/src/Rendering/Cielo.h"
 #include "../FunshiEngineGL/src/Rendering/Difuminado.h"
 #include "../FunshiEngineGL/src/Rendering/GuiaEje.h"
 #include "../FunshiEngineGL/src/Rendering/LineBuilder.h"
@@ -682,6 +683,46 @@ void testDifuminadoOpacidad() {
           "la forma de la curva no depende del radio");
 }
 
+// Cielo: los colores efectivos resuelven el modo B/N y el tema, devolviendo
+// los dos extremos del degradado (superior e inferior).
+void testCieloColoresEfectivos() {
+    Apariencia ap;
+    // Default: gris oscuro en ambas partes.
+    float sup[3], inf[3];
+    Cielo::coloresEfectivos(ap, sup, inf);
+    CHECK(cerca(sup[0], 0.10f) && cerca(sup[1], 0.10f) && cerca(sup[2], 0.10f),
+          "default: superior gris oscuro");
+    CHECK(cerca(inf[0], 0.10f) && cerca(inf[1], 0.10f) && cerca(inf[2], 0.10f),
+          "default: inferior gris oscuro");
+
+    // Modo B/N con tema oscuro -> ambas negro.
+    ap.blancoYNegro = true;
+    ap.temaClaro = false;
+    Cielo::coloresEfectivos(ap, sup, inf);
+    CHECK(cerca(sup[0], 0.0f) && cerca(sup[1], 0.0f) && cerca(sup[2], 0.0f),
+          "B/N oscuro: superior negro");
+    CHECK(cerca(inf[0], 0.0f) && cerca(inf[1], 0.0f) && cerca(inf[2], 0.0f),
+          "B/N oscuro: inferior negro");
+
+    // Modo B/N con tema claro -> ambas blanco.
+    ap.temaClaro = true;
+    Cielo::coloresEfectivos(ap, sup, inf);
+    CHECK(cerca(sup[0], 1.0f) && cerca(sup[1], 1.0f) && cerca(sup[2], 1.0f),
+          "B/N claro: superior blanco");
+    CHECK(cerca(inf[0], 1.0f) && cerca(inf[1], 1.0f) && cerca(inf[2], 1.0f),
+          "B/N claro: inferior blanco");
+
+    // Modo normal con colores personalizados.
+    ap.blancoYNegro = false;
+    ap.fondoSuperior[0] = 0.2f; ap.fondoSuperior[1] = 0.3f; ap.fondoSuperior[2] = 0.8f;
+    ap.fondoInferior[0] = 0.8f; ap.fondoInferior[1] = 0.4f; ap.fondoInferior[2] = 0.2f;
+    Cielo::coloresEfectivos(ap, sup, inf);
+    CHECK(cerca(sup[0], 0.2f) && cerca(sup[1], 0.3f) && cerca(sup[2], 0.8f),
+          "normal: superior personalizado");
+    CHECK(cerca(inf[0], 0.8f) && cerca(inf[1], 0.4f) && cerca(inf[2], 0.2f),
+          "normal: inferior personalizado");
+}
+
 int main() {
     testConstantes();
     testVacio();
@@ -704,6 +745,7 @@ int main() {
     testDifuminadoDesdeRadio();
     testDifuminadoAcotaElRadio();
     testDifuminadoOpacidad();
+    testCieloColoresEfectivos();
 
     std::cout << "Resultado: " << (total - fallos) << "/" << total
               << " OK" << std::endl;

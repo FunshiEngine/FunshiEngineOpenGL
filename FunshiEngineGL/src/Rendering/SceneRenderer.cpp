@@ -21,15 +21,20 @@
 #include <cmath>
 #include <iostream>
 
+#include <glm/gtc/type_ptr.hpp>
+
 #include <imgui.h>
 
 #include "Backend/IRenderBackend.h"
+#include "Backend/GLFuncs.h"
+#include "Cielo.h"
 #include "LineBatch.h"
 #include "LineBuilder.h"
 #include "LineRenderer.h"
 #include "MeshRenderer.h"
 #include "RenderTarget.h"
 #include "Shaders/ShaderProgram.h"
+#include "Shaders/ShaderSources.h"
 
 #include "../Configuracion/Apariencia.h"
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
@@ -168,6 +173,10 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     camaraMundo[2] =
         -(view[8] * view[12] + view[9] * view[13] + view[10] * view[14]);
 
+    // Cielo degradado: primera pasada, con depth test on + depth mask off para
+    // que quede "detras" de todo sin escribir en el z-buffer.
+    dibujarCielo(ctx, view, projection);
+
     // La grilla se dibuja como una pasada independiente del renderer de
     // modelos: no depende de Modelos3D ni del recorrido normal de las
     // entidades.
@@ -186,12 +195,62 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     ShaderProgram::unbind();
 }
 
+// Cielo degradado: fullscreen triangle con interpolacion vertical entre
+// fondoSuperior (top) y fondoInferior (bottom). Se dibuja ANTES que la grilla
+// y los objetos, con depth test ON y depth mask OFF, para que el cielo quede
+// "detras" de toda la geometria sin escribir profundidad (asi los objetos
+// delante ganan el test de profundidad y ocultan el cielo, pero el cielo no
+// oculta nada).
+void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
+                                 const float projection[16]) {
+    if (!ctx.apariencia) return;
+
+    auto& backend = Rendering::Backend::activeBackend();
+
+    // Creacion perezosa del programa del cielo.
+    if (skyProgram_ == Rendering::Backend::kInvalidHandle) {
+        try {
+            skyProgram_ = backend.createProgram(kSkyVertexShader, kSkyFragmentShader);
+        } catch (...) {
+            skyProgram_ = Rendering::Backend::kInvalidHandle;
+            return;
+        }
+    }
+    if (skyProgram_ == Rendering::Backend::kInvalidHandle) return;
+
+    // Colores efectivos del degradado (resuelven B/N y tema).
+    float colorSup[3], colorInf[3];
+    Cielo::coloresEfectivos(*ctx.apariencia, colorSup, colorInf);
+
+    // Configurar estado: depth test habilitado, depth mask deshabilitado.
+    backend.setDepthTestEnabled(true);
+    backend.setDepthMask(false);
+
+    backend.useProgram(skyProgram_);
+
+    int locTop = backend.uniformLocation(skyProgram_, "uColorTop");
+    int locBottom = backend.uniformLocation(skyProgram_, "uColorBottom");
+    int locView = backend.uniformLocation(skyProgram_, "uView");
+    int locProj = backend.uniformLocation(skyProgram_, "uProjection");
+
+    if (locTop >= 0)
+        backend.setUniformVec3(locTop, glm::vec3(colorSup[0], colorSup[1], colorSup[2]));
+    if (locBottom >= 0)
+        backend.setUniformVec3(locBottom, glm::vec3(colorInf[0], colorInf[1], colorInf[2]));
+    if (locView >= 0)
+        backend.setUniformMat4(locView, glm::make_mat4(view));
+    if (locProj >= 0)
+        backend.setUniformMat4(locProj, glm::make_mat4(projection));
+
+    // Fullscreen triangle: 3 vertices, sin VBO (gl_VertexID en el vertex shader).
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    // Restaurar estado base para la siguiente pasada.
+    backend.setDepthMask(true);
+    ShaderProgram::unbind();
+}
+
 // Recta guia del objeto seleccionado (teclas X/Y/Z): la recta sobre la que
-// puede moverse, tomando el eje pulsado como variable y fijando las otras dos
-// coordenadas a las del objeto. Va hasta el horizonte y se difumina con el
-// MISMO criterio radial que la grilla (mismas constantes), asi que las dos se
-// desvanecen en el mismo punto y la guia se lee como un eje que cruza el piso.
-// Se dibuja con el batch de los marcadores (un solo draw) y el color del eje.
 void SceneRenderer::dibujarGuiaEje(const FrameContext& ctx,
                                    const float camaraMundo[3]) {
     if (ctx.guiaEje < GuiaEje::kEjeX || ctx.guiaEje > GuiaEje::kEjeZ) return;

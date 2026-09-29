@@ -22,6 +22,7 @@
 #include <memory>
 #include <vector>
 
+#include "Cielo.h"
 #include "GrillaRenderer.h"
 #include "GuiaEje.h"
 
@@ -116,6 +117,11 @@ private:
                              const float projection[16]);
     void dibujarMarcadorLuz(GameObject* object);
     void dibujarMarcadorCamara(GameObject* object);
+    // Cielo degradado (fullscreen triangle): se dibuja ANTES que la grilla y
+    // los objetos, con depth test habilitado y depth mask deshabilitado, para
+    // que quede "detras" de todo sin escribir profundidad.
+    void dibujarCielo(const FrameContext& ctx, const float view[16],
+                      const float projection[16]);
     // Recta de la guia de eje (X/Y/Z) sobre el objeto seleccionado: va hasta el
     // horizonte con el difuminado de la grilla y el color del eje.
     void dibujarGuiaEje(const FrameContext& ctx, const float camaraMundo[3]);
@@ -137,6 +143,9 @@ private:
 
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;
+    // Programa de shader del cielo (fullscreen triangle con degradado
+    // superior/inferior). Se crea en la primera pasada y se reusa.
+    Rendering::Backend::Handle skyProgram_ = Rendering::Backend::kInvalidHandle;
     // Batch de lineas compartido por los marcadores de luz y de camara (ambos
     // son 12 aristas): se sube y se dibuja por gizmo, en un solo draw cada uno.
     LineBatch marcadoresBatch_;

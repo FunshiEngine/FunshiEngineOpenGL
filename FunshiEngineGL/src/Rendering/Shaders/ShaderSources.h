@@ -271,4 +271,30 @@ void main() {
 }
 )";
 
+static const char* const kSkyVertexShader = R"(#version 330 core
+// Fullscreen triangle (no VBO needed): gl_VertexID 0..2 maps to the three
+// corners of a triangle that covers the viewport.
+out vec2 vUv;
+void main() {
+    vec2 pos[3] = vec2[3](
+        vec2(-1.0, -1.0),
+        vec2( 3.0, -1.0),
+        vec2(-1.0,  3.0)
+    );
+    vUv = pos[gl_VertexID] * 0.5 + 0.5; // [0,1] range, vUv.y=0 bottom, 1 top
+    gl_Position = vec4(pos[gl_VertexID], 0.0, 1.0);
+}
+)";
+
+static const char* const kSkyFragmentShader = R"(#version 330 core
+in vec2 vUv;
+out vec4 FragColor;
+uniform vec3 uColorTop;    // superior (vUv.y = 1)
+uniform vec3 uColorBottom; // inferior (vUv.y = 0)
+void main() {
+    float t = vUv.y;
+    FragColor = vec4(mix(uColorBottom, uColorTop, t), 1.0);
+}
+)";
+
 #endif

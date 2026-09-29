@@ -379,8 +379,10 @@ void MenuView::renderizarOpciones() {
     // apagar los checks, los grabs y los enlaces de la interfaz. ColorEdit3
     // preserva acento[3] tal como estaba guardado.
     cambio |= ImGui::ColorEdit3("##acento", ap.acento);
-    ImGui::TextUnformatted(model->traducir("color_fondo").c_str());
-    cambio |= ImGui::ColorEdit3("##fondo", ap.fondo);
+    ImGui::TextUnformatted(model->traducir("color_cielo_superior").c_str());
+    cambio |= ImGui::ColorEdit3("##cieloSuperior", ap.fondoSuperior);
+    ImGui::TextUnformatted(model->traducir("color_cielo_inferior").c_str());
+    cambio |= ImGui::ColorEdit3("##cieloInferior", ap.fondoInferior);
     ImGui::TextDisabled("%s", model->traducir("ayuda_bn").c_str());
 
     if (ImGui::Button(etiqueta(model, "restablecer_apariencia").c_str(),

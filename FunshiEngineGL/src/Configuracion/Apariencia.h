@@ -66,8 +66,10 @@ struct Apariencia {
     // guardada, pero el tema no lo usa: cada rol aporta su propia
     // transparencia (ver TemaEditor::acento).
     float acento[4] = {0.26f, 0.59f, 0.98f, 1.0f};
-    // Color de fondo de la vista 3D (glClearColor). Gris oscuro historico.
-    float fondo[3] = {0.10f, 0.10f, 0.10f};
+    // Color de la parte SUPERIOR del cielo (RGB). Default = gris oscuro historico.
+    float fondoSuperior[3] = {0.10f, 0.10f, 0.10f};
+    // Color de la parte INFERIOR del cielo (RGB). Default = gris oscuro historico.
+    float fondoInferior[3] = {0.10f, 0.10f, 0.10f};
     // Radio del difuminado del piso: el circulo-horizonte de la grilla y de la
     // guia de eje, en unidades de mundo. Acotado a
     // [kRadioDifuminadoMinimo, kRadioDifuminadoMaximo].
@@ -83,7 +85,9 @@ inline bool operator==(const Apariencia& a, const Apariencia& b) {
     for (int i = 0; i < 4; ++i)
         if (a.acento[i] != b.acento[i]) return false;
     for (int i = 0; i < 3; ++i)
-        if (a.fondo[i] != b.fondo[i]) return false;
+        if (a.fondoSuperior[i] != b.fondoSuperior[i]) return false;
+    for (int i = 0; i < 3; ++i)
+        if (a.fondoInferior[i] != b.fondoInferior[i]) return false;
     return a.temaClaro == b.temaClaro && a.blancoYNegro == b.blancoYNegro &&
            a.radioDifuminado == b.radioDifuminado;
 }
@@ -103,17 +107,44 @@ inline void aGris(const float in[3], float out[3]) {
     out[0] = out[1] = out[2] = v;
 }
 
-// Color de fondo efectivo del viewport 3D. En modo B/N se fuerza a blanco si
-// el tema es claro o a negro si es oscuro (contrasta con la grilla).
+// Color de fondo efectivo del viewport 3D (compatibilidad: usado por
+// glClearColor en codigo legacy). En modo B/N se fuerza a blanco/negro;
+// en modo normal devuelve el promedio de superior/inferior.
 inline void fondoEfectivo(const Apariencia& ap, float out[3]) {
     if (ap.blancoYNegro) {
         const float v = ap.temaClaro ? 1.0f : 0.0f;
         out[0] = out[1] = out[2] = v;
         return;
     }
-    out[0] = ap.fondo[0];
-    out[1] = ap.fondo[1];
-    out[2] = ap.fondo[2];
+    out[0] = (ap.fondoSuperior[0] + ap.fondoInferior[0]) * 0.5f;
+    out[1] = (ap.fondoSuperior[1] + ap.fondoInferior[1]) * 0.5f;
+    out[2] = (ap.fondoSuperior[2] + ap.fondoInferior[2]) * 0.5f;
+}
+
+// Color SUPERIOR efectivo para el degradado del cielo. En modo B/N ambas
+// partes se fuerzan al mismo valor (blanco tema claro / negro tema oscuro).
+inline void fondoEfectivoSuperior(const Apariencia& ap, float out[3]) {
+    if (ap.blancoYNegro) {
+        const float v = ap.temaClaro ? 1.0f : 0.0f;
+        out[0] = out[1] = out[2] = v;
+        return;
+    }
+    out[0] = ap.fondoSuperior[0];
+    out[1] = ap.fondoSuperior[1];
+    out[2] = ap.fondoSuperior[2];
+}
+
+// Color INFERIOR efectivo para el degradado del cielo. En modo B/N ambas
+// partes se fuerzan al mismo valor (blanco tema claro / negro tema oscuro).
+inline void fondoEfectivoInferior(const Apariencia& ap, float out[3]) {
+    if (ap.blancoYNegro) {
+        const float v = ap.temaClaro ? 1.0f : 0.0f;
+        out[0] = out[1] = out[2] = v;
+        return;
+    }
+    out[0] = ap.fondoInferior[0];
+    out[1] = ap.fondoInferior[1];
+    out[2] = ap.fondoInferior[2];
 }
 
 // Color de la grilla segun el perfil: en modo B/N se ignora el color del

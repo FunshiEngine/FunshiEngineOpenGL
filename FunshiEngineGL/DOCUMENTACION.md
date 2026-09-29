@@ -158,6 +158,15 @@ barra superior del editor, y se persiste por proyecto.
   de modo que en modo blanco y negro el contraste se mide contra el blanco o el
   negro real. El ajuste escala el brillo, asi que con un eje saturado puede no
   alcanzar el minimo de 0.35 de diferencia de luminancia.
+
+- **Cielo degradado**: se dibuja como primera pasada (antes que la grilla y los
+  objetos) mediante un fullscreen triangle y un shader que interpola
+  verticalmente entre `fondoSuperior` (top del viewport) y `fondoInferior`
+  (bottom). Los colores se resuelven con `Cielo::coloresEfectivos`, que aplica
+  la logica B/N (ambos blanco/negro segun tema) y modo normal (respeta los
+  colores elegidos). El pase usa depth test ON + depth mask OFF para que el
+  cielo quede "detras" de toda la geometria sin escribir profundidad. En el
+  futuro se soportara un cubemap de seis caras cargado via componente `Skybox`.
 - La guia de eje (`X`/`Y`/`Z` sobre el objeto seleccionado) reutiliza las
   mismas constantes de difuminado (`SceneRenderer::dibujarGuiaEje` las lee de
   `GrillaRenderer`), con mas subdivisiones (24) porque la recta es mucho mas

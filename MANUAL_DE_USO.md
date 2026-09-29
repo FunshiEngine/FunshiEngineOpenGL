@@ -506,9 +506,12 @@ La vista **Opciones** del menú de inicio tiene tres bloques:
     pone negra (y al reves), para que siempre se vea.
   - *Color de acento de la interfaz* — solo RGB: la transparencia de cada
     elemento la define el tema, no el color elegido.
-  - *Color de fondo de la escena* — el color tras el que se ve la escena 3D.
+  - *Color de la parte superior del cielo* — color del degradado en la zona
+    alta del viewport (por defecto gris oscuro).
+  - *Color de la parte inferior del cielo* — color del degradado en la zona
+    baja del viewport (por defecto gris oscuro).
   - *Restablecer apariencia* — vuelve el perfil completo a los valores de
-    fabrica (tema oscuro, sin modo blanco y negro, acento azul, fondo gris
+    fabrica (tema oscuro, sin modo blanco y negro, acento azul, cielo gris
     oscuro).
 - **Configuracion:** *Restablecer configuracion* — vuelve **toda** la
   configuracion a los defaults, conservando el nombre del proyecto.
@@ -527,6 +530,12 @@ roles de la interfaz (botones, solapas del dock, campos de entrada, sliders,
 checkboxes, enlaces, bordes, separadores y tablas) y los grises azulados de
 fabrica quedan en gris neutro, así que al cambiar de color no quedan restos del
 azul clasico.
+
+- El **cielo** se renderiza como un degradado vertical entre *Color de la parte
+  superior del cielo* y *Color de la parte inferior del cielo*. En modo
+  blanco y negro ambas partes se fuerzan a blanco (tema claro) o negro (tema
+  oscuro). En el futuro se podra cargar un cubemap de seis caras para un cielo
+  con textura.
 
 - Persistencia: la **apariencia**, el idioma y las dos sensibilidades se guardan
   en la configuracion general, en la raiz de datos del motor

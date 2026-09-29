@@ -48,7 +48,8 @@ int main() {
         ap.temaClaro = true;
         ap.blancoYNegro = true;
         ap.acento[0] = 0.5f;
-        ap.fondo[2] = 0.75f;
+        ap.fondoSuperior[2] = 0.75f;
+        ap.fondoInferior[2] = 0.75f;
 
         bool recibido = false;
         EditorEventType tipoRecibido = EditorEventType::VentanaEstadoCambio;
@@ -70,7 +71,10 @@ int main() {
         CHECK(capturada.temaClaro == ap.temaClaro, "payload temas");
         CHECK(capturada.blancoYNegro == ap.blancoYNegro, "payload B/N");
         CHECK(capturada.acento[0] == ap.acento[0], "payload acento");
-        CHECK(capturada.fondo[2] == ap.fondo[2], "payload fondo");
+        CHECK(capturada.fondoSuperior[2] == ap.fondoSuperior[2],
+              "payload fondoSuperior");
+        CHECK(capturada.fondoInferior[2] == ap.fondoInferior[2],
+              "payload fondoInferior");
     }
 
     // 2. Varios suscriptores reciben todos la misma publicacion.

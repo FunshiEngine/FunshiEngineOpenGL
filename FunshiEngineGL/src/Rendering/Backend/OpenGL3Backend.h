@@ -86,6 +86,10 @@ public:
     const char* diagnosticoGPU() const override;
     void setBlendEnabled(bool enabled) override;
 
+    // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
+    void setDepthTestEnabled(bool enabled) override;
+    void setDepthMask(bool enabled) override;
+
 private:
     struct GpuMesh { unsigned int vao; unsigned int buffers[6]; };
     // El batch de lineas es un unico VBO interleaved (el layout lo fija

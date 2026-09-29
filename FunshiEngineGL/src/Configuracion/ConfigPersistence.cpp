@@ -88,7 +88,11 @@ nlohmann::json ConfigPersistence::aparienciaToJson(const Apariencia& a) {
     j["temaClaro"] = a.temaClaro;
     j["blancoYNegro"] = a.blancoYNegro;
     j["acento"] = {a.acento[0], a.acento[1], a.acento[2], a.acento[3]};
-    j["fondo"] = {a.fondo[0], a.fondo[1], a.fondo[2]};
+    // Escribimos los dos nuevos campos Y el antiguo para compatibilidad con
+    // configuraciones viejas que esperen "fondo" (se lee primero lo nuevo).
+    j["fondoSuperior"] = {a.fondoSuperior[0], a.fondoSuperior[1], a.fondoSuperior[2]};
+    j["fondoInferior"] = {a.fondoInferior[0], a.fondoInferior[1], a.fondoInferior[2]};
+    j["fondo"] = {a.fondoSuperior[0], a.fondoSuperior[1], a.fondoSuperior[2]};
     j["radioDifuminado"] = a.radioDifuminado;
     return j;
 }
@@ -104,12 +108,31 @@ Apariencia ConfigPersistence::jsonToApariencia(const nlohmann::json& j) {
             if (j["acento"][i].is_number())
                 a.acento[i] = j["acento"][i].get<float>();
     }
-    if (j.contains("fondo") && j["fondo"].is_array() && j["fondo"].size() == 3) {
+    // Leemos primero los nuevos campos; si no existen, caemos en el antiguo
+    // "fondo" y copiamos a ambos (compatibilidad hacia atras).
+    bool tieneSuperior = false, tieneInferior = false;
+    if (j.contains("fondoSuperior") && j["fondoSuperior"].is_array() && j["fondoSuperior"].size() == 3) {
         for (int i = 0; i < 3; ++i)
-            if (j["fondo"][i].is_number())
-                a.fondo[i] = j["fondo"][i].get<float>();
+            if (j["fondoSuperior"][i].is_number())
+                a.fondoSuperior[i] = j["fondoSuperior"][i].get<float>();
+        tieneSuperior = true;
     }
-    // Un archivo sin el campo (o anterior a esta opcion) se queda con el radio
+    if (j.contains("fondoInferior") && j["fondoInferior"].is_array() && j["fondoInferior"].size() == 3) {
+        for (int i = 0; i < 3; ++i)
+            if (j["fondoInferior"][i].is_number())
+                a.fondoInferior[i] = j["fondoInferior"][i].get<float>();
+        tieneInferior = true;
+    }
+    if (!tieneSuperior || !tieneInferior) {
+        if (j.contains("fondo") && j["fondo"].is_array() && j["fondo"].size() == 3) {
+            for (int i = 0; i < 3; ++i)
+                if (j["fondo"][i].is_number()) {
+                    if (!tieneSuperior) a.fondoSuperior[i] = j["fondo"][i].get<float>();
+                    if (!tieneInferior) a.fondoInferior[i] = j["fondo"][i].get<float>();
+                }
+        }
+    }
+    // Radio del difuminado...
     // por defecto, que es el que venia implicito en las constantes de la grilla.
     // Un valor fuera de rango o no finito (editado a mano, corrupto) se acota
     // al rango admitido para que el perfil en memoria sea siempre valido, igual

@@ -146,6 +146,10 @@ public:
     // fondo). No se confunde con el suavizado de lineas: glLineSmooth no existe
     // en un perfil core y el ancho ya no se toma de glLineWidth.
     virtual void setBlendEnabled(bool enabled) = 0;
+
+    // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
+    virtual void setDepthTestEnabled(bool enabled) = 0;
+    virtual void setDepthMask(bool enabled) = 0;
 };
 
 // Backend activo del engine (un solo contexto GL; el singleton se cambia en la

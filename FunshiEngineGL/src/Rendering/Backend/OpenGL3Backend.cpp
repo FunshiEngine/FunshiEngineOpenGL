@@ -634,6 +634,14 @@ void OpenGL3Backend::setBlendEnabled(bool enabled) {
     }
 }
 
+void OpenGL3Backend::setDepthTestEnabled(bool enabled) {
+    if (enabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+}
+
+void OpenGL3Backend::setDepthMask(bool enabled) {
+    glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+}
+
 // ---------------------------------------------------------------------------
 // Backend activo (singleton del proceso con un solo contexto de OpenGL).
 // ---------------------------------------------------------------------------

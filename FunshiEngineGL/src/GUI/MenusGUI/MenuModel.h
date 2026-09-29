@@ -85,14 +85,14 @@ public:
     void setIdioma(const std::string& valor);
     const std::vector<std::string>& getIdiomas() const noexcept;
 
-    // Traduccion declarativa de las etiquetas del menu (idioma actual). Vive
-    // en el modelo para que el efecto del idioma sea probable y no dependa de
-    // ImGui: la vista solo pregunta el texto de la clave. Un clave inexistente
-    // se devuelve tal cual (nunca rompe). Codigos: "iniciar_estudio",
-    // "config_proyecto", "opciones", "salir", "volver", "juego", "idioma",
-    // "radio_difuminado", "sensibilidad_camara", "apariencia", "tema_claro", "modo_bn",
-    // "color_acento", "color_fondo", "ayuda_bn", "restablecer_apariencia",
-    // "restablecer_configuracion", "ayuda_reset", "nombre".
+// Traduccion declarativa de las etiquetas del menu (idioma actual). Vive
+// en el modelo para que el efecto del idioma sea probable y no dependa de
+// ImGui: la vista solo pregunta el texto de la clave. Un clave inexistente
+// se devuelve tal cual (nunca rompe). Codigos: "iniciar_estudio",
+// "config_proyecto", "opciones", "salir", "volver", "juego", "idioma",
+// "radio_difuminado", "sensibilidad_camara", "apariencia", "tema_claro", "modo_bn",
+// "color_acento", "color_cielo_superior", "color_cielo_inferior", "ayuda_bn",
+// "restablecer_apariencia", "restablecer_configuracion", "ayuda_reset", "nombre".
     std::string traducir(const std::string& clave) const;
 
     // Sensibilidad global del mouse look de la camara (vista Opciones del

@@ -37,6 +37,7 @@
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
+#include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
 
 namespace fs = std::filesystem;
 
@@ -106,9 +107,12 @@ int main() {
         cfg.datos().apariencia.acento[1] = 0.1f;
         cfg.datos().apariencia.acento[2] = 0.2f;
         cfg.datos().apariencia.acento[3] = 0.5f;
-        cfg.datos().apariencia.fondo[0] = 0.3f;
-        cfg.datos().apariencia.fondo[1] = 0.4f;
-        cfg.datos().apariencia.fondo[2] = 0.5f;
+        cfg.datos().apariencia.fondoSuperior[0] = 0.3f;
+        cfg.datos().apariencia.fondoSuperior[1] = 0.4f;
+        cfg.datos().apariencia.fondoSuperior[2] = 0.5f;
+        cfg.datos().apariencia.fondoInferior[0] = 0.3f;
+        cfg.datos().apariencia.fondoInferior[1] = 0.4f;
+        cfg.datos().apariencia.fondoInferior[2] = 0.5f;
         cfg.datos().apariencia.radioDifuminado = 275.0f;
         // Guardar en dos archivos separados (nuevo flujo)
         cfg.guardarGeneral(rutaGeneral);
@@ -137,7 +141,10 @@ int main() {
         CHECK(cfg2.datos().apariencia.blancoYNegro == true,"roundtrip blancoYNegro");
         CHECK(cfg2.datos().apariencia.acento[0] == 0.9f, "roundtrip acento r");
         CHECK(cfg2.datos().apariencia.acento[3] == 0.5f, "roundtrip acento a");
-        CHECK(cfg2.datos().apariencia.fondo[2] == 0.5f,  "roundtrip fondo b");
+        CHECK(cfg2.datos().apariencia.fondoSuperior[2] == 0.5f,
+              "roundtrip fondoSuperior b");
+        CHECK(cfg2.datos().apariencia.fondoInferior[2] == 0.5f,
+              "roundtrip fondoInferior b");
         CHECK(cfg2.datos().apariencia.radioDifuminado == 275.0f,
               "roundtrip radio de difuminado");
         CHECK(cfg2.datos().apariencia == cfg.datos().apariencia,
@@ -208,9 +215,85 @@ int main() {
         }
         EditorConfig cfgBajo;
         cfgBajo.cargarGeneral(rutaGeneral);
-        CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
-                  AparienciaUtil::kRadioDifuminadoMinimo,
+CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
+              AparienciaUtil::kRadioDifuminadoMinimo,
               "radio negativo -> acotado al minimo");
+    }
+
+    // 4c. Colores del cielo (fondoSuperior/fondoInferior): compatibilidad con
+    //     "fondo" antiguo (se copia a ambos), modo B/N fuerza ambos a
+    //     blanco/negro segun el tema, y round-trip de colores personalizados.
+    {
+        // Compatibilidad: archivo viejo con "fondo" -> se copia a superior e inferior.
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << "{\n  \"version\": 1,\n  \"apariencia\": {"
+                 "\"fondo\": [0.1, 0.2, 0.3]}\n}\n";
+        }
+        EditorConfig cfgCompat;
+        cfgCompat.cargarGeneral(rutaGeneral);
+        CHECK(cfgCompat.datos().apariencia.fondoSuperior[0] == 0.1f &&
+                  cfgCompat.datos().apariencia.fondoSuperior[1] == 0.2f &&
+                  cfgCompat.datos().apariencia.fondoSuperior[2] == 0.3f,
+              "compat: fondo -> fondoSuperior");
+        CHECK(cfgCompat.datos().apariencia.fondoInferior[0] == 0.1f &&
+                  cfgCompat.datos().apariencia.fondoInferior[1] == 0.2f &&
+                  cfgCompat.datos().apariencia.fondoInferior[2] == 0.3f,
+              "compat: fondo -> fondoInferior");
+
+        // Modo B/N oscuro: ambos negros (en color efectivo).
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << "{\n  \"version\": 1,\n  \"apariencia\": {"
+                 "\"blancoYNegro\": true, \"temaClaro\": false,"
+                 "\"fondoSuperior\": [0.8, 0.8, 0.8],"
+                 "\"fondoInferior\": [0.2, 0.2, 0.2]}\n}\n";
+        }
+        EditorConfig cfgBNOscuro;
+        cfgBNOscuro.cargarGeneral(rutaGeneral);
+        float sup[3], inf[3];
+        AparienciaUtil::fondoEfectivoSuperior(cfgBNOscuro.datos().apariencia, sup);
+        AparienciaUtil::fondoEfectivoInferior(cfgBNOscuro.datos().apariencia, inf);
+        CHECK(sup[0] == 0.0f && inf[0] == 0.0f,
+              "B/N oscuro: color efectivo superior/inferior negros");
+
+        // Modo B/N claro: ambos blancos (en color efectivo).
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << "{\n  \"version\": 1,\n  \"apariencia\": {"
+                 "\"blancoYNegro\": true, \"temaClaro\": true,"
+                 "\"fondoSuperior\": [0.1, 0.1, 0.1],"
+                 "\"fondoInferior\": [0.5, 0.5, 0.5]}\n}\n";
+        }
+        EditorConfig cfgBNClaro;
+        cfgBNClaro.cargarGeneral(rutaGeneral);
+        AparienciaUtil::fondoEfectivoSuperior(cfgBNClaro.datos().apariencia, sup);
+        AparienciaUtil::fondoEfectivoInferior(cfgBNClaro.datos().apariencia, inf);
+        CHECK(sup[0] == 1.0f && inf[0] == 1.0f,
+              "B/N claro: color efectivo superior/inferior blancos");
+
+        // Colores personalizados round-trip (modo normal, no B/N).
+        {
+            EditorConfig cfgColor;
+            cfgColor.datos().apariencia.fondoSuperior[0] = 0.2f;
+            cfgColor.datos().apariencia.fondoSuperior[1] = 0.3f;
+            cfgColor.datos().apariencia.fondoSuperior[2] = 0.8f;
+            cfgColor.datos().apariencia.fondoInferior[0] = 0.8f;
+            cfgColor.datos().apariencia.fondoInferior[1] = 0.4f;
+            cfgColor.datos().apariencia.fondoInferior[2] = 0.2f;
+            cfgColor.guardarGeneral(rutaGeneral);
+
+            EditorConfig cfgColor2;
+            cfgColor2.cargarGeneral(rutaGeneral);
+            CHECK(cfgColor2.datos().apariencia.fondoSuperior[0] == 0.2f &&
+                      cfgColor2.datos().apariencia.fondoSuperior[1] == 0.3f &&
+                      cfgColor2.datos().apariencia.fondoSuperior[2] == 0.8f,
+                  "roundtrip fondoSuperior personalizado");
+            CHECK(cfgColor2.datos().apariencia.fondoInferior[0] == 0.8f &&
+                      cfgColor2.datos().apariencia.fondoInferior[1] == 0.4f &&
+                      cfgColor2.datos().apariencia.fondoInferior[2] == 0.2f,
+                  "roundtrip fondoInferior personalizado");
+        }
     }
 
     // 5. Nuevo sistema de guardado por proyecto:
