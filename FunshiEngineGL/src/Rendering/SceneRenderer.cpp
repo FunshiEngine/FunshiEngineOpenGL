@@ -54,6 +54,7 @@
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/GameObject.h"
 #include "../Objetos/Modelos3D.h"
+#include "../Objetos/Componentes/Material.h"
 #include "../Assets/AssetManager.h"
 
 namespace {
@@ -643,11 +644,17 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
                     // Cargar malla via AssetManager (cache compartida)
                     auto mesh = ctx.assetManager->getMesh(path);
                     if (mesh && !mesh->isEmpty() && mesh->hasNormals()) {
-                        // Render temporal: usamos MeshRenderer internamente
-                        // Creando un objeto temporal con la malla
-                        static Modelos3D tempModel(nullptr);
+                        // Render temporal: un Modelos3D local por objeto
+                        Modelos3D tempModel(nullptr);
                         tempModel.setAssetManager(ctx.assetManager);
                         tempModel.setPath(path);
+                        // Copiar componentes relevantes del objeto original (Material, Color)
+                        if (Material* mat = object->getComponent<Material>()) {
+                            tempModel.addComponent(new Material(*mat));
+                        }
+                        if (Color* col = object->getComponent<Color>()) {
+                            tempModel.addComponent(new Color(*col));
+                        }
                         meshRenderer_->intentarRender(&tempModel, view, projection, ctx.deltaTime);
                     }
                 }
