@@ -21,15 +21,23 @@
 #include <cmath>
 #include <iostream>
 
+#include <glm/gtc/type_ptr.hpp>
+
 #include <imgui.h>
 
 #include "Backend/IRenderBackend.h"
+#include "Backend/GLFuncs.h"
+#include "Cielo.h"
+#include "../Objetos/Componentes/Skybox.h"
+
+#include "../Herramientas/IconosGUI/stb_image.h"
 #include "LineBatch.h"
 #include "LineBuilder.h"
 #include "LineRenderer.h"
 #include "MeshRenderer.h"
 #include "RenderTarget.h"
 #include "Shaders/ShaderProgram.h"
+#include "Shaders/ShaderSources.h"
 
 #include "../Configuracion/Apariencia.h"
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
@@ -168,6 +176,10 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     camaraMundo[2] =
         -(view[8] * view[12] + view[9] * view[13] + view[10] * view[14]);
 
+    // Cielo degradado: primera pasada, con depth test on + depth mask off para
+    // que quede "detras" de todo sin escribir en el z-buffer.
+    dibujarCielo(ctx, view, projection);
+
     // La grilla se dibuja como una pasada independiente del renderer de
     // modelos: no depende de Modelos3D ni del recorrido normal de las
     // entidades.
@@ -186,12 +198,268 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     ShaderProgram::unbind();
 }
 
+// Cielo degradado: fullscreen triangle con interpolacion vertical entre
+// fondoSuperior (top) y fondoInferior (bottom). Se dibuja ANTES que la grilla
+// y los objetos, con depth test ON y depth mask OFF, para que el cielo quede
+// "detras" de toda la geometria sin escribir profundidad (asi los objetos
+// delante ganan el test de profundidad y ocultan el cielo, pero el cielo no
+// oculta nada).
+void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
+                                 const float projection[16]) {
+    std::cerr << "[Cielo Debug] dibujarCielo llamado, ctx.apariencia=" << ctx.apariencia << std::endl;
+    if (!ctx.apariencia) {
+        std::cerr << "[Cielo Debug] ctx.apariencia es NULL, retornando" << std::endl;
+        return;
+    }
+
+    auto& backend = Rendering::Backend::activeBackend();
+
+    // Buscar el primer componente Skybox visible en la escena.
+    Skybox* skybox = nullptr;
+    if (ctx.gameObjects && !ctx.gameObjects->isEmpty()) {
+        Position<GameObject*>* pos = ctx.gameObjects->first();
+        while (pos && pos->getElement()) {
+            GameObject* obj = pos->getElement();
+            Skybox* sb = obj->getComponent<Skybox>();
+            if (sb && sb->getVisible()) {
+                skybox = sb;
+                break;
+            }
+            pos = (pos != ctx.gameObjects->last()) ? ctx.gameObjects->next(pos) : nullptr;
+        }
+    }
+
+    // Creacion perezosa del programa del cielo degradado.
+    if (skyProgram_ == Rendering::Backend::kInvalidHandle) {
+        try {
+            skyProgram_ = backend.createProgram(kSkyVertexShader, kSkyFragmentShader);
+        } catch (const std::exception&) {
+            skyProgram_ = Rendering::Backend::kInvalidHandle;
+            return;
+        } catch (...) {
+            skyProgram_ = Rendering::Backend::kInvalidHandle;
+            return;
+        }
+    }
+
+    // Si hay un Skybox con cubemap valido, renderizarlo en lugar del degradado.
+    if (skybox) {
+        // Verificar que el Skybox tiene las 6 caras cargadas.
+        bool tieneCubemap = !skybox->getCaraMasX().empty() &&
+                            !skybox->getCaraMenosX().empty() &&
+                            !skybox->getCaraMasY().empty() &&
+                            !skybox->getCaraMenosY().empty() &&
+                            !skybox->getCaraMasZ().empty() &&
+                            !skybox->getCaraMenosZ().empty();
+        if (tieneCubemap) {
+            dibujarSkyboxCubemap(skybox, view, projection);
+            return;
+        }
+    }
+
+    if (skyProgram_ == Rendering::Backend::kInvalidHandle) return;
+
+    // Colores efectivos del degradado (resuelven B/N y tema).
+    float colorSup[3], colorInf[3];
+    std::cerr << "[Cielo Debug] ctx.apariencia ptr=" << ctx.apariencia 
+              << " fondoSuperior=(" << ctx.apariencia->fondoSuperior[0] << "," << ctx.apariencia->fondoSuperior[1] << "," << ctx.apariencia->fondoSuperior[2] 
+              << ") fondoInferior=(" << ctx.apariencia->fondoInferior[0] << "," << ctx.apariencia->fondoInferior[1] << "," << ctx.apariencia->fondoInferior[2] 
+              << ") blancoYNegro=" << ctx.apariencia->blancoYNegro << " temaClaro=" << ctx.apariencia->temaClaro << std::endl;
+    Cielo::coloresEfectivos(*ctx.apariencia, colorSup, colorInf);
+    std::cerr << "[Cielo Debug] colorSup=(" << colorSup[0] << "," << colorSup[1] << "," << colorSup[2] 
+              << ") colorInf=(" << colorInf[0] << "," << colorInf[1] << "," << colorInf[2] << ")" << std::endl;
+
+    // Configurar estado: depth test habilitado, depth mask deshabilitado.
+    backend.setDepthTestEnabled(true);
+    backend.setDepthMask(false);
+
+    backend.useProgram(skyProgram_);
+
+    int locTop = backend.uniformLocation(skyProgram_, "uColorTop");
+    int locBottom = backend.uniformLocation(skyProgram_, "uColorBottom");
+    int locView = backend.uniformLocation(skyProgram_, "uView");
+    int locProj = backend.uniformLocation(skyProgram_, "uProjection");
+
+    if (locTop >= 0) {
+        std::cerr << "[Cielo Debug] setUniformVec3 uColorTop=(" << colorSup[0] << "," << colorSup[1] << "," << colorSup[2] << ")" << std::endl;
+        backend.setUniformVec3(locTop, glm::vec3(colorSup[0], colorSup[1], colorSup[2]));
+    } else {
+        std::cerr << "[Cielo Debug] uColorTop uniform location = -1 (NOT FOUND)" << std::endl;
+    }
+    if (locBottom >= 0) {
+        std::cerr << "[Cielo Debug] setUniformVec3 uColorBottom=(" << colorInf[0] << "," << colorInf[1] << "," << colorInf[2] << ")" << std::endl;
+        backend.setUniformVec3(locBottom, glm::vec3(colorInf[0], colorInf[1], colorInf[2]));
+    } else {
+        std::cerr << "[Cielo Debug] uColorBottom uniform location = -1 (NOT FOUND)" << std::endl;
+    }
+    if (locView >= 0)
+        backend.setUniformMat4(locView, glm::make_mat4(view));
+    if (locProj >= 0)
+        backend.setUniformMat4(locProj, glm::make_mat4(projection));
+
+    // Fullscreen triangle: 3 vertices, sin VBO (gl_VertexID en el vertex shader).
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    // Restaurar estado base para la siguiente pasada.
+    backend.setDepthMask(true);
+    ShaderProgram::unbind();
+}
+
+// Skybox cubemap: renderiza un cubo centrado en la camara con el cubemap
+// del componente Skybox. Se dibuja con depth test ON + depth mask OFF para
+// quedar "detras" de toda la geometria sin escribir profundidad.
+void SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
+                                         const float view[16],
+                                         const float projection[16]) {
+    if (!skybox) return;
+
+    auto& backend = Rendering::Backend::activeBackend();
+
+    // Cargar las 6 caras usando stb_image.
+    const std::string rutas[6] = {
+        skybox->getCaraMasX(),
+        skybox->getCaraMenosX(),
+        skybox->getCaraMasY(),
+        skybox->getCaraMenosY(),
+        skybox->getCaraMasZ(),
+        skybox->getCaraMenosZ()
+    };
+
+    for (int i = 0; i < 6; ++i) {
+        if (rutas[i].empty()) return; // Si falta alguna cara, caemos al degradado
+    }
+
+    int width = 0, height = 0, channels = 0;
+    unsigned char* facePixels[6] = {nullptr};
+    bool ok = true;
+
+    for (int i = 0; i < 6; ++i) {
+        int w, h, ch;
+        unsigned char* data = stbi_load(rutas[i].c_str(), &w, &h, &ch, 4); // Forzar RGBA
+        if (!data) { ok = false; break; }
+        if (i == 0) { width = w; height = h; }
+        else if (w != width || h != height) { ok = false; stbi_image_free(data); break; }
+        facePixels[i] = data;
+    }
+    if (!ok) {
+        for (int i = 0; i < 6; ++i) if (facePixels[i]) stbi_image_free(facePixels[i]);
+        return; // Caer al degradado si falla la carga
+    }
+
+    // Crear textura cubemap.
+    Rendering::Backend::IRenderBackend::ImageCube imgCube;
+    imgCube.width = width;
+    imgCube.height = height;
+    for (int i = 0; i < 6; ++i) imgCube.faces[i] = facePixels[i];
+    imgCube.generateMipmaps = true;
+
+    Rendering::Backend::Handle cubemapHandle = backend.createTextureCube(imgCube);
+    if (cubemapHandle == Rendering::Backend::kInvalidHandle) {
+        for (int i = 0; i < 6; ++i) if (facePixels[i]) stbi_image_free(facePixels[i]);
+        return; // Caer al degradado
+    }
+
+    // Liberar memoria CPU ya subida a GPU.
+    for (int i = 0; i < 6; ++i) stbi_image_free(facePixels[i]);
+
+    // Shader para skybox cubemap (cubo centrado en camara).
+    static Rendering::Backend::Handle skyboxProgram = Rendering::Backend::kInvalidHandle;
+    if (skyboxProgram == Rendering::Backend::kInvalidHandle) {
+        static const char* skyboxVert = R"(#version 330 core
+layout(location = 0) in vec3 aPos;
+out vec3 vTexCoord;
+uniform mat4 uView;
+uniform mat4 uProjection;
+void main() {
+    vTexCoord = aPos;
+    vec4 pos = uProjection * uView * vec4(aPos, 1.0);
+    gl_Position = pos.xyww; // z = w para estar en el plano lejano
+}
+)";
+        static const char* skyboxFrag = R"(#version 330 core
+in vec3 vTexCoord;
+out vec4 FragColor;
+uniform samplerCube uSkybox;
+void main() {
+    FragColor = texture(uSkybox, vTexCoord);
+}
+)";
+        try {
+            skyboxProgram = backend.createProgram(skyboxVert, skyboxFrag);
+        } catch (...) {
+            return;
+        }
+    }
+    if (skyboxProgram == Rendering::Backend::kInvalidHandle) return;
+
+    // Cubo unitario centrado en el origen (8 vertices, 36 indices).
+    static GLuint cuboVAO = 0;
+    static GLuint cuboVBO = 0;
+    static GLuint cuboEBO = 0;
+    static bool cuboInicializado = false;
+
+    if (!cuboInicializado) {
+        float vertices[] = {
+            // posiciones
+            -1.0f,  1.0f, -1.0f,
+            -1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+             1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f,  1.0f,
+            -1.0f, -1.0f,  1.0f,
+             1.0f, -1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f
+        };
+        unsigned int indices[] = {
+            0, 1, 2, 2, 3, 0, // -Z
+            4, 5, 6, 6, 7, 4, // +Z
+            0, 3, 7, 7, 4, 0, // +Y
+            1, 2, 6, 6, 5, 1, // -Y
+            3, 2, 6, 6, 7, 3, // +X
+            0, 1, 5, 5, 4, 0  // -X
+        };
+        GLFuncs::pfnGenVertexArrays(1, &cuboVAO);
+        GLFuncs::pfnGenBuffers(1, &cuboVBO);
+        GLFuncs::pfnGenBuffers(1, &cuboEBO);
+        GLFuncs::pfnBindVertexArray(cuboVAO);
+        GLFuncs::pfnBindBuffer(GL_ARRAY_BUFFER, cuboVBO);
+        GLFuncs::pfnBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        GLFuncs::pfnBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cuboEBO);
+        GLFuncs::pfnBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+        GLFuncs::pfnEnableVertexAttribArray(0);
+        GLFuncs::pfnVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        GLFuncs::pfnBindVertexArray(0);
+        cuboInicializado = true;
+    }
+
+    backend.setDepthTestEnabled(true);
+    backend.setDepthMask(false);
+
+    backend.useProgram(skyboxProgram);
+
+    int locView = backend.uniformLocation(skyboxProgram, "uView");
+    int locProj = backend.uniformLocation(skyboxProgram, "uProjection");
+    int locSkybox = backend.uniformLocation(skyboxProgram, "uSkybox");
+
+    if (locView >= 0) backend.setUniformMat4(locView, glm::make_mat4(view));
+    if (locProj >= 0) backend.setUniformMat4(locProj, glm::make_mat4(projection));
+    if (locSkybox >= 0) backend.setUniformInt(locSkybox, 0);
+
+    backend.bindTextureCube(cubemapHandle, 0);
+
+    GLFuncs::pfnBindVertexArray(cuboVAO);
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    GLFuncs::pfnBindVertexArray(0);
+
+    // Restaurar estado.
+    backend.setDepthMask(true);
+    ShaderProgram::unbind();
+
+    // Liberar textura cubemap temporal (para MVP; en produccion se cachearia).
+    backend.destroyTextureCube(cubemapHandle);
+}
+
 // Recta guia del objeto seleccionado (teclas X/Y/Z): la recta sobre la que
-// puede moverse, tomando el eje pulsado como variable y fijando las otras dos
-// coordenadas a las del objeto. Va hasta el horizonte y se difumina con el
-// MISMO criterio radial que la grilla (mismas constantes), asi que las dos se
-// desvanecen en el mismo punto y la guia se lee como un eje que cruza el piso.
-// Se dibuja con el batch de los marcadores (un solo draw) y el color del eje.
 void SceneRenderer::dibujarGuiaEje(const FrameContext& ctx,
                                    const float camaraMundo[3]) {
     if (ctx.guiaEje < GuiaEje::kEjeX || ctx.guiaEje > GuiaEje::kEjeZ) return;
@@ -218,13 +486,13 @@ void SceneRenderer::dibujarGuiaEje(const FrameContext& ctx,
     } else {
         GuiaEje::colorEje(ctx.guiaEje, color);
     }
-    GuiaEje::Difuminado dif;
-    dif.inicio = GrillaRenderer::kFadeInicio;
-    dif.fin = GrillaRenderer::kFadeFin;
+    // Mismo radio que la grilla (radioDifuminado lee el perfil de apariencia),
+    // asi que guia y piso se desvanecen siempre en el mismo circulo.
     // Mas subdivisiones que la grilla: la guia es mucho mas larga que una linea
     // de la grilla, asi que con los 6 trozos de aquella el degradado se veria
-    // escalonado a lo largo de los 300 unidades.
-    dif.subdivisiones = 24;
+    // escalonado a lo largo de toda la recta.
+    const Difuminado dif = Difuminado::desdeRadio(
+        radioDifuminado(ctx), 24);
 
     LineBuilder builder;
     GuiaEje::emitir(builder, eje, camaraMundo, color, dif);
@@ -407,7 +675,17 @@ void SceneRenderer::dibujarGrilla(const FrameContext& ctx, GameObject* object,
     // El dibujado (extent infinito del plano + difuminado del horizonte con
     // densidad fija + anchos) vive en la capa de Rendering; aqui se le pasa la
     // matriz del objeto "Grilla" y la posicion del ojo en el mundo.
-    grillaRenderer_.dibujar(modelArr, colorGrilla, camaraMundo);
+    grillaRenderer_.dibujar(modelArr, colorGrilla, camaraMundo,
+                            Difuminado::desdeRadio(radioDifuminado(ctx),
+                                                   GrillaRenderer::kSubdivisiones));
+}
+
+float SceneRenderer::radioDifuminado(const FrameContext& ctx) {
+    // Sin perfil de apariencia en la pasada (una vista previa, por ejemplo) se
+    // usa el valor por defecto, que es el mismo que pone una configuracion
+    // recien creada. El acotado al rango admitido lo hace Difuminado::desdeRadio.
+    if (!ctx.apariencia) return AparienciaUtil::kRadioDifuminadoPorDefecto;
+    return ctx.apariencia->radioDifuminado;
 }
 
 bool SceneRenderer::colorReferenciaGuia(const FrameContext& ctx,

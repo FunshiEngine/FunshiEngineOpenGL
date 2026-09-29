@@ -42,6 +42,13 @@ struct EntradaAssets {
     // Cuatro slots de textura del Material (diffuse, specular, normal, emision).
     std::array<std::string, 4> texturas;
     std::string script;
+    // Skybox cubemap: 6 caras (+X, -X, +Y, -Y, +Z, -Z)
+    std::string caraMasX;
+    std::string caraMenosX;
+    std::string caraMasY;
+    std::string caraMenosY;
+    std::string caraMasZ;
+    std::string caraMenosZ;
 
     EntradaAssets() { texturas.fill(std::string()); }
 };

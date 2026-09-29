@@ -32,16 +32,21 @@
 namespace {
 
 // ---------------------------------------------------------------------------
-// Constantes de diseño (NO configurables por el usuario desde la GUI):
-// - Densidad, horizonte y difuminado viven en GrillaRenderer.h (publicas) porque
-//   la guia de eje los reusa; lo que queda aca es privado de este archivo.
-// - El horizonte es un CIRCULO de radio kFadeFin centrado en la camara (sobre
+// Constantes de diseño:
+// - La separacion de las lineas es FIJA (GrillaRenderer.h, publica porque la
+//   guia de eje se alinea a la celda principal). Lo que queda aca es privado de
+//   este archivo.
+// - El horizonte es un CIRCULO de radio "dif.fin" centrado en la camara (sobre
 //   el plano del suelo) que actua COMO LIMITE DE DIBUJADO: las lineas se
 //   recortan a lo que queda dentro del circulo (nada mas alla se pinta, dando
 //   la ilusion de que la grilla continua) y se difuminan radialmente por
 //   vertice (opacas cerca de la camara, transparentes en el borde). Como el
 //   circulo persigue a la camara, moverse pinta grilla nueva por delante y
 //   deja de pintar lo que queda atras.
+// - El radio lo elige el usuario y llega ya recortado al rango admitido en el
+//   Difuminado que arma el llamador (Difuminado::desdeRadio); aca solo se usa
+//   el intervalo [dif.inicio, dif.fin] y la misma curva (dif.opacidad) que
+//   aplica la guia de eje.
 // ---------------------------------------------------------------------------
 constexpr float kEjeYLongitud = 70.0f;   // longitud del eje perpendicular (Y)
 
@@ -57,20 +62,6 @@ void agregarSegmentoRGBA(LineBuilder& out, const float color[3], float ax,
     out.agregarSegmento(a, b, rgbaA, rgbaB);
 }
 
-// Opacidad del difuminado radial a distancia horizontal 'd' de la camara: 1.0
-// en la zona central y caida cuadratica hasta 0.0 en el borde del circulo.
-float alphaDifuminado(float d) {
-    // t se acota a [0,1] ANTES de elevar al cuadrado: sin ese recorte, los
-    // puntos mas cercanos que kFadeInicio dan t negativo y el cuadrado los baja
-    // de opacos, con lo que hasta el centro de la vista se veria translucido.
-    float t = (d - GrillaRenderer::kFadeInicio) /
-              (GrillaRenderer::kFadeFin - GrillaRenderer::kFadeInicio);
-    if (t < 0.0f) t = 0.0f;
-    if (t > 1.0f) t = 1.0f;
-    const float a = 1.0f - t * t;
-    return a < 0.0f ? 0.0f : (a > 1.0f ? 1.0f : a);
-}
-
 // Emite una linea de la grilla recortada por el circulo horizonte y con
 // difuminado radial POR VERTICE. 'fija' es la coordenada X (si variaZ, linea
 // paralela a Z) o Z (si no, linea paralela a X). Si la linea queda fuera del
@@ -79,13 +70,12 @@ float alphaDifuminado(float d) {
 // intermedio lleva el alpha de su propia distancia radial a la camara, por eso
 // la linea se subdivide en kSubdivisiones trozos.
 void emitirLineaPlano(LineBuilder& out, const float color[3], float fija,
-                      float camX, float camZ, bool variaZ) {
+                      float camX, float camZ, bool variaZ,
+                      const Difuminado& dif) {
     const float d = std::fabs(fija - (variaZ ? camX : camZ));
-    if (d >= GrillaRenderer::kFadeFin)
+    if (d >= dif.fin)
         return; // fuera del circulo: el difuminado es el limite
-    const float h = std::sqrt(GrillaRenderer::kFadeFin *
-                                  GrillaRenderer::kFadeFin -
-                              d * d);
+    const float h = std::sqrt(dif.fin * dif.fin - d * d);
     const float t0 = (variaZ ? camZ : camX) - h;
     const float t1 = (variaZ ? camZ : camX) + h;
     const float largo = t1 - t0;
@@ -110,8 +100,8 @@ void emitirLineaPlano(LineBuilder& out, const float color[3], float fija,
                                    (za - camZ) * (za - camZ));
         const float db = std::sqrt((xb - camX) * (xb - camX) +
                                    (zb - camZ) * (zb - camZ));
-        const float aa = alphaDifuminado(da);
-        const float ab = alphaDifuminado(db);
+        const float aa = dif.opacidad(da);
+        const float ab = dif.opacidad(db);
         agregarSegmentoRGBA(out, color, xa, za, aa, xb, zb, ab);
     }
 }
@@ -131,8 +121,13 @@ void colorEjeConContraste(int eje, const float colorGrilla[3], float out[3]) {
 } // namespace
 
 void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
-                             const float camaraMundo[3]) {
+                             const float camaraMundo[3],
+                             const Difuminado& dif) {
     if (!model || !colorGrilla || !camaraMundo) return;
+    // El Difuminado llega armado por el llamador (radio elegido por el usuario,
+    // ya acotado), pero esta clase es publica: un radio invalido se acota aca
+    // para no dibujar una grilla sin horizonte ni dividir por cero.
+    const Difuminado difSeguro = Difuminado::desdeRadio(dif.fin, dif.subdivisiones);
 
     // La camara se transforma al espacio local del objeto "Grilla": el circulo
     // horizonte, la densidad fija y el difuminado siguen al objeto (que puede
@@ -148,26 +143,27 @@ void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
     principal_.limpiar();
     ejes_.limpiar();
 
-    // Lineas del plano dentro del circulo de radio kFadeFin alrededor de la
+    // Lineas del plano dentro del circulo de radio dif.fin alrededor de la
     // camara, ancladas a multiplos exactos de kSeparacionMenor (no se desplazan al
     // moverse la camara: simplemente entran y salen del circulo). Cada
     // kMultiploMayor secundarias -> principal (mismo color, solo mas ancha). La
     // linea por el origen (i/j == 0) se salta: la pintan los ejes X/Z.
-    const int iIni = static_cast<int>(std::ceil((camX - kFadeFin) / kSeparacionMenor));
-    const int iFin = static_cast<int>(std::floor((camX + kFadeFin) / kSeparacionMenor));
+    const float radio = difSeguro.fin;
+    const int iIni = static_cast<int>(std::ceil((camX - radio) / kSeparacionMenor));
+    const int iFin = static_cast<int>(std::floor((camX + radio) / kSeparacionMenor));
     for (int i = iIni; i <= iFin; ++i) {
         if (i == 0) continue;
         const float x = static_cast<float>(i) * kSeparacionMenor;
         emitirLineaPlano((i % kMultiploMayor == 0) ? principal_ : secundario_,
-                         colorGrilla, x, camX, camZ, true);
+                         colorGrilla, x, camX, camZ, true, difSeguro);
     }
-    const int jIni = static_cast<int>(std::ceil((camZ - kFadeFin) / kSeparacionMenor));
-    const int jFin = static_cast<int>(std::floor((camZ + kFadeFin) / kSeparacionMenor));
+    const int jIni = static_cast<int>(std::ceil((camZ - radio) / kSeparacionMenor));
+    const int jFin = static_cast<int>(std::floor((camZ + radio) / kSeparacionMenor));
     for (int j = jIni; j <= jFin; ++j) {
         if (j == 0) continue;
         const float z = static_cast<float>(j) * kSeparacionMenor;
         emitirLineaPlano((j % kMultiploMayor == 0) ? principal_ : secundario_,
-                         colorGrilla, z, camX, camZ, false);
+                         colorGrilla, z, camX, camZ, false, difSeguro);
     }
 
     // Ejes X y Z: paralelos al plano a traves del origen, recortados y
@@ -180,11 +176,11 @@ void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
     colorEjeConContraste(GuiaEje::kEjeY, colorGrilla, colorEjeY);
     colorEjeConContraste(GuiaEje::kEjeZ, colorGrilla, colorEjeZ);
 
-    emitirLineaPlano(ejes_, colorEjeX, 0.0f, camX, camZ, false);
-    emitirLineaPlano(ejes_, colorEjeZ, 0.0f, camX, camZ, true);
+    emitirLineaPlano(ejes_, colorEjeX, 0.0f, camX, camZ, false, difSeguro);
+    emitirLineaPlano(ejes_, colorEjeZ, 0.0f, camX, camZ, true, difSeguro);
     {
         const float alphaEjeY =
-            alphaDifuminado(std::sqrt(camX * camX + camZ * camZ));
+            difSeguro.opacidad(std::sqrt(camX * camX + camZ * camZ));
         const float rgbaEjeY[4] = {colorEjeY[0], colorEjeY[1], colorEjeY[2],
                                    alphaEjeY};
         const float puntosEjeY[6] = {0.0f, 0.0f, 0.0f, 0.0f, kEjeYLongitud, 0.0f};

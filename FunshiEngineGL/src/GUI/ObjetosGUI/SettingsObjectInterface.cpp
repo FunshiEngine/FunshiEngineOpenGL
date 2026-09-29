@@ -33,6 +33,7 @@
 #include "Audio/SettingsAudioSource.h"
 #include "Interface/SettingsInterface.h"
 #include "Grid/SettingsGrid.h"
+#include "Skybox/SettingsSkybox.h"
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/Componentes/Light.h"
 #include "../../Objetos/Componentes/Material.h"
@@ -48,6 +49,7 @@
 #include "../../Objetos/Componentes/Colliders/EsfereCollider.h"
 #include "../../Objetos/Componentes/Colliders/CubeCollider.h"
 #include "../../Objetos/Componentes/Colliders/MallaCollider.h"
+#include "../../Objetos/Componentes/Skybox.h"
 #include "../../Scenes/EditorController.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/TypeUtils.h"
@@ -175,6 +177,10 @@ void SettingsObjectInterface::loadComponents() {
 	Grid* grid = object->getComponent<Grid>();
 	if (grid != nullptr) {
 		listaDESettingsComponent->addLast(new SettingsGrid(object));
+	}
+	Skybox* skybox = object->getComponent<Skybox>();
+	if (skybox != nullptr) {
+		listaDESettingsComponent->addLast(new SettingsSkybox(object));
 	}
 	AudioSource* audioSource = object->getComponent<AudioSource>();
 	if (audioSource != nullptr) {
@@ -350,6 +356,9 @@ void SettingsObjectInterface::contentGUI() {
 			}
 			if (ImGui::MenuItem("Grid")) {
 				editor->addComponent(object, std::make_unique<Grid>());
+			}
+			if (ImGui::MenuItem("Skybox")) {
+				editor->addComponent(object, std::make_unique<Skybox>());
 			}
 			if (ImGui::MenuItem("AudioSource")) {
 				editor->addComponent(object, std::make_unique<AudioSource>());

@@ -158,6 +158,7 @@ std::string MenuModel::traducir(const std::string& clave) const {
         {"volver", {"Volver", "Back"}},
         {"juego", {"Juego", "Game"}},
         {"idioma", {"Idioma", "Language"}},
+        {"radio_difuminado", {"Radio de difuminado", "Fade radius"}},
         {"sensibilidad_camara", {"Sensibilidad de camara", "Camera sensitivity"}},
         {"sensibilidad_movimiento",
          {"Sensibilidad de movimiento", "Movement sensitivity"}},
@@ -167,7 +168,10 @@ std::string MenuModel::traducir(const std::string& clave) const {
          {"Modo blanco y negro (interfaz y viewport)",
           "Black & white mode (UI and viewport)"}},
         {"color_acento", {"Color de acento de la interfaz", "UI accent color"}},
-        {"color_fondo", {"Color de fondo de la escena", "Scene background color"}},
+        {"color_cielo_superior",
+         {"Color de la parte superior del cielo", "Sky top color"}},
+        {"color_cielo_inferior",
+         {"Color de la parte inferior del cielo", "Sky bottom color"}},
         {"ayuda_bn",
          {"El modo blanco y negro desatura toda la interfaz (incluido el\n"
           "acento) y usa blanco/negro en el fondo y la grilla del viewport\n"

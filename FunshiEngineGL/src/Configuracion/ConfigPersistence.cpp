@@ -18,7 +18,9 @@
 */
 #include "ConfigPersistence.h"
 
+#include <iostream>
 #include <nlohmann/json.hpp>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -87,7 +89,12 @@ nlohmann::json ConfigPersistence::aparienciaToJson(const Apariencia& a) {
     j["temaClaro"] = a.temaClaro;
     j["blancoYNegro"] = a.blancoYNegro;
     j["acento"] = {a.acento[0], a.acento[1], a.acento[2], a.acento[3]};
-    j["fondo"] = {a.fondo[0], a.fondo[1], a.fondo[2]};
+    // Escribimos los dos nuevos campos Y el antiguo para compatibilidad con
+    // configuraciones viejas que esperen "fondo" (se lee primero lo nuevo).
+    j["fondoSuperior"] = {a.fondoSuperior[0], a.fondoSuperior[1], a.fondoSuperior[2]};
+    j["fondoInferior"] = {a.fondoInferior[0], a.fondoInferior[1], a.fondoInferior[2]};
+    j["fondo"] = {a.fondoSuperior[0], a.fondoSuperior[1], a.fondoSuperior[2]};
+    j["radioDifuminado"] = a.radioDifuminado;
     return j;
 }
 
@@ -102,10 +109,66 @@ Apariencia ConfigPersistence::jsonToApariencia(const nlohmann::json& j) {
             if (j["acento"][i].is_number())
                 a.acento[i] = j["acento"][i].get<float>();
     }
-    if (j.contains("fondo") && j["fondo"].is_array() && j["fondo"].size() == 3) {
+    // Leemos primero los nuevos campos; si no existen, caemos en el antiguo
+    // "fondo" y copiamos a ambos (compatibilidad hacia atras).
+    bool tieneSuperior = false, tieneInferior = false;
+    if (j.contains("fondoSuperior") && j["fondoSuperior"].is_array() && j["fondoSuperior"].size() == 3) {
         for (int i = 0; i < 3; ++i)
-            if (j["fondo"][i].is_number())
-                a.fondo[i] = j["fondo"][i].get<float>();
+            if (j["fondoSuperior"][i].is_number())
+                a.fondoSuperior[i] = j["fondoSuperior"][i].get<float>();
+        tieneSuperior = true;
+    }
+    if (j.contains("fondoInferior") && j["fondoInferior"].is_array() && j["fondoInferior"].size() == 3) {
+        for (int i = 0; i < 3; ++i)
+            if (j["fondoInferior"][i].is_number())
+                a.fondoInferior[i] = j["fondoInferior"][i].get<float>();
+        tieneInferior = true;
+    }
+    if (!tieneSuperior || !tieneInferior) {
+        if (j.contains("fondo") && j["fondo"].is_array() && j["fondo"].size() == 3) {
+            for (int i = 0; i < 3; ++i)
+                if (j["fondo"][i].is_number()) {
+                    if (!tieneSuperior) a.fondoSuperior[i] = j["fondo"][i].get<float>();
+                    if (!tieneInferior) a.fondoInferior[i] = j["fondo"][i].get<float>();
+                }
+        }
+    }
+
+    // Sanitizacion de colores del cielo: si los 3 componentes son > 0.8 y casi
+    // iguales (diferencia < 0.05), es probable un valor legacy corrupto o
+    // migracion mal hecha de "fondo" unico; se resetea al default historico 0.1.
+    // Esto evita que una configuracion guardada con valores casi blancos
+    // (p. ej. 0.95/0.94/0.94) produzca un cielo blanco en modo normal.
+    auto sanearCielo = [](float c[3]) {
+        std::cerr << "[Sanitize] Antes: (" << c[0] << "," << c[1] << "," << c[2] << ")" << std::endl;
+        if (c[0] > 0.8f && c[1] > 0.8f && c[2] > 0.8f &&
+            std::abs(c[0] - c[1]) < 0.05f && std::abs(c[1] - c[2]) < 0.05f) {
+            c[0] = c[1] = c[2] = 0.10f;
+            std::cerr << "[Sanitize] SANEADO a (0.1, 0.1, 0.1)" << std::endl;
+        } else {
+            std::cerr << "[Sanitize] No sanitizado (condicion no se cumple)" << std::endl;
+        }
+    };
+    std::cerr << "[Sanitize] fondoSuperior: "; sanearCielo(a.fondoSuperior);
+    std::cerr << "[Sanitize] fondoInferior: "; sanearCielo(a.fondoInferior);
+
+    // Radio del difuminado...
+    // por defecto, que es el que venia implicito en las constantes de la grilla.
+    // Un valor fuera de rango o no finito (editado a mano, corrupto) se acota
+    // al rango admitido para que el perfil en memoria sea siempre valido, igual
+    // que si el usuario lo hubiera movido con el slider.
+    if (j.contains("radioDifuminado") && j["radioDifuminado"].is_number()) {
+        const float radio = j["radioDifuminado"].get<float>();
+        if (!std::isfinite(radio) ||
+            radio < AparienciaUtil::kRadioDifuminadoMinimo) {
+            a.radioDifuminado = radio < AparienciaUtil::kRadioDifuminadoMinimo
+                                    ? AparienciaUtil::kRadioDifuminadoMinimo
+                                    : AparienciaUtil::kRadioDifuminadoPorDefecto;
+        } else if (radio > AparienciaUtil::kRadioDifuminadoMaximo) {
+            a.radioDifuminado = AparienciaUtil::kRadioDifuminadoMaximo;
+        } else {
+            a.radioDifuminado = radio;
+        }
     }
     return a;
 }

@@ -57,6 +57,11 @@ public:
     void destroyTexture2D(Handle texture) override;
     void bindTexture2D(Handle texture, int unit) override;
 
+    // --- Textura Cubemap ---
+    Handle createTextureCube(const ImageCube& image) override;
+    void destroyTextureCube(Handle texture) override;
+    void bindTextureCube(Handle texture, int unit) override;
+
     // --- Programa ---
     Handle createProgram(const char* vertexSource,
                          const char* fragmentSource) override;
@@ -85,6 +90,10 @@ public:
     void setClearColor(const float color[3]) override;
     const char* diagnosticoGPU() const override;
     void setBlendEnabled(bool enabled) override;
+
+    // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
+    void setDepthTestEnabled(bool enabled) override;
+    void setDepthMask(bool enabled) override;
 
 private:
     struct GpuMesh { unsigned int vao; unsigned int buffers[6]; };

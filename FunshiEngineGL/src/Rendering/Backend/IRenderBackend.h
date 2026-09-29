@@ -98,6 +98,20 @@ public:
     // Bindeo del sampleo en la unidad indicada (GL_TEXTURE0 + unit).
     virtual void bindTexture2D(Handle texture, int unit) = 0;
 
+    // --- Textura Cubemap -----------------------------------------------------
+    // 6 imagenes, una por cara (+X, -X, +Y, -Y, +Z, -Z). Todas deben tener
+    // las mismas dimensiones y formato RGBA8.
+    struct ImageCube {
+        int width = 0;
+        int height = 0;
+        // En orden: +X, -X, +Y, -Y, +Z, -Z
+        const unsigned char* faces[6] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+        bool generateMipmaps = false;
+    };
+    virtual Handle createTextureCube(const ImageCube& image) = 0;
+    virtual void destroyTextureCube(Handle texture) = 0;
+    virtual void bindTextureCube(Handle texture, int unit) = 0;
+
     // --- Programa de shaders (pipeline moderno) ------------------------------
     // createProgram puede lanzar (falla de compilacion/limite): la excepcion
     // es especifica del backend (ShaderCompile/Link/Unavailable) pero el
@@ -146,6 +160,10 @@ public:
     // fondo). No se confunde con el suavizado de lineas: glLineSmooth no existe
     // en un perfil core y el ancho ya no se toma de glLineWidth.
     virtual void setBlendEnabled(bool enabled) = 0;
+
+    // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
+    virtual void setDepthTestEnabled(bool enabled) = 0;
+    virtual void setDepthMask(bool enabled) = 0;
 };
 
 // Backend activo del engine (un solo contexto GL; el singleton se cambia en la

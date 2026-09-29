@@ -106,7 +106,8 @@ MotorGrafico/
 │           └── Scripts/              ← scripts del usuario (.cpp/.java)
 ├── Configuraciones/
 │   └── Configuracion.json            ← configuracion global (ultimo proyecto, idioma,
-│                                       sensibilidades y apariencia: tema, B/N, acento, fondo)
+│                                       sensibilidades y apariencia: tema, B/N, acento,
+│                                       fondo y radio de difuminado)
 └── Exportaciones/
     └── <nombreExportacion>/          ← juegos exportados (ver seccion 10.1)
         ├── <Juego>.exe / <Juego>     ← ejecutable standalone
@@ -493,8 +494,9 @@ MotorGrafico\Exportaciones\MiJuego\MiJuego.exe
 
 La vista **Opciones** del menú de inicio tiene tres bloques:
 
-- **Juego:** idioma (Espanol / English), *Sensibilidad de camara* (mouse-look,
-  0.02 a 5.0) y *Sensibilidad de movimiento* (velocidad de `WASD`, 0.1 a 5.0).
+- **Juego:** idioma (Espanol / English), *Radio de difuminado* (20 a 600
+  unidades), *Sensibilidad de camara* (mouse-look, 0.02 a 5.0) y
+  *Sensibilidad de movimiento* (velocidad de `WASD`, 0.1 a 5.0).
 - **Apariencia:**
   - *Tema claro de la interfaz* — arranca en **oscuro**.
   - *Modo blanco y negro (interfaz y viewport)* — desatura la interfaz completa y
@@ -504,18 +506,36 @@ La vista **Opciones** del menú de inicio tiene tres bloques:
     pone negra (y al reves), para que siempre se vea.
   - *Color de acento de la interfaz* — solo RGB: la transparencia de cada
     elemento la define el tema, no el color elegido.
-  - *Color de fondo de la escena* — el color tras el que se ve la escena 3D.
+  - *Color de la parte superior del cielo* — color del degradado en la zona
+    alta del viewport (por defecto gris oscuro).
+  - *Color de la parte inferior del cielo* — color del degradado en la zona
+    baja del viewport (por defecto gris oscuro).
   - *Restablecer apariencia* — vuelve el perfil completo a los valores de
-    fabrica (tema oscuro, sin modo blanco y negro, acento azul, fondo gris
+    fabrica (tema oscuro, sin modo blanco y negro, acento azul, cielo gris
     oscuro).
 - **Configuracion:** *Restablecer configuracion* — vuelve **toda** la
   configuracion a los defaults, conservando el nombre del proyecto.
+
+*Radio de difuminado* es el radio del circulo-horizonte del piso, en unidades de
+mundo: la grilla se dibuja hasta ahi y se difumina hacia su borde, y la guia de
+eje se desvanece en ese mismo circulo. Con un radio corto el piso llega menos
+lejos y se dibujan menos lineas (mas fluido); con uno largo llega mas lejos y
+cuesta mas. El tramo completamente opaco es siempre la misma fraccion del radio
+(40 de cada 150), asi que al agrandarlo el degradado se agranda con el, en vez
+de estirarse. El valor por defecto es 150 y *Restablecer apariencia* lo vuelve
+ahi.
 
 Los cambios se aplican **en vivo**, sin reiniciar: el acento alcanza **todos** los
 roles de la interfaz (botones, solapas del dock, campos de entrada, sliders,
 checkboxes, enlaces, bordes, separadores y tablas) y los grises azulados de
 fabrica quedan en gris neutro, así que al cambiar de color no quedan restos del
 azul clasico.
+
+- El **cielo** se renderiza como un degradado vertical entre *Color de la parte
+  superior del cielo* y *Color de la parte inferior del cielo*. En modo
+  blanco y negro ambas partes se fuerzan a blanco (tema claro) o negro (tema
+  oscuro). En el futuro se podra cargar un cubemap de seis caras para un cielo
+  con textura.
 
 - Persistencia: la **apariencia**, el idioma y las dos sensibilidades se guardan
   en la configuracion general, en la raiz de datos del motor

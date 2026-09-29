@@ -22,6 +22,7 @@
 #include <memory>
 #include <vector>
 
+#include "Cielo.h"
 #include "GrillaRenderer.h"
 #include "GuiaEje.h"
 
@@ -32,6 +33,7 @@ class RenderTarget;
 class TextureManager;
 struct Apariencia;
 struct LightData;
+class Skybox;
 
 template <typename T>
 class ListaDE;
@@ -116,6 +118,15 @@ private:
                              const float projection[16]);
     void dibujarMarcadorLuz(GameObject* object);
     void dibujarMarcadorCamara(GameObject* object);
+    // Cielo degradado (fullscreen triangle): se dibuja ANTES que la grilla y
+    // los objetos, con depth test habilitado y depth mask deshabilitado, para
+    // que quede "detras" de todo sin escribir profundidad.
+    void dibujarCielo(const FrameContext& ctx, const float view[16],
+                      const float projection[16]);
+    // Skybox cubemap: se dibuja en lugar del degradado si hay un componente
+    // Skybox visible con 6 caras validas. Mismo estado de depth que el cielo.
+    void dibujarSkyboxCubemap(const Skybox* skybox, const float view[16],
+                              const float projection[16]);
     // Recta de la guia de eje (X/Y/Z) sobre el objeto seleccionado: va hasta el
     // horizonte con el difuminado de la grilla y el color del eje.
     void dibujarGuiaEje(const FrameContext& ctx, const float camaraMundo[3]);
@@ -123,6 +134,11 @@ private:
                              const float camaraMundo[3]);
     void dibujarGrilla(const FrameContext& ctx, GameObject* object,
                        const float camaraMundo[3]);
+    // Radio del difuminado del piso para este frame: el que eligio el usuario
+    // en Opciones (Apariencia::radioDifuminado), acotado por el propio Difuminado
+    // y con el valor por defecto si la pasada no trae perfil de apariencia. Lo
+    // leen la grilla y la guia de eje para desvanecerse en el MISMO circulo.
+    static float radioDifuminado(const FrameContext& ctx);
     // Color contra el que se mide el contraste de la guia de eje: el color
     // EFECTIVO de la grilla del suelo (el mismo que usa su propio dibujado, con
     // el modo blanco y negro ya resuelto) y, cuando no hay grilla visible, el
@@ -132,6 +148,9 @@ private:
 
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;
+    // Programa de shader del cielo (fullscreen triangle con degradado
+    // superior/inferior). Se crea en la primera pasada y se reusa.
+    Rendering::Backend::Handle skyProgram_ = Rendering::Backend::kInvalidHandle;
     // Batch de lineas compartido por los marcadores de luz y de camara (ambos
     // son 12 aristas): se sube y se dibuja por gizmo, en un solo draw cada uno.
     LineBatch marcadoresBatch_;

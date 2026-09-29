@@ -135,12 +135,21 @@ barra superior del editor, y se persiste por proyecto.
   `kMultiploMayor` = 5). Los campos `tam`/`separacion` del componente se siguen
   serializando para que las escenas viejas se lean igual, pero no se usan para
   dibujar.
-- `GrillaRenderer` recorta la grilla a un circulo de radio `kFadeFin` (150)
-  centrado en la camara: ese circulo es a la vez el horizonte y el limite de
-  dibujado. El difuminado es radial y por vertice (alpha por vertice, con
-  `LineBuilder` interpolando entre extremos): opacidad plena hasta `kFadeInicio`
-  (40) y caida cuadratica hasta 0 en `kFadeFin`. Un batch de lineas por ancho
-  (secundarias 1 px, principales 2 px, ejes 3 px) = 3 draws por frame.
+- El radio de ese circulo lo elige el usuario (Opciones -> Radio de
+  difuminado, 20 a 600, por defecto 150) y llega a la escena en
+  `Apariencia::radioDifuminado`. `Difuminado` (modulo CPU puro) es quien lo
+  convierte en el tramo opaco y en la curva: el inicio se deriva del radio en
+  proporcion constante (`kProporcionInicio` = 40/150) y el radio se acota ahi
+  mismo, asi que un valor corrupto en la configuracion no deja la grilla sin
+  horizonte. Grilla y guia de eje reciben el MISMO `Difuminado` (con
+  subdivisiones distintas) y por eso se desvanecen siempre en el mismo
+  circulo-horizonte.
+- `GrillaRenderer` recorta la grilla a ese circulo centrado en la camara: es a
+  la vez el horizonte y el limite de dibujado. El difuminado es radial y por
+  vertice (alpha por vertice, con `LineBuilder` interpolando entre extremos):
+  opacidad plena hasta `dif.inicio` y caida cuadratica hasta 0 en `dif.fin`. Un
+  batch de lineas por ancho (secundarias 1 px, principales 2 px, ejes 3 px) =
+  3 draws por frame.
 - Los tres ejes (X rojo, Y verde, Z azul) salen de `GuiaEje::colorEje`: una sola
   convencion para la grilla, la guia de eje y el gizmo. Grilla y guia ajustan
   ese color por contraste contra lo que tienen debajo
@@ -149,6 +158,15 @@ barra superior del editor, y se persiste por proyecto.
   de modo que en modo blanco y negro el contraste se mide contra el blanco o el
   negro real. El ajuste escala el brillo, asi que con un eje saturado puede no
   alcanzar el minimo de 0.35 de diferencia de luminancia.
+
+- **Cielo degradado**: se dibuja como primera pasada (antes que la grilla y los
+  objetos) mediante un fullscreen triangle y un shader que interpola
+  verticalmente entre `fondoSuperior` (top del viewport) y `fondoInferior`
+  (bottom). Los colores se resuelven con `Cielo::coloresEfectivos`, que aplica
+  la logica B/N (ambos blanco/negro segun tema) y modo normal (respeta los
+  colores elegidos). El pase usa depth test ON + depth mask OFF para que el
+  cielo quede "detras" de toda la geometria sin escribir profundidad. En el
+  futuro se soportara un cubemap de seis caras cargado via componente `Skybox`.
 - La guia de eje (`X`/`Y`/`Z` sobre el objeto seleccionado) reutiliza las
   mismas constantes de difuminado (`SceneRenderer::dibujarGuiaEje` las lee de
   `GrillaRenderer`), con mas subdivisiones (24) porque la recta es mucho mas

@@ -21,6 +21,8 @@
 #include <cstring>
 #include <string>
 
+#include "../../Configuracion/Apariencia.h"
+
 namespace {
 // Constantes de layout del menu (solo lectura): tamanio de boton y desvios
 // verticales desde el centro de la ventana para cada fila.
@@ -327,6 +329,23 @@ void MenuView::renderizarOpciones() {
         ImGui::EndCombo();
     }
 
+    ImGui::TextUnformatted(model->traducir("radio_difuminado").c_str());
+    // Radio del circulo-horizonte de la grilla y de la guia de eje, en unidades
+    // de mundo: por debajo del slider, el piso se ve mas cerca y con menos lineas
+    // (mas performant); por encima, llega mas lejos. Se edita sobre una copia
+    // del perfil y se delega al modelo UNA vez, como el resto de apariencia.
+    {
+        Apariencia apRadio = model->getApariencia();
+        float radio = apRadio.radioDifuminado;
+        ImGui::SetNextItemWidth(-1.0f);
+        if (ImGui::SliderFloat("##radioDifuminado", &radio,
+                               AparienciaUtil::kRadioDifuminadoMinimo,
+                               AparienciaUtil::kRadioDifuminadoMaximo, "%.0f")) {
+            apRadio.radioDifuminado = radio;
+            model->setApariencia(apRadio);
+        }
+    }
+
     ImGui::TextUnformatted(model->traducir("sensibilidad_camara").c_str());
     float sensibilidad = model->getSensibilidadCamara();
     ImGui::SetNextItemWidth(-1.0f);
@@ -360,8 +379,10 @@ void MenuView::renderizarOpciones() {
     // apagar los checks, los grabs y los enlaces de la interfaz. ColorEdit3
     // preserva acento[3] tal como estaba guardado.
     cambio |= ImGui::ColorEdit3("##acento", ap.acento);
-    ImGui::TextUnformatted(model->traducir("color_fondo").c_str());
-    cambio |= ImGui::ColorEdit3("##fondo", ap.fondo);
+    ImGui::TextUnformatted(model->traducir("color_cielo_superior").c_str());
+    cambio |= ImGui::ColorEdit3("##cieloSuperior", ap.fondoSuperior);
+    ImGui::TextUnformatted(model->traducir("color_cielo_inferior").c_str());
+    cambio |= ImGui::ColorEdit3("##cieloInferior", ap.fondoInferior);
     ImGui::TextDisabled("%s", model->traducir("ayuda_bn").c_str());
 
     if (ImGui::Button(etiqueta(model, "restablecer_apariencia").c_str(),
