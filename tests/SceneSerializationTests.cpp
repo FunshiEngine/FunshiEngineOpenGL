@@ -52,6 +52,7 @@
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Skybox.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
 #include "../FunshiEngineGL/src/Scenes/EditorController.h"
@@ -593,6 +594,133 @@ void hermanosConsecutivosSinPerdida() {
           "sin lineas invalidas: la releertura del look-ahead es exacta");
 }
 
+// --- Rutas de las caras del Skybox -------------------------------------------
+// Las seis caras del cubemap son assets del proyecto, asi que se guardan
+// relativas a la raiz de assets y se resuelven a absolutas al cargar, igual que
+// la malla, las texturas y el script. Sin eso la ruta decia una cosa (relativa
+// al proyecto) y hacia otra: se buscaba contra el directorio de trabajo del
+// proceso, la fecha de modificacion daba 0 y el cache de la textura no se
+// invalidaba nunca.
+
+// Lectura de una ruta tal cual quedo escrita, sin pasar por absolutizar: es la
+// forma de comprobar QUE se persisto, no de reconstruirla.
+static std::string leerRutaPersistida(std::istream& in) {
+    uint32_t len = 0;
+    in.read(reinterpret_cast<char*>(&len), sizeof(len));
+    std::string s;
+    if (len > 0) {
+        s.resize(len);
+        in.read(&s[0], len);
+    }
+    return s;
+}
+
+// Escritura cruda de una ruta, para armar a mano un archivo con el formato
+// viejo (rutas absolutas tal cual, sin pasar por relativizar).
+static void escribirRutaPersistida(std::ostream& out, const std::string& s) {
+    const uint32_t len = static_cast<uint32_t>(s.size());
+    out.write(reinterpret_cast<const char*>(&len), sizeof(len));
+    if (len > 0) out.write(s.data(), len);
+}
+
+void rutasDeCarasDeSkybox() {
+    EditorConfig::limpiarRaizAssets();
+    const std::string raiz = "/motor/MotorGrafico/Juego/srcJuego";
+    EditorConfig::fijarRaizAssets(raiz);
+
+    const std::string relativaPX = "Cielo/cielo_px.png";
+    const std::string absolutaPX = raiz + "/" + relativaPX;
+    const std::string relativaNY = "Cielo/cielo_ny.png";
+    const std::string absolutaNY = raiz + "/" + relativaNY;
+
+    // 1. Lo que queda EN DISCO son las rutas relativas, no las absolutas con las
+    //    que se compuso el componente.
+    {
+        TempPruebas::CarpetaPrueba carpeta("funshi_skybox_rutas");
+        const fs::path archivo = carpeta.ruta() / "skybox.bin";
+        {
+            Skybox sky;
+            sky.setCaraMasX(absolutaPX);
+            sky.setCaraMenosY(absolutaNY);
+            std::ofstream out(archivo, std::ios::binary);
+            sky.saveComponent(&out);
+        }
+        std::ifstream in(archivo, std::ios::binary);
+        CHECK(leerRutaPersistida(in) == relativaPX,
+              "la cara +X se persiste relativa a la raiz de assets");
+        CHECK(leerRutaPersistida(in) == "",
+              "una cara sin asignar se persiste vacia");
+        CHECK(leerRutaPersistida(in) == "",
+              "otra cara sin asignar se persiste vacia");
+        CHECK(leerRutaPersistida(in) == relativaNY,
+              "la cara -Y se persiste relativa a la raiz de assets");
+    }
+
+    // 2. Un archivo con rutas RELATIVAS al cargar queda con rutas ABSOLUTAS en
+    //    memoria, que es como las usa la pasada que dibuja el cubemap. Se arma
+    //    el archivo a mano para comprobar la resolucion, no el viaje de ida.
+    {
+        TempPruebas::CarpetaPrueba carpeta("funshi_skybox_carga");
+        const fs::path archivo = carpeta.ruta() / "skybox.bin";
+        const bool visible = true;
+        {
+            std::ofstream out(archivo, std::ios::binary);
+            escribirRutaPersistida(out, relativaPX);
+            for (int i = 0; i < 5; ++i) escribirRutaPersistida(out, "");
+            out.write(reinterpret_cast<const char*>(&visible), sizeof(visible));
+        }
+        Skybox sky;
+        std::ifstream in(archivo, std::ios::binary);
+        sky.loadComponent(&in);
+        CHECK(sky.getCaraMasX() == absolutaPX,
+              "una ruta relativa se resuelve a absoluta al cargar");
+        CHECK(sky.getCaraMenosY().empty(),
+              "una cara sin asignar sigue vacia al cargar");
+    }
+
+    // 3. Ida y vuelta completa: componer con absolutas, guardar y recargar deja
+    //    las mismas absolutas.
+    {
+        TempPruebas::CarpetaPrueba carpeta("funshi_skybox_ida_vuelta");
+        const fs::path archivo = carpeta.ruta() / "skybox.bin";
+        {
+            Skybox sky;
+            sky.setCaraMasX(absolutaPX);
+            sky.setCaraMenosY(absolutaNY);
+            std::ofstream out(archivo, std::ios::binary);
+            sky.saveComponent(&out);
+        }
+        Skybox sky;
+        std::ifstream in(archivo, std::ios::binary);
+        sky.loadComponent(&in);
+        CHECK(sky.getCaraMasX() == absolutaPX,
+              "ida y vuelta: la cara +X conserva su ruta");
+        CHECK(sky.getCaraMenosY() == absolutaNY,
+              "ida y vuelta: la cara -Y conserva su ruta");
+    }
+
+    // 3. Escena legacy: una cara ABSOLUTA guardada por el formato viejo se carga
+    //    intacta, sin volver a anteponerle la raiz.
+    {
+        TempPruebas::CarpetaPrueba carpeta("funshi_skybox_legacy");
+        const fs::path archivo = carpeta.ruta() / "skybox_legacy.bin";
+        const std::string absoluta = "/legacy/Cielo/absoluta.png";
+        const bool visible = true;
+        {
+            std::ofstream out(archivo, std::ios::binary);
+            for (int i = 0; i < 6; ++i) escribirRutaPersistida(out, absoluta);
+            out.write(reinterpret_cast<const char*>(&visible), sizeof(visible));
+        }
+        Skybox sky;
+        std::ifstream in(archivo, std::ios::binary);
+        sky.loadComponent(&in);
+        CHECK(sky.getCaraMasX() == absoluta,
+              "una ruta absoluta legacy se deja intacta al cargar");
+    }
+
+    EditorConfig::limpiarRaizAssets();
+}
+
 // --- Reescritura de referencias al mover/renombrar ----------------------------
 // El explorador publica la ruta con el separador nativo (std::filesystem) y la
 // escena resuelve sus rutas con '/': el cotejo de prefijos tiene que tratar
@@ -951,6 +1079,7 @@ int main() {
     indiceCorruptoSinFantasmas();
     hijoConIdCeroSeReasignaAlGuardar();
     hermanosConsecutivosSinPerdida();
+    rutasDeCarasDeSkybox();
     reescrituraDeReferencias();
     sanadoDeRutasRotas();
     elInspectorSeDesvinculaAlBorrar();

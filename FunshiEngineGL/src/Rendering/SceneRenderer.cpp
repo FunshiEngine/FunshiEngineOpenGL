@@ -44,6 +44,7 @@
 #include "Shaders/ShaderSources.h"
 
 #include "../Configuracion/Apariencia.h"
+#include "../Configuracion/EditorConfig.h"
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
 #include "../Iluminacion/LightSystem.h"
 #include "../Objetos/Componentes/CameraComponent.h"
@@ -357,13 +358,17 @@ void SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
     auto& backend = Rendering::Backend::activeBackend();
 
     // Caras del cubemap en el orden del backend (+X, -X, +Y, -Y, +Z, -Z).
-    const std::string rutas[6] = {
-        skybox->getCaraMasX(),
-        skybox->getCaraMenosX(),
-        skybox->getCaraMasY(),
-        skybox->getCaraMenosY(),
-        skybox->getCaraMasZ(),
-        skybox->getCaraMenosZ()
+    // Se resuelven contra la raiz de assets antes de usarlas: al deserializar
+    // la escena ya vienen absolutas, pero una cara escrita a mano en el
+    // inspector puede ser relativa, y sin resolverla terminaria buscandose
+    // contra el directorio de trabajo del proceso en vez de contra el proyecto.
+    std::string rutas[6] = {
+        EditorConfig::absolutizarRuta(skybox->getCaraMasX()),
+        EditorConfig::absolutizarRuta(skybox->getCaraMenosX()),
+        EditorConfig::absolutizarRuta(skybox->getCaraMasY()),
+        EditorConfig::absolutizarRuta(skybox->getCaraMenosY()),
+        EditorConfig::absolutizarRuta(skybox->getCaraMasZ()),
+        EditorConfig::absolutizarRuta(skybox->getCaraMenosZ())
     };
 
     for (int i = 0; i < 6; ++i) {

@@ -296,8 +296,13 @@ que lo tenga, igual que con `Grid`.
   asignar, vuelve a dibujarse el cielo degradado de la seccion 12.
 - Seis campos de texto con la ruta de cada cara: `Cara +X (Right)`,
   `Cara -X (Left)`, `Cara +Y (Top)`, `Cara -Y (Bottom)`, `Cara +Z (Front)` y
-  `Cara -Z (Back)`. Las rutas son relativas al proyecto y los formatos admitidos
-  son los que carga el motor de imagenes (PNG, JPG, TGA, BMP, PSD, HDR).
+  `Cara -Z (Back)`. Las rutas son **relativas al proyecto** y se guardan
+  relativas a la raíz de assets, igual que la malla, las texturas y el script:
+  la escena sigue siendo válida si renombrás o movés el proyecto entero, y las
+  referencias se actualizan solas si movés o renombrás una cara desde el
+  explorador. Si escribís una ruta con `/` o `\` indistinto, también funciona.
+  Los formatos admitidos son los que carga el motor de imagenes (PNG, JPG, TGA,
+  BMP, PSD, HDR).
 - Las seis caras deben ser del **mismo tamano**: si una falta, no es legible o
   no coincide con las demas, el motor avisa una vez por conjunto de caras y
   dibuja el degradado en su lugar.
