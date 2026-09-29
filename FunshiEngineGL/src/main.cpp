@@ -291,6 +291,31 @@ static int EjecutarMotor(int argc, char* argv[])
     mainMenu->setSensibilidadCamara(editorConfig.datos().sensibilidadCamara);
     mainMenu->setSensibilidadMovimientoCamara(
         editorConfig.datos().sensibilidadMovimientoCamara);
+
+    // Suscriptores del bus de GUI ANTES de setApariencia inicial: asi el
+    // primer AparienciaCambio que publique mainMenu se propaga a la escena
+    // y evita que la primera pasada use valores sin sanitar.
+    EditorEventBus* eventosGUI = managerOfGUI->getEditorEventBus();
+    if (eventosGUI) {
+        eventosGUI->subscribe([scene, &editorConfig](const EditorEvent& ev) {
+            if (ev.type != EditorEventType::AparienciaCambio) return;
+            // scene->setApariencia es seguro en cualquier momento; TemaEditor::aplicarEstilo
+            // requiere contexto ImGui creado (se llama despues de ImGui::CreateContext).
+            scene->setApariencia(ev.apariencia);
+            float fondo[3];
+            AparienciaUtil::fondoEfectivo(ev.apariencia, fondo);
+            Rendering::Backend::activeBackend().setClearColor(fondo);
+            auto& cfg = editorConfig.datos();
+            cfg.apariencia = ev.apariencia;
+            editorConfig.solicitarGuardadoGeneral();
+        });
+        eventosGUI->subscribe([&editorConfig](const EditorEvent& ev) {
+            if (ev.type != EditorEventType::IdiomaCambio) return;
+            editorConfig.datos().idioma = ev.idioma;
+            editorConfig.solicitarGuardadoGeneral();
+        });
+    }
+
     mainMenu->setApariencia(editorConfig.datos().apariencia);
     scene->setVentanaCamarasAbierta(editorConfig.datos().ventanaCamarasAbierta);
     scene->setSensibilidadMovimientoCamara(
@@ -354,37 +379,11 @@ static int EjecutarMotor(int argc, char* argv[])
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 440"); //460 PARA PC , 440 PARA NOTEBOOK
 
-    // Suscriptores del canal de GUI interna (Fase 2): main reacciona a los
-    // cambios que publican el menu (apariencia/idioma) y la ventana Estado;
-    // la escena y las ventanas no se pasan punteros entre si. El bus lo posee
-    // GUIManager y ya esta cableado a los publicadores.
-    EditorEventBus* eventosGUI = managerOfGUI->getEditorEventBus();
+    // Ventana Estado: al cerrarla con la 'X' se persiste en la config
+    // del proyecto activo, no en la general. El mismo canal sirve para el
+    // menu "Ventanas" de la barra: al tildar/destildar un panel se aplica
+    // su visibilidad aqui y se persiste (asi el explorador reabre).
     if (eventosGUI) {
-        // Apariencia: aplica el estilo ImGui, el fondo del viewport y la
-        // apariencia de la escena (grilla/vistas previas), y encola el guardado
-        // de la config GENERAL (diferido: mientras se arrastra el selector de
-        // color se escribe como maximo una vez por kIntervaloEscritura).
-        eventosGUI->subscribe([scene, &editorConfig](const EditorEvent& ev) {
-            if (ev.type != EditorEventType::AparienciaCambio) return;
-            scene->setApariencia(ev.apariencia);
-            TemaEditor::aplicarEstilo(ev.apariencia);
-            float fondo[3];
-            AparienciaUtil::fondoEfectivo(ev.apariencia, fondo);
-            Rendering::Backend::activeBackend().setClearColor(fondo);
-            auto& cfg = editorConfig.datos();
-            cfg.apariencia = ev.apariencia;
-            editorConfig.solicitarGuardadoGeneral();
-        });
-        // Idioma: se persiste en la config general (guardado diferido, ver arriba).
-        eventosGUI->subscribe([&editorConfig](const EditorEvent& ev) {
-            if (ev.type != EditorEventType::IdiomaCambio) return;
-            editorConfig.datos().idioma = ev.idioma;
-            editorConfig.solicitarGuardadoGeneral();
-        });
-        // Ventana Estado: al cerrarla con la 'X' se persiste en la config
-        // del proyecto activo, no en la general. El mismo canal sirve para el
-        // menu "Ventanas" de la barra: al tildar/destildar un panel se aplica
-        // su visibilidad aqui y se persiste (asi el explorador reabre).
         eventosGUI->subscribe([&gestor, &editorConfig, managerOfGUI](
                                   const EditorEvent& ev) {
             if (ev.type != EditorEventType::VentanaEstadoCambio) return;
