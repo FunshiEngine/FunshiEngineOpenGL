@@ -644,12 +644,14 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 - `texturemanager-tests` (15): caché Flyweight de imágenes CPU (sin entrar la pila gráfica).
 - `estructuras-tests` (87): `ListaDE`, `ArbolEnlazado`, `PriorityListaDE`,
   `MinHeap`/`MaxHeap`, `ListMergeSort` y `ArbolBinarioEnlazado`.
-- `rendering-tests` (131): geometría de las líneas del pipeline moderno
+- `rendering-tests` (141): geometría de las líneas del pipeline moderno
   (`LineBuilder`): expansión de cada segmento al quad que ensancha el shader,
   color por extremo (difuminado de la grilla), polilíneas, aristas con índices
   fuera de rango y caja de 12 aristas; más la guía de eje (`GuiaEje`): origen y
   dirección en mundo, dirección local rotada con el objeto, normalización frente
-  a la escala, colores por eje, recorte de la recta hasta el horizonte con la
+  a la escala, colores por eje, el color efectivo que aleja el eje de una grilla
+  de su mismo color sin perder la convención (X roja, Y verde, Z azul) ni su
+  opacidad, recorte de la recta hasta el horizonte con la
   distancia 3D a la cámara, difuminado por vértice y los rechazos defensivos
   (eje inválido, NaN/Inf, eje degenerado, horizonte degenerado, recta fuera del
   horizonte). Solo CPU, sin OpenGL.

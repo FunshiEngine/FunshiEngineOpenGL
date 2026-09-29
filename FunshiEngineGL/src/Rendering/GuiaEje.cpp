@@ -20,6 +20,8 @@
 
 #include <cmath>
 
+#include "../Configuracion/Apariencia.h"
+
 namespace GuiaEje {
 namespace {
 
@@ -170,6 +172,20 @@ void colorEje(int eje, float rgba[4]) {
             rgba[0] = rgba[1] = rgba[2] = 1.0f; break;
     }
     rgba[3] = 1.0f;
+}
+
+void colorEfectivo(int eje, const float referencia[3], float rgba[4]) {
+    if (!rgba) return;
+    colorEje(eje, rgba);
+    if (!referencia) return;
+    // ejeContraste escribe sobre "out" mientras lee "base", asi que el resultado
+    // va a un arreglo aparte y recien ahi se copia.
+    const float base[3] = {rgba[0], rgba[1], rgba[2]};
+    float ajustado[3];
+    AparienciaUtil::ejeContraste(base, referencia, ajustado);
+    rgba[0] = ajustado[0];
+    rgba[1] = ajustado[1];
+    rgba[2] = ajustado[2];
 }
 
 } // namespace GuiaEje
