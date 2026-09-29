@@ -293,8 +293,9 @@ static int EjecutarMotor(int argc, char* argv[])
         editorConfig.datos().sensibilidadMovimientoCamara);
 
     // Suscriptores del bus de GUI ANTES de setApariencia inicial: asi el
-    // primer AparienciaCambio que publique mainMenu se propaga a la escena
-    // y evita que la primera pasada use valores sin sanitar.
+    // primer AparienciaCambio que publique mainMenu se propaga a la escena y la
+    // primera pasada ya usa el perfil guardado (colores de cielo incluidos) en
+    // vez del default del struct.
     EditorEventBus* eventosGUI = managerOfGUI->getEditorEventBus();
     if (eventosGUI) {
         eventosGUI->subscribe([scene, &editorConfig](const EditorEvent& ev) {

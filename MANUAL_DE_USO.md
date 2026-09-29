@@ -532,7 +532,9 @@ fabrica quedan en gris neutro, así que al cambiar de color no quedan restos del
 azul clasico.
 
 - El **cielo** se renderiza como un degradado vertical entre *Color de la parte
-  superior del cielo* y *Color de la parte inferior del cielo*. En modo
+  superior del cielo* y *Color de la parte inferior del cielo*. Los dos colores
+  se guardan tal como los elige el usuario —un cielo claro es una eleccion
+  valida— y el degradado los mezcla de arriba hacia abajo. En modo
   blanco y negro ambas partes se fuerzan a blanco (tema claro) o negro (tema
   oscuro). En el futuro se podra cargar un cubemap de seis caras para un cielo
   con textura.

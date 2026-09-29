@@ -662,11 +662,12 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,
   entorno extra, tabla de `citar()` y, en Windows, la receta cruda de `cmd.exe`
   del harvest de vcvars.
-- `configuracion-tests` (128): round-trip del JSON de `EditorConfig` (general y
+- `configuracion-tests` (145): round-trip del JSON de `EditorConfig` (general y
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
   archivos ausentes/corruptos/parciales, prioridad de las claves modernas sobre
-  el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, y el
-  cotejo de prefijos `rutaBajo` (en Windows `/` y `\` equivalen).
+  el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, los colores del cielo
+  (se conservan tal como se guardaron —un cielo claro incluido— y solo se
+  acotan los componentes fuera de `[0, 1]`), y el cotejo de prefijos `rutaBajo` (en Windows `/` y `\` equivalen).
 - `eventbus-tests` (16): suscripción/publicación/unsubscribe del canal tipado de GUI.
 - `menu-tests` (38): lógica pura del menú (traducción, observer de cambios y reset).
 - `assetmanager-tests` (82): caché Flyweight de meshes (rutas `AssetPath`, geometría
