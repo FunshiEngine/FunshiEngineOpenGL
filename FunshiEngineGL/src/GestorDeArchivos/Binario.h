@@ -36,8 +36,12 @@ public:
     Binario& operator=(const Binario&) = delete;
 
     std::string getPath();
-    void ofOpenBinary();
-    void ifOpenBinary();
+    // Devuelven false si el archivo no se pudo abrir (sin directorio, sin
+    // permisos...). En ese caso NO se escribe ni se lee nada y el fallo queda
+    // logueado: antes los dos devolvian void y cada write()/read() fallaba en
+    // silencio.
+    bool ofOpenBinary();
+    bool ifOpenBinary();
     void ofCloseBinary();
     void ifCloseBinary();
     std::ofstream* getOfBinariFile();

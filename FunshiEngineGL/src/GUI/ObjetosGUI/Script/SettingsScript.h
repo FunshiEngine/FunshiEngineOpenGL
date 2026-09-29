@@ -25,6 +25,10 @@ class Script;
 class SettingsScript : public SettingsComponent {
 protected:
 	Script* myScript;
+	// Si el usuario solto un .cpp/.java en este frame, la carga se difiere
+	// al SIGUIENTE frame: compilar con cl.exe/javac adentro del handler de
+	// drop congelaba la ventana en plena interaccion de ImGui (H-4).
+	bool cargaDiferidaPendiente_ = false;
 public:
 	SettingsScript(GameObject* objeto);
 

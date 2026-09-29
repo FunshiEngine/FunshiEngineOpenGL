@@ -26,6 +26,7 @@
 #include "../Objetos/GameObject.h"
 
 #include <iostream>
+#include <utility>
 
 namespace {
 constexpr uint32_t MAGIC_SCRIPT = 0x31535346; // 'F','S','S','1'
@@ -88,11 +89,22 @@ void Script::cargarSiNecesario() {
         static_cast<IScriptBehaviour*>(comportamiento_.instancia)->servicios =
             MotorScript::tablaServicios();
 
+    if (!comportamiento_.campos.empty()) {
+        // Emparejar por NOMBRE el arbol leido del .escena con los campos que
+        // expone el script recien compilado, ANTES de inyectarlo. Sin esto el
+        // cardinal de `valores_` era el que tuviera el archivo, no el de la
+        // reflexion: una escena guardada antes de agregar un SerializeField
+        // dejaba `valores_` mas corto que `campos` y el inspector leia fuera de
+        // rango al editar (ver SettingsScript). Solo se llenaba cuando
+        // `valores_` estaba COMPLETAMENTE vacio, que es un caso particular:
+        // cualquier desajuste parcial pasaba.
+        valores_ = ReflejoScripts::alinearValores(std::move(valores_),
+                                                  comportamiento_.campos);
+    }
+
     // Restaurar los valores de SerializeField persistidos en la escena sobre
     // la instancia recien compilada (reemplazos en caliente o editados).
     ScriptRuntime::inyectar(comportamiento_, valores_);
-    if (!comportamiento_.campos.empty() && valores_.empty())
-        valores_ = ReflejoScripts::valoresPorDefecto(comportamiento_.campos);
 }
 
 void Script::extraerValores() {

@@ -36,9 +36,10 @@
 // interior al circulo y se subdivide; cada vertice lleva su propio alpha y la
 // geometria se sube al batch de lineas del pipeline moderno (LineBuilder), que
 // interpola el color de un extremo al otro dentro de cada segmento. El color
-// efectivo se calcula afuera (AparienciaUtil::grillaEfectiva); los ejes X/Z/Y se
-// pintan con colores de base (rojo, verde, amarillo) ajustados por contraste
-// contra ese color (AparienciaUtil::ejeContraste).
+// efectivo se calcula afuera (AparienciaUtil::grillaEfectiva); los ejes X/Y/Z se
+// pintan con el color de base de cada eje (GuiaEje::colorEje: X rojo, Y verde,
+// Z azul) ajustado por contraste contra ese color
+// (GuiaEje::colorEfectivo, el mismo que usa la guia de eje).
 //
 // Hay un batch por ANCHO de linea, porque el ancho se resuelve en pixeles en el
 // shader: secundarias (1px), principales (2px) y ejes (3px) = 3 draws por

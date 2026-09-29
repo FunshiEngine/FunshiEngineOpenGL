@@ -63,6 +63,10 @@ public:
     // Ownership of object is transferred to the registry.
     GameObject* createObject(std::unique_ptr<GameObject> object,
                              GameObject* parent = nullptr);
+    // Mayor id en uso + 1 (minimo 1): el mismo algoritmo que createObject
+    // usa al reasignar id 0, compartido con SceneSerializer::savePreOrder
+    // para sanar hijos con id 0 antes de escribir el indice (H-17).
+    int siguienteIdDisponible() const noexcept;
     bool replaceRoot(std::unique_ptr<GameObject> root);
     bool deleteObject(GameObject* object);
     bool deleteObjectByID(int id);

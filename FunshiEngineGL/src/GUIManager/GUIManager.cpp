@@ -85,6 +85,7 @@ void GUIManager::bindScene(SceneRegistry* scene, EditorController* editor,
     statusBarGUI->bindScene(scene);
     settingGUI->setEditor(editor);
     settingGUI->setAudioEngine(audioMotor);
+    settingGUI->setEventBus(events);
     canvasGUI->setAudioEngine(audioMotor);
 }
 MenuGUI* GUIManager::getMenuGUI() { return menuGUI.get(); }

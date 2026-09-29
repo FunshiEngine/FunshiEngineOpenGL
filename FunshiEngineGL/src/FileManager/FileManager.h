@@ -80,10 +80,15 @@ public:
 
     bool crearCarpeta(const std::string& ruta);
     bool eliminarCarpeta(const std::string& ruta);
+    bool eliminarArchivo(const std::string& ruta);
     bool crearArchivo(const std::string& ruta, const std::string& contenido);
     bool copiarCarpeta(const std::string& origen, const std::string& destino);
     bool copiarArchivo(const std::string& origen, const std::string& destino);
     bool renombrar(const std::string& ruta, const std::string& nuevoNombre);
+
+    // Mueve un archivo o carpeta a la ruta completa `destino`. Se niega a pisar
+    // un destino existente y a meter una carpeta dentro de si misma.
+    bool mover(const std::string& origen, const std::string& destino);
 
     // Busca por ruta completa en el arbol vigente (navegacion diferida del
     // doble clic). Devuelve nullptr si la ruta ya no existe (carpeta borrada

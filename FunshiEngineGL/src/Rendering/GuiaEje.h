@@ -100,6 +100,16 @@ void emitir(LineBuilder& out, const Eje& eje, const float camaraMundo[3],
 // guia es cual. "rgba" recibe 4 floats.
 void colorEje(int eje, float rgba[4]);
 
+// Color con el que se dibuja la guia: el color de base del eje ajustado por
+// contraste contra "referencia" (el color EFECTIVO de la grilla, o el fondo del
+// viewport cuando no hay grilla visible), con la misma regla que usa la grilla
+// para sus ejes. Sin ese ajuste el eje se pierde sobre una grilla de su mismo
+// color; con el, la guia se sigue leyendo como el eje que es.
+//
+// "referencia" en nullptr deja el color de base sin tocar. "rgba" en nullptr no
+// hace nada.
+void colorEfectivo(int eje, const float referencia[3], float rgba[4]);
+
 } // namespace GuiaEje
 
 #endif // GUIAEJE_H

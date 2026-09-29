@@ -58,6 +58,7 @@ private:
     void applyDeferredOperations();
     void resetState();
     void unbind();
+    void dibujarDialogosModales();
 
     SceneRegistry* scene = nullptr;
     EditorController* editor = nullptr;
@@ -67,13 +68,22 @@ private:
 
     // Nodos abiertos en la jerarquia (estado de colapso persistente).
     TreeIG::OpenState openNodes;
-    // Estado de renombrado en linea.
+    // Estado de renombrado en linea (doble click o menu Renombrar).
     GameObject* renombrando = nullptr;
     // Operaciones diferidas: esperan al final del recorrido para mutar el
     // arbol con seguridad.
     GameObject* objetoAEliminar = nullptr;
     GameObject* objetoAReParentar = nullptr;
     GameObject* objetoPadreNuevo = nullptr;
+    // Desanidar a raiz diferido: el objeto a mover a la raiz.
+    GameObject* objetoADesanidar = nullptr;
+
+    // Estado de dialogos modales (click derecho -> Cambiar ID / Renombrar / Eliminar).
+    enum class DialogoTipo { Ninguno, CambiarID, Renombrar, Eliminar };
+    DialogoTipo dialogoActivo = DialogoTipo::Ninguno;
+    GameObject* objetoEnDialogo = nullptr;
+    char bufferDialogo[256] = "";
+    bool dialogoRecienAbierto = false; // para abrir el popup solo la primera vez
 };
 
 #endif

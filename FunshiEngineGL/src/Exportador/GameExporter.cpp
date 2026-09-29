@@ -18,11 +18,14 @@
 */
 #include "GameExporter.h"
 
+#include "../FileManager/Proceso.h"
+
 #include <thread>
 #include <fstream>
 #include <filesystem>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <vector>
 #include <algorithm>
 
@@ -172,26 +175,35 @@ set(CMAKE_FIND_LIBRARY_CUSTOM_PATH_SUFFIXES "/x86_64-w64-mingw32")
 }
 
 bool GameExporter::compilarEngineRuntime(const std::string& buildDir) {
-    // Compilar solo el target funshi_runtime
-    std::string cmd = "cd " + buildDir + " && cmake .. && cmake --build . --target funshi_runtime -j4";
-    int result = std::system(cmd.c_str());
-    return result == 0;
+    // Compilar solo el target funshi_runtime. Sin shell (H-3 nivel 2): el
+    // `cd X && ...` viejo pasaba la linea entera por cmd.exe/make; ahora el
+    // directorio de trabajo es el parametro cwd del runner y cada token va
+    // como argv. El log vacio = el hijo hereda la salida del motor (igual
+    // que con std::system: la progresion del export queda en el log propio).
+    if (Proceso::ejecutar({"cmake", ".."}, std::string(), buildDir) != 0)
+        return false;
+    return Proceso::ejecutar(
+               {"cmake", "--build", ".", "--target", "funshi_runtime", "-j4"},
+               std::string(), buildDir) == 0;
 }
 
 bool GameExporter::compilarScriptsUsuario(const std::string& buildDir) {
     std::string scriptsDir = buildDir + "/scripts";
     if (!fs::exists(scriptsDir)) return true; // sin scripts
 
-    // Configurar y compilar scripts
-    std::string cmd = "cd " + scriptsDir + " && cmake .. && make -j4";
-    int result = std::system(cmd.c_str());
-    return result == 0;
+    // Configurar y compilar scripts. `make -j4` pasa a `cmake --build`:
+    // make no existe en Windows y cmake --build respeta el generador con el
+    // que se configuro (antes el exportador a Windows quedaba roto aca).
+    if (Proceso::ejecutar({"cmake", ".."}, std::string(), scriptsDir) != 0)
+        return false;
+    return Proceso::ejecutar({"cmake", "--build", ".", "-j4"},
+                              std::string(), scriptsDir) == 0;
 }
 
 bool GameExporter::compilarJuego(const std::string& buildDir) {
-    std::string cmd = "cd " + buildDir + " && cmake --build . --target ExportedGame -j4";
-    int result = std::system(cmd.c_str());
-    return result == 0;
+    return Proceso::ejecutar(
+               {"cmake", "--build", ".", "--target", "ExportedGame", "-j4"},
+               std::string(), buildDir) == 0;
 }
 
 bool GameExporter::copiarAssetsYDependencias(const std::string& buildDir) {

@@ -33,6 +33,7 @@
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "EditorController.h"
 #include "ManifiestoAssets.h"
+#include "RutasReescritura.h"
 #include "SceneRegistry.h"
 #include "SceneSerializer.h"
 #include "../Assets/AssetManager.h"
@@ -250,13 +251,32 @@ void GameScene::loadScene(const std::string& pathTxt, const std::string& semiPat
         // El pathTxt es <prefijo>BBDDObjetos.txt; el manifiesto comparte el
         // prefijo con nombre SceneAssets.json.
         const std::string sufijoBBDD = "BBDDObjetos.txt";
+        std::string prefijoEscena; // vacio si el path no tiene ese formato
         if (pathTxt.size() >= sufijoBBDD.size() &&
             pathTxt.compare(pathTxt.size() - sufijoBBDD.size(),
                             sufijoBBDD.size(), sufijoBBDD) == 0) {
-            const std::string prefijo =
+            prefijoEscena =
                 pathTxt.substr(0, pathTxt.size() - sufijoBBDD.size());
-            ManifiestoAssets::cargar(prefijo + "SceneAssets.json",
+            ManifiestoAssets::cargar(prefijoEscena + "SceneAssets.json",
                                      getGameObjectsScene());
+        }
+
+        // Sanado de referencias rotas: escenas guardadas con un asset que ya
+        // no existe en esa ruta (archivos movidos o renombrados fuera del
+        // motor, o daño de un guardado anterior). Con una unica coincidencia
+        // del nombre bajo la raiz de assets la referencia se repara y queda
+        // registrada en el log; con varias o con ninguna no se adivina. Como
+        // la reparacion vive solo en memoria, si algo cambio se persiste ya por
+        // el mismo camino que la reescritura de un move: si no, cada apertura
+        // tendria que sanar otra vez y el manifiesto seguiria reflejando la
+        // ruta vieja.
+        const int reparadas =
+            RutasReescritura::sanarRutasInexistentes(getGameObjectsScene());
+        if (reparadas > 0 && !prefijoEscena.empty()) {
+            std::cerr << "[escena] " << reparadas
+                      << " referencias de asset reparadas al cargar; se guarda "
+                         "la escena con las rutas sanadas\n";
+            saveScene(prefijoEscena);
         }
     }
 }
@@ -647,6 +667,10 @@ void GameScene::update(float value) {
         // Todos los scripts que necesitan (re)compilarse entran a la cola: su
         // progreso se ve en la barra "Estado" antes de bloquear con g++/javac.
         encolarScriptsIniciales();
+
+        std::cout << "[escena] simulacion iniciada: audio, servicios de "
+                     "scripts y cola de compilacion armados"
+                  << std::endl;
     }
 
     // Transicion play->editor: avisar a los scripts para que hagan limpieza
@@ -669,6 +693,10 @@ void GameScene::update(float value) {
                                                    : nullptr;
             }
         }
+
+        std::cout << "[escena] simulacion detenida: audio cortado, servicios "
+                     "desconectados y scripts avisados con onStop"
+                  << std::endl;
     }
     previousStart = start;
 

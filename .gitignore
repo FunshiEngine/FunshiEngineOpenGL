@@ -108,12 +108,34 @@ FunshiEngineGL/packaging/instalador/
 FunshiEngineGL/packaging/ifw/output/
 FunshiEngineGL/*.run
 
+# Sondas de depuración desechables (evidencia empírica de los análisis de
+# bugs: compilan y se ejecutan fuera del build, pero no son código del motor
+# ni del juego)
+FunshiEngineGL/sondas/
+
 # Temporary refactoring/build scripts
 FunshiEngineGL/fix_build.py
 FunshiEngineGL/gui_contents.txt
 FunshiEngineGL/patch_cube.py
 FunshiEngineGL/refactor_all.py
 FunshiEngineGL/refactor_gui.py
+
+# Documento de trabajo local del lote de correcciones (rama
+# fix/plan-general-de-fix). No es documentación del proyecto: si algo pasa a
+# ser útil para el equipo se promueve a MANUAL_DE_USO.md / AGENTS.md en el
+# commit que lo justifica.
+PLAN GENERAL DE FIX.md
+
+# Lista de trabajo local: referencias a tareas en los textos del código que
+# quedan por limpiar (mismo criterio que el plan: documento de gestión, no
+# documentación del proyecto; se lista en `PENDIENTE_REFERENCIAS_TAREAS.md`).
+PENDIENTE_REFERENCIAS_TAREAS.md
+
+# Memoria de contexto de los agentes (documento local de trabajo, mismo
+# criterio que el plan). Si falta, el agente la recrea y la mantiene al día;
+# ver la sección de memoria en AGENTS.md.
+MemoryaAgente
+
 
 # Local ImGui configuration
 imgui.ini

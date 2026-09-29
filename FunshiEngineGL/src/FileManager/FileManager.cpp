@@ -132,6 +132,10 @@ bool FileManager::eliminarCarpeta(const std::string& ruta) {
     return gestor->eliminarCarpeta(ruta);
 }
 
+bool FileManager::eliminarArchivo(const std::string& ruta) {
+    return gestor->eliminarArchivo(ruta);
+}
+
 bool FileManager::crearArchivo(const std::string& ruta, const std::string& contenido) {
     return gestor->crearArchivo(ruta, contenido);
 }
@@ -146,6 +150,10 @@ bool FileManager::copiarArchivo(const std::string& origen, const std::string& de
 
 bool FileManager::renombrar(const std::string& ruta, const std::string& nuevoNombre) {
     return gestor->renombrar(ruta, nuevoNombre);
+}
+
+bool FileManager::mover(const std::string& origen, const std::string& destino) {
+    return gestor->mover(origen, destino);
 }
 
 Carpeta* FileManager::buscarCarpetaPorRuta(const std::string& ruta) {
@@ -319,7 +327,10 @@ std::string FileManager::plantillaScript(const std::string& clase, bool esJava) 
         "};\n"
         "\n"
         "// Export requerida por el backend del motor; no renombrar.\n"
-        "extern \"C\" IScriptBehaviour* FUNSHI_CREAR_COMPORTAMIENTO(\n"
+        "// En Windows/MSVC la fabrica viaja marcada con\n"
+        "// FUNSHI_COMPORTAMIENTO_EXPORT: sin ese atributo la .dll compila pero\n"
+        "// no exporta el simbolo y el motor no la encuentra (GetProcAddress).\n"
+        "extern \"C\" FUNSHI_COMPORTAMIENTO_EXPORT IScriptBehaviour* FUNSHI_CREAR_COMPORTAMIENTO(\n"
         "    const MotorScript::ApiScriptGameObject* api) {\n"
         "    (void)api;\n"
         "    return new FUNSHI_NOMBRE_CLASE();\n"

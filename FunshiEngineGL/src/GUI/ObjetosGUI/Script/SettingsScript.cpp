@@ -18,6 +18,7 @@
 */
 #include "SettingsScript.h"
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -135,12 +136,23 @@ void SettingsScript::showDataComponent() {
 		if (const ImGuiPayload* payload =
 		        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
 			const char* path = (const char*)payload->Data;
-			// setDllPath invalida la carga; cargarSiNecesario la fuerza para
-			// poder mostrar/editar los SerializeField en el editor.
+			// setDllPath invalida la carga previa y fija la nueva ruta.
+			// La compilacion/carga NO se hace aqui dentro (H-4): invocar
+			// cl.exe o javac sincronicamente bloquea el hilo varios segundos
+			// en plena re-entrada de ImGui y la ventana parece colgada. Se
+			// marca pendiente para el frame siguiente, fuera del target.
 			myScript->setDllPath(path);
-			myScript->cargarSiNecesario();
+			cargaDiferidaPendiente_ = true;
 		}
 		ImGui::EndDragDropTarget();
+	}
+
+	// Indicador de carga mientras se compila/carga el script
+	// Procesar la carga diferida al comienzo del siguiente frame (fuera de
+	// cualquier contexto de drag & drop).
+	if (cargaDiferidaPendiente_) {
+		cargaDiferidaPendiente_ = false;
+		myScript->cargarSiNecesario();
 	}
 
 	if (!myScript->getPath().empty()) {
@@ -166,7 +178,18 @@ void SettingsScript::showDataComponent() {
 	ImGui::Separator();
 	if (ImGui::CollapsingHeader("SerializeField",
 	                            ImGuiTreeNodeFlags_DefaultOpen)) {
-		for (int i = 0; i < static_cast<int>(campos.size()); ++i) {
+		// El bucle va por el MENOR de los dos cardinales, no solo por `campos`.
+		// Script::cargarSiNecesario deja `valores_` con una entrada por campo,
+		// pero una escena guardada puede traer menos valores que los que expone
+		// el script actual (un SerializeField agregado despues, o una reflexion
+		// que no llego a correr). Iterar solo por `campos` leia `valores[i]` fuera
+		// de rango, sobre basura, y el std::get siguiente lanzaba
+		// bad_variant_access: eso terminaba el proceso al abrir el inspector del
+		// script. El limite ya lo respetaba la escritura de la linea del
+		// escribirCampo(), pero no esta lectura.
+		const int nCampos = static_cast<int>(
+		    std::min(campos.size(), valores.size()));
+		for (int i = 0; i < nCampos; ++i) {
 			const DefCampo& def = campos[static_cast<std::size_t>(i)];
 			ValorCampo& valor = valores[static_cast<std::size_t>(i)];
 			bool camb = false;
@@ -425,7 +448,11 @@ void SettingsScript::showDataComponent() {
 			}
 			}
 
-			if (camb && i < static_cast<int>(valores.size()))
+			// `i` ya esta acotado por el menor de los dos cardinales, asi que
+			// `i < valores.size()` es siempre cierto: la comprobacion que habia
+			// aqui era la version correcta de un limite que faltaba en la
+			// lectura del bucle.
+			if (camb)
 				myScript->escribirCampo(i, valor); // sincroniza instancia viva
 			ImGui::PopID();
 		}

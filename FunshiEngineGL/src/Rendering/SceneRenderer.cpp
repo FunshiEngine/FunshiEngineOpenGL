@@ -209,8 +209,15 @@ void SceneRenderer::dibujarGuiaEje(const FrameContext& ctx,
                               ctx.guiaCoordenadasGlobales, &eje))
         return;
 
+    // El color del eje se mide contra el color de la grilla (misma regla que
+    // sus ejes): si no, la guia se pierde sobre una grilla de su mismo color.
     float color[4];
-    GuiaEje::colorEje(ctx.guiaEje, color);
+    float referencia[3];
+    if (colorReferenciaGuia(ctx, referencia)) {
+        GuiaEje::colorEfectivo(ctx.guiaEje, referencia, color);
+    } else {
+        GuiaEje::colorEje(ctx.guiaEje, color);
+    }
     GuiaEje::Difuminado dif;
     dif.inicio = GrillaRenderer::kFadeInicio;
     dif.fin = GrillaRenderer::kFadeFin;
@@ -401,6 +408,35 @@ void SceneRenderer::dibujarGrilla(const FrameContext& ctx, GameObject* object,
     // densidad fija + anchos) vive en la capa de Rendering; aqui se le pasa la
     // matriz del objeto "Grilla" y la posicion del ojo en el mundo.
     grillaRenderer_.dibujar(modelArr, colorGrilla, camaraMundo);
+}
+
+bool SceneRenderer::colorReferenciaGuia(const FrameContext& ctx,
+                                        float out[3]) const {
+    if (!ctx.apariencia || !out) return false;
+
+    // Mismo criterio que elegir la grilla que se dibuja: gana el PRIMER objeto
+    // con componente Grid, y si ese no se ve no se dibuja ninguna (el fallback
+    // al fondo es lo que le corresponde a la guia en ese caso).
+    auto* objetos = ctx.gameObjects;
+    if (objetos && !objetos->isEmpty()) {
+        Position<GameObject*>* pos = objetos->first();
+        while (pos && pos->getElement()) {
+            GameObject* object = pos->getElement();
+            Grid* grid = object->getComponent<Grid>();
+            if (grid) {
+                if (grid->getVisible() && object->getGlobalTransform()) {
+                    AparienciaUtil::grillaEfectiva(*ctx.apariencia,
+                                                   grid->getColor(), out);
+                    return true;
+                }
+                break;
+            }
+            pos = objetos->last() == pos ? nullptr : objetos->next(pos);
+        }
+    }
+
+    AparienciaUtil::fondoEfectivo(*ctx.apariencia, out);
+    return true;
 }
 
 // ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@
 #include "../../FileManager/FileManager.h"
 #include "../../FileManager/FileSelection.h"
 #include "../WindowNames.h"
+#include "SoltarEnCarpeta.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
 #include <imgui.h>
 
@@ -83,27 +84,6 @@ void ContentFolderInterface::crearNuevoElemento() {
     creandoScript = false;
     creandoScriptJava = false;
     memset(nombreNuevo, 0, sizeof(nombreNuevo));
-}
-
-// Copia un elemento soltado via drag&drop (payload "ARCHIVO_PATH") a
-// destFolder. Carpetas -> copiarCarpeta + rescaneo del arbol; archivos ->
-// copiarArchivo (el arbol no los lista). Ignora soltar una carpeta sobre si
-// misma (finalDest == origen) y deja que copiarCarpeta falle si el origen es
-// su propio ancestro (recursion sobre si misma, el error_code lo corta).
-void ContentFolderInterface::copiarElementoSuelto(const std::string& origen,
-                                                  const std::string& destFolder) {
-    if (origen.empty() || destFolder.empty()) return;
-    FileSelection* sel = fileManager->getSelection();
-    const std::string::size_type sep = origen.find_last_of("/\\");
-    const std::string nombre = (sep != std::string::npos)
-        ? origen.substr(sep + 1) : origen;
-    const std::string finalDest = destFolder + PATH_SEP + nombre;
-    if (finalDest == origen) return;
-    if (fileManager->esDirectorio(origen)) {
-        if (fileManager->copiarCarpeta(origen, finalDest)) sel->contadorCambios++;
-    } else {
-        fileManager->copiarArchivo(origen, finalDest);
-    }
 }
 
 void ContentFolderInterface::recorrer(const std::string& path) {
@@ -170,15 +150,27 @@ void ContentFolderInterface::recorrer(const std::string& path) {
             ImGui::Button(icon, ImVec2(iconSize, iconSize));
         }
 
-        // R6: menu contextual de la celda -> Renombrar (archivo o carpeta).
+        // R6/R7: menu contextual de la celda -> Renombrar / Eliminar (archivo o carpeta).
         if (ImGui::BeginPopupContextItem("PopRenombrar")) {
             if (ImGui::MenuItem("Renombrar")) {
-                renombrarRuta = fullPath;
-                renombrarEsCarpeta = esCarpeta;
-                memset(bufferRenombrar, 0, sizeof(bufferRenombrar));
-                strncpy(bufferRenombrar, nombre.c_str(), sizeof(bufferRenombrar) - 1);
-                abrirPopupRenombrar = true;
+                // El modal compartido se encarga del disco y del aviso a la
+                // escena; aca solo se le pasa el elemento y su nombre actual.
+                modalRenombrar.solicitar(fullPath, esCarpeta, nombre);
                 ImGui::CloseCurrentPopup();
+            }
+            ImGui::Separator();
+            if (esCarpeta) {
+                if (ImGui::MenuItem("Eliminar Carpeta")) {
+                    carpetaAEliminarGrid = fullPath;
+                    confirmarEliminarCarpetaGrid = true;
+                    ImGui::CloseCurrentPopup();
+                }
+            } else {
+                if (ImGui::MenuItem("Eliminar Archivo")) {
+                    archivoAEliminar = fullPath;
+                    confirmarEliminarArchivo = true;
+                    ImGui::CloseCurrentPopup();
+                }
             }
             ImGui::EndPopup();
         }
@@ -213,6 +205,49 @@ void ContentFolderInterface::recorrer(const std::string& path) {
             ImGui::EndDragDropSource();
         }
 
+        // Destino de arrastre sobre una CARPETA concreta de la celda. Sin esto
+        // la unica forma de soltar en una carpeta era acertar el vacio de abajo,
+        // que encima copiaba. Ahora la celda es destino: MUEVE, y con Ctrl
+        // copia. El tooltip aparece solo mientras se arrastra, para no tapar
+        // nada en reposo.
+        if (esCarpeta) {
+            // El tooltip va ANTES de aceptar el payload: en cuanto se acepta,
+            // el arrastre termina y ya no hay nada sobre lo que hovering.
+            if (const ImGuiPayload* arrastre = ImGui::GetDragDropPayload()) {
+                if (strcmp(arrastre->DataType, "ARCHIVO_PATH") == 0 &&
+                    ImGui::IsItemHovered()) {
+                    if (ctrlOCmd())
+                        ImGui::SetTooltip("Copiar dentro de %s", nombre.c_str());
+                    else
+                        ImGui::SetTooltip("Mover a %s  (Ctrl = copiar)",
+                                          nombre.c_str());
+                }
+            }
+            if (ImGui::BeginDragDropTarget()) {
+                if (const ImGuiPayload* aceptado =
+                        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+                    const char* origen = static_cast<const char*>(aceptado->Data);
+                    // El destino es la CARPETA, no su contenido.
+                    // El mtime puede no haberse actualizado todavia tras el
+                    // movimiento, asi que ademas de refrescar se invalida el
+                    // cache a proposito para AMBAS carpetas (origen y destino).
+                    std::string origenCarpeta;
+                    if (origen &&
+                        soltarEnCarpeta(fileManager, eventoArchivos_, origen,
+                                        fullPath, ctrlOCmd(), &origenCarpeta)) {
+                        // Invalidar cache de la carpeta destino (la visible)
+                        invalidarCache();
+                        // Invalidar cache de la carpeta origen si es distinta
+                        if (!origenCarpeta.empty() && origenCarpeta != cacheCarpeta) {
+                            cacheCarpeta.clear();
+                            cacheMtime = std::filesystem::file_time_type{};
+                        }
+                    }
+                }
+                ImGui::EndDragDropTarget();
+            }
+        }
+
         std::string nombreMostrado = (dot != std::string::npos && dot != 0) ? nombre.substr(0, dot) : nombre;
         bool truncado = false;
         if (ImGui::CalcTextSize(nombreMostrado.c_str()).x > iconSize) {
@@ -244,19 +279,32 @@ void ContentFolderInterface::initGUI() {
     // stateGUI controla solo la visibilidad visual (usuario cierra con X).
     ImGui::Begin(getNameGui().c_str(), &dockAlive_, getFlagGui());
 
+    // Barra de menu: la ventana se creo con ImGuiWindowFlags_MenuBar pero nunca
+    // la dibujo, y es el lugar natural para decir que carpeta se esta viendo.
+    // Antes no se mostraba el nombre en ningun lado y con varias carpetas
+    // abiertas no habia forma de saber donde estabas.
+    if (ImGui::BeginMenuBar()) {
+        if (sel->carpetaActual) {
+            const std::string& nombre = sel->carpetaActual->getPathName();
+            ImGui::TextUnformatted(nombre.empty() ? "(raiz)" : nombre.c_str());
+            // La ruta completa en el tooltip: dos carpetas de sitios distintos
+            // pueden llamarse igual, y con varias abiertas el nombre solo no
+            // dice donde estas.
+            if (ImGui::IsItemHovered()) {
+                const std::string completa =
+                    sel->carpetaActual->getPathRoot() + PATH_SEP +
+                    sel->carpetaActual->getPathName();
+                ImGui::SetTooltip("%s", completa.c_str());
+            }
+        }
+        ImGui::EndMenuBar();
+    }
+
     if (ImGui::BeginPopupContextWindow("AddFilesPopup", ImGuiPopupFlags_MouseButtonRight)) {
         if (ImGui::MenuItem("New Script")) {
-            creandoCarpeta = false; creandoScript = true;
-            creandoScriptJava = false;
-            memset(nombreNuevo, 0, sizeof(nombreNuevo));
-            abrirPopupNombre = true;
-            ImGui::CloseCurrentPopup();
-        }
-        if (ImGui::MenuItem("New Java Script")) {
-            creandoCarpeta = false; creandoScript = false;
-            creandoScriptJava = true;
-            memset(nombreNuevo, 0, sizeof(nombreNuevo));
-            abrirPopupNombre = true;
+            // Abre dialogo para elegir tipo de script (C++ o Java)
+            tipoScriptSeleccionado = 0; // default C++
+            abrirPopupTipoScript = true;
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::MenuItem("New Folder")) {
@@ -330,47 +378,83 @@ void ContentFolderInterface::initGUI() {
         ImGui::EndPopup();
     }
 
-    // R6: modal de renombrado de un elemento del grid.
-    if (abrirPopupRenombrar) {
-        ImGui::OpenPopup("Renombrar");
-        abrirPopupRenombrar = false;
+    // R6: renombre del elemento del grid. El modal (campo enfocado al abrir,
+    // Enter confirma) y el camino de disco/aviso viven en RenombrarElemento.h,
+    // compartidos con el arbol.
+    const RenombrarElemento::Resultado renombre = modalRenombrar.dibujar();
+    if (renombre.confirmado &&
+        RenombrarElemento::ejecutar(fileManager, eventoArchivos_,
+                                    renombre.ruta, renombre.nombreNuevo)) {
+        // Si era carpeta, el arbol se rescancea; el cache del grid se invalida
+        // solo por mtime en el proximo recorrer().
+        if (renombre.esCarpeta) sel->contadorCambios++;
     }
-    if (!renombrarRuta.empty() &&
-        ImGui::BeginPopupModal("Renombrar", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Nuevo nombre del %s:",
-                    renombrarEsCarpeta ? "folder" : "archivo");
-        ImGui::InputText("##renombrarElemento", bufferRenombrar, IM_ARRAYSIZE(bufferRenombrar));
-        const bool confirmado = ImGui::Button("Renombrar", ImVec2(120, 0)) ||
-                                (ImGui::IsItemFocused() &&
-                                 ImGui::IsKeyPressed(ImGuiKey_Enter));
+
+    // Modal para seleccionar tipo de script (C++ o Java)
+    if (abrirPopupTipoScript) {
+        ImGui::OpenPopup("Seleccionar Tipo de Script");
+        abrirPopupTipoScript = false;
+    }
+    if (ImGui::BeginPopupModal("Seleccionar Tipo de Script", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Selecciona el tipo de script a crear:");
+        ImGui::Separator();
+        if (ImGui::RadioButton("C++ (.cpp)", &tipoScriptSeleccionado, 0)) {}
+        if (ImGui::RadioButton("Java (.java)", &tipoScriptSeleccionado, 1)) {}
+        ImGui::Separator();
+        const bool confirmado = ImGui::Button("Continuar", ImVec2(120, 0)) ||
+                                (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
         if (confirmado) {
-            const std::string nuevo = bufferRenombrar;
-            if (!nuevo.empty() &&
-                fileManager->renombrar(renombrarRuta, nuevo)) {
-                // Referencias de la escena bajo la ruta vieja (mallas,
-                // texturas, scripts): main las reescribe y persiste.
-                if (eventoArchivos_ != nullptr) {
-                    const std::string::size_type sep =
-                        renombrarRuta.find_last_of("/\\");
-                    if (sep != std::string::npos) {
-                        EditorEvent ev;
-                        ev.type = EditorEventType::ArchivosReubicados;
-                        ev.rutaAnterior = renombrarRuta;
-                        ev.rutaNueva =
-                            renombrarRuta.substr(0, sep) + PATH_SEP + nuevo;
-                        eventoArchivos_->publish(ev);
-                    }
-                }
-                // Si es carpeta, el arbol se rescancea; el cache del grid se
-                // invalida solo por mtime en el proximo recorrer().
-                if (renombrarEsCarpeta) sel->contadorCambios++;
-            }
-            renombrarRuta.clear();
+            creandoCarpeta = false;
+            creandoScript = (tipoScriptSeleccionado == 0);
+            creandoScriptJava = (tipoScriptSeleccionado == 1);
+            memset(nombreNuevo, 0, sizeof(nombreNuevo));
+            abrirPopupNombre = true;
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
         if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
-            renombrarRuta.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    // Modal de confirmacion para eliminar archivo (R7)
+    if (confirmarEliminarArchivo && !archivoAEliminar.empty()) {
+        ImGui::OpenPopup("ConfirmarEliminarArchivo");
+        confirmarEliminarArchivo = false;
+    }
+    if (ImGui::BeginPopupModal("ConfirmarEliminarArchivo", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Eliminar archivo \"%s\"?", archivoAEliminar.c_str());
+        ImGui::Text("Esta accion no se puede deshacer.");
+        if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
+            archivoAEliminarConfirmado = archivoAEliminar;
+            archivoAEliminar.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            archivoAEliminar.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    // Modal de confirmacion para eliminar carpeta desde el grid (R7)
+    if (confirmarEliminarCarpetaGrid && !carpetaAEliminarGrid.empty()) {
+        ImGui::OpenPopup("ConfirmarEliminarCarpetaGrid");
+        confirmarEliminarCarpetaGrid = false;
+    }
+    if (ImGui::BeginPopupModal("ConfirmarEliminarCarpetaGrid", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Eliminar carpeta \"%s\" y todo su contenido?", carpetaAEliminarGrid.c_str());
+        ImGui::Text("Esta accion no se puede deshacer.");
+        if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
+            carpetaAEliminarGridConfirmada = carpetaAEliminarGrid;
+            carpetaAEliminarGrid.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            carpetaAEliminarGrid.clear();
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -384,13 +468,32 @@ void ContentFolderInterface::contentGUI() {
         sel->carpetaActual->getPathRoot() + PATH_SEP +
         sel->carpetaActual->getPathName();
 
+    // Eliminacion diferida (R7): ejecutada ANTES de recorrer() para que el cache
+    // del grid se invalide y no muestre el elemento "fantasma" en este frame.
+    if (!archivoAEliminarConfirmado.empty()) {
+        fileManager->eliminarArchivo(archivoAEliminarConfirmado);
+        // Forzar invalidacion del cache: el mtime del directorio puede no
+        // actualizarse inmediatamente en algunos FS; limpiamos el cache manualmente.
+        invalidarCache();
+        archivoAEliminarConfirmado.clear();
+        // No sube contadorCambios: archivos no estan en el arbol de carpetas.
+    }
+    if (!carpetaAEliminarGridConfirmada.empty()) {
+        if (fileManager->eliminarCarpeta(carpetaAEliminarGridConfirmada)) {
+            sel->contadorCambios++;
+        }
+        // Forzar invalidacion del cache del grid tambien para carpetas.
+        invalidarCache();
+        carpetaAEliminarGridConfirmada.clear();
+    }
+
     recorrer(destFolder);
 
     // Zona de drop del grid: mientras se arrastra un "ARCHIVO_PATH" (desde este
     // mismo grid o de otro origen del editor, p.ej. el inspector), el espacio
-    // vacio bajo las celdas es destino: soltar copia el elemento a la carpeta
-    // visible (como en cualquier explorador, soltar en el vacio = soltar en la
-    // carpeta). Solo se dibuja durante el arrastre, asi no roba clicks ni
+    // vacio bajo las celdas es destino: soltar MUEVE el elemento a la carpeta
+    // visible, y con Ctrl lo copia (misma semantica que soltar sobre una celda
+    // de carpeta). Solo se dibuja durante el arrastre, asi no roba clicks ni
     // crece el area desplazable: la zona cubre lo que sobra hasta abajo.
     if (const ImGuiPayload* dragPayload = ImGui::GetDragDropPayload()) {
         if (strcmp(dragPayload->DataType, "ARCHIVO_PATH") == 0) {
@@ -399,12 +502,28 @@ void ContentFolderInterface::contentGUI() {
                 ImGui::InvisibleButton(
                     "zonaDropArchivos",
                     ImVec2(ImGui::GetContentRegionAvail().x, alturaZona));
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip(ctrlOCmd()
+                        ? "Copiar en la carpeta actual"
+                        : "Mover a la carpeta actual  (Ctrl = copiar)");
                 if (ImGui::BeginDragDropTarget()) {
                     if (const ImGuiPayload* aceptado =
                             ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
                         const char* origen =
                             static_cast<const char*>(aceptado->Data);
-                        if (origen) copiarElementoSuelto(origen, destFolder);
+                        std::string origenCarpeta;
+                        if (origen &&
+                            soltarEnCarpeta(fileManager, eventoArchivos_,
+                                            origen, destFolder, ctrlOCmd(),
+                                            &origenCarpeta)) {
+                            // Invalidar cache de la carpeta destino (la visible)
+                            invalidarCache();
+                            // Invalidar cache de la carpeta origen si es distinta
+                            if (!origenCarpeta.empty() && origenCarpeta != cacheCarpeta) {
+                                cacheCarpeta.clear();
+                                cacheMtime = std::filesystem::file_time_type{};
+                            }
+                        }
                     }
                     ImGui::EndDragDropTarget();
                 }

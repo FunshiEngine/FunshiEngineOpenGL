@@ -28,6 +28,7 @@
 #include "../../FileManager/FileSelection.h"
 #include "../../GestorDeArchivos/Carpeta.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
+#include "SoltarEnCarpeta.h"
 #include <imgui.h>
 
 namespace {
@@ -69,24 +70,41 @@ void limpiarYLiberarSubarbol(ArbolEnlazado<File*>* arbol,
 
 // Se conserva la expansion de la rama renombrada: todos los paths que empiezan
 // con el prefijo viejo pasan al prefijo nuevo (el nodo y sus descendientes).
+// El cotejo usa la regla unica de prefijos (PathUtils), no una comparacion a
+// mano: los paths de la expansion y el prefijo pueden venir con separadores
+// distintos en Windows.
 void trasladarPrefijoEnPaths(std::set<std::string>& paths,
                              const std::string& prefixViejo,
                              const std::string& prefixNuevo) {
     std::vector<std::string> aEliminar;
     std::vector<std::string> aInsertar;
     for (const auto& p : paths) {
-        if (p == prefixViejo) {
-            aEliminar.push_back(p);
-            aInsertar.push_back(prefixNuevo);
-        } else if (p.size() > prefixViejo.size() &&
-                   p.compare(0, prefixViejo.size(), prefixViejo) == 0 &&
-                   p[prefixViejo.size()] == PATH_SEP) {
-            aEliminar.push_back(p);
-            aInsertar.push_back(prefixNuevo + p.substr(prefixViejo.size()));
-        }
+        if (!rutaBajo(p, prefixViejo)) continue;
+        aEliminar.push_back(p);
+        aInsertar.push_back(prefixNuevo + p.substr(prefixViejo.size()));
     }
     for (const auto& e : aEliminar) paths.erase(e);
     for (const auto& i : aInsertar) paths.insert(i);
+}
+
+// Dice si `carpeta` es `objetivo` o un DESCENDIENTE suyo, caminando la jerarquia
+// hacia arriba desde una posicion del arbol.
+//
+// Hace falta antes de liberar una rama: la seleccion compartida
+// (FileSelection::carpetaActual) puede estar DENTRO del subarbol que se borra
+// (se selecciono una subcarpeta y despues se borro su padre), y quedaria
+// apuntando a memoria liberada — el grid la desreferencia al frame siguiente.
+// Solo compara punteros: no toca el elemento, asi que tambien es seguro si la
+// seleccion ya venia de una rama liberada.
+bool estaEnSubarbol(ArbolEnlazado<File*>* arbol, Carpeta* carpeta, Carpeta* objetivo) {
+    if (!arbol || !arbol->isEmpty() || !carpeta || !objetivo) return false;
+    Position<File*>* posicion = arbol->whatIsPositionOf(carpeta);
+    while (posicion) {
+        if (posicion->getElement() == static_cast<File*>(objetivo)) return true;
+        if (arbol->isRoot(posicion)) break;
+        posicion = arbol->dadOf(posicion);
+    }
+    return false;
 }
 } // namespace
 
@@ -123,116 +141,98 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
     if (iconosGUI && iconosGUI->getIconoCarpeta() != ImTextureID_Invalid) {
         ImGui::Image(iconosGUI->getIconoCarpeta(), ImVec2(22, 22));
         ImGui::SameLine();
+        // El icono tambien abre el menu contextual: el click derecho tiene que
+        // caer en cualquier parte visible de la fila, no solo en el texto del
+        // nodo (que empieza despues del icono).
+        ImGui::OpenPopupOnItemClick("MenuContextualCarpeta",
+                                    ImGuiPopupFlags_MouseButtonRight);
     }
 
-    bool nodeOpen;
-    bool toggled;
-    if (renombrandoInline && carpetaRenombrando == rutaDe(folderRoot)) {
-        // R6: fila en modo rename -> InputText inline en lugar del nombre.
-        nodeOpen = ImGui::TreeNodeEx("##renombrar_carpeta", nodeFlags, " ");
-        toggled = ImGui::IsItemToggledOpen();
+    const bool nodeOpen = ImGui::TreeNodeEx(
+        folderRoot->getPathName().c_str(), nodeFlags, "%s",
+        folderRoot->getPathName().c_str());
+    const bool toggled = ImGui::IsItemToggledOpen();
 
-        ImGui::SameLine();
-        const bool confirmado =
-            ImGui::InputText("##input_renombrar", bufferRenombrar,
-                             IM_ARRAYSIZE(bufferRenombrar),
-                             ImGuiInputTextFlags_AutoSelectAll |
-                             ImGuiInputTextFlags_EnterReturnsTrue);
-        const bool cancelado = ImGui::IsKeyPressed(ImGuiKey_Escape);
+    if (ImGui::IsItemClicked()) {
+        sel->carpetaActual = folderRoot;
+        sel->rutaVisible = rutaDe(folderRoot);
+        sel->navegacionPendiente.clear();
+    }
 
-        if (confirmado || cancelado || !renombrandoInline) {
-            if (confirmado) {
-                const std::string nuevoNombre = bufferRenombrar;
-                if (!nuevoNombre.empty() &&
-                    nuevoNombre != folderRoot->getPathName()) {
-                    const std::string rutaVieja = rutaDe(folderRoot);
-                    const std::string rutaNueva =
-                        folderRoot->getPathRoot() + PATH_SEP + nuevoNombre;
-                    if (fileManager->renombrar(rutaVieja, nuevoNombre)) {
-                        // La ruta visible (si es esta carpeta o un descendiente)
-                        // se actualiza ANTES del rescaneo para que refrescar()
-                        // la re-resuelva con el nombre nuevo (R6).
-                        if (sel->rutaVisible == rutaVieja) {
-                            sel->rutaVisible = rutaNueva;
-                        } else if (sel->rutaVisible.size() > rutaVieja.size() &&
-                                   sel->rutaVisible.compare(0, rutaVieja.size(), rutaVieja) == 0 &&
-                                   sel->rutaVisible[rutaVieja.size()] == PATH_SEP) {
-                            sel->rutaVisible =
-                                rutaNueva + sel->rutaVisible.substr(rutaVieja.size());
-                        }
-                        trasladarPrefijoEnPaths(openPaths, rutaVieja, rutaNueva);
-                        // Referencias de la escena bajo la ruta vieja (mallas,
-                        // texturas, scripts): main las reescribe y persiste.
-                        if (eventoArchivos_ != nullptr) {
-                            EditorEvent ev;
-                            ev.type = EditorEventType::ArchivosReubicados;
-                            ev.rutaAnterior = rutaVieja;
-                            ev.rutaNueva = rutaNueva;
-                            eventoArchivos_->publish(ev);
-                        }
-                        // Rescaneo del arbol (refleja el nombre nuevo).
-                        sel->contadorCambios++;
-                    }
-                }
-            }
-            carpetaRenombrando.clear();
-            renombrandoInline = false;
+    // Drag source: arrastrar esta carpeta a otra carpeta del arbol
+    // (mismo payload ARCHIVO_PATH que usa el grid, para reutilizar drop target)
+    if (ImGui::BeginDragDropSource()) {
+        const std::string rutaCarpeta = rutaDe(folderRoot);
+        ImGui::SetDragDropPayload("ARCHIVO_PATH", rutaCarpeta.c_str(),
+                                  rutaCarpeta.size() + 1);
+        ImGui::Text("Moviendo carpeta %s", folderRoot->getPathName().c_str());
+        ImGui::EndDragDropSource();
+    }
+
+    // Obtener el rect exacto de la fila del TreeNode (header) para superponer
+    // un boton invisible que cubra TODA la anchura y sirva de drop target.
+    // SpanAvailWidth extiende la seleccion pero NO el rect de drag&drop.
+    // Este boton invisible se posiciona con SetCursorScreenPos sobre el rect
+    // del item recien dibujado (el TreeNode), asi no agrega espacio visual.
+    ImVec2 rowMin = ImGui::GetItemRectMin();
+    ImVec2 rowMax = ImGui::GetItemRectMax();
+    ImVec2 rowSize = ImVec2(rowMax.x - rowMin.x, rowMax.y - rowMin.y);
+    ImGui::SetCursorScreenPos(rowMin);
+    ImGui::InvisibleButton(
+        ("##DropTarget" + std::to_string(reinterpret_cast<uintptr_t>(folderRoot))).c_str(),
+        rowSize);
+
+    // Destino de drag&drop: soltar un "ARCHIVO_PATH" (grid u otro origen)
+    // sobre la fila lo MUEVE a esta carpeta, siempre: arrastrar desde el
+    // panel de contenido hasta una carpeta del arbol es cortar y pegar, sin
+    // opcion de copia. Es el mismo helper que usa el grid, y al mover
+    // publica ArchivosReubicados para que el gestor de proyectos
+    // reescriba las referencias de la escena (mallas, texturas, scripts).
+    //
+    // El tooltip va ANTES de aceptar el payload: en cuanto se acepta, el
+    // arrastre termina y ya no hay nada sobre lo que hovering.
+    if (const ImGuiPayload* arrastre = ImGui::GetDragDropPayload()) {
+        if (strcmp(arrastre->DataType, "ARCHIVO_PATH") == 0 &&
+            ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Mover a %s", folderRoot->getPathName().c_str());
         }
-    } else {
-        nodeOpen = ImGui::TreeNodeEx(
-            folderRoot->getPathName().c_str(), nodeFlags, "%s",
-            folderRoot->getPathName().c_str());
-        toggled = ImGui::IsItemToggledOpen();
-
-        if (ImGui::IsItemClicked()) {
-            sel->carpetaActual = folderRoot;
-            sel->rutaVisible = rutaDe(folderRoot);
-            sel->navegacionPendiente.clear();
+    }
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* aceptado =
+                ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+            const char* origen = static_cast<const char*>(aceptado->Data);
+            if (origen)
+                soltarEnCarpeta(fileManager, eventoArchivos_, origen,
+                                rutaDe(folderRoot), false, nullptr);
         }
+        ImGui::EndDragDropTarget();
+    }
 
-        // Destino de drag&drop: soltar un "ARCHIVO_PATH" (grid u otro origen)
-        // sobre la fila copia el elemento a esta carpeta.
-        if (ImGui::BeginDragDropTarget()) {
-            if (const ImGuiPayload* aceptado =
-                    ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
-                const char* origen = static_cast<const char*>(aceptado->Data);
-                if (origen) copiarElementoSuelto(origen, rutaDe(folderRoot));
-            }
-            ImGui::EndDragDropTarget();
+    if (ImGui::BeginPopupContextItem("MenuContextualCarpeta")) {
+        ImGui::Text("Carpeta: %s", folderRoot->getPathName().c_str());
+        ImGui::Separator();
+        const bool esRaiz = (arbolDeArchivos && !arbolDeArchivos->isEmpty() &&
+                             folderRoot == arbolDeArchivos->rootOfTree()->getElement());
+        if (!esRaiz && ImGui::MenuItem("Renombrar Carpeta")) {
+            // R6: el modal compartido con el grid se encarga del disco y del
+            // aviso a la escena; aca se registra la RUTA (no el puntero: un
+            // rescaneo reconstruye el arbol y deja punteros colgando) y el
+            // rescaneo se pide al confirmar.
+            modalRenombrar.solicitar(rutaDe(folderRoot), true,
+                                     folderRoot->getPathName());
         }
-
-        if (ImGui::BeginPopupContextItem("MenuContextualCarpeta")) {
-            ImGui::Text("Carpeta: %s", folderRoot->getPathName().c_str());
-            ImGui::Separator();
-            const bool esRaiz = (arbolDeArchivos && !arbolDeArchivos->isEmpty() &&
-                                 folderRoot == arbolDeArchivos->rootOfTree()->getElement());
-            if (!esRaiz && ImGui::MenuItem("Renombrar Carpeta")) {
-                // R6: se guarda la RUTA (no el puntero: un rescaneo
-                // reconstruye el arbol y deja punteros colgando). Como el
-                // editor se dibuja en la fila que coincide por ruta, su
-                // "destino" se re-resuelve cada frame contra el arbol vigente.
-                carpetaRenombrando = rutaDe(folderRoot);
-                renombrandoInline = true;
-                std::memset(bufferRenombrar, 0, sizeof(bufferRenombrar));
-                std::strncpy(bufferRenombrar,
-                             folderRoot->getPathName().c_str(),
-                             sizeof(bufferRenombrar) - 1);
-            }
-            if (ImGui::MenuItem("Nueva Carpeta")) {
-                const std::string rutaNuevaCarpeta =
-                    rutaDe(folderRoot) + PATH_SEP + "Nueva Carpeta";
-                if (fileManager->crearCarpeta(rutaNuevaCarpeta)) {
-                    // No mutamos el arbol durante el recorrido (invalidaba
-                    // iteradores, B4): el rescaneo del proximo frame lo agrega.
-                    sel->contadorCambios++;
-                }
-            }
-            if (!esRaiz && ImGui::MenuItem("Eliminar Carpeta")) {
-                carpetaAConfirmar = rutaDe(folderRoot);
-                confirmarEliminar = true;
-            }
-            ImGui::EndPopup();
+        if (ImGui::MenuItem("Nueva Carpeta")) {
+            creandoCarpeta = true;
+            abrirPopupNombre = true;
+            memset(nombreNuevo, 0, sizeof(nombreNuevo));
+            rutaPadreNuevaCarpeta = rutaDe(folderRoot);
+            ImGui::CloseCurrentPopup();
         }
+        if (!esRaiz && ImGui::MenuItem("Eliminar Carpeta")) {
+            carpetaAConfirmar = rutaDe(folderRoot);
+            confirmarEliminar = true;
+        }
+        ImGui::EndPopup();
     }
     return {nodeOpen, toggled};
 }
@@ -274,6 +274,63 @@ void TreeFilesInterface::initGUI() {
         }
         ImGui::EndPopup();
     }
+
+    // Crear nueva carpeta: modal para ingresar nombre (patron del grid)
+    if (abrirPopupNombre) {
+        ImGui::OpenPopup("Ingresar nombre");
+        abrirPopupNombre = false;
+    }
+    if (ImGui::BeginPopupModal("Ingresar nombre", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Escribe el nombre de la carpeta:");
+        ImGui::InputText("##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo));
+        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) ||
+                                (ImGui::IsItemFocused() &&
+                                 ImGui::IsKeyPressed(ImGuiKey_Enter));
+        if (confirmado && nombreNuevo[0] != '\0') {
+            const std::string rutaNueva =
+                rutaPadreNuevaCarpeta + PATH_SEP + nombreNuevo;
+            if (fileManager->crearCarpeta(rutaNueva)) {
+                FileSelection* sel = fileManager->getSelection();
+                sel->contadorCambios++;
+            }
+            creandoCarpeta = false;
+            memset(nombreNuevo, 0, sizeof(nombreNuevo));
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            creandoCarpeta = false;
+            memset(nombreNuevo, 0, sizeof(nombreNuevo));
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    // R6: renombre de una carpeta del arbol. Modal compartido con el grid
+    // (RenombrarElemento.h): el campo se enfoca al abrirse y Enter confirma.
+    // El aviso a la escena (ArchivosReubicados) lo publica el helper; aca queda
+    // la navegacion, que es por RUTA: la carpeta visible y la expansion de la
+    // rama renombrada tienen que seguir al nombre nuevo antes del rescaneo.
+    const RenombrarElemento::Resultado renombre = modalRenombrar.dibujar();
+    if (renombre.confirmado) {
+        const std::string rutaVieja = renombre.ruta;
+        if (RenombrarElemento::ejecutar(fileManager, eventoArchivos_, rutaVieja,
+                                        renombre.nombreNuevo)) {
+            const std::string rutaNueva = RenombrarElemento::rutaConNombreNuevo(
+                rutaVieja, renombre.nombreNuevo);
+            FileSelection* sel = fileManager->getSelection();
+            // rutaVisible puede ser la carpeta renombrada o un descendiente suyo
+            // (cotejo por prefijo con la regla de separadores de PathUtils).
+            if (rutaBajo(sel->rutaVisible, rutaVieja)) {
+                sel->rutaVisible =
+                    rutaNueva + sel->rutaVisible.substr(rutaVieja.size());
+            }
+            trasladarPrefijoEnPaths(openPaths, rutaVieja, rutaNueva);
+            // Rescaneo del arbol: refleja el nombre nuevo.
+            sel->contadorCambios++;
+        }
+    }
 }
 
 void TreeFilesInterface::refrescarArbol() {
@@ -287,25 +344,6 @@ void TreeFilesInterface::refrescarArbol() {
     // navegacionPendiente NO se limpia: es una ruta y debe aplicarse (FASE 2)
     // contra el arbol recien reconstruido; limpiarla aqui perderia el doble
     // clic que coincidio con un rescaneo (B6).
-}
-
-// Copia un elemento soltado sobre una carpeta del arbol (payload
-// "ARCHIVO_PATH"). Carpetas -> copiarCarpeta + rescaneo; archivos ->
-// copiarArchivo. No copiar sobre la propia carpeta (finalDest == origen).
-void TreeFilesInterface::copiarElementoSuelto(const std::string& origen,
-                                              const std::string& folderDest) {
-    if (origen.empty() || folderDest.empty()) return;
-    FileSelection* sel = fileManager->getSelection();
-    std::error_code ec;
-    const std::string nombre =
-        std::filesystem::path(origen).filename().string();
-    const std::string finalDest = folderDest + PATH_SEP + nombre;
-    if (finalDest == origen) return;
-    if (std::filesystem::is_directory(origen, ec)) {
-        if (fileManager->copiarCarpeta(origen, finalDest)) sel->contadorCambios++;
-    } else {
-        fileManager->copiarArchivo(origen, finalDest);
-    }
 }
 
 void TreeFilesInterface::aplicarNavegacionPendiente() {
@@ -367,7 +405,11 @@ void TreeFilesInterface::contentGUI() {
         carpetaAEliminar.clear();
         Carpeta* doomed = fileManager->buscarCarpetaPorRuta(rutaAeliminar);
         if (doomed) {
-            if (sel->carpetaActual == doomed) {
+            // La seleccion compartida puede estar DENTRO de la rama que se va a
+            // liberar (se selecciono una subcarpeta y despues se borra su
+            // padre): hay que soltarla ANTES de liberar, o el grid
+            // desreferenciaria memoria liberada en el frame siguiente.
+            if (estaEnSubarbol(arbolDeArchivos, sel->carpetaActual, doomed)) {
                 sel->carpetaActual = nullptr;
                 sel->rutaVisible.clear();
             }

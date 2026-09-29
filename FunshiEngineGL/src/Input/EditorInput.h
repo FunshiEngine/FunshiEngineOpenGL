@@ -87,6 +87,13 @@ private:
     void onMouse(GLFWwindow* window, double xpos, double ypos);
     void onScroll(GLFWwindow* window, double xoffset, double yoffset);
 
+    // Condicion unica de las teclas del editor: editor O play (la regla vive en
+    // el orquestador). El play es el editor con sus interfaces ocultas, asi que
+    // E, WASD, la guia de eje y el modo del cursor siguen siendo validos con la
+    // simulacion en marcha; solo el menu de inicio queda afuera. Sin orquestador
+    // inyectado cae al estado de edicion de la maquina.
+    bool dentroDelEditor() const noexcept;
+
     GameScene* scene;
     ApplicationStateMachine* appState;
     OrquestadorEstadoGUI* orquestador;

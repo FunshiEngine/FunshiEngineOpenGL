@@ -25,6 +25,7 @@
 
 #include "../../FileManager/FileManager.h"
 #include "../GeneralUserInterface.h"
+#include "RenombrarElemento.h"
 
 class IconosGUI;
 class EditorEventBus;
@@ -47,12 +48,25 @@ private:
     char nombreNuevo[256] = "";
     IconosGUI* iconosGUI = nullptr;
 
-    // Estado de renombrado (R6): ruta del elemento, si es carpeta (sube el
-    // contador del arbol) y el buffer con el nombre a confirmar en el modal.
-    std::string renombrarRuta;
-    bool renombrarEsCarpeta = false;
-    bool abrirPopupRenombrar = false;
-    char bufferRenombrar[256] = "";
+    // Estado de renombrado (R6): el modal compartido con el arbol
+    // (RenombrarElemento.h) guarda la ruta del elemento, si es carpeta y el
+    // nombre a confirmar.
+    RenombrarElemento::Modal modalRenombrar;
+
+    // Estado de eliminacion de archivos y carpetas del grid (R7 similar a TreeFilesInterface):
+    // se encola la RUTA en el menu contextual, confirmacion en modal, y eliminacion
+    // real diferida a contentGUI() (despues del modal) para que el cache del grid
+    // se invalide correctamente en el mismo frame.
+    std::string archivoAEliminar;
+    bool confirmarEliminarArchivo = false;
+    std::string archivoAEliminarConfirmado; // ruta confirmada para borrar en contentGUI()
+    std::string carpetaAEliminarGrid;
+    bool confirmarEliminarCarpetaGrid = false;
+    std::string carpetaAEliminarGridConfirmada; // ruta confirmada para borrar en contentGUI()
+
+    // Estado para seleccionar tipo de script al crear nuevo script
+    bool abrirPopupTipoScript = false;
+    int tipoScriptSeleccionado = 0; // 0 = C++, 1 = Java
 
     // Cache del grid (R5): el directorio se lee en disco SOLO cuando cambia
     // la ruta mostrada o su mtime; el dibujo del grid usa este cache en vez
@@ -69,8 +83,14 @@ private:
     std::filesystem::file_time_type cacheMtime{};
 
     void crearNuevoElemento();
-    void copiarElementoSuelto(const std::string& origen, const std::string& destFolder);
     void recorrer(const std::string& path);
+
+    // Invalida el cache del grid (R5): la entrada desaparecio de hecho de la
+    // carpeta visible y el mtime puede no haberse actualizado todavia.
+    void invalidarCache() {
+        cacheCarpeta.clear();
+        cacheMtime = std::filesystem::file_time_type{};
+    }
 
 public:
     ContentFolderInterface(bool stateGUI, FileManager* fileManager);

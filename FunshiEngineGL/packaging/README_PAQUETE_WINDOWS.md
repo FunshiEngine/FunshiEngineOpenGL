@@ -56,8 +56,32 @@ Pasos que ejecuta:
   y la configuracion (`Configuracion.json`, `imgui.ini`). No se instalan
   carpetas fijas de `Modelos\Texturas\Imagenes`.
 
-> Requiere permisos de administrador (necesario para crear
-> `{app}\MotorGrafico` en `Program Files`).
+> Requiere permisos de administrador (necesario para instalar en
+> `C:\Program Files`).
+
+### Dónde guarda el motor los datos del usuario
+
+El `.iss` crea `{app}\MotorGrafico\` durante la instalación, pero el ejecutable
+**no corre elevado**: no lleva manifiesto `requestedExecutionLevel`. Como la
+carpeta la crea el instalador (que sí es administrador) heredando los ACL de
+`Program Files`, el proceso no puede escribir dentro de ella.
+
+Por eso `ProjectPaths::directorioBase()` resuelve la raíz de datos: prueba si
+puede escribir junto al binario y, si no, usa `%APPDATA%\FunshiEngineGL\MotorGrafico`.
+En la instalación de Windows eso es siempre el segundo caso, así que la carpeta
+que crea el instalador queda sin uso para el usuario normal. Si ejecutás el
+motor como administrador, entonces sí se usa `{app}\MotorGrafico`.
+
+Esto no es hipotético: sin el fallback, las escrituras fallaban en silencio
+porque ningún llamador comprobaba el retorno, y el motor leía bien pero no
+podía guardar ni la configuración ni las escenas.
+
+> Si preferís que el motor instalado use `{app}\MotorGrafico` también sin
+> elevación, la alternativa es cambiar `DefaultDirName` a una carpeta por
+> usuario (`{localappdata}\Programs\FunshiEngineGL`) o granting de escritura
+> sobre `{app}\MotorGrafico` con una directiva `Permissions:`. Se descartó la
+> segunda porque un directorio escribible dentro de `Program Files` va contra la
+> convención de Windows y lo marcan los analizadores de seguridad.
 
 ## Versionar para demo/alpha/beta
 

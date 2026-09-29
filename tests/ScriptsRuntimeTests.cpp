@@ -19,12 +19,15 @@
 // Prueba de punta a punta del runtime de scripts: escribe un fuente C++ en un
 // directorio temporal, lo compila con el BackendCpp a .so, lo carga con
 // dlopen, inyecta valores SerializeField, ejecuta onInicio/onActualizar/onStop
-// y valida el hot reload (recompilacion al cambiar el fuente + mtime).
+// y valida el hot reload (recompilacion al cambiar el fuente + mtime) y la
+// carga de un segundo componente sobre el MISMO fuente (reutiliza el
+// artefacto al dia sin volver a enlazar).
 // Si no hay compilador C++ en el entorno el test sale con SKIP (77) para que
 // CI de maquinas minimalistas no lo marque como fallo.
 
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -33,14 +36,17 @@
 #include <vector>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/ComandoCompilacionCpp.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/Reflection/BehaviourReflection.h"
 #include "../FunshiEngineGL/src/Behaviour/ScriptRuntime.h"
 
 // Stub de MotorScript::tablaApi(): en el motor real lo implementa
 // ScriptGameObject.cpp (necesita GameObject completo); el test solo verifica
-// que el backend entrega una tabla no nula a la fabrica. Vive FUERA del guard
-// _WIN32 para que BackendCpp.cpp (que lo referencia) enlace tambien en
-// Windows: alli el main solo devuelve 77 (SKIP) pero el simbolo debe existir.
+// que el backend entrega una tabla no nula a la fabrica. Vive fuera de
+// cualquier guard de plataforma: BackendCpp.cpp (que lo referencia) se
+// compila en todas, y el main tampoco se salta por SO sino por familia de
+// toolchain (ver abajo).
 namespace MotorScript {
 const ApiScriptGameObject* tablaApi() {
     static const ApiScriptGameObject tabla = {
@@ -60,15 +66,6 @@ const ApiScriptGameObject* tablaApi() {
     return &tabla;
 }
 } // namespace MotorScript
-
-#ifdef _WIN32
-int main() {
-    std::cout << "scripts-runtime-tests: SKIP en Windows (requiere cl.exe con "
-                 "entorno de Visual Studio)."
-              << std::endl;
-    return 77;
-}
-#else
 
 using namespace ReflejoScripts;
 
@@ -127,10 +124,19 @@ static std::string fuenteScript(const std::string& clase) {
 
 static bool hayCompilador() {
     const char* cxx = std::getenv("FUNSHI_CXX");
-    const std::string cmd =
-        std::string(cxx && *cxx ? cxx : FUNSHI_CXX_COMPILER) +
-        " --version > /dev/null 2>&1";
-    return std::system(cmd.c_str()) == 0;
+    const std::string ruta = cxx && *cxx ? cxx : FUNSHI_CXX_COMPILER;
+    // Sondeo SIN shell (H-3 nivel 2): Proceso::ejecutar tira el output al
+    // dispositivo nulo de la plataforma (H-14: NUL / /dev/null — ahora
+    // abierto por el runner en vez de escrito por cmd.exe). El flag depende
+    // de la familia: g++/clang++ entienden --version; cl.exe usa /?, porque
+    // `cl --version` no existe y dejaba el test en skip. Con MSVC el test
+    // puede seguir: el entorno del toolset (INCLUDE/LIB/PATH) lo harvesta
+    // BackendCpp el mismo.
+    const std::string flag = CompilacionCpp::familiaCompilador() ==
+                                     CompilacionCpp::Familia::Msvc
+                                 ? "/?"
+                                 : "--version";
+    return SondeoToolchain::sondear(ruta, flag);
 }
 
 static void escribirFuente(const std::string& ruta,
@@ -147,6 +153,17 @@ static void tocarFuente(const std::string& ruta) {
 }
 
 int main() {
+    // El skip es por FAMILIA de toolchain, no por SO (H-14): con MSVC el
+    // compilador necesita el entorno de Visual Studio (vcvars: INCLUDE, LIB,
+    // link.exe), asi que desde un shell normal no hay forma de correrlo. Con
+    // GCC/Clang el test corre en cualquier plataforma, Windows incluido
+    // (MinGW): la familia decide los flags, no el sistema operativo.
+    if (CompilacionCpp::familiaCompilador() == CompilacionCpp::Familia::Msvc) {
+        std::cout << "scripts-runtime-tests: SKIP (toolchain MSVC: requiere "
+                     "el entorno de Visual Studio)."
+                  << std::endl;
+        return 77;
+    }
     if (!hayCompilador()) {
         std::cout << "scripts-runtime-tests: SKIP (no hay compilador C++)."
                   << std::endl;
@@ -215,7 +232,37 @@ int main() {
         }
     }
 
-    // 5. Hot reload: reescribir el fuente agregando un campo nuevo y tocando
+    // 5. Segundo componente sobre el MISMO fuente: la cola de compilacion de
+    //    la escena lo entrega con un ComportamientoCargado vacio (estado por
+    //    componente), mientras el primero sigue cargado en este proceso. El
+    //    artefacto ya esta al dia, asi que no hay que volver a enlazarlo:
+    //    reescribir una imagen que esta cargada es un error de escritura que
+    //    el enlazador reporta como permiso denegado.
+    if (comportamiento.valido()) {
+        std::error_code ecArtefacto;
+        const auto mtimeAntes =
+            fs::last_write_time(comportamiento.artefacto, ecArtefacto);
+        CHECK(!ecArtefacto, "el artefacto del primer componente existe");
+
+        ComportamientoCargado segundo;
+        std::string errorSegundo;
+        const bool okSegundo = ScriptRuntime::compilarYCargar(
+            fuente, clase, segundo, errorSegundo);
+        CHECK(okSegundo, "segundo componente sobre el mismo fuente carga bien");
+        if (!okSegundo)
+            std::cout << "  Error del backend: " << errorSegundo << std::endl;
+        CHECK(segundo.valido(), "segundo comportamiento valido");
+        if (!ecArtefacto) {
+            std::error_code ecDespues;
+            const auto mtimeDespues =
+                fs::last_write_time(comportamiento.artefacto, ecDespues);
+            CHECK(!ecDespues && mtimeDespues == mtimeAntes,
+                  "el artefacto no se volvio a escribir (sigue al dia)");
+        }
+        ScriptRuntime::descargar(segundo, nullptr);
+    }
+
+    // 6. Hot reload: reescribir el fuente agregando un campo nuevo y tocando
     // el mtime; descargar y recargar. Los valores conocidos se conservan.
     if (comportamiento.valido()) {
         std::string fuente2 =
@@ -272,11 +319,10 @@ int main() {
         }
     }
 
-    // 6. Limpieza.
+    // 7. Limpieza.
     fs::remove_all(dir, ec);
 
     std::cout << "ScriptsRuntime: " << total << " verificaciones, " << fallos
               << " fallos" << std::endl;
     return fallos == 0 ? 0 : 1;
 }
-#endif

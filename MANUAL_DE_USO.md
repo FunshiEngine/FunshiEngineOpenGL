@@ -69,7 +69,8 @@ cmake --build FunshiEngineGL/build -j$(nproc)
    eliminabas el proyecto abierto, el motor vuelve al estado "sin proyecto".
    "Iniciar Estudio" crea el proyecto y sus carpetas automaticamente.
 2. Navega la escena con `W`/`A`/`S`/`D`, `Espacio`/`Shift` y el mouse (nav FPS).
-   `E` oculta la UI; `Escape` vuelve al menu.
+   `E` oculta la UI; `Escape` vuelve al menu (y durante el play, detiene la
+   simulacion y deja el editor).
 
 ---
 
@@ -77,6 +78,18 @@ cmake --build FunshiEngineGL/build -j$(nproc)
 
 Al crear un proyecto, el motor genera la estructura bajo
 `{app}/MotorGrafico/Proyects/<proyecto>/`:
+
+> **Dónde quedan los datos.** `{app}` es la carpeta del ejecutable cuando el
+> motor está en una carpeta donde puede escribir (build de desarrollo,
+> instalación portátil). Si no puede escribir —el caso normal cuando está
+> instalado en `C:\Program Files`, porque el proceso no corre elevado—, usa en su
+> lugar `%APPDATA%\FunshiEngineGL\MotorGrafico` (Windows) o
+> `$XDG_DATA_HOME/FunshiEngineGL/MotorGrafico`, con respaldo en
+> `~/.local/share/FunshiEngineGL/MotorGrafico` (Linux y macOS). La ruta
+> efectiva se imprime por consola al arrancar y la migración de la carpeta
+> anterior, si había algo, se avisa en la barra de estado. Los proyectos que
+> migran siguen funcionando: las rutas de assets se guardan relativas al
+> proyecto, no absolutas.
 
 ```
 MotorGrafico/
@@ -92,7 +105,8 @@ MotorGrafico/
 │           ├── Sonidos/              ← clips de audio (.wav/.mp3/...)
 │           └── Scripts/              ← scripts del usuario (.cpp/.java)
 ├── Configuraciones/
-│   └── Configuracion.json            ← configuracion global (tema, idioma, sensibilidad)
+│   └── Configuracion.json            ← configuracion global (ultimo proyecto, idioma,
+│                                       sensibilidades y apariencia: tema, B/N, acento, fondo)
 └── Exportaciones/
     └── <nombreExportacion>/          ← juegos exportados (ver seccion 10.1)
         ├── <Juego>.exe / <Juego>     ← ejecutable standalone
@@ -112,17 +126,38 @@ proyecto** (`src<nombre>`).
 > la de scripts. Si un dropdown o drag & drop aparece vacio, verifica que raiz
 > lista tu arbol.
 
+**Operaciones sobre los archivos.** En el **grid** de la carpeta seleccionada
+(clic derecho sobre un elemento) el menu contextual ofrece "Renombrar",
+"Eliminar Archivo" o "Eliminar Carpeta" (segun corresponda); en el **arbol**, el
+mismo menú aparece sobre la carpeta (además de "Nueva Carpeta"), y el renombre
+pide el nombre en un **diálogo** con el campo ya listo para escribir: `Enter`
+confirma y `Escape` (o **Cancelar**) descarta. En los dos paneles el diálogo es
+el mismo. Eliminar pide confirmacion en un dialogo y
+**no se puede deshacer**: al borrar una carpeta desaparece tambien todo su
+contenido, y el arbol y el grid se refrescan en el acto. El **undo/redo**
+(`Ctrl+Z` / `Ctrl+Y`) no cubre el borrado de archivos.
+
 **Rutas de la escena.** Las mallas, texturas y fuentes de script que usa la
 escena se persisten **relativas** a la carpeta `src<proyecto>/`. Por eso, al
 renombrar un proyecto (menu de inicio) o mover su carpeta completa, las
 escenas siguen cargando sin tocar nada: la raiz `src<nombre>` se desplaza
-entera con el proyecto. Dentro del explorador, al **renombrar** un archivo o
-carpeta el motor reescribe al instante las referencias de la escena que
-apuntaban a esa ruta y guarda la escena modificada. Limitaciones: mover un
-asset *por copia* (arrastre con copia) no se rastrea, y los sonidos de
-`Sonidos/` e interfaces de `Interfaces/` se referencian por **nombre**: un
-move con el mismo nombre conserva la referencia y un rename la rompe (volve a
-seleccionar el clip/interfaz en su dropdown).
+entera con el proyecto. Dentro del explorador, al **renombrar** o al **mover**
+un archivo o carpeta el motor reescribe al instante las referencias de la
+escena que apuntaban a esa ruta y guarda la escena modificada. Limitaciones:
+una **copia** (arrastre con `Ctrl`) no se rastrea, porque no cambia ninguna de
+las dos rutas; los cambios hechos **fuera** del motor (explorador de Windows,
+una terminal, un `mv`) solo sirven para refrescar el arbol de archivos, no
+reescriben nada, asi que ahi si hay que volver a arrastrar el asset en su
+inspector; y los sonidos de `Sonidos/` e interfaces de `Interfaces/` se
+referencian por **nombre**: un move con el mismo nombre conserva la referencia
+y un rename la rompe (vuelve a seleccionar el clip/interfaz en su dropdown).
+Si una referencia quedo apuntando a un archivo que ya no existe, al **abrir la
+escena** el motor busca ese archivo por nombre dentro de la carpeta del
+proyecto: con **una sola coincidencia** repara la referencia, lo anota en el
+log (`[escena] ruta reparada: ...`) y guarda la escena; con **varias** o con
+**ninguna** no adivina y deja la ruta como estaba, y ahi si hay que volver a
+arrastrar el asset en su inspector (el inspector de script ademas avisa
+`El fuente del script no existe` con la ruta que busco).
 
 **Manifiesto de assets (`SceneAssets.json`).** Junto a los binarios de la
 escena se mantiene `Memory/Binarios/SceneAssets.json`, un add-on legible que
@@ -134,8 +169,12 @@ renombrar/mover assets el guardado automatico lo mantiene al dia.
 
 **Guardado sin salir (Ctrl+S).** El editor guarda el proyecto completo
 (escena + manifiesto + configuracion de ventanas/gizmo/camara) con
-`Ctrl+S`, ademas del guardado automatico al salir. En un campo de texto de
-ImGui la combinacion la consume el editor de texto y no guarda.
+`Ctrl+S`, ademas del guardado automatico al salir. El atajo funciona **siempre**,
+tambien mientras escribes en un campo de texto: guardar no le quita ninguna tecla
+al campo y asi se evita perder el cambio recien escrito (renombrar un objeto y
+guardar sin hacer clic en otro lado). `Ctrl+Z` y `Ctrl+Y` si se ceden al campo,
+que ahi tienen su propio deshacer/rehacer. Si no hay proyecto abierto, la barra
+de estado avisa en vez de ignorar el atajo.
 
 ---
 
@@ -143,17 +182,17 @@ ImGui la combinacion la consume el editor de texto y no guarda.
 
 | Tecla / accion | Funcion |
 |---|---|
-| `W` `A` `S` `D` | Mover la camara activa (diagonales normalizadas). Solo con las interfaces del editor ocultas (`E`) o con el clic derecho sostenido sobre el viewport |
+| `W` `A` `S` `D` | Mover la camara activa (diagonales normalizadas). Solo con las interfaces del editor ocultas (`E`) o con el clic derecho sostenido sobre el viewport. Funciona en edicion y tambien durante el play |
 | `Espacio` / `Shift izq.` | Subir / bajar la camara (misma condicion que `WASD`) |
 | Mouse / clic der. | Nav FPS; el clic derecho sostenido sobre el viewport navega **sin** esconder las interfaces (sensibilidad en Opciones) |
-| `E` | Mostrar/ocultar interfaces del editor (solo funciona dentro del editor, no en el menu de inicio) |
+| `E` | Mostrar/ocultar interfaces del editor (en edicion y durante el play; no en el menu de inicio) |
 | `F5` | Simular (Play): arranca la simulacion de la escena (fisica, scripts y audio) desde el editor |
 | `F6` | Pausar/reanudar la simulacion (solo durante el play; congela fisica y scripts sin salir) |
 | `F7` | Detener la simulacion y volver al modo edicion |
 | `Ctrl+S` | Guardar el proyecto en caliente (escena + manifiesto + config) |
 | `Ctrl+Z` | Deshacer ultima accion del editor (undo) |
 | `Ctrl+Y` | Rehacer accion deshecha (redo) |
-| `Escape` | Volver al menu de inicio |
+| `Escape` | Durante el play: detener la simulacion y volver al modo edicion (igual que `F7`). En edicion: volver al menu de inicio. En el menu: no hace nada |
 | `1` / `T` | Gizmo: traslacion (apaga la guia de eje) |
 | `2` / `R` | Gizmo: rotacion (apaga la guia de eje) |
 | `3` / `U` | Gizmo: escala (la `Y` suelta la tomo la guia de eje; apaga la guia) |
@@ -161,8 +200,9 @@ ImGui la combinacion la consume el editor de texto y no guarda.
 | `G` | Gizmo local / mundo (gizmo y guia de eje) |
 | Clic en objeto | Seleccionar en viewport |
 
-El modo Play/Stop se controla desde la barra de menu de la escena; la fisica y
-los scripts solo se ejecutan en Play. Clic en un objeto del arbol o del
+El modo Play/Stop tambien se controla con el boton **Activar/Detener** de la
+barra de menu de la escena, que hace exactamente lo mismo que `F5` y `F7`; la
+fisica y los scripts solo se ejecutan en Play. Clic en un objeto del arbol o del
 viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 
 ---
@@ -172,7 +212,7 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 - **Crear objetos:** "New GameObject" (crea un objeto simple en la escena que posee únicamente el componente `Transform`).
 - **Menú contextual en la jerarquía:** clic derecho sobre un objeto despliega "Renombrar" y "Eliminar"; clic derecho en espacio vacío del panel despliega "New GameObject".
 - **Componentes:** `Transform`, `Color`, `Model`, `Material`, `Light`,
-  `CameraComponent`, colliders (esfera / cubo / malla), `RigidBody`,
+  `CameraComponent`, `Grid`, colliders (esfera / cubo / malla), `RigidBody`,
   `AudioSource`, `InterfaceComponent` y `Script`.
 - **Inspector:** boton "Agregar componente" abre el popup de componentes; cada
   uno tiene su panel propio (Transform, Luz con tipo/atenuacion/color, etc.).
@@ -181,7 +221,32 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
   los hijos durante la edicion del padre.
 - **Gizmos** (ImGuizmo): traslacion/rotacion/escala con `1`/`2`/`3` o
   `T`/`R`/`U`, local/mundo con `G`; la fisica tiene su gizmo propio para el
-  collider activo.
+  collider activo. El checkbox **"Gizmo activo"** del panel `Transform` apaga
+  el gizmo de ese objeto (y el del collider, si el que se edita es el offset de
+  un collider) sin sacarlo de la seleccion.
+
+### Grilla del suelo
+
+La escena trae un objeto llamado **"Grilla"** con el componente `Grid`: es el
+piso del editor y se dibuja siempre que el componente este visible. Su panel en
+el Inspector tiene solo dos controles:
+
+- **Visible**: enciende o apaga la grilla.
+- **Color**: el color de las lineas. El que trae de fabrica es un blanco hielo
+  casi blanco (`0.88, 0.91, 0.89`).
+
+No hay tamano ni separacion: la grilla es **infinita** y de densidad fija
+(secundarias cada unidad, una linea principal cada cinco). El circulo en el que
+se dibuja persigue a la camara y las lineas se **difuminan con la distancia**:
+opacas hasta 40 unidades de la camara y desvanciendose por completo en el
+horizonte, a 150 unidades, que es tambien el limite: mas alla no se dibuja
+nada. Los tres ejes de la grilla (X rojo, Y verde, Z azul, los mismos colores
+que el gizmo) se dibujan mas gruesos y se ajustan de brillo para que siempre
+se vean contra el color de la grilla.
+
+El componente `Grid` se puede agregar a cualquier objeto desde "Agregar
+componente", pero solo se dibuja el **primer** objeto de la escena que lo tenga,
+y siempre con la misma densidad y el mismo horizonte.
 
 ### Guia de eje (`X` / `Y` / `Z`)
 
@@ -193,11 +258,13 @@ Por ejemplo, un objeto en `(3, 2, -5)` y se pulsa `X`: la recta es `(t, 2, -5)`
 para todo `t`. Es decir, el objeto solo se desplaza en X y su altura (Y) y su
 profundidad (Z) no se mueven. Con `Y` el efecto es el inverso: quedan fijos X y Z.
 
-- Cada eje tiene su color (X rojo, Y verde, Z azul) y la recta llega hasta el
+- Cada eje tiene su color (X rojo, Y verde, Z azul, los mismos que los ejes de
+  la grilla y que el gizmo) y la recta llega hasta el
   **horizonte**, difuminandose con el mismo criterio que la grilla: opaca cerca de
   la camara y desvanciendose en el mismo punto donde el piso se acaba. Asi la
   guia se lee como un eje que atraviesa la escena entera, no como un palo corto
-  pegado al objeto.
+  pegado al objeto. Si el color de la grilla se parece al del eje, el motor
+  ajusta el brillo de la guia hasta que se los distingue.
 - Es un interruptor: apretar dos veces la misma tecla la apaga. Al activarla o
   apagarla aparece un aviso en la barra de estado que dice que guia quedo
   prendida y sobre que eje se puede mover el objeto. Tambien se apaga sola al
@@ -256,6 +323,40 @@ que edita el componente, no el transform del objeto) todavia no genera comando.
 ---
 
 ## 6. Assets por drag & drop
+
+### 6.1 Mover y copiar dentro del explorador
+
+El panel **Vista de contenido** lleva el nombre de la carpeta que esta
+mostrando en su barra superior (pasa el raton por encima para ver la ruta
+completa). Hay dos vistas del mismo arbol -- el grid de esa ventana y el arbol
+de la izquierda -- y arrastrar un archivo o una carpeta sirve para las dos:
+
+| Destino del drop | Resultado |
+|---|---|
+| Una celda de **carpeta** del grid | Mueve el elemento dentro de esa carpeta |
+| Una fila de **carpeta** del arbol | Mueve el elemento dentro de esa carpeta |
+| El espacio vacio del grid | Mueve el elemento a la carpeta que se esta viendo |
+
+Soltar sobre una fila del arbol **siempre mueve** (cortar y pegar): hacia el
+explorador no hay opcion de copia, con o sin Ctrl. Dentro del grid —sobre una
+celda de carpeta o sobre el espacio vacio— manteniendo `Ctrl` (o `Cmd` en
+macOS) el arrastre **copia** en vez de mover; el tooltip indica cual de las dos
+va a ocurrir antes de soltar.
+
+Al mover se actualizan al instante las referencias de la escena que apuntaban
+a la ruta anterior (mallas, texturas, fuentes de script) y se guarda la escena;
+copiar no cambia ninguna ruta, asi que no hay nada que reescribir. El
+`SceneAssets.json` se regenera con el guardado.
+
+Dos casos se rechazan a proposito, sin tocar disco:
+
+- **Destino ocupado:** si en la carpeta destino ya existe un elemento con ese
+  nombre, el movimiento se cancela y el original queda intacto. No se pisa nada.
+- **Carpeta dentro de si misma:** soltar `Assets` sobre `Assets/Modelos` (o
+  sobre si misma) se cancela. Si se dejara, la recursion se cortaria a mitad
+  y dejaria el arbol a medias en disco.
+
+### 6.2 Arrastrar un asset a un componente
 
 El explorador de archivos (arbol + grid) emite el payload ImGui
 `ARCHIVO_PATH` (path completo del asset) al arrastrar. Receptores del editor:
@@ -320,8 +421,9 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 - `CameraComponent` con **vistas previas en vivo** (render a FBO); detalle
   completo en [CAMARAS_VISTAS_PREVIAS.md](CAMARAS_VISTAS_PREVIAS.md).
-- "Usar" en el panel de la camara la marca como activa; el id se persiste en
-  `Configuracion.json` (default automatica si el id ya no existe al cargar).
+- "Usar" en el panel de la camara la marca como activa; el id se persiste en la
+  configuracion del proyecto (`ConfiguracionProyecto.json`), con default
+  automatica si el id ya no existe al cargar.
 
 ---
 
@@ -389,25 +491,44 @@ MotorGrafico\Exportaciones\MiJuego\MiJuego.exe
 
 ## 12. Apariencia y configuración del editor
 
-- Tema claro/oscuro, modo blanco y negro (desatura la interfaz completa y
-  acompaña fondo y grilla del viewport), color de acento (solo RGB: la
-  transparencia de cada elemento la define el tema, no el color elegido) y color
-  de fondo de la escena, aplicados en vivo por `TemaEditor` / `AparienciaUtil`.
-  El acento alcanza **todos** los roles de la interfaz (botones, solapas del
-  dock, campos de entrada, sliders, checkboxes, enlaces, bordes, separadores y
-  tablas) y los grises azulados de fábrica quedan en gris neutro, así que al
-  cambiar de color no quedan restos del azul clásico ni hace falta reiniciar el
-  editor.
-- Sensibilidad de camara, ventana de camaras, visibilidad de ventanas y la
-  apariencia se guardan junto al binario en
-  `<directorioEjecutable>/MotorGrafico/Configuraciones/Configuracion.json`
-  (la configuración por proyecto vive en
-  `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json`). La escritura es
-  **atómica** (archivo temporal + rename: un corte no deja el JSON cortado) y
-  la configuración general se guarda de forma **diferida**: mientras cambiás
-  opciones en vivo se escribe como máximo una vez cada 250 ms, y siempre al
-  salir o con Ctrl+S. Tolera archivos ausentes o corruptos.
-- Idioma del editor: Espanol / English desde Opciones.
+La vista **Opciones** del menú de inicio tiene tres bloques:
+
+- **Juego:** idioma (Espanol / English), *Sensibilidad de camara* (mouse-look,
+  0.02 a 5.0) y *Sensibilidad de movimiento* (velocidad de `WASD`, 0.1 a 5.0).
+- **Apariencia:**
+  - *Tema claro de la interfaz* — arranca en **oscuro**.
+  - *Modo blanco y negro (interfaz y viewport)* — desatura la interfaz completa y
+    fuerza el fondo del viewport y el color de la grilla a **blanco con el tema
+    claro o negro con el oscuro**: en ese modo el color de fondo y el de la
+    grilla que se hayan elegido se ignoran, y con el fondo blanco la grilla se
+    pone negra (y al reves), para que siempre se vea.
+  - *Color de acento de la interfaz* — solo RGB: la transparencia de cada
+    elemento la define el tema, no el color elegido.
+  - *Color de fondo de la escena* — el color tras el que se ve la escena 3D.
+  - *Restablecer apariencia* — vuelve el perfil completo a los valores de
+    fabrica (tema oscuro, sin modo blanco y negro, acento azul, fondo gris
+    oscuro).
+- **Configuracion:** *Restablecer configuracion* — vuelve **toda** la
+  configuracion a los defaults, conservando el nombre del proyecto.
+
+Los cambios se aplican **en vivo**, sin reiniciar: el acento alcanza **todos** los
+roles de la interfaz (botones, solapas del dock, campos de entrada, sliders,
+checkboxes, enlaces, bordes, separadores y tablas) y los grises azulados de
+fabrica quedan en gris neutro, así que al cambiar de color no quedan restos del
+azul clasico.
+
+- Persistencia: la **apariencia**, el idioma y las dos sensibilidades se guardan
+  en la configuracion general, en la raiz de datos del motor
+  (`MotorGrafico/Configuraciones/Configuracion.json` —junto al binario si el
+  motor puede escribir ahi, o en la carpeta de datos del usuario si no (ver
+  "Donde quedan los datos" en la seccion 2)—). El **gizmo** (operacion y sistema
+  de coordenadas), la **ventana de camaras**, la **visibilidad de las ventanas**
+  y la **camara activa** se guardan por proyecto, en
+  `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json`. La escritura es
+  **atomica** (archivo temporal + rename: un corte no deja el JSON cortado) y
+  la configuracion general se guarda de forma **diferida**: mientras cambias
+  opciones en vivo se escribe como maximo una vez cada 250 ms, y siempre al salir
+  o con Ctrl+S. Tolera archivos ausentes o corruptos.
 
 ---
 
@@ -417,8 +538,9 @@ Los comportamientos del juego se escriben como **scripts dinamicos**: archivos
 `.cpp` o `.java` dentro del proyecto que el editor compila en caliente y
 ejecuta en modo Play.
 
-- Se crean desde el explorador: "New Script" (C++) o "New Script Java"
-  (disponible si el motor se compilo con soporte JNI).
+- Se crean desde el explorador: clic derecho sobre la carpeta actual > "New
+  Script" y, en el dialogo que se abre, elegir **C++ (`.cpp`)** o **Java
+  (`.java`)** (este ultimo disponible si el motor se compilo con soporte JNI).
 - **El nombre del archivo debe ser `<ClassName>.cpp`** (la clase == nombre del
   archivo). El backend compila la clase como `FUNSHI_<ClassName>` mediante
   `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
@@ -474,7 +596,11 @@ public:
 
 // Export requerida por el backend del motor; NO renombrar. Va FUERA de la
 // clase, al final del archivo.
-extern "C" IScriptBehaviour* FUNSHI_CREAR_COMPORTAMIENTO(
+// En Windows/MSVC la fabrica tiene que viajar marcada con
+// FUNSHI_COMPORTAMIENTO_EXPORT: sin ese atributo la .dll compila pero no
+// exporta el simbolo y el motor no la encuentra (GetProcAddress). En
+// MinGW/Linux/macOS el macro queda vacio (ahi se exporta todo solo).
+extern "C" FUNSHI_COMPORTAMIENTO_EXPORT IScriptBehaviour* FUNSHI_CREAR_COMPORTAMIENTO(
     const MotorScript::ApiScriptGameObject* api) {
     (void)api;
     return new FUNSHI_NOMBRE_CLASE();
@@ -654,9 +780,24 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 
 ### 13.5 Notas del backend C++
 
-- El fuente se compila a `.so` (Linux), `.dll` (Windows/MSVC) o `.dylib`
-  (macOS) con `-std=c++17 -shared -fPIC -O2` y
-  `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
+- El fuente se compila a `.so` (Linux), `.dll` (Windows) o `.dylib` (macOS). El
+  juego de flags lo decide la **familia del compilador**, no el sistema
+  operativo: MSVC (`cl.exe`) recibe
+  `/nologo /LD /std:c++17 /O2 /MD /EHsc` y GCC/Clang (`g++`, `c++`, `clang++`,
+  incluido MinGW en Windows) recibe `-std=c++17 -shared -fPIC -O2`; en los dos
+  casos se agrega `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
+- **Runtime de C++ compartido (Windows/MSVC):** el `.dll` del script se compila
+  con el **mismo CRT dinamico que el engine** (`/MD` en Release, `/MDd` en
+  Debug) y con `/EHsc`. No es una preferencia de estilo: los `SerializeField`
+  cruzan la frontera del `.dll` con `std::string`, `std::vector` y
+  `std::function`, asi que la memoria se aloca en un modulo y se libera en el
+  otro. Compilar el script con el CRT estatico (`/MT`) le da a la `.dll` su
+  propio heap, y liberar memoria del otro lado corrompe el heap: el motor muere
+  al asignar el script, sin log ni backtrace. El runtime del engine se declara
+  en `CMakeLists.txt` (`CMAKE_MSVC_RUNTIME_LIBRARY`) y llega al script como
+  `FUNSHI_CXX_RUNTIME_FLAG`; el cache de artefactos incluye ese contrato, asi
+  que cambiar los flags recompila solo (no hay que borrar
+  `%TEMP%/funshi_scripts` a mano).
 - El `.so` del script **no enlaza contra el motor**: todo el acceso pasa por
   la tabla `api` de punteros a funcion. No incluyas cabeceras del motor mas
   alla de `IScriptBehaviour.h`; en particular evita arrastrar Bullet/Assimp
@@ -669,10 +810,19 @@ void onUpdate(GameObject* owner, float deltaTime) override {
   toolset MSVC (se busca subiendo desde la carpeta del compilador), porque
   `cl.exe` resuelve los headers del CRT (incluido `<cstddef>`) y las librerias
   por `INCLUDE`/`LIB`. Con esto el editor funciona igual si se lanza desde el
-  Explorador o desde Visual Studio. Si el compilador configurado no es MSVC
-  (`FUNSHI_CXX` a MinGW/g++, por ejemplo), hace falta un entorno con `cl.exe`
-  disponible. Los scripts Java no tienen este requisito (javac se invoca por
-  ruta absoluta).
+  Explorador o desde Visual Studio. Si el compilador configurado es MinGW/g++
+  (`FUNSHI_CXX`, o el horneado por el build), se emiten los flags de GCC: ese
+  camino tambien funciona y no necesita `cl.exe` en el entorno. Los scripts Java
+  no tienen este requisito (javac se invoca por ruta absoluta).
+- **Export de la fabrica en Windows/MSVC:** la funcion
+  `FUNSHI_CREAR_COMPORTAMIENTO` tiene que declararse con
+  `FUNSHI_COMPORTAMIENTO_EXPORT` (asi la genera el editor). En MSVC un
+  `extern "C"` pelado **no se exporta solo**: la `.dll` compila, pero
+  `GetProcAddress` no la encuentra. Para los scripts escritos con el template
+  viejo (sin el macro), el motor pide el export tambien en el link
+  (`/EXPORT:`), asi que siguen funcionando; los `.dll` compilados antes de ese
+  cambio simplemente se recompilan solos. En MinGW/Linux/macOS el macro queda
+  vacio porque ahi los simbolos se exportan por defecto.
 
 ---
 
@@ -681,6 +831,31 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 Requiere que el motor se haya compilado con el JDK disponible
 (`FUNSHI_JAVA=ON`); la ventana Estado muestra `javac`, `libjvm` y si el
 soporte esta activo.
+
+En runtime hace falta un **JDK** (no un JRE) porque el motor compila el
+`.java` del proyecto con `javac` antes de cargarlo en la JVM. El motor lo
+busca solo, en este orden:
+
+1. `FUNSHI_LIBJVM` (ruta explicita a la biblioteca de la JVM).
+2. Un `jre/` junto al ejecutable (reservado para empaquetar un runtime).
+3. `JAVA_HOME` (`<JAVA_HOME>/bin/server/jvm.dll` en Windows,
+   `<JAVA_HOME>/lib/server/libjvm.so` en Linux y macOS).
+4. La ruta con la que se compiló el binario, que solo existe si el juego se
+   corre en la misma máquina donde se compiló.
+5. Las instalaciones típicas: el registro de Windows (`JavaSoft\JDK`,
+   `JavaSoft\Java Development Kit`, `Eclipse Adoptium\JDK`) y las carpetas
+   `Program Files\{Java,Eclipse Adoptium,Microsoft,Amazon Corretto,Zulu}`, o
+   `/usr/lib/jvm` en Linux.
+
+El `javac` se busca en la **misma** raíz que la JVM, así que el `.java` se
+compila siempre con el mismo JDK que después lo ejecuta. Se puede forzar con
+la variable `JAVAC`.
+
+El instalador de Windows (`FunshiEngineGL_setup.iss`) comprueba si hay un JDK
+antes de instalar y, si no lo encuentra, ofrece descargar e instalar Temurin
+JDK 17. El paquete de Linux (Qt IFW) no puede encadenar instaladores, así que
+declara el requisito en la descripción: en la mayoría de distros el JDK ya
+viene instalado.
 
 ### 14.1 Plantilla generada por el editor
 
@@ -720,6 +895,11 @@ public class MiScript implements Comportamiento {
   fuente con el del artefacto cargado. Los valores SerializeField se extraen
   antes de descargar y se reinyectan por nombre de campo al terminar, de modo
   que reordenar campos en el fuente no pierde valores.
+- **Varios objetos sobre el mismo script:** si dos objetos apuntan al mismo
+  `.cpp` (o al mismo `.java`), solo se compila una vez: el segundo componente
+  usa el artefacto que ya está al día en vez de compilarlo otra vez, que en
+  Windows sería reescribir una `.dll` que está cargada (y el sistema lo
+  rechaza).
 - **Java:** igual, con el classloader child-first; la JVM se reutiliza.
 - **Ventana Estado:** para cada script muestra nombre, ok/error y mensaje
   (errores de compilacion incluidos), ademas del toolchain detectado.

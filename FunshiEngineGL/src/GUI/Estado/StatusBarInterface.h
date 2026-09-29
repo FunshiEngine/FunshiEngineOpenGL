@@ -25,14 +25,11 @@
 #include <vector>
 
 class SceneRegistry;
-class Script;
 class EditorEventBus;
 
 // Ventana "Estado": muestra el toolchain externo (compilador C++, javac,
 // libjvm, cache de artefactos) y el estado de los scripts de la escena
-// (compilando / cargado / error). Lo que antes solo aparecia como error
-// tardio despues de bloquear el hilo con g++/javac, ahora es visible desde el
-// arranque y durante el play (colas de compilacion de GameScene).
+// como lineas de log simples.
 class StatusBarInterface : public GeneralUserInterface {
 private:
     SceneRegistry* scene_ = nullptr;
@@ -44,28 +41,23 @@ private:
     std::vector<ScriptRuntime::ResultadoCarga> resultados_;
     bool toolchainListo_ = false;
     ScriptRuntime::EstadoHerramientas toolchain_;
-    // Overlay de carga que se dibuja centrado al pulsar "Activar".
-    bool mostrarProgreso_ = false;
-    bool mostrarResultado_ = false;
-    // Ultimo estado publicado en el bus (evita republicar en cada frame);
-    // se inicializa con el estado de fabrica para no notificar la restauracion.
-    bool estadoPublicado_ = false;
     // Mensaje temporal para feedback (p. ej. exportacion).
     std::string mensajeTemporal_;
     float temporizadorMensaje_ = 0.0f;
     // Canal de GUI interna (lo posee GUIManager; puntero NO propietario).
     EditorEventBus* busEditor = nullptr;
+    // Ultimo estado publicado en el bus (evita republicar en cada frame);
+    // se inicializa con el estado de fabrica para no notificar la restauracion.
+    bool estadoPublicado_ = false;
 
     void dibujarToolchain();
-    void dibujarScripts();
-    void dibujarResultados();
-    void dibujarOverlayCarga();
 
 public:
     explicit StatusBarInterface(bool stateGUI);
 
     void bindScene(SceneRegistry* scene);
     void setEditorEventBus(EditorEventBus* bus);
+    // Recibe estado de compilacion desde GameScene y lo convierte a log.
     void setEstadoCompilacion(
         bool enCurso, const std::string& actual, std::size_t hecha,
         std::size_t total,

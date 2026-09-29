@@ -22,6 +22,8 @@
 #include <fstream>
 #include <utility>
 
+#include "../Herramientas/PathUtils.h"
+
 GestorDeArchivos::GestorDeArchivos(std::string pathProyect, std::string rootName)
     : treeFilePath(new ArbolEnlazado<File*>()), folderActual(nullptr), rootName(std::move(rootName)) {
     setTreeFilePath(pathProyect, this->rootName);
@@ -158,6 +160,14 @@ bool GestorDeArchivos::eliminarCarpeta(const std::string& path) {
     return !ec && removidos > 0;
 }
 
+bool GestorDeArchivos::eliminarArchivo(const std::string& path) {
+    if (path.empty()) return false;
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(path, ec)) return false;
+    std::filesystem::remove(path, ec);
+    return !ec;
+}
+
 bool GestorDeArchivos::crearCarpeta(const std::string& path) {
     if (path.empty()) return false;
     std::error_code ec;
@@ -206,7 +216,66 @@ bool GestorDeArchivos::renombrar(const std::string& ruta,
     // Cualquier separador / \ es invalido en un nombre de salida; no dejar
     // que un nombre malicioso cree una ruta nueva por accidente.
     if (nuevoNombre.find_first_of("/\\") != std::string::npos) return false;
+    const std::filesystem::path destino = objetivo.parent_path() / nuevoNombre;
     std::error_code ec;
-    std::filesystem::rename(objetivo, objetivo.parent_path() / nuevoNombre, ec);
+    // No se pisa un destino existente (mismo criterio que mover): en POSIX un
+    // rename sobre un archivo lo reemplaza en silencio y se perderia su
+    // contenido con un renombre accidental. Se permite renombrar al MISMO
+    // elemento (cambiar "assets" por "Assets" en Windows, donde resuelven al
+    // mismo directorio).
+    if (std::filesystem::exists(destino, ec)) {
+        std::error_code otro;
+        if (!std::filesystem::equivalent(objetivo, destino, otro)) return false;
+    }
+    std::filesystem::rename(objetivo, destino, ec);
+    return !ec;
+}
+
+bool GestorDeArchivos::mover(const std::string& origen,
+                              const std::string& destino) {
+    if (origen.empty() || destino.empty()) return false;
+
+    std::error_code ec;
+    const std::filesystem::path desde(origen);
+    const std::filesystem::path hacia(destino);
+
+    if (!std::filesystem::exists(desde, ec)) return false;
+    // No se pisa un destino existente: un arrastre mal dirigido dejaria el
+    // original intacto y el usuario creeria que se movio cuando no.
+    if (std::filesystem::exists(hacia, ec)) return false;
+
+    // Evitar mover una carpeta DENTRO de si misma o de un descendiente:
+    // el destino no puede estar bajo el origen (mover ancestro -> descendiente).
+    if (std::filesystem::is_directory(desde, ec)) {
+        const std::filesystem::path srcNorm = desde.lexically_normal();
+        const std::filesystem::path dstNorm = hacia.lexically_normal();
+        // Si dstNorm empieza con srcNorm + separador, el destino está dentro del origen.
+        if (dstNorm.string().rfind(srcNorm.string() + PATH_SEP, 0) == 0) return false;
+        // También bloquear si son exactamente iguales (mover sobre si mismo).
+        if (dstNorm == srcNorm) return false;
+    }
+
+    std::filesystem::rename(desde, hacia, ec);
+    if (!ec) return true;
+
+    // rename solo funciona dentro del mismo volumen. Entre volumenes (o con el
+    // error de permisos que deja Windows en algunos casos) se cae a copiar y
+    // borrar el origen, que es mas lento pero produce el mismo resultado.
+    ec.clear();
+    if (std::filesystem::is_directory(desde, ec)) {
+        std::filesystem::copy(desde, hacia,
+                              std::filesystem::copy_options::recursive,
+                              ec);
+    } else {
+        std::filesystem::copy_file(desde, hacia,
+                                   std::filesystem::copy_options::none, ec);
+    }
+    if (ec) return false;
+
+    ec.clear();
+    if (std::filesystem::is_directory(desde, ec))
+        std::filesystem::remove_all(desde, ec);
+    else
+        std::filesystem::remove(desde, ec);
     return !ec;
 }
