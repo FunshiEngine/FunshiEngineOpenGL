@@ -132,6 +132,21 @@ Apariencia ConfigPersistence::jsonToApariencia(const nlohmann::json& j) {
                 }
         }
     }
+
+    // Sanitizacion de colores del cielo: si los 3 componentes son > 0.8 y casi
+    // iguales (diferencia < 0.05), es probable un valor legacy corrupto o
+    // migracion mal hecha de "fondo" unico; se resetea al default historico 0.1.
+    // Esto evita que una configuracion guardada con valores casi blancos
+    // (p. ej. 0.95/0.94/0.94) produzca un cielo blanco en modo normal.
+    auto sanearCielo = [](float c[3]) {
+        if (c[0] > 0.8f && c[1] > 0.8f && c[2] > 0.8f &&
+            std::abs(c[0] - c[1]) < 0.05f && std::abs(c[1] - c[2]) < 0.05f) {
+            c[0] = c[1] = c[2] = 0.10f;
+        }
+    };
+    sanearCielo(a.fondoSuperior);
+    sanearCielo(a.fondoInferior);
+
     // Radio del difuminado...
     // por defecto, que es el que venia implicito en las constantes de la grilla.
     // Un valor fuera de rango o no finito (editado a mano, corrupto) se acota

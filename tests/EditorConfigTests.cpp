@@ -85,6 +85,35 @@ int main() {
         CHECK(cfg.datos().apariencia.radioDifuminado ==
                   AparienciaUtil::kRadioDifuminadoPorDefecto,
               "default radio de difuminado");
+        // Defaults de colores del cielo (gris oscuro historico)
+        CHECK(cfg.datos().apariencia.fondoSuperior[0] == 0.10f &&
+                  cfg.datos().apariencia.fondoSuperior[1] == 0.10f &&
+                  cfg.datos().apariencia.fondoSuperior[2] == 0.10f,
+              "default fondoSuperior = 0.1, 0.1, 0.1");
+        CHECK(cfg.datos().apariencia.fondoInferior[0] == 0.10f &&
+                  cfg.datos().apariencia.fondoInferior[1] == 0.10f &&
+                  cfg.datos().apariencia.fondoInferior[2] == 0.10f,
+              "default fondoInferior = 0.1, 0.1, 0.1");
+    }
+
+    // 1b. Sanitizacion de colores del cielo: valores casi blancos (>0.8 y casi
+    // iguales) sin B/N se resetean al default 0.1, para evitar migraciones
+    // corruptas de "fondo" unico o configs guardadas con valores invalidos.
+    {
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << R"({"version": 1, "apariencia": {"blancoYNegro": false, "temaClaro": false, "fondoSuperior": [0.95, 0.94, 0.94], "fondoInferior": [0.95, 0.94, 0.94]}})";
+        }
+        EditorConfig cfgSanitizado;
+        cfgSanitizado.cargarGeneral(rutaGeneral);
+        CHECK(cfgSanitizado.datos().apariencia.fondoSuperior[0] == 0.10f &&
+                  cfgSanitizado.datos().apariencia.fondoSuperior[1] == 0.10f &&
+                  cfgSanitizado.datos().apariencia.fondoSuperior[2] == 0.10f,
+              "sanitizacion: fondoSuperior casi blanco sin B/N -> default 0.1");
+        CHECK(cfgSanitizado.datos().apariencia.fondoInferior[0] == 0.10f &&
+                  cfgSanitizado.datos().apariencia.fondoInferior[1] == 0.10f &&
+                  cfgSanitizado.datos().apariencia.fondoInferior[2] == 0.10f,
+              "sanitizacion: fondoInferior casi blanco sin B/N -> default 0.1");
     }
 
     // 2. Round-trip: los valores cambiados sobreviven a guardar/cargar.
