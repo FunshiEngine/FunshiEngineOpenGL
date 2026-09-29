@@ -104,6 +104,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **R9 — Texto estructurado con seek en binario** | Si el lector hace `seekg(tellg())` para releer (look-ahead/peek), abrir en **binario** y normalizar las líneas (recortar `\r`): en modo texto el CRT de Windows traduce CRLF y los offsets dejan de ser bytes exactos | `SceneSerializer::load()` + `getlineLimpio()` (ver §7.4) |
 | **R10 — La bandera de encoding viaja junto al dato** | Si una API acepta un bloque/cadena cuyo encoding depende de una bandera (`CREATE_UNICODE_ENVIRONMENT`), la bandera se decide **dentro** de la función que recibe el dato, nunca en el llamador | `Proceso::lanzar()` (ver §8.4) |
 | **R11 — La frescura del artefacto manda, no el estado del que pide** | Antes de reescribir una salida, decidir por los tiempos de **archivo** (existe y no es más viejo que su fuente); una `.dll` cargada en el proceso no se puede reescribir en Windows | `BackendCpp::compilarYCargar()` (ver §9.4) |
+| **R12 — El que dibuja posee su VAO** | En un contexto core todo `glDraw*` necesita un VAO ligado, incluso si la pasada no lee atributos (`gl_VertexID`); el VAO lo crea y lo liga el backend, no el llamador | `OpenGL3Backend::drawFullscreenTriangle()` (ver §10.4) |
 
 ---
 
@@ -471,7 +472,105 @@ Checklist de mitigación:
 
 ---
 
-## 10. Historial de Cambios
+## 10. Sexto concepto: **Un contexto Core Profile rechaza todo dibujo sin VAO ligado**
+
+### 10.1 Descripción del problema
+
+En un perfil **core** de OpenGL el *Vertex Array Object* 0 no es un objeto
+usable: la API lo eliminó para forzar el pipeline moderno. Cualquier llamada de
+dibujo (`glDrawArrays`, `glDrawElements`, instanciada o no) con **ningún VAO
+ligado** se rechaza con `GL_INVALID_OPERATION` y **no dibuja nada**. Como el
+error no interrumpe ni imprime nada por defecto (Mesa no loguea `glGetError`),
+el síntoma se ve como "la pasada no hace nada" y no como un error de compilación
+o de shader.
+
+El caso típico que cae en esto es la pasada **sin atributos**: un shader que
+arma sus vértices con `gl_VertexID` (triángulo a pantalla completa, post-proceso,
+estencil) y por eso no lleva VBO. Es fácil creer que "no hay geometría, entonces
+no hace falta VAO": con ese razonamiento la pasada funciona en un contexto de
+compatibilidad y no en el core que pide el motor.
+
+### 10.2 Síntomas
+
+- Una pasada completa (fondo, cielo, post-proceso) **no aparece nunca**, mientras
+  el resto de la escena se dibuja bien.
+- El área afectada muestra el **color de limpieza** del framebuffer (o lo que
+  haya quedado de una pasada anterior), no negro ni basura.
+- Sin mensajes: ni error de compilación de shader, ni excepción, ni línea de log.
+  El shader linkea, los uniforms se encuentran y se suben con éxito.
+- Los valores que la pasada debería usar llegan correctamente (se pueden trazar
+  por log hasta el `setUniform`): el problema no está en los datos.
+- Reproducible en drivers que imponen core estricto (Mesa con
+  `GLFW_OPENGL_CORE_PROFILE`, macOS, GPU modernas); en un contexto de
+  compatibilidad el mismo código puede funcionar y esconder el bug.
+
+### 10.3 Causa raíz
+
+```cpp
+// Pasada sin atributos (fallaba): el shader usa gl_VertexID, asi que "no
+// necesita VAO"... en un contexto de compatibilidad.
+backend.useProgram(skyProgram_);
+backend.setUniformVec3(locTop, colorSup);
+glDrawArrays(GL_TRIANGLES, 0, 3);   // <-- sin VAO ligado: GL_INVALID_OPERATION
+```
+
+El motor desliga el VAO al terminar cada dibujo (`glBindVertexArray(0)`) y el
+backend de ImGui restaura el VAO previo al cerrar su frame, que es 0. Por eso el
+estado al entrar a la pasada era "ningún VAO": en core, dibujo descartado.
+
+Comprobación directa (`glGetError` después del draw): `0x0502`
+= `GL_INVALID_OPERATION` y los píxeles quedan en el color de clear; ligando un
+VAO vacío el mismo draw devuelve `GL_NO_ERROR` y pinta el degradado esperado.
+
+### 10.4 Solución canónica (Patrón R12 — el que dibuja posee su VAO)
+
+**Toda pasada sin atributos necesita un VAO ligado, aunque esté vacío**, y ese
+VAO lo debe poseer quien ejecuta el dibujo, no el llamador:
+
+```cpp
+void OpenGL3Backend::drawFullscreenTriangle() {
+    if (vaoPantallaCompleta_ == 0) GLFuncs::pfnGenVertexArrays(1, &vaoPantallaCompleta_);
+    GLFuncs::pfnBindVertexArray(vaoPantallaCompleta_);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    GLFuncs::pfnBindVertexArray(0);
+}
+```
+
+Puntos clave:
+
+- El VAO vacío se crea **una sola vez** y se reusa; no hay que subir geometría
+  ni atributos.
+- El dibujo va por el **backend** (`IRenderBackend`), no por un `glDrawArrays`
+  suelto en la capa de escena: así el estado gráfico queda en la única capa que
+  lo posee y cualquier pasada futura reusa el mismo camino.
+- Fuera del backend, la regla general es: **si hay `glDraw*`, antes hay un
+  `glBindVertexArray`** (los meshes y los batches de líneas ya lo hacían).
+
+Checklist de mitigación:
+
+- [ ] Revisar todo `glDrawArrays`/`glDrawElements` del motor y confirmar que
+      tiene un VAO ligado (propio, del backend o del objeto que dibuja).
+- [ ] En una pasada nueva sin atributos, usar la pasada a pantalla completa del
+      backend en vez de llamar a `glDrawArrays` directo.
+- [ ] Al depurar "una pasada no pinta nada": `glGetError` inmediatamente después
+      del draw (`0x0502` = VAO ausente) y leer píxeles del framebuffer para
+      distinguir "no dibuja" de "dibuja con otro color".
+- [ ] No confiar en "no hay geometría, no hace falta VAO": en core el VAO es
+      obligatorio siempre.
+- [ ] Test: sonda que corre la misma pasada con y sin VAO ligado y compara
+      píxeles (la sonda vive fuera del repo; el fix se cierra con la validación
+      en la app).
+
+### 10.5 Registro de instancias
+
+| # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
+|---|-----------|-----------|----------------|--------------|--------|
+| 1 | `SceneRenderer::dibujarCielo()` (`src/Rendering/SceneRenderer.cpp`) | Cielo degradado (triángulo a pantalla completa con `gl_VertexID`) sin VAO ligado en contexto core | OpenGL core (`GLFW_OPENGL_CORE_PROFILE`, Mesa 4.6) | R12: `IRenderBackend::drawFullscreenTriangle()` posee un VAO vacío y lo liga por dentro | `fix(rendering): ligar VAO en el pase a pantalla completa del cielo` |
+
+---
+
+
+## 11. Historial de Cambios
 
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
@@ -481,6 +580,7 @@ Checklist de mitigación:
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el cuarto concepto (Patrón R10, `CREATE_UNICODE_ENVIRONMENT` obligatorio con bloques UTF-16 en `CreateProcessW`) con su instancia #1, a raíz del error 87 al pasar el entorno de vcvars/variable extra (H-3 nivel 2). |
 | 2026-09-28 | Gianfranco Ivan Enrique | Añadido el quinto concepto (Patrón R11, una imagen cargada bloquea su archivo en Windows) con su instancia #1, a raíz del `Permission denied` de `ld` al haber dos objetos sobre el mismo script (H-20). |
 | 2026-09-28 | Gianfranco Ivan Enrique | Añadida instancia #4 al primer concepto: drop entre paneles (ShowFolder → BrowseFile y ShowFolder → ShowFolder carpeta distinta) con invalidación explícita de cache grid en origen y destino. |
+| 2026-09-29 | Gianfranco Ivan Enrique | Añadido el sexto concepto (Patrón R12, un contexto Core Profile rechaza todo dibujo sin VAO ligado) con su instancia #1, a raíz del cielo degradado que no se dibujaba en un contexto 4.6 core. |
 
 ---
 

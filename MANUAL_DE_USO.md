@@ -97,12 +97,12 @@ MotorGrafico/
 │   └── <proyecto>/
 │       ├── Memory/
 │       │   ├── Binarios/Scene        ← escenas binarias
-│       │   ├── Interfaces/           ← assets JSON del CreadorDeInterfaces
+│       │   # ├── Interfaces/           ← assets JSON del CreadorDeInterfaces
 │       │   ├── ConfiguracionProyecto.json
 │       │   └── imgui.ini
 │       └── src<proyecto>/            ← assets del proyecto (raiz del explorador)
 │           ├── modelos/              ← .obj/.fbx que arrastra el editor
-│           ├── Sonidos/              ← clips de audio (.wav/.mp3/...)
+│           # ├── Sonidos/              ← clips de audio (.wav/.mp3/...)
 │           └── Scripts/              ← scripts del usuario (.cpp/.java)
 ├── Configuraciones/
 │   └── Configuracion.json            ← configuracion global (ultimo proyecto, idioma,
@@ -113,12 +113,12 @@ MotorGrafico/
         ├── <Juego>.exe / <Juego>     ← ejecutable standalone
         ├── Data/
         │   ├── Memory/
-        │   ├── Sonidos/
+        │   # ├── Sonidos/
         │   └── ConfiguracionProyecto.json
         └── lib/                      ← dependencias runtime (Bullet, miniaudio, GLFW, etc.)
 ```
 
-La convencion de assets por nombre usa carpetas `Sonidos/` e `Interfaces/` con
+La convencion de assets por nombre usa carpetas `Sonidos/` y `Interfaces/` (el usuario las crea al agregar el primer asset) con
 mayuscula inicial. El arbol de archivos del editor lista la **raiz del
 proyecto** (`src<nombre>`).
 
@@ -213,8 +213,8 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 - **Crear objetos:** "New GameObject" (crea un objeto simple en la escena que posee únicamente el componente `Transform`).
 - **Menú contextual en la jerarquía:** clic derecho sobre un objeto despliega "Renombrar" y "Eliminar"; clic derecho en espacio vacío del panel despliega "New GameObject".
 - **Componentes:** `Transform`, `Color`, `Model`, `Material`, `Light`,
-  `CameraComponent`, `Grid`, colliders (esfera / cubo / malla), `RigidBody`,
-  `AudioSource`, `InterfaceComponent` y `Script`.
+  `CameraComponent`, `Grid`, `Skybox`, colliders (esfera / cubo / malla),
+  `RigidBody`, `AudioSource`, `InterfaceComponent` y `Script`.
 - **Inspector:** boton "Agregar componente" abre el popup de componentes; cada
   uno tiene su panel propio (Transform, Luz con tipo/atenuacion/color, etc.).
 - **Jerarquia:** arrastra un objeto sobre otro en el arbol para reparentar; el
@@ -284,6 +284,54 @@ profundidad (Z) no se mueven. Con `Y` el efecto es el inverso: quedan fijos X y 
   no necesita `Ctrl` (`Ctrl+Y`/`Ctrl+Z` siguen siendo redo/undo).
 
 ---
+
+### Skybox (cubemap de seis caras)
+
+El componente `Skybox` reemplaza el cielo degradado por una imagen de seis
+caras. Se agrega desde "Agregar componente"; no hay limite de cuantos Skybox
+puede haber en la escena, pero el que se dibuja es el **primer objeto visible**
+que lo tenga, igual que con `Grid`.
+
+- **Visible**: enciende o apaga el cubemap. Apagado, o con una casilla sin
+  asignar, vuelve a dibujarse el cielo degradado de la seccion 12.
+- Seis campos de texto con la ruta de cada cara: `Cara +X (Right)`,
+  `Cara -X (Left)`, `Cara +Y (Top)`, `Cara -Y (Bottom)`, `Cara +Z (Front)` y
+  `Cara -Z (Back)`. Las rutas son **relativas al proyecto** y se guardan
+  relativas a la raíz de assets, igual que la malla, las texturas y el script:
+  la escena sigue siendo válida si renombrás o movés el proyecto entero, y las
+  referencias se actualizan solas si movés o renombrás una cara desde el
+  explorador. Si escribís una ruta con `/` o `\` indistinto, también funciona.
+  Los formatos admitidos son los que carga el motor de imagenes (PNG, JPG, TGA,
+  BMP, PSD, HDR).
+- **Elegir el archivo con el explorador**: cada campo tiene un botón `...` que
+  abre un selector dentro del editor, con las carpetas primero y un filtro de
+  texto. Arranca en la carpeta de la cara que estás editando (si no tiene ruta,
+  en la raíz de assets del proyecto), se navega con doble clic o con el botón
+  `Arriba`, y se elige con doble clic o con el botón `Elegir`. No hace falta
+  escribir ni recordar la ruta.
+- **Arrastrar y soltar**: también podés arrastrar el archivo desde el
+  explorador y soltarlo directamente sobre el campo de su cara, igual que la
+  malla y el script.
+- El panel avisa de las dos condiciones que hacen que el motor descarte el
+  cubemap sin explicar nada en la pantalla: cuántas caras quedan sin asignar, y
+  si alguna no mide lo mismo que la `+X`. Cuando es así te dice la resolución de
+  cada una. La medida se hace en **píxeles**, igual que la comprobación del
+  render, y leyendo solo la cabecera del archivo: no decodifica la imagen. No se
+  compara el peso del archivo, porque dos imágenes idénticas con distinta
+  compresión pesan distinto sin que midan distinto.
+- Las seis caras deben ser del **mismo tamano**: si una falta, no es legible o
+  no coincide con las demas, el motor avisa una vez por conjunto de caras y
+  dibuja el degradado en su lugar.
+- La imagen se decodifica y se sube a la tarjeta de video **una sola vez** por
+  conjunto de caras; se vuelve a subir solo si cambia alguna de las rutas o si
+  se reescribe algun archivo, asi que editar la escena con un Skybox cargado no
+  tiene costo extra por frame.
+- El cubemap **acompania a la camara**: se dibuja como si estuviera a distancia
+  infinita, de modo que **desplazarse** no lo acerca ni lo aleja, pero **girar**
+  si lo recorre, asi que las nubes y el sol se ven desde el angulo correcto
+  segun donde mires. Es lo que hace que un cielo con imagen se sienta como un
+  cielo y no como un fondo de pantalla. Aparece tanto en el viewport principal
+  como en las vistas previas.
 
 ## 5. Undo / redo de operaciones del editor
 
@@ -398,10 +446,10 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 ## 8. Audio
 
-- Coloca los clips en `Sonidos/` (wav/mp3/etc.). `AudioClipsManager` los
+- Crea la carpeta `Sonidos/` (si no existe) y coloca los clips en `Sonidos/` (wav/mp3/etc.). `AudioClipsManager` los
   descubre y los registra **por nombre** en el `AudioEngine` al escanear.
 - Agrega `AudioSource` a un objeto; en su panel elige el clip del dropdown
-  (o arrastralo desde `Sonidos/`), ajusta volumen, loop y "reproduccion
+  (o arrastralo desde `Sonidos/` tras crearla), ajusta volumen, loop y "reproduccion
   automatica". En Play, el AudioEngine reproduce en su hilo de audio.
 - Cambiar de proyecto re-escanea y limpia el registro de clips.
 
@@ -466,7 +514,7 @@ Al pulsar **Exportar**, el motor:
 3. Compila el ejecutable del juego linkando contra `funshi_runtime`.
 4. Empaqueta en `MotorGrafico/Exportaciones/<nombre>/`:
    - Ejecutable (`<nombre>.exe` en Windows, `<nombre>` en Linux).
-   - Carpeta `Data/` con `Memory/`, `Sonidos/`, `ConfiguracionProyecto.json`.
+   - Carpeta `Data/` con `Memory/`, `Sonidos/` (si hay audio), `ConfiguracionProyecto.json`.
    - Carpeta `lib/` con dependencias bundleadas (`.dll` / `.so`).
 
 El dialogo muestra un **spinner indeterminado** (barra de progreso falsa) mientras
@@ -520,7 +568,10 @@ La vista **Opciones** del menú de inicio tiene tres bloques:
 mundo: la grilla se dibuja hasta ahi y se difumina hacia su borde, y la guia de
 eje se desvanece en ese mismo circulo. Con un radio corto el piso llega menos
 lejos y se dibujan menos lineas (mas fluido); con uno largo llega mas lejos y
-cuesta mas. El tramo completamente opaco es siempre la misma fraccion del radio
+cuesta mas. La grilla se rearma solo cuando cambia algo que la altera (camara,
+radio o color): con la camara quieta editar la escena no cuesta geometria
+nueva, aunque conviene igual no pasarse del radio necesario. El tramo
+completamente opaco es siempre la misma fraccion del radio
 (40 de cada 150), asi que al agrandarlo el degradado se agranda con el, en vez
 de estirarse. El valor por defecto es 150 y *Restablecer apariencia* lo vuelve
 ahi.
@@ -531,11 +582,30 @@ checkboxes, enlaces, bordes, separadores y tablas) y los grises azulados de
 fabrica quedan en gris neutro, así que al cambiar de color no quedan restos del
 azul clasico.
 
-- El **cielo** se renderiza como un degradado vertical entre *Color de la parte
-  superior del cielo* y *Color de la parte inferior del cielo*. En modo
-  blanco y negro ambas partes se fuerzan a blanco (tema claro) o negro (tema
-  oscuro). En el futuro se podra cargar un cubemap de seis caras para un cielo
-  con textura.
+- El **cielo** se renderiza como un degradado entre *Color de la parte
+  superior del cielo* y *Color de la parte inferior del cielo*. Los dos colores
+  se guardan tal como los elige el usuario —un cielo claro es una eleccion
+  valida— y el degradado los mezcla. En modo blanco y negro ambas partes se
+  fuerzan a blanco (tema claro) o negro (tema oscuro). El degradado se dibuja
+  como primera pasada del viewport, con la prueba de profundidad activa pero sin
+  escribir en ella, asi que queda por detras de la grilla y de los objetos. Si un
+  objeto tiene el componente **Skybox** visible con sus seis caras asignadas, su
+  cubemap reemplaza al degradado (ver "Skybox (cubemap de seis caras)" en la
+  seccion 4).
+
+- El color del cielo depende de **hacia donde mira la camara**, no de la
+  posicion del pixel en la pantalla: el shader des-proyecta cada pixel al plano
+  lejano y usa la componente vertical de ese rayo de vista. Por eso el cielo va
+  con la camara en vez de quedar clavado a la pantalla como un fondo de
+  escritorio. En la practica:
+
+  - Mirando al **cenit** se ve el color superior; mirando al **suelo**, el
+    inferior.
+  - En el **horizonte** queda la banda de mezcla, y los colores puros aparecen a
+    unos 20 grados por encima y por debajo de el.
+  - **Girar** la camara de un lado a otro recorre el degradado igual que mirar
+    arriba o abajo; **desplazarse** (translation) no lo cambia, porque la
+    direccion de vista es la misma.
 
 - Persistencia: la **apariencia**, el idioma y las dos sensibilidades se guardan
   en la configuracion general, en la raiz de datos del motor
@@ -753,7 +823,7 @@ Misma convencion APPEND-ONLY con `servicios->version` al final.
 
 | Funcion | Firma | Descripcion |
 |---|---|---|
-| `servicios->reproducirSonido(clip, vol, loop)` | `int (const char*, float, bool)` | reproduce un clip de `Sonidos/` por **nombre**; devuelve handle >= 0, o -1 si el clip no existe |
+| `servicios->reproducirSonido(clip, vol, loop)` | `int (const char*, float, bool)` | reproduce un clip de `Sonidos/` (la carpeta debe existir) por **nombre**; devuelve handle >= 0, o -1 si el clip no existe |
 | `servicios->detenerSonido(handle)` | `void (int)` | detiene la reproduccion del handle |
 | `servicios->objetoPorNombre("Enemigo")` | `void* (const char*)` | busca un GameObject por nombre en la escena; `nullptr` si no existe. El puntero vale mientras el objeto viva (todavia no se crean/destruyen objetos desde scripts) |
 | `servicios->teclaSostiene("W")` | `bool (const char*)` | tecla mantenida apretada |

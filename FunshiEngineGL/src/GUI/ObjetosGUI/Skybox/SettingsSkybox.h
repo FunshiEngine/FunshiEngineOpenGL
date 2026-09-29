@@ -20,12 +20,26 @@
 #define SETTINGSSKYBOX_H
 
 #include "../SettingsComponent.h"
+#include "SelectorArchivoCubemap.h"
 
 class GameObject;
 class Skybox;
 
 class SettingsSkybox : public SettingsComponent {
     GameObject* gameObject;
+    // Estado del modal de eleccion de cara. Vive en el panel (no global) para
+    // que cada inspector tenga el suyo: se dibuja una vez por frame desde aca,
+    // despues de los campos, y su resultado se aplica al frame de confirmacion.
+    SelectorArchivoCubemap::Modal selector_;
+    // Ultimas dimensiones medidas y las rutas a las que corresponden. El panel
+    // se redibuja cada frame, asi que sin esto se abririan los seis archivos en
+    // cada uno solo para volver a leer la misma cabecera.
+    SelectorArchivoCubemap::Dimensiones dims_[SelectorArchivoCubemap::kCaras];
+    std::string rutasMedidas_[SelectorArchivoCubemap::kCaras];
+
+    // Mide las caras que aun no se midieron. Solo toca disco cuando cambia
+    // alguna ruta, y deja en cero las que no se pudieron leer.
+    void sondearDimensiones(const std::string rutas[SelectorArchivoCubemap::kCaras]);
 
 public:
     explicit SettingsSkybox(GameObject* gameObject);

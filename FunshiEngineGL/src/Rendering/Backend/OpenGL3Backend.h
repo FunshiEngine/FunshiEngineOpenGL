@@ -94,6 +94,10 @@ public:
     // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
     void setDepthTestEnabled(bool enabled) override;
     void setDepthMask(bool enabled) override;
+    void setDepthFunc(DepthFunc func) override;
+
+    // --- Pasada a pantalla completa (sin atributos) ---
+    void drawFullscreenTriangle() override;
 
 private:
     struct GpuMesh { unsigned int vao; unsigned int buffers[6]; };
@@ -112,6 +116,11 @@ private:
     std::unordered_map<Handle, GpuLineBatch> lineBatches_;
     std::unordered_map<Handle, GpuTarget> targets_;
     bool fboCargadas_ = false;
+    // VAO sin atributos de la pasada a pantalla completa (cielo degradado): se
+    // crea en el primer dibujo y se reusa. Vive hasta que termina el proceso,
+    // igual que el resto de los recursos GPU del backend (no hay apagado de GL
+    // con contexto vivo despues del bucle principal).
+    unsigned int vaoPantallaCompleta_ = 0;
 };
 
 } // namespace Backend

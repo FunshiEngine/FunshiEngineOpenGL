@@ -139,52 +139,26 @@ void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
     const float camX = camaraLocal.x;
     const float camZ = camaraLocal.z;
 
-    secundario_.limpiar();
-    principal_.limpiar();
-    ejes_.limpiar();
-
-    // Lineas del plano dentro del circulo de radio dif.fin alrededor de la
-    // camara, ancladas a multiplos exactos de kSeparacionMenor (no se desplazan al
-    // moverse la camara: simplemente entran y salen del circulo). Cada
-    // kMultiploMayor secundarias -> principal (mismo color, solo mas ancha). La
-    // linea por el origen (i/j == 0) se salta: la pintan los ejes X/Z.
-    const float radio = difSeguro.fin;
-    const int iIni = static_cast<int>(std::ceil((camX - radio) / kSeparacionMenor));
-    const int iFin = static_cast<int>(std::floor((camX + radio) / kSeparacionMenor));
-    for (int i = iIni; i <= iFin; ++i) {
-        if (i == 0) continue;
-        const float x = static_cast<float>(i) * kSeparacionMenor;
-        emitirLineaPlano((i % kMultiploMayor == 0) ? principal_ : secundario_,
-                         colorGrilla, x, camX, camZ, true, difSeguro);
-    }
-    const int jIni = static_cast<int>(std::ceil((camZ - radio) / kSeparacionMenor));
-    const int jFin = static_cast<int>(std::floor((camZ + radio) / kSeparacionMenor));
-    for (int j = jIni; j <= jFin; ++j) {
-        if (j == 0) continue;
-        const float z = static_cast<float>(j) * kSeparacionMenor;
-        emitirLineaPlano((j % kMultiploMayor == 0) ? principal_ : secundario_,
-                         colorGrilla, z, camX, camZ, false, difSeguro);
-    }
-
-    // Ejes X y Z: paralelos al plano a traves del origen, recortados y
-    // difuminados por el mismo circulo (mismo tratamiento que una linea de la
-    // grilla, pero en su color). Eje Y perpendicular solo hacia arriba: no vive
-    // en el plano y no lo recorta el circulo; se difumina con la distancia
-    // horizontal de la camara al origen.
-    float colorEjeX[3], colorEjeY[3], colorEjeZ[3];
-    colorEjeConContraste(GuiaEje::kEjeX, colorGrilla, colorEjeX);
-    colorEjeConContraste(GuiaEje::kEjeY, colorGrilla, colorEjeY);
-    colorEjeConContraste(GuiaEje::kEjeZ, colorGrilla, colorEjeZ);
-
-    emitirLineaPlano(ejes_, colorEjeX, 0.0f, camX, camZ, false, difSeguro);
-    emitirLineaPlano(ejes_, colorEjeZ, 0.0f, camX, camZ, true, difSeguro);
-    {
-        const float alphaEjeY =
-            difSeguro.opacidad(std::sqrt(camX * camX + camZ * camZ));
-        const float rgbaEjeY[4] = {colorEjeY[0], colorEjeY[1], colorEjeY[2],
-                                   alphaEjeY};
-        const float puntosEjeY[6] = {0.0f, 0.0f, 0.0f, 0.0f, kEjeYLongitud, 0.0f};
-        ejes_.agregarPolilinea(puntosEjeY, 2, false, rgbaEjeY);
+    // La geometria solo se rearma cuando cambia algo que la altera (camara
+    // local, radio o color). Con la camara quieta se reusan los batches ya
+    // subidos: el rearme son decenas de miles de vertices y su subida por cada
+    // pasada (principal y cada vista previa), puro trabajo repetido.
+    const bool claveCambio = !claveValida_ || claveCamX_ != camX ||
+                             claveCamZ_ != camZ || claveRadio_ != difSeguro.fin ||
+                             claveSubdivisiones_ != difSeguro.subdivisiones ||
+                             claveColor_[0] != colorGrilla[0] ||
+                             claveColor_[1] != colorGrilla[1] ||
+                             claveColor_[2] != colorGrilla[2];
+    if (claveCambio) {
+        reconstruir(colorGrilla, camX, camZ, difSeguro);
+        claveValida_ = true;
+        claveCamX_ = camX;
+        claveCamZ_ = camZ;
+        claveRadio_ = difSeguro.fin;
+        claveSubdivisiones_ = difSeguro.subdivisiones;
+        claveColor_[0] = colorGrilla[0];
+        claveColor_[1] = colorGrilla[1];
+        claveColor_[2] = colorGrilla[2];
     }
 
     // El difuminado se funde con el fondo: hace falta blending durante la
@@ -194,17 +168,78 @@ void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
 
     // Secundarias (1px), principales (2px) y ejes (3px): mismo color efectivo,
     // solo cambia el ancho, que el shader resuelve en pixeles. El alpha radial ya
-    // viene por vertice (cerca opaco, borde 0).
+    // viene por vertice (cerca opaco, borde 0). Si la geometria no cambio, los
+    // batches se dibujan sin volver a subirlos.
     auto& lineas = lineRenderer();
-    lineas.dibujar(secundario_, secundarioBatch_, model, 1.0f);
-    lineas.dibujar(principal_, principalBatch_, model, 2.0f);
-    lineas.dibujar(ejes_, ejesBatch_, model, 3.0f);
+    if (claveCambio) {
+        lineas.dibujar(secundario_, secundarioBatch_, model, 1.0f);
+        lineas.dibujar(principal_, principalBatch_, model, 2.0f);
+        lineas.dibujar(ejes_, ejesBatch_, model, 3.0f);
+    } else {
+        lineas.dibujar(secundarioBatch_, model, 1.0f);
+        lineas.dibujar(principalBatch_, model, 2.0f);
+        lineas.dibujar(ejesBatch_, model, 3.0f);
+    }
 
     backend.setBlendEnabled(false);
+}
+
+// Geometria completa de la grilla en espacio local del objeto "Grilla": las
+// lineas del plano dentro del circulo de radio dif.fin alrededor de la camara,
+// ancladas a multiplos exactos de kSeparacionMenor (no se desplazan al moverse
+// la camara: simplemente entran y salen del circulo). Cada kMultiploMayor
+// secundarias -> principal (mismo color, solo mas ancha). La linea por el
+// origen (i/j == 0) se salta: la pintan los ejes X/Z. Los ejes X y Z son
+// paralelos al plano a traves del origen (recortados y difuminados por el mismo
+// circulo); el eje Y es perpendicular solo hacia arriba y se difumina con la
+// distancia horizontal de la camara al origen.
+void GrillaRenderer::reconstruir(const float colorGrilla[3], float camX,
+                                 float camZ, const Difuminado& dif) {
+    secundario_.limpiar();
+    principal_.limpiar();
+    ejes_.limpiar();
+
+    const float radio = dif.fin;
+    const int iIni = static_cast<int>(std::ceil((camX - radio) / kSeparacionMenor));
+    const int iFin = static_cast<int>(std::floor((camX + radio) / kSeparacionMenor));
+    for (int i = iIni; i <= iFin; ++i) {
+        if (i == 0) continue;
+        const float x = static_cast<float>(i) * kSeparacionMenor;
+        emitirLineaPlano((i % kMultiploMayor == 0) ? principal_ : secundario_,
+                         colorGrilla, x, camX, camZ, true, dif);
+    }
+    const int jIni = static_cast<int>(std::ceil((camZ - radio) / kSeparacionMenor));
+    const int jFin = static_cast<int>(std::floor((camZ + radio) / kSeparacionMenor));
+    for (int j = jIni; j <= jFin; ++j) {
+        if (j == 0) continue;
+        const float z = static_cast<float>(j) * kSeparacionMenor;
+        emitirLineaPlano((j % kMultiploMayor == 0) ? principal_ : secundario_,
+                         colorGrilla, z, camX, camZ, false, dif);
+    }
+
+    float colorEjeX[3], colorEjeY[3], colorEjeZ[3];
+    colorEjeConContraste(GuiaEje::kEjeX, colorGrilla, colorEjeX);
+    colorEjeConContraste(GuiaEje::kEjeY, colorGrilla, colorEjeY);
+    colorEjeConContraste(GuiaEje::kEjeZ, colorGrilla, colorEjeZ);
+
+    emitirLineaPlano(ejes_, colorEjeX, 0.0f, camX, camZ, false, dif);
+    emitirLineaPlano(ejes_, colorEjeZ, 0.0f, camX, camZ, true, dif);
+    {
+        const float alphaEjeY =
+            dif.opacidad(std::sqrt(camX * camX + camZ * camZ));
+        const float rgbaEjeY[4] = {colorEjeY[0], colorEjeY[1], colorEjeY[2],
+                                   alphaEjeY};
+        const float puntosEjeY[6] = {0.0f, 0.0f, 0.0f, 0.0f, kEjeYLongitud, 0.0f};
+        ejes_.agregarPolilinea(puntosEjeY, 2, false, rgbaEjeY);
+    }
 }
 
 void GrillaRenderer::destruir() {
     secundario_.limpiar();
     principal_.limpiar();
     ejes_.limpiar();
+    // Con la geometria descartada, la clave queda invalida: la proxima pasada
+    // tiene que rearmarla (dibujar sin subir solo sirve si el batch sigue
+    // siendo el que se subio para esa misma geometria).
+    claveValida_ = false;
 }

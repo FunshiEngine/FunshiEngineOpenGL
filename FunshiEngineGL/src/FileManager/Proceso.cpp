@@ -199,8 +199,7 @@ int ejecutar(const std::vector<std::string>& argv,
     if (hayExtra) {
         // Partir del entorno del motor (heredado por fork) + overrides.
         std::vector<std::string> variables;
-        extern char** environ;
-        for (char** e = environ; *e; ++e) {
+        for (char** e = ::environ; *e; ++e) {
             const std::string actual(*e);
             const std::size_t igual = actual.find('=');
             const std::string clave =
@@ -233,8 +232,7 @@ int ejecutar(const std::vector<std::string>& argv,
         if (!cwd.empty() && chdir(cwd.c_str()) != 0)
             _exit(127);
         if (hayExtra) {
-            extern char** environ;
-            environ = envio.punteros.data();
+            ::environ = envio.punteros.data();
         }
         execvp(args.punteros[0], args.punteros.data());
         _exit(127);

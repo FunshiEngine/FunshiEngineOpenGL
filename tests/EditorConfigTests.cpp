@@ -96,24 +96,54 @@ int main() {
               "default fondoInferior = 0.1, 0.1, 0.1");
     }
 
-    // 1b. Sanitizacion de colores del cielo: valores casi blancos (>0.8 y casi
-    // iguales) sin B/N se resetean al default 0.1, para evitar migraciones
-    // corruptas de "fondo" unico o configs guardadas con valores invalidos.
+    // 1b. Colores del cielo: se guardan y se leen tal cual quedaron, incluidos
+    // los claros (un cielo de tonos altos es una eleccion valida del usuario).
+    // Solo se acotan los valores que no pueden salir del selector y romperian
+    // el degradado: componentes fuera de [0, 1].
     {
+        // Par claro y casi igual: antes se reseteaba al default 0.1 y el cielo
+        // perdia el color elegido (y la division, si los dos extremos caian).
         {
             std::ofstream f(rutaGeneral, std::ios::trunc);
             f << R"({"version": 1, "apariencia": {"blancoYNegro": false, "temaClaro": false, "fondoSuperior": [0.95, 0.94, 0.94], "fondoInferior": [0.95, 0.94, 0.94]}})";
         }
-        EditorConfig cfgSanitizado;
-        cfgSanitizado.cargarGeneral(rutaGeneral);
-        CHECK(cfgSanitizado.datos().apariencia.fondoSuperior[0] == 0.10f &&
-                  cfgSanitizado.datos().apariencia.fondoSuperior[1] == 0.10f &&
-                  cfgSanitizado.datos().apariencia.fondoSuperior[2] == 0.10f,
-              "sanitizacion: fondoSuperior casi blanco sin B/N -> default 0.1");
-        CHECK(cfgSanitizado.datos().apariencia.fondoInferior[0] == 0.10f &&
-                  cfgSanitizado.datos().apariencia.fondoInferior[1] == 0.10f &&
-                  cfgSanitizado.datos().apariencia.fondoInferior[2] == 0.10f,
-              "sanitizacion: fondoInferior casi blanco sin B/N -> default 0.1");
+        EditorConfig cfgClaro;
+        cfgClaro.cargarGeneral(rutaGeneral);
+        CHECK(cfgClaro.datos().apariencia.fondoSuperior[0] == 0.95f &&
+                  cfgClaro.datos().apariencia.fondoSuperior[1] == 0.94f &&
+                  cfgClaro.datos().apariencia.fondoSuperior[2] == 0.94f,
+              "cielo claro: fondoSuperior se conserva tal cual");
+        CHECK(cfgClaro.datos().apariencia.fondoInferior[0] == 0.95f &&
+                  cfgClaro.datos().apariencia.fondoInferior[1] == 0.94f &&
+                  cfgClaro.datos().apariencia.fondoInferior[2] == 0.94f,
+              "cielo claro: fondoInferior se conserva tal cual");
+
+        // Dos tonos claros distintos: la division de colores sobrevive a la carga.
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << R"({"version": 1, "apariencia": {"fondoSuperior": [0.9, 0.9, 0.95], "fondoInferior": [0.85, 0.8, 0.8]}})";
+        }
+        EditorConfig cfgClaroDistinto;
+        cfgClaroDistinto.cargarGeneral(rutaGeneral);
+        CHECK(cfgClaroDistinto.datos().apariencia.fondoSuperior[2] == 0.95f &&
+                  cfgClaroDistinto.datos().apariencia.fondoInferior[0] == 0.85f,
+              "cielo claro distinto arriba/abajo: la division se conserva");
+
+        // Fuera de [0, 1]: se acota al extremo valido en vez de descartar el color.
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << R"({"version": 1, "apariencia": {"fondoSuperior": [5.0, 1.5, -2.0], "fondoInferior": [-0.5, 9.0, 12.0]}})";
+        }
+        EditorConfig cfgFueraDeRango;
+        cfgFueraDeRango.cargarGeneral(rutaGeneral);
+        CHECK(cfgFueraDeRango.datos().apariencia.fondoSuperior[0] == 1.0f &&
+                  cfgFueraDeRango.datos().apariencia.fondoSuperior[1] == 1.0f &&
+                  cfgFueraDeRango.datos().apariencia.fondoSuperior[2] == 0.0f,
+              "cielo fuera de rango: fondoSuperior acotado a [0, 1]");
+        CHECK(cfgFueraDeRango.datos().apariencia.fondoInferior[0] == 0.0f &&
+                  cfgFueraDeRango.datos().apariencia.fondoInferior[1] == 1.0f &&
+                  cfgFueraDeRango.datos().apariencia.fondoInferior[2] == 1.0f,
+              "cielo fuera de rango: fondoInferior acotado a [0, 1]");
     }
 
     // 2. Round-trip: los valores cambiados sobreviven a guardar/cargar.
@@ -366,19 +396,18 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "asegurarEstructuraProyecto creo Memory/Binarios/Scene");
         CHECK(fs::is_directory(srcDir),
               "asegurarEstructuraProyecto creo srcJuegoPrueba");
-        // Sonidos es un asset: vive dentro del src (raiz del explorador).
+        // Sonidos es un asset: el usuario decide cuando crearlo (no auto-creado).
         const std::string sonidosDir = EditorConfig::directorioSonidos(proyNombre);
         CHECK(sonidosDir == srcDir + "/Sonidos",
               "directorioSonidos dentro de src<proyecto>");
-        CHECK(fs::is_directory(sonidosDir),
-              "asegurarEstructuraProyecto creo src<proyecto>/Sonidos");
+        // El directorio NO se crea automaticamente: lo decide el usuario.
 
         // Limpieza de prueba
         std::error_code ec;
         fs::remove_all(proyDir, ec);
     }
 
-    // 5b. Migracion de Sonidos: la carpeta que vivia en la raiz del proyecto
+    // 5b. Migracion de Sonidos: si el usuario habia creado la carpeta en la raiz,
     //     se mueve al src conservando sus clips.
     {
         const std::string proyNombre = "JuegoMigracion";

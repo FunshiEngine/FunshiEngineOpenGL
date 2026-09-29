@@ -18,7 +18,6 @@
 */
 #include "ConfigPersistence.h"
 
-#include <iostream>
 #include <nlohmann/json.hpp>
 #include <cmath>
 #include <filesystem>
@@ -89,11 +88,13 @@ nlohmann::json ConfigPersistence::aparienciaToJson(const Apariencia& a) {
     j["temaClaro"] = a.temaClaro;
     j["blancoYNegro"] = a.blancoYNegro;
     j["acento"] = {a.acento[0], a.acento[1], a.acento[2], a.acento[3]};
-    // Escribimos los dos nuevos campos Y el antiguo para compatibilidad con
-    // configuraciones viejas que esperen "fondo" (se lee primero lo nuevo).
+    // Los dos colores del cielo se guardan tal como los eligio el usuario (sin
+    // correcciones). La clave antigua "fondo" (un unico color para todo el
+    // fondo) se sigue LEYENDO para no perder configuraciones viejas, pero no se
+    // vuelve a escribir: escribirla con el color superior era un dato falso para
+    // cualquier lector que todavia la esperara.
     j["fondoSuperior"] = {a.fondoSuperior[0], a.fondoSuperior[1], a.fondoSuperior[2]};
     j["fondoInferior"] = {a.fondoInferior[0], a.fondoInferior[1], a.fondoInferior[2]};
-    j["fondo"] = {a.fondoSuperior[0], a.fondoSuperior[1], a.fondoSuperior[2]};
     j["radioDifuminado"] = a.radioDifuminado;
     return j;
 }
@@ -110,7 +111,9 @@ Apariencia ConfigPersistence::jsonToApariencia(const nlohmann::json& j) {
                 a.acento[i] = j["acento"][i].get<float>();
     }
     // Leemos primero los nuevos campos; si no existen, caemos en el antiguo
-    // "fondo" y copiamos a ambos (compatibilidad hacia atras).
+    // "fondo" (un solo color para todo el fondo) y lo copiamos a ambos
+    // (compatibilidad hacia atras; esa clave es de solo lectura, no se vuelve a
+    // escribir).
     bool tieneSuperior = false, tieneInferior = false;
     if (j.contains("fondoSuperior") && j["fondoSuperior"].is_array() && j["fondoSuperior"].size() == 3) {
         for (int i = 0; i < 3; ++i)
@@ -134,23 +137,23 @@ Apariencia ConfigPersistence::jsonToApariencia(const nlohmann::json& j) {
         }
     }
 
-    // Sanitizacion de colores del cielo: si los 3 componentes son > 0.8 y casi
-    // iguales (diferencia < 0.05), es probable un valor legacy corrupto o
-    // migracion mal hecha de "fondo" unico; se resetea al default historico 0.1.
-    // Esto evita que una configuracion guardada con valores casi blancos
-    // (p. ej. 0.95/0.94/0.94) produzca un cielo blanco en modo normal.
-    auto sanearCielo = [](float c[3]) {
-        std::cerr << "[Sanitize] Antes: (" << c[0] << "," << c[1] << "," << c[2] << ")" << std::endl;
-        if (c[0] > 0.8f && c[1] > 0.8f && c[2] > 0.8f &&
-            std::abs(c[0] - c[1]) < 0.05f && std::abs(c[1] - c[2]) < 0.05f) {
-            c[0] = c[1] = c[2] = 0.10f;
-            std::cerr << "[Sanitize] SANEADO a (0.1, 0.1, 0.1)" << std::endl;
-        } else {
-            std::cerr << "[Sanitize] No sanitizado (condicion no se cumple)" << std::endl;
+    // Los colores del cielo se respetan tal como quedaron guardados: cualquier
+    // valor que el usuario haya elegido con el selector es valido, incluidos los
+    // cielos claros. Solo se acota lo que no puede venir de la interfaz y
+    // romperia el degradado: componentes no finitos o fuera de [0, 1].
+    auto acotarCielo = [](float c[3]) {
+        for (int i = 0; i < 3; ++i) {
+            if (!std::isfinite(c[i])) {
+                c[i] = 0.0f;
+            } else if (c[i] < 0.0f) {
+                c[i] = 0.0f;
+            } else if (c[i] > 1.0f) {
+                c[i] = 1.0f;
+            }
         }
     };
-    std::cerr << "[Sanitize] fondoSuperior: "; sanearCielo(a.fondoSuperior);
-    std::cerr << "[Sanitize] fondoInferior: "; sanearCielo(a.fondoInferior);
+    acotarCielo(a.fondoSuperior);
+    acotarCielo(a.fondoInferior);
 
     // Radio del difuminado...
     // por defecto, que es el que venia implicito en las constantes de la grilla.

@@ -20,8 +20,10 @@
 #define SCENERENDERER_H
 
 #include <memory>
+#include <string>
 #include <vector>
 
+#include "Backend/IRenderBackend.h"
 #include "Cielo.h"
 #include "GrillaRenderer.h"
 #include "GuiaEje.h"
@@ -31,6 +33,7 @@ class GameObject;
 class CameraComponent;
 class RenderTarget;
 class TextureManager;
+class ShaderProgram;
 struct Apariencia;
 struct LightData;
 class Skybox;
@@ -47,6 +50,9 @@ class ListaDE;
 // MeshRenderer (pipeline moderno VBO/VAO + shader), de la grilla y de los
 // RenderTarget utilizados por las vistas previas. Ningun GL vive aqui: todo
 // pasa por IRenderBackend.
+// Forward declaration del AssetManager global (en namespace global)
+class AssetManager;
+
 class SceneRenderer {
 public:
     SceneRenderer();
@@ -58,9 +64,13 @@ public:
 
     // Datos CPU de la pasada que el renderer necesita de la escena. Los punteros
     // apuntan a memoria del llamador y solo valen durante render().
+// Forward declaration del AssetManager global (en namespace global)
+class AssetManager;
+
     struct FrameContext {
         ListaDE<GameObject*>* gameObjects = nullptr;
         const Apariencia* apariencia = nullptr;
+        ::AssetManager* assetManager = nullptr;
         float deltaTime = 0.0f;
         bool editorActivo = false;
         GameObject* selectedObject = nullptr;
@@ -120,13 +130,26 @@ private:
     void dibujarMarcadorCamara(GameObject* object);
     // Cielo degradado (fullscreen triangle): se dibuja ANTES que la grilla y
     // los objetos, con depth test habilitado y depth mask deshabilitado, para
-    // que quede "detras" de todo sin escribir profundidad.
+    // que quede "detras" de todo sin escribir profundidad. El color sale de la
+    // direccion de vista de cada pixel, asi que el cielo acompanha a la camara
+    // (mirar abajo da el color inferior, arriba el superior, y el horizonte
+    // queda en la transicion) en vez de quedar clavado a la pantalla.
     void dibujarCielo(const FrameContext& ctx, const float view[16],
-                      const float projection[16]);
+                      const float projection[16], const float camaraMundo[3]);
     // Skybox cubemap: se dibuja en lugar del degradado si hay un componente
     // Skybox visible con 6 caras validas. Mismo estado de depth que el cielo.
-    void dibujarSkyboxCubemap(const Skybox* skybox, const float view[16],
+    //
+    // Dibuja el cubemap del Skybox alrededor de la camara. Devuelve si se
+    // dibujo de verdad: cuando no hay cubemap utilizable (falta una cara, no
+    // decodifica, el backend no crea la textura o no hay malla) el llamador
+    // tiene que caer al degradado. Antes devolvia void y el llamador hacia
+    // return igual, con lo que esos casos dejaban el fondo en negro.
+    bool dibujarSkyboxCubemap(const Skybox* skybox, const float view[16],
                               const float projection[16]);
+    // Sube a GPU las 6 caras dadas y deja el handle en skyboxCubemap_. Devuelve
+    // false si alguna cara no se pudo decodificar o la textura no se pudo crear;
+    // en ese caso no queda nada cacheado y la pasada cae al degradado.
+    bool cargarCubemap(const std::string rutas[6]);
     // Recta de la guia de eje (X/Y/Z) sobre el objeto seleccionado: va hasta el
     // horizonte con el difuminado de la grilla y el color del eje.
     void dibujarGuiaEje(const FrameContext& ctx, const float camaraMundo[3]);
@@ -148,9 +171,25 @@ private:
 
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;
-    // Programa de shader del cielo (fullscreen triangle con degradado
-    // superior/inferior). Se crea en la primera pasada y se reusa.
-    Rendering::Backend::Handle skyProgram_ = Rendering::Backend::kInvalidHandle;
+    // Programas del cielo: el del degradado (triangulo a pantalla completa) y el
+    // del cubemap del componente Skybox. Se crean en la primera pasada que los
+    // necesita y se reusan: ShaderProgram cachea las locations de los uniforms
+    // (buscarlas por pasada era trabajo repetido) y libera el handle al
+    // destruirse. El flag de fallo evita reintentar compilar un shader roto
+    // frame a frame (el texto de origen no cambia, no puede pasar de rojo a
+    // verde) y con el, tambien, repetir su mensaje de error.
+    std::unique_ptr<ShaderProgram> cieloProgram_;
+    bool cieloShaderFallado_ = false;
+    std::unique_ptr<ShaderProgram> skyboxProgram_;
+    bool skyboxShaderFallado_ = false;
+    // Cubemap cacheado del componente Skybox: la textura GPU, la malla del cubo
+    // y la clave (rutas + fechas de modificacion de las 6 caras) que valido la
+    // textura. Se sube una sola vez por conjunto de caras y se reemplaza solo si
+    // cambia algun archivo; la malla del cubo no depende de las caras y se crea
+    // una sola vez. Se liberan en destruir().
+    Rendering::Backend::Handle skyboxCubemap_ = Rendering::Backend::kInvalidHandle;
+    Rendering::Backend::Handle skyboxCuboMalla_ = Rendering::Backend::kInvalidHandle;
+    std::string skyboxClave_;
     // Batch de lineas compartido por los marcadores de luz y de camara (ambos
     // son 12 aristas): se sube y se dibuja por gizmo, en un solo draw cada uno.
     LineBatch marcadoresBatch_;

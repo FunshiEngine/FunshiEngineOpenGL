@@ -293,15 +293,13 @@ static int EjecutarMotor(int argc, char* argv[])
         editorConfig.datos().sensibilidadMovimientoCamara);
 
     // Suscriptores del bus de GUI ANTES de setApariencia inicial: asi el
-    // primer AparienciaCambio que publique mainMenu se propaga a la escena
-    // y evita que la primera pasada use valores sin sanitar.
+    // primer AparienciaCambio que publique mainMenu se propaga a la escena y la
+    // primera pasada ya usa el perfil guardado (colores de cielo incluidos) en
+    // vez del default del struct.
     EditorEventBus* eventosGUI = managerOfGUI->getEditorEventBus();
     if (eventosGUI) {
         eventosGUI->subscribe([scene, &editorConfig](const EditorEvent& ev) {
             if (ev.type != EditorEventType::AparienciaCambio) return;
-            std::cerr << "[MAIN] AparienciaCambio recibido: fondoSuperior=(" 
-                      << ev.apariencia.fondoSuperior[0] << "," << ev.apariencia.fondoSuperior[1] << "," << ev.apariencia.fondoSuperior[2]
-                      << ") fondoInferior=(" << ev.apariencia.fondoInferior[0] << "," << ev.apariencia.fondoInferior[1] << "," << ev.apariencia.fondoInferior[2] << ")" << std::endl;
             // scene->setApariencia es seguro en cualquier momento; TemaEditor::aplicarEstilo
             // requiere contexto ImGui creado (se llama despues de ImGui::CreateContext).
             scene->setApariencia(ev.apariencia);

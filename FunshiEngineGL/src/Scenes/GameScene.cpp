@@ -915,6 +915,7 @@ void GameScene::gameScene() {
     // apagarla.
     ctx.guiaEje = isEditorActivo() ? getGuiaEje() : GuiaEje::kSinGuia;
     ctx.guiaCoordenadasGlobales = isGizmoGlobal();
+    ctx.assetManager = assetManager.get();
 
     // Pasada de la escena (vistas previas + pasada principal + diag) en la
     // capa de Rendering.

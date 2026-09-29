@@ -649,7 +649,7 @@ void OpenGL3Backend::applyBaseState() {
     // La iluminacion viaja como uniforms y la transformacion como matriz
     // modelo, asi que no hay estado fijo que dejar activo.
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+    setDepthFunc(kDepthFuncLess);
     // Activacion explicita del framebuffer multisampleado (se pidio 4x en la
     // creacion del contexto): suaviza los bordes de la geometria, incluidas las
     // lineas expandidas a quads, sin depender de glLineSmooth (que no existe en
@@ -707,6 +707,30 @@ void OpenGL3Backend::setDepthTestEnabled(bool enabled) {
 
 void OpenGL3Backend::setDepthMask(bool enabled) {
     glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+}
+
+void OpenGL3Backend::setDepthFunc(DepthFunc func) {
+    glDepthFunc(func == DepthFunc::LessEqual ? GL_LEQUAL : GL_LESS);
+}
+
+// ---------------------------------------------------------------------------
+// Pasada a pantalla completa (sin atributos)
+// ---------------------------------------------------------------------------
+
+void OpenGL3Backend::drawFullscreenTriangle() {
+    // El VAO se crea una sola vez y queda vacio a proposito: el shader de la
+    // pasada no declara atributos (arma los tres vertices con gl_VertexID), pero
+    // un contexto core exige un VAO ligado para CUALQUIER dibujo. Sin el, el
+    // glDrawArrays se rechaza con GL_INVALID_OPERATION y no dibuja nada, que es
+    // lo que dejaba el viewport con el color de limpieza del framebuffer.
+    if (vaoPantallaCompleta_ == 0) {
+        if (!GLFuncs::pfnGenVertexArrays) return;
+        GLFuncs::pfnGenVertexArrays(1, &vaoPantallaCompleta_);
+        if (vaoPantallaCompleta_ == 0) return;
+    }
+    GLFuncs::pfnBindVertexArray(vaoPantallaCompleta_);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    GLFuncs::pfnBindVertexArray(0);
 }
 
 // ---------------------------------------------------------------------------

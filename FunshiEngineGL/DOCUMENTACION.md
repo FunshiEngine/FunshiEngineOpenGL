@@ -165,8 +165,15 @@ barra superior del editor, y se persiste por proyecto.
   (bottom). Los colores se resuelven con `Cielo::coloresEfectivos`, que aplica
   la logica B/N (ambos blanco/negro segun tema) y modo normal (respeta los
   colores elegidos). El pase usa depth test ON + depth mask OFF para que el
-  cielo quede "detras" de toda la geometria sin escribir profundidad. En el
-  futuro se soportara un cubemap de seis caras cargado via componente `Skybox`.
+  cielo quede "detras" de toda la geometria sin escribir profundidad. El
+  triangulo se dibuja por `IRenderBackend::drawFullscreenTriangle` (el backend
+  posee el VAO vacio que el core profile exige para cualquier dibujo).
+- **Skybox (cubemap de seis caras)**: si hay un componente `Skybox` visible con
+  las 6 caras asignadas, su cubemap reemplaza al degradado. Las caras se
+  decodifican y se suben una sola vez por conjunto de rutas y fechas de
+  modificacion (`CacheCubemap::claveDeCaras` decide la invalidacion) y el
+  intento fallido no se repite hasta que cambie un archivo; el aviso es una vez
+  por clave, no por frame.
 - La guia de eje (`X`/`Y`/`Z` sobre el objeto seleccionado) reutiliza las
   mismas constantes de difuminado (`SceneRenderer::dibujarGuiaEje` las lee de
   `GrillaRenderer`), con mas subdivisiones (24) porque la recta es mucho mas

@@ -60,6 +60,14 @@ struct Image2D {
     bool generateMipmaps = false;
 };
 
+// Funcion de comparacion de profundidad, en los terminos de la interfaz (no los
+// de GL). Solo se exponen las dos que el engine usa: la base del pipeline
+// (GL_LESS, la que deja applyBaseState) y la que acepta un fragmento en el
+// plano lejano (GL_LEQUAL), que es como se dibuja el fondo del Skybox.
+enum class DepthFunc { Less, LessEqual };
+constexpr DepthFunc kDepthFuncLess = DepthFunc::Less;
+constexpr DepthFunc kDepthFuncLessEqual = DepthFunc::LessEqual;
+
 // Contrato de backend grafico. Los recursos se crean/destruyen por handle y
 // las operaciones de dibujado son el pipeline moderno completo: no queda
 // superficie fixed-function (ni glBegin/glEnd, ni stack de matrices, ni
@@ -164,6 +172,22 @@ public:
     // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
     virtual void setDepthTestEnabled(bool enabled) = 0;
     virtual void setDepthMask(bool enabled) = 0;
+    // Funcion de comparacion de profundidad (glDepthFunc). Vive en el backend
+    // porque es estado GL puro, igual que el test y la mascara. La necesita la
+    // pasada del cubemap del Skybox, que dibuja en el plano lejano (NDC z = 1.0,
+    // el mismo valor con el que se limpia el z-buffer): con la comparacion por
+    // defecto (GL_LESS) ese empate se descarta y el fondo no se dibuja. Se usan
+    // las constantes de abajo para no filtrar valores de GL a la capa de
+    // escena.
+    virtual void setDepthFunc(DepthFunc func) = 0;
+
+    // --- Pasada a pantalla completa (sin atributos) ---------------------------
+    // Dibuja un triangulo que cubre el viewport con el programa YA en uso. El
+    // vertex shader lo arma con gl_VertexID y no lee atributos, asi que no lleva
+    // geometria ni VBO. Va por el backend y no por un glDrawArrays suelto porque
+    // en un contexto core todo dibujo necesita un VAO ligado (el VAO 0 no
+    // existe): el backend posee ese VAO y lo liga por dentro.
+    virtual void drawFullscreenTriangle() = 0;
 };
 
 // Backend activo del engine (un solo contexto GL; el singleton se cambia en la

@@ -21,39 +21,50 @@
 #include <iostream>
 #include <cstdint>
 
+#include "Configuracion/EditorConfig.h"
+
 void Skybox::serializeComponent(std::ofstream* file) {
-    auto escribirString = [file](const std::string& s) {
-        uint32_t len = static_cast<uint32_t>(s.size());
+    // Las seis caras se guardan relativas a la raiz de assets del proyecto
+    // (igual que la malla de Model, las texturas de Material y el binario de
+    // Script), para que la escena siga valida al renombrar o mover el proyecto
+    // entero. Las que caen fuera de la raiz se guardan tal cual.
+    auto escribirRuta = [file](const std::string& ruta) {
+        const std::string aGuardar = EditorConfig::relativizarRuta(ruta);
+        uint32_t len = static_cast<uint32_t>(aGuardar.size());
         file->write(reinterpret_cast<const char*>(&len), sizeof(len));
-        if (len > 0) file->write(s.data(), len);
+        if (len > 0) file->write(aGuardar.data(), len);
     };
 
-    escribirString(caraMasX);
-    escribirString(caraMenosX);
-    escribirString(caraMasY);
-    escribirString(caraMenosY);
-    escribirString(caraMasZ);
-    escribirString(caraMenosZ);
+    escribirRuta(caraMasX);
+    escribirRuta(caraMenosX);
+    escribirRuta(caraMasY);
+    escribirRuta(caraMenosY);
+    escribirRuta(caraMasZ);
+    escribirRuta(caraMenosZ);
     file->write(reinterpret_cast<const char*>(&visible), sizeof(visible));
 }
 
 void Skybox::deserializeComponent(std::ifstream* file) {
-    auto leerString = [file](std::string& s) {
+    auto leerRuta = [file](std::string& ruta) {
         uint32_t len = 0;
         file->read(reinterpret_cast<char*>(&len), sizeof(len));
+        std::string guardada;
         if (len > 0) {
-            s.resize(len);
-            file->read(&s[0], len);
+            guardada.resize(len);
+            file->read(&guardada[0], len);
         } else {
-            s.clear();
+            guardada.clear();
         }
+        // Las escenas nuevas guardan la ruta relativa a la raiz de assets; las
+        // legacy guardaban la absoluta, que desde aqui se deja intacta.
+        ruta = EditorConfig::absolutizarRuta(guardada);
     };
 
-    leerString(caraMasX);
-    leerString(caraMenosX);
-    leerString(caraMasY);
-    leerString(caraMenosY);
-    leerString(caraMasZ);
-    leerString(caraMenosZ);
+    leerRuta(caraMasX);
+    leerRuta(caraMenosX);
+    leerRuta(caraMasY);
+    leerRuta(caraMenosY);
+    leerRuta(caraMasZ);
+    leerRuta(caraMenosZ);
     file->read(reinterpret_cast<char*>(&visible), sizeof(visible));
 }
