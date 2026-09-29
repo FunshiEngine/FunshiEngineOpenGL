@@ -50,6 +50,9 @@ class ListaDE;
 // MeshRenderer (pipeline moderno VBO/VAO + shader), de la grilla y de los
 // RenderTarget utilizados por las vistas previas. Ningun GL vive aqui: todo
 // pasa por IRenderBackend.
+// Forward declaration del AssetManager global (en namespace global)
+class AssetManager;
+
 class SceneRenderer {
 public:
     SceneRenderer();
@@ -61,9 +64,13 @@ public:
 
     // Datos CPU de la pasada que el renderer necesita de la escena. Los punteros
     // apuntan a memoria del llamador y solo valen durante render().
+// Forward declaration del AssetManager global (en namespace global)
+class AssetManager;
+
     struct FrameContext {
         ListaDE<GameObject*>* gameObjects = nullptr;
         const Apariencia* apariencia = nullptr;
+        ::AssetManager* assetManager = nullptr;
         float deltaTime = 0.0f;
         bool editorActivo = false;
         GameObject* selectedObject = nullptr;
