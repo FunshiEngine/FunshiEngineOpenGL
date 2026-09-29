@@ -135,12 +135,21 @@ barra superior del editor, y se persiste por proyecto.
   `kMultiploMayor` = 5). Los campos `tam`/`separacion` del componente se siguen
   serializando para que las escenas viejas se lean igual, pero no se usan para
   dibujar.
-- `GrillaRenderer` recorta la grilla a un circulo de radio `kFadeFin` (150)
-  centrado en la camara: ese circulo es a la vez el horizonte y el limite de
-  dibujado. El difuminado es radial y por vertice (alpha por vertice, con
-  `LineBuilder` interpolando entre extremos): opacidad plena hasta `kFadeInicio`
-  (40) y caida cuadratica hasta 0 en `kFadeFin`. Un batch de lineas por ancho
-  (secundarias 1 px, principales 2 px, ejes 3 px) = 3 draws por frame.
+- El radio de ese circulo lo elige el usuario (Opciones -> Radio de
+  difuminado, 20 a 600, por defecto 150) y llega a la escena en
+  `Apariencia::radioDifuminado`. `Difuminado` (modulo CPU puro) es quien lo
+  convierte en el tramo opaco y en la curva: el inicio se deriva del radio en
+  proporcion constante (`kProporcionInicio` = 40/150) y el radio se acota ahi
+  mismo, asi que un valor corrupto en la configuracion no deja la grilla sin
+  horizonte. Grilla y guia de eje reciben el MISMO `Difuminado` (con
+  subdivisiones distintas) y por eso se desvanecen siempre en el mismo
+  circulo-horizonte.
+- `GrillaRenderer` recorta la grilla a ese circulo centrado en la camara: es a
+  la vez el horizonte y el limite de dibujado. El difuminado es radial y por
+  vertice (alpha por vertice, con `LineBuilder` interpolando entre extremos):
+  opacidad plena hasta `dif.inicio` y caida cuadratica hasta 0 en `dif.fin`. Un
+  batch de lineas por ancho (secundarias 1 px, principales 2 px, ejes 3 px) =
+  3 draws por frame.
 - Los tres ejes (X rojo, Y verde, Z azul) salen de `GuiaEje::colorEje`: una sola
   convencion para la grilla, la guia de eje y el gizmo. Grilla y guia ajustan
   ese color por contraste contra lo que tienen debajo

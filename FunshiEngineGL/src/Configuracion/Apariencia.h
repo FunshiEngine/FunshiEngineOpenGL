@@ -35,6 +35,24 @@
 // elegidos por el usuario.
 // ============================================================================
 
+namespace AparienciaUtil {
+
+// Radio del difuminado de la grilla (la guia de eje comparte el mismo valor):
+// el circulo-horizonte que hace de limite de dibujado y desde el que se
+// difumina el piso. Lo elige el usuario en Opciones, porque segun el proyecto
+// y el zoom conviene un circulo corto o uno amplio.
+//
+// El rango acota el COSTO: la grilla genera una linea por unidad de distancia
+// a la camara, asi que las lineas por frame crecen en proporcion al radio (a
+// 150 son unas 300 por eje; a 600, unas 1200). Se declaran antes de la struct
+// porque el perfil los usa como valor por defecto y Difuminado los usa para
+// acotar.
+inline constexpr float kRadioDifuminadoPorDefecto = 150.0f;
+inline constexpr float kRadioDifuminadoMinimo = 20.0f;
+inline constexpr float kRadioDifuminadoMaximo = 600.0f;
+
+} // namespace AparienciaUtil
+
 struct Apariencia {
     // Tema base de la interfaz ImGui: false = oscuro (por defecto), true = claro.
     bool temaClaro = false;
@@ -50,6 +68,10 @@ struct Apariencia {
     float acento[4] = {0.26f, 0.59f, 0.98f, 1.0f};
     // Color de fondo de la vista 3D (glClearColor). Gris oscuro historico.
     float fondo[3] = {0.10f, 0.10f, 0.10f};
+    // Radio del difuminado del piso: el circulo-horizonte de la grilla y de la
+    // guia de eje, en unidades de mundo. Acotado a
+    // [kRadioDifuminadoMinimo, kRadioDifuminadoMaximo].
+    float radioDifuminado = AparienciaUtil::kRadioDifuminadoPorDefecto;
 
     // Restablece el perfil a los valores de fabrica.
     void restablecer() { *this = Apariencia{}; }
@@ -62,7 +84,8 @@ inline bool operator==(const Apariencia& a, const Apariencia& b) {
         if (a.acento[i] != b.acento[i]) return false;
     for (int i = 0; i < 3; ++i)
         if (a.fondo[i] != b.fondo[i]) return false;
-    return a.temaClaro == b.temaClaro && a.blancoYNegro == b.blancoYNegro;
+    return a.temaClaro == b.temaClaro && a.blancoYNegro == b.blancoYNegro &&
+           a.radioDifuminado == b.radioDifuminado;
 }
 inline bool operator!=(const Apariencia& a, const Apariencia& b) {
     return !(a == b);

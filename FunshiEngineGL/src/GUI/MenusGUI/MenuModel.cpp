@@ -158,6 +158,7 @@ std::string MenuModel::traducir(const std::string& clave) const {
         {"volver", {"Volver", "Back"}},
         {"juego", {"Juego", "Game"}},
         {"idioma", {"Idioma", "Language"}},
+        {"radio_difuminado", {"Radio de difuminado", "Fade radius"}},
         {"sensibilidad_camara", {"Sensibilidad de camara", "Camera sensitivity"}},
         {"sensibilidad_movimiento",
          {"Sensibilidad de movimiento", "Movement sensitivity"}},

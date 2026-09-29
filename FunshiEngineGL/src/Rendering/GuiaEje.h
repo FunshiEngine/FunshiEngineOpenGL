@@ -19,6 +19,7 @@
 #ifndef GUIAEJE_H
 #define GUIAEJE_H
 
+#include "Difuminado.h"
 #include "LineBuilder.h"
 
 // Geometria de la GUIA DE EJE del editor: al seleccionar un objeto y apretar
@@ -50,15 +51,10 @@ struct Eje {
     float dir[3];
 };
 
-// Difuminado radial: opacidad plena hasta "inicio" y caida cuadratica hasta 0
-// en "fin", que es ademas el radio del horizonte (limite de dibujado). Lo
-// arma el llamador con las constantes de la grilla (GrillaRenderer) para que la
-// guia se desvanezca en el mismo punto que el piso.
-struct Difuminado {
-    float inicio = 40.0f;
-    float fin = 150.0f;
-    int subdivisiones = 16;
-};
+// El difuminado de la guia es el MISMO tipo que el de la grilla (struct
+// Difuminado, en Difuminado.h) y lo arma el llamador con el radio que eligio el
+// usuario, para que la guia se desvanezca en el mismo circulo que el piso y no
+// se desincronice al cambiar ese radio.
 
 // Calcula el origen y la direccion de la guia a partir de la matriz GLOBAL del
 // objeto seleccionado (16 floats column-major, como la que produce
@@ -78,10 +74,6 @@ struct Difuminado {
 // solo pasa con una escala nula): sin direccion utilizable no hay guia.
 bool calcularEje(const float matrizGlobal[16], int eje, bool coordenadasGlobales,
                  Eje* out);
-
-// Opacidad de un punto a "distancia" de la camara, con la misma caida cuadratica
-// de la grilla: 1.0 en la zona central y 0 en el borde del horizonte.
-float opacidad(float distancia, const Difuminado& dif);
 
 // Agrega a "out" la recta completa de la guia: desde el origen hacia atras y
 // hacia adelante hasta el horizonte, recortada alradio "dif.fin" (fuera de el

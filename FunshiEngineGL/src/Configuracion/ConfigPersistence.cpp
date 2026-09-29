@@ -19,6 +19,7 @@
 #include "ConfigPersistence.h"
 
 #include <nlohmann/json.hpp>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -88,6 +89,7 @@ nlohmann::json ConfigPersistence::aparienciaToJson(const Apariencia& a) {
     j["blancoYNegro"] = a.blancoYNegro;
     j["acento"] = {a.acento[0], a.acento[1], a.acento[2], a.acento[3]};
     j["fondo"] = {a.fondo[0], a.fondo[1], a.fondo[2]};
+    j["radioDifuminado"] = a.radioDifuminado;
     return j;
 }
 
@@ -106,6 +108,24 @@ Apariencia ConfigPersistence::jsonToApariencia(const nlohmann::json& j) {
         for (int i = 0; i < 3; ++i)
             if (j["fondo"][i].is_number())
                 a.fondo[i] = j["fondo"][i].get<float>();
+    }
+    // Un archivo sin el campo (o anterior a esta opcion) se queda con el radio
+    // por defecto, que es el que venia implicito en las constantes de la grilla.
+    // Un valor fuera de rango o no finito (editado a mano, corrupto) se acota
+    // al rango admitido para que el perfil en memoria sea siempre valido, igual
+    // que si el usuario lo hubiera movido con el slider.
+    if (j.contains("radioDifuminado") && j["radioDifuminado"].is_number()) {
+        const float radio = j["radioDifuminado"].get<float>();
+        if (!std::isfinite(radio) ||
+            radio < AparienciaUtil::kRadioDifuminadoMinimo) {
+            a.radioDifuminado = radio < AparienciaUtil::kRadioDifuminadoMinimo
+                                    ? AparienciaUtil::kRadioDifuminadoMinimo
+                                    : AparienciaUtil::kRadioDifuminadoPorDefecto;
+        } else if (radio > AparienciaUtil::kRadioDifuminadoMaximo) {
+            a.radioDifuminado = AparienciaUtil::kRadioDifuminadoMaximo;
+        } else {
+            a.radioDifuminado = radio;
+        }
     }
     return a;
 }

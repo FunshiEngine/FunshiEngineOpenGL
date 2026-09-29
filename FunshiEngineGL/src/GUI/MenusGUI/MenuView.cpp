@@ -21,6 +21,8 @@
 #include <cstring>
 #include <string>
 
+#include "../../Configuracion/Apariencia.h"
+
 namespace {
 // Constantes de layout del menu (solo lectura): tamanio de boton y desvios
 // verticales desde el centro de la ventana para cada fila.
@@ -325,6 +327,23 @@ void MenuView::renderizarOpciones() {
             if (seleccionada) ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
+    }
+
+    ImGui::TextUnformatted(model->traducir("radio_difuminado").c_str());
+    // Radio del circulo-horizonte de la grilla y de la guia de eje, en unidades
+    // de mundo: por debajo del slider, el piso se ve mas cerca y con menos lineas
+    // (mas performant); por encima, llega mas lejos. Se edita sobre una copia
+    // del perfil y se delega al modelo UNA vez, como el resto de apariencia.
+    {
+        Apariencia apRadio = model->getApariencia();
+        float radio = apRadio.radioDifuminado;
+        ImGui::SetNextItemWidth(-1.0f);
+        if (ImGui::SliderFloat("##radioDifuminado", &radio,
+                               AparienciaUtil::kRadioDifuminadoMinimo,
+                               AparienciaUtil::kRadioDifuminadoMaximo, "%.0f")) {
+            apRadio.radioDifuminado = radio;
+            model->setApariencia(apRadio);
+        }
     }
 
     ImGui::TextUnformatted(model->traducir("sensibilidad_camara").c_str());

@@ -218,13 +218,13 @@ void SceneRenderer::dibujarGuiaEje(const FrameContext& ctx,
     } else {
         GuiaEje::colorEje(ctx.guiaEje, color);
     }
-    GuiaEje::Difuminado dif;
-    dif.inicio = GrillaRenderer::kFadeInicio;
-    dif.fin = GrillaRenderer::kFadeFin;
+    // Mismo radio que la grilla (radioDifuminado lee el perfil de apariencia),
+    // asi que guia y piso se desvanecen siempre en el mismo circulo.
     // Mas subdivisiones que la grilla: la guia es mucho mas larga que una linea
     // de la grilla, asi que con los 6 trozos de aquella el degradado se veria
-    // escalonado a lo largo de los 300 unidades.
-    dif.subdivisiones = 24;
+    // escalonado a lo largo de toda la recta.
+    const Difuminado dif = Difuminado::desdeRadio(
+        radioDifuminado(ctx), 24);
 
     LineBuilder builder;
     GuiaEje::emitir(builder, eje, camaraMundo, color, dif);
@@ -407,7 +407,17 @@ void SceneRenderer::dibujarGrilla(const FrameContext& ctx, GameObject* object,
     // El dibujado (extent infinito del plano + difuminado del horizonte con
     // densidad fija + anchos) vive en la capa de Rendering; aqui se le pasa la
     // matriz del objeto "Grilla" y la posicion del ojo en el mundo.
-    grillaRenderer_.dibujar(modelArr, colorGrilla, camaraMundo);
+    grillaRenderer_.dibujar(modelArr, colorGrilla, camaraMundo,
+                            Difuminado::desdeRadio(radioDifuminado(ctx),
+                                                   GrillaRenderer::kSubdivisiones));
+}
+
+float SceneRenderer::radioDifuminado(const FrameContext& ctx) {
+    // Sin perfil de apariencia en la pasada (una vista previa, por ejemplo) se
+    // usa el valor por defecto, que es el mismo que pone una configuracion
+    // recien creada. El acotado al rango admitido lo hace Difuminado::desdeRadio.
+    if (!ctx.apariencia) return AparienciaUtil::kRadioDifuminadoPorDefecto;
+    return ctx.apariencia->radioDifuminado;
 }
 
 bool SceneRenderer::colorReferenciaGuia(const FrameContext& ctx,

@@ -67,18 +67,6 @@ bool calcularEje(const float matrizGlobal[16], int eje, bool coordenadasGlobales
     return true;
 }
 
-float opacidad(float distancia, const Difuminado& dif) {
-    if (!std::isfinite(distancia) || dif.fin <= dif.inicio) return 1.0f;
-    // t se acota a [0,1] ANTES de elevar al cuadrado: sin ese recorte, los
-    // puntos mas cercanos que "inicio" dan t negativo y el cuadrado los baja de
-    // opacos, con lo que hasta el centro de la vista se veria translucido.
-    float t = (distancia - dif.inicio) / (dif.fin - dif.inicio);
-    if (t < 0.0f) t = 0.0f;
-    if (t > 1.0f) t = 1.0f;
-    const float a = 1.0f - t * t;
-    return a < 0.0f ? 0.0f : (a > 1.0f ? 1.0f : a);
-}
-
 void emitir(LineBuilder& out, const Eje& eje, const float camaraMundo[3],
             const float color[3], const Difuminado& dif) {
     if (!camaraMundo || !color) return;
@@ -145,7 +133,7 @@ void emitir(LineBuilder& out, const Eje& eje, const float camaraMundo[3],
                             punto[2] - camaraMundo[2]};
         const float distancia =
             std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-        const float alpha = opacidad(distancia, dif);
+        const float alpha = dif.opacidad(distancia);
 
         if (i > 0) {
             const float rgbaA[4] = {color[0], color[1], color[2], alphaAnterior};

@@ -542,6 +542,7 @@ add_test(NAME estructuras-tests COMMAND estructuras-tests)
 add_executable(rendering-tests
     ${SRC_DIR}/Rendering/LineBuilder.cpp
     ${SRC_DIR}/Rendering/GuiaEje.cpp
+    ${SRC_DIR}/Rendering/Difuminado.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/RenderingTests.cpp
 )
 set_target_properties(rendering-tests PROPERTIES

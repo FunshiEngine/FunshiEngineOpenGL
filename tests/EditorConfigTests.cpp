@@ -81,6 +81,9 @@ int main() {
         CHECK(cfg.datos().apariencia.temaClaro == false, "default tema oscuro");
         CHECK(cfg.datos().apariencia.blancoYNegro == false, "default no B/N");
         CHECK(cfg.datos().apariencia.acento[3] == 1.0f, "default acento opaco");
+        CHECK(cfg.datos().apariencia.radioDifuminado ==
+                  AparienciaUtil::kRadioDifuminadoPorDefecto,
+              "default radio de difuminado");
     }
 
     // 2. Round-trip: los valores cambiados sobreviven a guardar/cargar.
@@ -106,6 +109,7 @@ int main() {
         cfg.datos().apariencia.fondo[0] = 0.3f;
         cfg.datos().apariencia.fondo[1] = 0.4f;
         cfg.datos().apariencia.fondo[2] = 0.5f;
+        cfg.datos().apariencia.radioDifuminado = 275.0f;
         // Guardar en dos archivos separados (nuevo flujo)
         cfg.guardarGeneral(rutaGeneral);
         cfg.guardarProyecto(proyNombreTest, rutaProyecto);
@@ -134,6 +138,8 @@ int main() {
         CHECK(cfg2.datos().apariencia.acento[0] == 0.9f, "roundtrip acento r");
         CHECK(cfg2.datos().apariencia.acento[3] == 0.5f, "roundtrip acento a");
         CHECK(cfg2.datos().apariencia.fondo[2] == 0.5f,  "roundtrip fondo b");
+        CHECK(cfg2.datos().apariencia.radioDifuminado == 275.0f,
+              "roundtrip radio de difuminado");
         CHECK(cfg2.datos().apariencia == cfg.datos().apariencia,
               "roundtrip Apariencia completa");
     }
@@ -166,6 +172,45 @@ int main() {
               "parcial: campo ausente conserva default");
         CHECK(cfg.datos().nombreProyecto == "Nuevo Proyecto",
               "parcial: sin seccion general -> default");
+    }
+
+    // 4b. Radio de difuminado: un archivo sin el campo conserva el default (no
+    //     falla al cargar una configuracion anterior a la opcion) y uno con un
+    //     valor fuera del rango admitido lo acota, para que el perfil en memoria
+    //     sea siempre valido aunque el archivo se haya editado a mano.
+    {
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << "{\n  \"version\": 1,\n  \"apariencia\": {"
+                 "\"temaClaro\": true}\n}\n";
+        }
+        EditorConfig cfg;
+        cfg.cargarGeneral(rutaGeneral);
+        CHECK(cfg.datos().apariencia.radioDifuminado ==
+                  AparienciaUtil::kRadioDifuminadoPorDefecto,
+              "radio ausente -> default");
+
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << "{\n  \"version\": 1,\n  \"apariencia\": "
+                 "{\"radioDifuminado\": 99999}\n}\n";
+        }
+        EditorConfig cfgAlto;
+        cfgAlto.cargarGeneral(rutaGeneral);
+        CHECK(cfgAlto.datos().apariencia.radioDifuminado ==
+                  AparienciaUtil::kRadioDifuminadoMaximo,
+              "radio enorme -> acotado al maximo");
+
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << "{\n  \"version\": 1,\n  \"apariencia\": "
+                 "{\"radioDifuminado\": -3}\n}\n";
+        }
+        EditorConfig cfgBajo;
+        cfgBajo.cargarGeneral(rutaGeneral);
+        CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
+                  AparienciaUtil::kRadioDifuminadoMinimo,
+              "radio negativo -> acotado al minimo");
     }
 
     // 5. Nuevo sistema de guardado por proyecto:

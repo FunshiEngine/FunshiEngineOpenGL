@@ -123,6 +123,11 @@ private:
                              const float camaraMundo[3]);
     void dibujarGrilla(const FrameContext& ctx, GameObject* object,
                        const float camaraMundo[3]);
+    // Radio del difuminado del piso para este frame: el que eligio el usuario
+    // en Opciones (Apariencia::radioDifuminado), acotado por el propio Difuminado
+    // y con el valor por defecto si la pasada no trae perfil de apariencia. Lo
+    // leen la grilla y la guia de eje para desvanecerse en el MISMO circulo.
+    static float radioDifuminado(const FrameContext& ctx);
     // Color contra el que se mide el contraste de la guia de eje: el color
     // EFECTIVO de la grilla del suelo (el mismo que usa su propio dibujado, con
     // el modo blanco y negro ya resuelto) y, cuando no hay grilla visible, el

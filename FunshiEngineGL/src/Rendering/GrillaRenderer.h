@@ -19,6 +19,7 @@
 #ifndef GRILLARENDERER_H
 #define GRILLARENDERER_H
 
+#include "Difuminado.h"
 #include "LineBatch.h"
 #include "LineBuilder.h"
 
@@ -26,11 +27,16 @@
 //
 // La grilla ya NO tiene tamano ni densidad configurables (diseño): es un plano
 // azulejado con separacion FIJA (secundarias cada 1 unidad, principales cada
-// 5) que se recorta a un CIRCULO horizonte de radio fijo centrado en la camara
-// sobre el plano del suelo (constantes privadas en GrillaRenderer.cpp). Ese
-// circulo es el LIMITE DE DIBUJADO: fuera de el no se pinta nada (da la ilusion
-// de que la grilla continua mas lejos) y persigue a la camara, asi que moverse
-// pinta grilla nueva por delante y deja de pintar lo que queda atras.
+// 5) que se recorta a un CIRCULO horizonte centrado en la camara sobre el plano
+// del suelo. Ese circulo es el LIMITE DE DIBUJADO: fuera de el no se pinta nada
+// (da la ilusion de que la grilla continua mas lejos) y persigue a la camara,
+// asi que moverse pinta grilla nueva por delante y deja de pintar lo que queda
+// atras.
+//
+// El RADIO del circulo si lo elige el usuario (Opciones -> Radio de difuminado):
+// lo arma el llamador en un Difuminado, que es el MISMO tipo que usa la guia de
+// eje, asi que grilla y guia se desvanecen siempre en el mismo circulo. A mas
+// radio, mas lejos llega la grilla y mas lineas se generan (una por unidad).
 //
 // El difuminado es radial y POR VERTICE: cada linea se recorta a su trozo
 // interior al circulo y se subdivide; cada vertice lleva su propio alpha y la
@@ -46,19 +52,14 @@
 // frame. Los tres batches se reutilizan: solo se re-suben los buffers.
 class GrillaRenderer {
 public:
-    // Escala y horizonte de la grilla, expuestos porque otras partes del editor
-    // se alinean a ellos. La guia de eje (X/Y/Z) mide su recta en multiplos de
-    // la celda principal para que termine justo sobre lineas de la grilla, y
-    // comparte el mismo difuminado radial para desvanecerse en el mismo
+    // Separacion y horizonte de la grilla, expuestos porque otras partes del
+    // editor se alinean a ellos. La guia de eje (X/Y/Z) mide su recta en
+    // multiplos de la celda principal para que termine justo sobre lineas de la
+    // grilla, y comparte el mismo Difuminado para desvanecerse en el mismo
     // horizonte. Secundarias cada kSeparacionMenor unidades, una principal cada
     // kMultiploMayor de ellas.
     static constexpr float kSeparacionMenor = 1.0f;
     static constexpr int kMultiploMayor = 5;
-    // Difuminado radial: opacidad plena hasta kFadeInicio y caida cuadratica
-    // hasta 0 en kFadeFin, que es el radio del circulo-horizonte y por lo tanto
-    // el limite de dibujado (fuera de el no se pinta nada).
-    static constexpr float kFadeInicio = 40.0f;
-    static constexpr float kFadeFin = 150.0f;
     // Trozos en que se subdivide cada linea para que el difuminado quede suave
     // (el batch interpola el alpha entre extremos de cada trozo).
     static constexpr int kSubdivisiones = 6;
@@ -67,10 +68,11 @@ public:
 
     // Dibuja la grilla infinita en el espacio local del objeto "Grilla" (la
     // matriz model del componente se pasa al shader de lineas), con el color
-    // efectivo y la posicion de la camara EN EL MUNDO (se transforma a local
-    // aqui) para extender el plano y calcular el difuminado.
+    // efectivo, la posicion de la camara EN EL MUNDO (se transforma a local
+    // aqui) para extender el plano y calcular el difuminado, y el difuminado
+    // ya armado por el llamador (radio elegido por el usuario).
     void dibujar(const float model[16], const float colorGrilla[3],
-                 const float camaraMundo[3]);
+                 const float camaraMundo[3], const Difuminado& dif);
 
     // Descarta la geometria CPU cacheada (higiene defensiva).
     void destruir();

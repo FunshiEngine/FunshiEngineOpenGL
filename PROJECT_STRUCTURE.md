@@ -227,14 +227,21 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── LineRenderer.h/.cpp       ← shader de líneas gruesas + batch; fija las
         │   │                                matrices y el viewport de la pasada actual
         │   │                                (líneas de la grilla, marcadores y gizmos)
+        │   ├── Difuminado.h/.cpp           ← difuminado radial del piso (CPU puro): a
+        │   │                                partir del radio que elige el usuario
+        │   │                                (Apariencia::radioDifuminado, acotado en
+        │   │                                el rango 20..600) deriva el inicio en
+        │   │                                proporción constante y expone la curva de
+        │   │                                opacidad; lo comparten la grilla y la
+        │   │                                guía de eje para que se desvanezcan en el
+        │   │                                mismo círculo-horizonte
         │   ├── GrillaRenderer.h/.cpp        ← geometría de la grilla del suelo: plano
         │   │                                infinito de densidad fija (secundarias cada
         │   │                                kSeparacionMenor, una principal cada
-        │   │                                kMultiploMayor de ellas), recorte a un
-        │   │                                círculo-horizonte de radio kFadeFin y
-        │   │                                difuminado radial por vértice entre
-        │   │                                kFadeInicio y kFadeFin; un batch de
-        │   │                                líneas por ancho (1/2/3 px)
+        │   │                                kMultiploMayor de ellas), recorte al
+        │   │                                círculo-horizonte de radio "dif.fin" y
+        │   │                                difuminado radial por vértice (Difuminado);
+        │   │                                un batch de líneas por ancho (1/2/3 px)
         │   ├── GuiaEje.h/.cpp             ← geometría CPU de la guía de eje (X/Y/Z) del
         │   │                                objeto seleccionado: origen + dirección
         │   │                                unitaria, recorte analítico al horizonte,
@@ -664,7 +671,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 - `texturemanager-tests` (15): caché Flyweight de imágenes CPU (sin entrar la pila gráfica).
 - `estructuras-tests` (87): `ListaDE`, `ArbolEnlazado`, `PriorityListaDE`,
   `MinHeap`/`MaxHeap`, `ListMergeSort` y `ArbolBinarioEnlazado`.
-- `rendering-tests` (141): geometría de las líneas del pipeline moderno
+- `rendering-tests` (164): geometría de las líneas del pipeline moderno
   (`LineBuilder`): expansión de cada segmento al quad que ensancha el shader,
   color por extremo (difuminado de la grilla), polilíneas, aristas con índices
   fuera de rango y caja de 12 aristas; más la guía de eje (`GuiaEje`): origen y
@@ -674,7 +681,10 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   opacidad, recorte de la recta hasta el horizonte con la
   distancia 3D a la cámara, difuminado por vértice y los rechazos defensivos
   (eje inválido, NaN/Inf, eje degenerado, horizonte degenerado, recta fuera del
-  horizonte). Solo CPU, sin OpenGL.
+  horizonte); más el difuminado del piso (`Difuminado`): el inicio derivado en
+  proporción constante del radio elegido, el radio acotado (finito, enorme,
+  negativo y nulo) y la forma de la curva, que no depende del radio. Solo CPU,
+  sin OpenGL.
 - `scripts-tests` (100): reflexión `SerializeField` (escalares, arrays, grupos
   anidados) y su round-trip binario; el contrato de flags con el que
   `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
