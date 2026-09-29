@@ -16,7 +16,9 @@ MotorGrafico/
 │           ├── Sonidos/
 │           └── Scripts/
 ├── Configuraciones/
-│   └── Configuracion.json        ← global (tema, idioma, sensibilidad, ultimo proyecto)
+│   └── Configuracion.json        ← global (ultimo proyecto, idioma, las dos
+│                                   sensibilidades y la apariencia: tema claro/oscuro,
+│                                   modo blanco y negro, acento y fondo)
 └── Exportaciones/
     └── <nombreExportacion>/
         ├── <Juego>.exe / <Juego>
@@ -99,8 +101,12 @@ consola; la salida tambien va al log.
 | `G` | Alterna el gizmo entre **Local** (ejes del objeto) y **Global** (ejes del mundo, no rota con el objeto) |
 | `1` o `T` | Gizmo: mover (Translate) |
 | `2` o `R` | Gizmo: rotar (Rotate) |
-| `3` o `Y` | Gizmo: escalar (Scale) |
-| `Escape` | Volver al menu principal desde el editor |
+| `3` o `U` | Gizmo: escalar (Scale) |
+| `X` `Y` `Z` | Guia de eje del objeto seleccionado (ver seccion 4b) |
+| `F5` / `F6` / `F7` | Simular / pausar-reanudar / detener la simulacion |
+| `Ctrl+S` | Guardar el proyecto en caliente |
+| `Ctrl+Z` / `Ctrl+Y` | Deshacer / rehacer |
+| `Escape` | En play: detener la simulacion. En edicion: volver al menu principal |
 
 El modo del gizmo (Local/Global) tambien se elige en el menu **"Gizmo"** de la
 barra superior del editor, y se persiste por proyecto.
@@ -114,6 +120,39 @@ barra superior del editor, y se persiste por proyecto.
 - **Gizmo**: operacion (`gizmoOperacion`) y sistema de coordenadas
   (`gizmoGlobal`) se guardan por proyecto (seccion `editor` de
   ConfiguracionProyecto.json).
+- **Apariencia** (`apariencia` de Configuracion.json, general): tema claro/oscuro
+  (oscuro por defecto), modo blanco y negro, color de acento (RGB) y color de
+  fondo de la escena. El tema alcanza toda la paleta de ImGui (`TemaEditor`) y
+  el fondo y el color efectivo de la grilla (`AparienciaUtil`).
+
+## 4b. Grilla, ejes y guia de eje (viewport del editor)
+
+- El objeto **"Grilla"** lo crea el motor al abrir la escena
+  (`GameScene::asegurarGrilla`) si no existe, con el componente `Grid`. Solo se
+  dibuja el primer objeto con ese componente, y su panel expone unicamente
+  **Visible** y **Color**: la grilla es infinita y de densidad fija
+  (secundarias cada `kSeparacionMenor` = 1 unidad, una principal cada
+  `kMultiploMayor` = 5). Los campos `tam`/`separacion` del componente se siguen
+  serializando para que las escenas viejas se lean igual, pero no se usan para
+  dibujar.
+- `GrillaRenderer` recorta la grilla a un circulo de radio `kFadeFin` (150)
+  centrado en la camara: ese circulo es a la vez el horizonte y el limite de
+  dibujado. El difuminado es radial y por vertice (alpha por vertice, con
+  `LineBuilder` interpolando entre extremos): opacidad plena hasta `kFadeInicio`
+  (40) y caida cuadratica hasta 0 en `kFadeFin`. Un batch de lineas por ancho
+  (secundarias 1 px, principales 2 px, ejes 3 px) = 3 draws por frame.
+- Los tres ejes (X rojo, Y verde, Z azul) salen de `GuiaEje::colorEje`: una sola
+  convencion para la grilla, la guia de eje y el gizmo. Grilla y guia ajustan
+  ese color por contraste contra lo que tienen debajo
+  (`AparienciaUtil::ejeContraste`): el color efectivo de la grilla para la
+  grilla, y ese mismo color (o el fondo, si no hay grilla visible) para la guia,
+  de modo que en modo blanco y negro el contraste se mide contra el blanco o el
+  negro real. El ajuste escala el brillo, asi que con un eje saturado puede no
+  alcanzar el minimo de 0.35 de diferencia de luminancia.
+- La guia de eje (`X`/`Y`/`Z` sobre el objeto seleccionado) reutiliza las
+  mismas constantes de difuminado (`SceneRenderer::dibujarGuiaEje` las lee de
+  `GrillaRenderer`), con mas subdivisiones (24) porque la recta es mucho mas
+  larga que una linea de la grilla.
 
 ## 5. Movimiento por maquina de estado (Input/EditorInput)
 

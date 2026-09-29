@@ -11,7 +11,10 @@
   compatibilidad, ni materiales ni luces de estado fijo. La grilla es un
   componente (`Grid`) en una pasada independiente que ya no usa display lists;
   los marcadores de luz/cámara y los gizmos de los colliders se dibujan con el
-  mismo pipeline de líneas.
+  mismo pipeline de líneas. Los tres ejes (X rojo, Y verde, Z azul) tienen un
+  solo color de base en toda la escena —el de la guía de eje, que usa el gizmo
+  como referencia— y la grilla y la guía lo ajustan por contraste contra el
+  color que tienen debajo.
 - Interfaz de editor con Dear ImGui y gizmos con ImGuizmo.
 - Jerarquía de entidades basada en árboles enlazados propios.
 - Simulación física mediante Bullet Physics detrás de una fachada desacoplada.
@@ -187,7 +190,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   ├── Color/  Model/  Script/
         │   │   ├── Material/SettingsMaterial.*  Light/SettingsLight.*
         │   │   ├── Camera/SettingsCamera.*       ← FOV, planos, velocidad, vista previa
-        │   │   ├── Grid/SettingsGrid.*           ← visible/color/tamaño/separación de la grilla
+        │   │   ├── Grid/SettingsGrid.*           ← visible y color de la grilla (infinita,
+        │   │   │                                 densidad fija: no hay tamaño/separación)
         │   │   ├── AudioSource/SettingsAudioSource.* ← dropdown de clip (Sonidos/), volumen, loop
         │   │   ├── Interface/SettingsInterface.* ← dropdown de asset de interfaz (Interfaces/)
         │   │   ├── RigidBody/SettingsRigidBody.*
@@ -223,11 +227,21 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── LineRenderer.h/.cpp       ← shader de líneas gruesas + batch; fija las
         │   │                                matrices y el viewport de la pasada actual
         │   │                                (líneas de la grilla, marcadores y gizmos)
-         │   ├── GuiaEje.h/.cpp            ← geometría CPU de la guía de eje (X/Y/Z) del
-         │   │                                objeto seleccionado: origen + dirección
-         │   │                                unitaria, recorte analítico al horizonte y
-         │   │                                difuminado por vértice; solo CPU, sin OpenGL
-
+        │   ├── GrillaRenderer.h/.cpp        ← geometría de la grilla del suelo: plano
+        │   │                                infinito de densidad fija (secundarias cada
+        │   │                                kSeparacionMenor, una principal cada
+        │   │                                kMultiploMayor de ellas), recorte a un
+        │   │                                círculo-horizonte de radio kFadeFin y
+        │   │                                difuminado radial por vértice entre
+        │   │                                kFadeInicio y kFadeFin; un batch de
+        │   │                                líneas por ancho (1/2/3 px)
+        │   ├── GuiaEje.h/.cpp             ← geometría CPU de la guía de eje (X/Y/Z) del
+        │   │                                objeto seleccionado: origen + dirección
+        │   │                                unitaria, recorte analítico al horizonte,
+        │   │                                difuminado por vértice y el color del eje
+        │   │                                (convención X rojo, Y verde, Z azul, la
+        │   │                                misma de la grilla y el gizmo); solo CPU,
+        │   │                                sin OpenGL
         │   ├── TextureGL.h/.cpp          ← textura OpenGL desde Image
         │   ├── RenderTarget.h/.cpp       ← render a textura (FBO) para vistas previas de cámara
         │   ├── GLFuncs.h                ← punteros de función OpenGL 3.3 core (glad-style)
@@ -248,8 +262,9 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── CameraComponent.h/.cpp ← cámara componente: vista, FPS, flag de vista previa
         │       ├── Material.h/.cpp       ← AMBIENT/DIFFUSE/SPECULAR/EMISSION/SHININESS
         │       ├── Light.h/.cpp          ← luz puntual serializable
-        │       ├── Grid.h/.cpp           ← grilla del suelo: pasada independiente, visible/color/
-        │       │                            tamaño/separación + modo blanco y negro
+        │       ├── Grid.h/.cpp           ← grilla del suelo: pasada independiente, visible/color
+        │       │                            (los campos tam/separacion quedan solo para que las
+        │       │                            escenas viejas se lean igual; no se dibujan con ellos)
         │       ├── Color.h / Model.h / Script.h
         │       ├── RigidBody/RigidBody.h/.cpp ← cuerpo Bullet sincronizado (RAII)
         │       └── Colliders/
@@ -332,7 +347,9 @@ main.cpp
       │   Bullet + audio + servicios de script + cola de compilación; play→editor: vacía la
       │   cola, desconecta los servicios, corta el audio y avisa onStop), con F6 pausando
       │   y F7 cortando (Playing → Editing)
-      ├── pasada de la grilla (batch de líneas + shader de ancho en píxeles; color según apariencia)
+      ├── pasada de la grilla (Grid + batch de líneas + shader de ancho en
+      │   píxeles; color efectivo según el perfil de apariencia y, con la guia
+      │   de eje activa, la guia usa ese mismo color como referencia de contraste)
       ├── dibujarGameObjects (MeshRenderer VBO/VAO+shader; único pipeline)
       ├── gizmo ImGuizmo sobre el objetivo activo (objeto o collider)
       ├── GUI() de GameScene (paneles) + vistas previas de cámaras (FBO)
@@ -527,13 +544,16 @@ solo como orquestador de arranque y bucle.
   dispositivos. La orquestación de todo el flujo de proyectos sobre esta
   fachada (qué hará al arrancar, entrar, guardar, renombrar, eliminar,
   exportar y cuál es el `imgui.ini` vigente) vive en
-  `Proyectos/GestorDeProyectos` (extraído de `main.cpp`). Guarda: menú (proyecto, idioma,
-  sensibilidad de cámara), gizmo, ventana de cámaras, ventanas (estado
-  abierto/cerrado de GUIManager), cámara activa por id y perfil de apariencia,
-  en dos archivos junto al binario (Linux y Windows):
+  `Proyectos/GestorDeProyectos` (extraído de `main.cpp`). Guarda dos archivos
+  junto al binario (Linux y Windows), y cada campo va a uno u otro según si es
+  una preferencia de la máquina o del proyecto abierto:
   `<directorioEjecutable>/MotorGrafico/Configuraciones/Configuracion.json`
-  (general) y `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json`
-  (por proyecto). Tolerante a archivos ausentes o corruptos: los defaults
+  (**general**: último proyecto, idioma, sensibilidad de cámara, sensibilidad de
+  movimiento y perfil de apariencia) y
+  `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` (**por proyecto**:
+  operación y sistema de coordenadas del gizmo, ventana de cámaras, estado
+  abierto/cerrado de las ventanas de `GUIManager` y cámara activa por id).
+  Tolerante a archivos ausentes o corruptos: los defaults
   viven en `EditorConfig.h`/`ConfigPersistence.h`.
   La raíz `MotorGrafico` no es siempre `<directorioEjecutable>/MotorGrafico`:
   `ProjectPaths::directorioBase()` la resuelve probando si puede escribirse y, si
@@ -739,7 +759,7 @@ main.cpp
   │
   └─ GameScene::gameScene()
         ├─ LightSystem::beginFrame() [solo CPU: datos de luz para el shader]
-        ├─ pasada de la grilla (Grid + batch de líneas, color según apariencia)
+        ├─ pasada de la grilla (Grid + batch de líneas, color efectivo según apariencia)
         ├─ dibujarGameObjects (MeshRenderer shader; único pipeline)
         ├─ marcadores de luz y cámara (wireframes auxiliares, batch de líneas)
         ├─ ImGuizmo::Manipulate sobre el GizmoTarget activo (objeto o collider)
