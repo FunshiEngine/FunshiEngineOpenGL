@@ -75,6 +75,8 @@ private:
     GameObject* objetoAEliminar = nullptr;
     GameObject* objetoAReParentar = nullptr;
     GameObject* objetoPadreNuevo = nullptr;
+    // Desanidar a raiz diferido: el objeto a mover a la raiz.
+    GameObject* objetoADesanidar = nullptr;
 
     // Estado de dialogos modales (click derecho -> Cambiar ID / Renombrar / Eliminar).
     enum class DialogoTipo { Ninguno, CambiarID, Renombrar, Eliminar };

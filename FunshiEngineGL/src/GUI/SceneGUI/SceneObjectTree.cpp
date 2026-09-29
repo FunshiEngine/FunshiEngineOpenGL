@@ -64,6 +64,7 @@ void SceneObjectTree::resetState() {
     objetoAEliminar = nullptr;
     objetoAReParentar = nullptr;
     objetoPadreNuevo = nullptr;
+    objetoADesanidar = nullptr;
 }
 
 void SceneObjectTree::draw() {
@@ -156,10 +157,9 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
         // Desanidar a raiz: solo si el objeto tiene padre (no es la raiz)
         if (object->getParentEntity() != nullptr) {
             if (ImGui::MenuItem("Desanidar a raiz")) {
-                if (editor) {
-                    GameObject* raiz = scene ? scene->getRoot() : nullptr;
-                    if (raiz) editor->reparentGameObject(object, raiz);
-                }
+                // Diferido: mutar el arbol tras el recorrido para no invalidar
+                // iteradores (patron igual que objetoAReParentar).
+                objetoADesanidar = object;
             }
         }
         if (ImGui::MenuItem("Eliminar")) {
@@ -305,6 +305,12 @@ void SceneObjectTree::applyDeferredOperations() {
         editor->reparentGameObject(objetoAReParentar, objetoPadreNuevo);
     objetoAReParentar = nullptr;
     objetoPadreNuevo = nullptr;
+
+    if (objetoADesanidar && editor) {
+        GameObject* raiz = scene ? scene->getRoot() : nullptr;
+        if (raiz) editor->reparentGameObject(objetoADesanidar, raiz);
+        objetoADesanidar = nullptr;
+    }
 
     if (objetoAEliminar) {
         GameObject* doomed = objetoAEliminar;
