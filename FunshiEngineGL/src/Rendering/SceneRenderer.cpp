@@ -628,7 +628,7 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
     object->setTam(10);
     object->setColor(object->auxColor);
 
-    if (object->getComponent<Transform>()) {
+    if (static_cast<Transform*>(object->getComponentByName("Transform"))) {
         // El dibujado va siempre por el pipeline moderno (MeshRenderer: VBO/VAO
         // + shader). Si el objeto no tiene malla con normales, simplemente no
         // se dibuja (MeshRenderer lo avisa una vez por malla).
@@ -644,15 +644,21 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
                     // Cargar malla via AssetManager (cache compartida)
                     auto mesh = ctx.assetManager->getMesh(path);
                     if (mesh && !mesh->isEmpty() && mesh->hasNormals()) {
-                        // Render temporal: un Modelos3D local por objeto
+                        // Render temporal: un Modelos3D local por objeto con transform copiado
                         Modelos3D tempModel(nullptr);
                         tempModel.setAssetManager(ctx.assetManager);
                         tempModel.setPath(path);
+                        // Copiar Transform del objeto original (posicion, rotacion, escala)
+                        Transform* origTransform = static_cast<Transform*>(object->getComponentByName("Transform"));
+                        if (origTransform) {
+                            Transform* newTransform = new Transform(*origTransform);
+                            tempModel.addComponent(newTransform);
+                        }
                         // Copiar componentes relevantes del objeto original (Material, Color)
-                        if (Material* mat = object->getComponent<Material>()) {
+                        if (Material* mat = static_cast<Material*>(object->getComponentByName("Material"))) {
                             tempModel.addComponent(new Material(*mat));
                         }
-                        if (Color* col = object->getComponent<Color>()) {
+                        if (Color* col = static_cast<Color*>(object->getComponentByName("Color"))) {
                             tempModel.addComponent(new Color(*col));
                         }
                         meshRenderer_->intentarRender(&tempModel, view, projection, ctx.deltaTime);
