@@ -57,6 +57,11 @@ public:
     void destroyTexture2D(Handle texture) override;
     void bindTexture2D(Handle texture, int unit) override;
 
+    // --- Textura Cubemap ---
+    Handle createTextureCube(const ImageCube& image) override;
+    void destroyTextureCube(Handle texture) override;
+    void bindTextureCube(Handle texture, int unit) override;
+
     // --- Programa ---
     Handle createProgram(const char* vertexSource,
                          const char* fragmentSource) override;

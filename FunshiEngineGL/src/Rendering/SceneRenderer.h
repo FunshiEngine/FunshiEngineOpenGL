@@ -33,6 +33,7 @@ class RenderTarget;
 class TextureManager;
 struct Apariencia;
 struct LightData;
+class Skybox;
 
 template <typename T>
 class ListaDE;
@@ -122,6 +123,10 @@ private:
     // que quede "detras" de todo sin escribir profundidad.
     void dibujarCielo(const FrameContext& ctx, const float view[16],
                       const float projection[16]);
+    // Skybox cubemap: se dibuja en lugar del degradado si hay un componente
+    // Skybox visible con 6 caras validas. Mismo estado de depth que el cielo.
+    void dibujarSkyboxCubemap(const Skybox* skybox, const float view[16],
+                              const float projection[16]);
     // Recta de la guia de eje (X/Y/Z) sobre el objeto seleccionado: va hasta el
     // horizonte con el difuminado de la grilla y el color del eje.
     void dibujarGuiaEje(const FrameContext& ctx, const float camaraMundo[3]);

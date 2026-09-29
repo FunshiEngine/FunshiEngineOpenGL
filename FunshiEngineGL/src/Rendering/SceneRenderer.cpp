@@ -28,6 +28,9 @@
 #include "Backend/IRenderBackend.h"
 #include "Backend/GLFuncs.h"
 #include "Cielo.h"
+#include "../Objetos/Componentes/Skybox.h"
+
+#include "../Herramientas/IconosGUI/stb_image.h"
 #include "LineBatch.h"
 #include "LineBuilder.h"
 #include "LineRenderer.h"
@@ -207,7 +210,22 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
 
     auto& backend = Rendering::Backend::activeBackend();
 
-    // Creacion perezosa del programa del cielo.
+    // Buscar el primer componente Skybox visible en la escena.
+    Skybox* skybox = nullptr;
+    if (ctx.gameObjects && !ctx.gameObjects->isEmpty()) {
+        Position<GameObject*>* pos = ctx.gameObjects->first();
+        while (pos && pos->getElement()) {
+            GameObject* obj = pos->getElement();
+            Skybox* sb = obj->getComponent<Skybox>();
+            if (sb && sb->getVisible()) {
+                skybox = sb;
+                break;
+            }
+            pos = (pos != ctx.gameObjects->last()) ? ctx.gameObjects->next(pos) : nullptr;
+        }
+    }
+
+    // Creacion perezosa del programa del cielo degradado.
     if (skyProgram_ == Rendering::Backend::kInvalidHandle) {
         try {
             skyProgram_ = backend.createProgram(kSkyVertexShader, kSkyFragmentShader);
@@ -219,6 +237,22 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
             return;
         }
     }
+
+    // Si hay un Skybox con cubemap valido, renderizarlo en lugar del degradado.
+    if (skybox) {
+        // Verificar que el Skybox tiene las 6 caras cargadas.
+        bool tieneCubemap = !skybox->getCaraMasX().empty() &&
+                            !skybox->getCaraMenosX().empty() &&
+                            !skybox->getCaraMasY().empty() &&
+                            !skybox->getCaraMenosY().empty() &&
+                            !skybox->getCaraMasZ().empty() &&
+                            !skybox->getCaraMenosZ().empty();
+        if (tieneCubemap) {
+            dibujarSkyboxCubemap(skybox, view, projection);
+            return;
+        }
+    }
+
     if (skyProgram_ == Rendering::Backend::kInvalidHandle) return;
 
     // Colores efectivos del degradado (resuelven B/N y tema).
@@ -251,6 +285,160 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     // Restaurar estado base para la siguiente pasada.
     backend.setDepthMask(true);
     ShaderProgram::unbind();
+}
+
+// Skybox cubemap: renderiza un cubo centrado en la camara con el cubemap
+// del componente Skybox. Se dibuja con depth test ON + depth mask OFF para
+// quedar "detras" de toda la geometria sin escribir profundidad.
+void SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
+                                         const float view[16],
+                                         const float projection[16]) {
+    if (!skybox) return;
+
+    auto& backend = Rendering::Backend::activeBackend();
+
+    // Cargar las 6 caras usando stb_image.
+    const std::string rutas[6] = {
+        skybox->getCaraMasX(),
+        skybox->getCaraMenosX(),
+        skybox->getCaraMasY(),
+        skybox->getCaraMenosY(),
+        skybox->getCaraMasZ(),
+        skybox->getCaraMenosZ()
+    };
+
+    for (int i = 0; i < 6; ++i) {
+        if (rutas[i].empty()) return; // Si falta alguna cara, caemos al degradado
+    }
+
+    int width = 0, height = 0, channels = 0;
+    unsigned char* facePixels[6] = {nullptr};
+    bool ok = true;
+
+    for (int i = 0; i < 6; ++i) {
+        int w, h, ch;
+        unsigned char* data = stbi_load(rutas[i].c_str(), &w, &h, &ch, 4); // Forzar RGBA
+        if (!data) { ok = false; break; }
+        if (i == 0) { width = w; height = h; }
+        else if (w != width || h != height) { ok = false; stbi_image_free(data); break; }
+        facePixels[i] = data;
+    }
+    if (!ok) {
+        for (int i = 0; i < 6; ++i) if (facePixels[i]) stbi_image_free(facePixels[i]);
+        return; // Caer al degradado si falla la carga
+    }
+
+    // Crear textura cubemap.
+    Rendering::Backend::IRenderBackend::ImageCube imgCube;
+    imgCube.width = width;
+    imgCube.height = height;
+    for (int i = 0; i < 6; ++i) imgCube.faces[i] = facePixels[i];
+    imgCube.generateMipmaps = true;
+
+    Rendering::Backend::Handle cubemapHandle = backend.createTextureCube(imgCube);
+    if (cubemapHandle == Rendering::Backend::kInvalidHandle) {
+        for (int i = 0; i < 6; ++i) if (facePixels[i]) stbi_image_free(facePixels[i]);
+        return; // Caer al degradado
+    }
+
+    // Liberar memoria CPU ya subida a GPU.
+    for (int i = 0; i < 6; ++i) stbi_image_free(facePixels[i]);
+
+    // Shader para skybox cubemap (cubo centrado en camara).
+    static Rendering::Backend::Handle skyboxProgram = Rendering::Backend::kInvalidHandle;
+    if (skyboxProgram == Rendering::Backend::kInvalidHandle) {
+        static const char* skyboxVert = R"(#version 330 core
+layout(location = 0) in vec3 aPos;
+out vec3 vTexCoord;
+uniform mat4 uView;
+uniform mat4 uProjection;
+void main() {
+    vTexCoord = aPos;
+    vec4 pos = uProjection * uView * vec4(aPos, 1.0);
+    gl_Position = pos.xyww; // z = w para estar en el plano lejano
+}
+)";
+        static const char* skyboxFrag = R"(#version 330 core
+in vec3 vTexCoord;
+out vec4 FragColor;
+uniform samplerCube uSkybox;
+void main() {
+    FragColor = texture(uSkybox, vTexCoord);
+}
+)";
+        try {
+            skyboxProgram = backend.createProgram(skyboxVert, skyboxFrag);
+        } catch (...) {
+            return;
+        }
+    }
+    if (skyboxProgram == Rendering::Backend::kInvalidHandle) return;
+
+    // Cubo unitario centrado en el origen (8 vertices, 36 indices).
+    static GLuint cuboVAO = 0;
+    static GLuint cuboVBO = 0;
+    static GLuint cuboEBO = 0;
+    static bool cuboInicializado = false;
+
+    if (!cuboInicializado) {
+        float vertices[] = {
+            // posiciones
+            -1.0f,  1.0f, -1.0f,
+            -1.0f, -1.0f, -1.0f,
+             1.0f, -1.0f, -1.0f,
+             1.0f,  1.0f, -1.0f,
+            -1.0f,  1.0f,  1.0f,
+            -1.0f, -1.0f,  1.0f,
+             1.0f, -1.0f,  1.0f,
+             1.0f,  1.0f,  1.0f
+        };
+        unsigned int indices[] = {
+            0, 1, 2, 2, 3, 0, // -Z
+            4, 5, 6, 6, 7, 4, // +Z
+            0, 3, 7, 7, 4, 0, // +Y
+            1, 2, 6, 6, 5, 1, // -Y
+            3, 2, 6, 6, 7, 3, // +X
+            0, 1, 5, 5, 4, 0  // -X
+        };
+        GLFuncs::pfnGenVertexArrays(1, &cuboVAO);
+        GLFuncs::pfnGenBuffers(1, &cuboVBO);
+        GLFuncs::pfnGenBuffers(1, &cuboEBO);
+        GLFuncs::pfnBindVertexArray(cuboVAO);
+        GLFuncs::pfnBindBuffer(GL_ARRAY_BUFFER, cuboVBO);
+        GLFuncs::pfnBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        GLFuncs::pfnBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cuboEBO);
+        GLFuncs::pfnBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+        GLFuncs::pfnEnableVertexAttribArray(0);
+        GLFuncs::pfnVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        GLFuncs::pfnBindVertexArray(0);
+        cuboInicializado = true;
+    }
+
+    backend.setDepthTestEnabled(true);
+    backend.setDepthMask(false);
+
+    backend.useProgram(skyboxProgram);
+
+    int locView = backend.uniformLocation(skyboxProgram, "uView");
+    int locProj = backend.uniformLocation(skyboxProgram, "uProjection");
+    int locSkybox = backend.uniformLocation(skyboxProgram, "uSkybox");
+
+    if (locView >= 0) backend.setUniformMat4(locView, glm::make_mat4(view));
+    if (locProj >= 0) backend.setUniformMat4(locProj, glm::make_mat4(projection));
+    if (locSkybox >= 0) backend.setUniformInt(locSkybox, 0);
+
+    backend.bindTextureCube(cubemapHandle, 0);
+
+    GLFuncs::pfnBindVertexArray(cuboVAO);
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    GLFuncs::pfnBindVertexArray(0);
+
+    // Restaurar estado.
+    backend.setDepthMask(true);
+    ShaderProgram::unbind();
+
+    // Liberar textura cubemap temporal (para MVP; en produccion se cachearia).
+    backend.destroyTextureCube(cubemapHandle);
 }
 
 // Recta guia del objeto seleccionado (teclas X/Y/Z): la recta sobre la que

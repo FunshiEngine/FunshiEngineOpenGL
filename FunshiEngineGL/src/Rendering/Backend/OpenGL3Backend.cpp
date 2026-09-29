@@ -48,6 +48,19 @@ typedef void (GLAPIENTRY* FN_RenderbufferStorage)(GLenum, GLenum, GLsizei,
 typedef void (GLAPIENTRY* FN_FramebufferRenderbuffer)(GLenum, GLenum, GLenum,
                                                       GLuint);
 typedef GLenum (GLAPIENTRY* FN_CheckFramebufferStatus)(GLenum);
+
+// Constantes de cubemap que pueden no estar definidas en headers GL modernos
+// con carga por puntero. Valores de la especificación OpenGL 3.3 core.
+#ifndef GL_TEXTURE_CUBE_MAP
+#define GL_TEXTURE_CUBE_MAP 0x8513
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_X 0x8515
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_X 0x8516
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_Y 0x8517
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Y 0x8518
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_Z 0x8519
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Z 0x851A
+#define GL_TEXTURE_WRAP_R 0x8072
+#endif
 typedef void (GLAPIENTRY* FN_GenerateMipmap)(GLenum);
 
 FN_GenFramebuffers pfnGenFramebuffers = nullptr;
@@ -384,6 +397,60 @@ void OpenGL3Backend::bindTexture2D(Handle texture, int unit) {
     if (texture == kInvalidHandle || !GLFuncs::pfnActiveTexture) return;
     GLFuncs::pfnActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
     glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+}
+
+// --- Textura Cubemap ---------------------------------------------------------
+
+Handle OpenGL3Backend::createTextureCube(const ImageCube& image) {
+    if (image.width <= 0 || image.height <= 0) return kInvalidHandle;
+    for (int i = 0; i < 6; ++i) {
+        if (!image.faces[i]) return kInvalidHandle;
+    }
+
+    const bool conMipmaps =
+        image.generateMipmaps && (cargar("glGenerateMipmap", pfnGenerateMipmap),
+                                  pfnGenerateMipmap != nullptr);
+
+    GLuint texture = 0;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER,
+                    conMipmaps ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    // Orden de caras: +X, -X, +Y, -Y, +Z, -Z
+    static const GLenum cubeFaces[6] = {
+        GL_TEXTURE_CUBE_MAP_POSITIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+        GL_TEXTURE_CUBE_MAP_POSITIVE_Y, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
+        GL_TEXTURE_CUBE_MAP_POSITIVE_Z, GL_TEXTURE_CUBE_MAP_NEGATIVE_Z
+    };
+
+    for (int i = 0; i < 6; ++i) {
+        glTexImage2D(cubeFaces[i], 0, GL_RGBA8, image.width, image.height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, image.faces[i]);
+    }
+
+    if (conMipmaps) pfnGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+    return static_cast<Handle>(texture);
+}
+
+void OpenGL3Backend::destroyTextureCube(Handle texture) {
+    if (texture == kInvalidHandle) return;
+    GLuint id = static_cast<GLuint>(texture);
+    glDeleteTextures(1, &id);
+}
+
+void OpenGL3Backend::bindTextureCube(Handle texture, int unit) {
+    if (texture == kInvalidHandle || !GLFuncs::pfnActiveTexture) return;
+    GLFuncs::pfnActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
+    glBindTexture(GL_TEXTURE_CUBE_MAP, static_cast<GLuint>(texture));
 }
 
 // ---------------------------------------------------------------------------

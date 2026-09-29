@@ -25,6 +25,7 @@
 #include "Objetos/Componentes/Material.h"
 #include "Objetos/Componentes/Model.h"
 #include "Objetos/Componentes/Script.h"
+#include "Objetos/Componentes/Skybox.h"
 #include "Objetos/GameObject.h"
 #include "Objetos/Modelos3D.h"
 
@@ -55,6 +56,13 @@ EntradaAssets recogerDeObjeto(GameObject& objeto) {
                         entrada.malla = model->getPath();
                 } else if (auto* script = dynamic_cast<Script*>(componente)) {
                     entrada.script = script->getPath();
+                } else if (auto* skybox = dynamic_cast<Skybox*>(componente)) {
+                    entrada.caraMasX = skybox->getCaraMasX();
+                    entrada.caraMenosX = skybox->getCaraMenosX();
+                    entrada.caraMasY = skybox->getCaraMasY();
+                    entrada.caraMenosY = skybox->getCaraMenosY();
+                    entrada.caraMasZ = skybox->getCaraMasZ();
+                    entrada.caraMenosZ = skybox->getCaraMenosZ();
                 }
             }
             pos = (pos == componentes->last()) ? nullptr : componentes->next(pos);
@@ -108,6 +116,19 @@ int aplicarEnObjeto(GameObject& objeto, const EntradaAssets& entrada) {
                 } else if (auto* script = dynamic_cast<Script*>(componente)) {
                     cambios += aplicarCampo(entrada.script, script->getPath(),
                                             [script](const std::string& p) { script->setDllPath(p); });
+                } else if (auto* skybox = dynamic_cast<Skybox*>(componente)) {
+                    cambios += aplicarCampo(entrada.caraMasX, skybox->getCaraMasX(),
+                                            [skybox](const std::string& p) { skybox->setCaraMasX(p); });
+                    cambios += aplicarCampo(entrada.caraMenosX, skybox->getCaraMenosX(),
+                                            [skybox](const std::string& p) { skybox->setCaraMenosX(p); });
+                    cambios += aplicarCampo(entrada.caraMasY, skybox->getCaraMasY(),
+                                            [skybox](const std::string& p) { skybox->setCaraMasY(p); });
+                    cambios += aplicarCampo(entrada.caraMenosY, skybox->getCaraMenosY(),
+                                            [skybox](const std::string& p) { skybox->setCaraMenosY(p); });
+                    cambios += aplicarCampo(entrada.caraMasZ, skybox->getCaraMasZ(),
+                                            [skybox](const std::string& p) { skybox->setCaraMasZ(p); });
+                    cambios += aplicarCampo(entrada.caraMenosZ, skybox->getCaraMenosZ(),
+                                            [skybox](const std::string& p) { skybox->setCaraMenosZ(p); });
                 }
             }
             pos = (pos == componentes->last()) ? nullptr : componentes->next(pos);

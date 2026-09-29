@@ -30,6 +30,7 @@
 #include "Objetos/Componentes/Material.h"
 #include "Objetos/Componentes/Model.h"
 #include "Objetos/Componentes/Script.h"
+#include "Objetos/Componentes/Skybox.h"
 #include "Objetos/GameObject.h"
 #include "Objetos/Modelos3D.h"
 
@@ -173,6 +174,22 @@ int paraSlotsDe(Component& componente, Operar&& operar) {
         return operar(
             script->getPath(),
             [script](const std::string& p) { script->setDllPath(p); });
+    }
+    if (auto* skybox = dynamic_cast<Skybox*>(&componente)) {
+        int cambios = 0;
+        cambios += operar(skybox->getCaraMasX(),
+                          [skybox](const std::string& p) { skybox->setCaraMasX(p); });
+        cambios += operar(skybox->getCaraMenosX(),
+                          [skybox](const std::string& p) { skybox->setCaraMenosX(p); });
+        cambios += operar(skybox->getCaraMasY(),
+                          [skybox](const std::string& p) { skybox->setCaraMasY(p); });
+        cambios += operar(skybox->getCaraMenosY(),
+                          [skybox](const std::string& p) { skybox->setCaraMenosY(p); });
+        cambios += operar(skybox->getCaraMasZ(),
+                          [skybox](const std::string& p) { skybox->setCaraMasZ(p); });
+        cambios += operar(skybox->getCaraMenosZ(),
+                          [skybox](const std::string& p) { skybox->setCaraMenosZ(p); });
+        return cambios;
     }
     return 0;
 }

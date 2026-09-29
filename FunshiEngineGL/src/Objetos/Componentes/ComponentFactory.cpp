@@ -31,6 +31,7 @@
 #include "Model.h"
 #include "RigidBody/RigidBody.h"
 #include "Script.h"
+#include "Skybox.h"
 #include "Transform.h"
 #include "../GameObject.h"
 
@@ -79,6 +80,7 @@ std::unique_ptr<Component> ComponentFactory::create(const std::string& typeName,
         return std::make_unique<InterfaceComponent>();
     if (nombre == "Model") return std::make_unique<Model>();
     if (nombre == "Grid") return std::make_unique<Grid>();
+    if (nombre == "Skybox") return std::make_unique<Skybox>();
 
     return nullptr;
 }
