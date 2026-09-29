@@ -211,6 +211,9 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     if (skyProgram_ == Rendering::Backend::kInvalidHandle) {
         try {
             skyProgram_ = backend.createProgram(kSkyVertexShader, kSkyFragmentShader);
+        } catch (const std::exception&) {
+            skyProgram_ = Rendering::Backend::kInvalidHandle;
+            return;
         } catch (...) {
             skyProgram_ = Rendering::Backend::kInvalidHandle;
             return;
