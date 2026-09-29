@@ -250,7 +250,10 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                kMultiploMayor de ellas), recorte al
         │   │                                círculo-horizonte de radio "dif.fin" y
         │   │                                difuminado radial por vértice (Difuminado);
-        │   │                                un batch de líneas por ancho (1/2/3 px)
+        │   │                                un batch de líneas por ancho (1/2/3 px),
+        │   │                                rearmado solo cuando cambian cámara,
+        │   │                                radio o color (con el resto quieto se
+        │   │                                reusa el batch ya subido)
         │   ├── GuiaEje.h/.cpp             ← geometría CPU de la guía de eje (X/Y/Z) del
         │   │                                objeto seleccionado: origen + dirección
         │   │                                unitaria, recorte analítico al horizonte,

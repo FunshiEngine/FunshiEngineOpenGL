@@ -49,7 +49,9 @@
 //
 // Hay un batch por ANCHO de linea, porque el ancho se resuelve en pixeles en el
 // shader: secundarias (1px), principales (2px) y ejes (3px) = 3 draws por
-// frame. Los tres batches se reutilizan: solo se re-suben los buffers.
+// frame. Los tres batches se reutilizan: solo se re-suben cuando cambia algo
+// que altere la geometria (posicion de la camara, radio o color), porque con la
+// camara quieta la pasada siguiente es identica a la anterior.
 class GrillaRenderer {
 public:
     // Separacion y horizonte de la grilla, expuestos porque otras partes del
@@ -86,6 +88,20 @@ private:
     LineBatch secundarioBatch_;
     LineBatch principalBatch_;
     LineBatch ejesBatch_;
+    // Clave de lo ultimo que se armo (camara en espacio local, radio,
+    // subdivisiones y color efectivo). La geometria de la pasada es funcion
+    // pura de estos cuatro valores, asi que si no cambiaron se reusan los
+    // batches ya subidos sin rearmar decenas de miles de vertices.
+    bool claveValida_ = false;
+    float claveCamX_ = 0.0f;
+    float claveCamZ_ = 0.0f;
+    float claveRadio_ = 0.0f;
+    int claveSubdivisiones_ = -1;
+    float claveColor_[3] = {0.0f, 0.0f, 0.0f};
+
+    // Geometria completa de la grilla para (color, camara local, difuminado).
+    void reconstruir(const float color[3], float camX, float camZ,
+                     const Difuminado& dif);
 };
 
 #endif

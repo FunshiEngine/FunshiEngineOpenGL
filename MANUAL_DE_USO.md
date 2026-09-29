@@ -541,7 +541,10 @@ La vista **Opciones** del menú de inicio tiene tres bloques:
 mundo: la grilla se dibuja hasta ahi y se difumina hacia su borde, y la guia de
 eje se desvanece en ese mismo circulo. Con un radio corto el piso llega menos
 lejos y se dibujan menos lineas (mas fluido); con uno largo llega mas lejos y
-cuesta mas. El tramo completamente opaco es siempre la misma fraccion del radio
+cuesta mas. La grilla se rearma solo cuando cambia algo que la altera (camara,
+radio o color): con la camara quieta editar la escena no cuesta geometria
+nueva, aunque conviene igual no pasarse del radio necesario. El tramo
+completamente opaco es siempre la misma fraccion del radio
 (40 de cada 150), asi que al agrandarlo el degradado se agranda con el, en vez
 de estirarse. El valor por defecto es 150 y *Restablecer apariencia* lo vuelve
 ahi.
