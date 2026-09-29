@@ -94,6 +94,7 @@ public:
     // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
     void setDepthTestEnabled(bool enabled) override;
     void setDepthMask(bool enabled) override;
+    void setDepthFunc(DepthFunc func) override;
 
     // --- Pasada a pantalla completa (sin atributos) ---
     void drawFullscreenTriangle() override;

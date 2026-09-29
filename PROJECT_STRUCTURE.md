@@ -239,7 +239,12 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                perfil de apariencia devuelve los dos
         │   │                                colores efectivos (superior/inferior)
         │   │                                resolviendo B/N y tema; usado por el
-        │   │                                shader fullscreen triangle del cielo
+        │   │                                shader fullscreen triangle del cielo,
+        │   │                                que colorea cada pixel segun la
+        │   │                                DIRECCION de vista (des-proyecta el
+        │   │                                NDC con la inversa de projection*view y
+        │   │                                resta la posicion de camara) y no segun
+        │   │                                su posicion en pantalla
         │   ├── CacheCubemap.h             ← identidad del cubemap del Skybox (CPU
         │   │                                puro): clave de las 6 caras por ruta y
         │   │                                fecha de modificacion, que decide cada

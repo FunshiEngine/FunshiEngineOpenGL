@@ -649,7 +649,7 @@ void OpenGL3Backend::applyBaseState() {
     // La iluminacion viaja como uniforms y la transformacion como matriz
     // modelo, asi que no hay estado fijo que dejar activo.
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+    setDepthFunc(kDepthFuncLess);
     // Activacion explicita del framebuffer multisampleado (se pidio 4x en la
     // creacion del contexto): suaviza los bordes de la geometria, incluidas las
     // lineas expandidas a quads, sin depender de glLineSmooth (que no existe en
@@ -707,6 +707,10 @@ void OpenGL3Backend::setDepthTestEnabled(bool enabled) {
 
 void OpenGL3Backend::setDepthMask(bool enabled) {
     glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+}
+
+void OpenGL3Backend::setDepthFunc(DepthFunc func) {
+    glDepthFunc(func == DepthFunc::LessEqual ? GL_LEQUAL : GL_LESS);
 }
 
 // ---------------------------------------------------------------------------

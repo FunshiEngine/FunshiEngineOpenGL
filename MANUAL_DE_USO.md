@@ -305,6 +305,12 @@ que lo tenga, igual que con `Grid`.
   conjunto de caras; se vuelve a subir solo si cambia alguna de las rutas o si
   se reescribe algun archivo, asi que editar la escena con un Skybox cargado no
   tiene costo extra por frame.
+- El cubemap **acompania a la camara**: se dibuja como si estuviera a distancia
+  infinita, de modo que **desplazarse** no lo acerca ni lo aleja, pero **girar**
+  si lo recorre, asi que las nubes y el sol se ven desde el angulo correcto
+  segun donde mires. Es lo que hace que un cielo con imagen se sienta como un
+  cielo y no como un fondo de pantalla. Aparece tanto en el viewport principal
+  como en las vistas previas.
 
 ## 5. Undo / redo de operaciones del editor
 
@@ -555,16 +561,30 @@ checkboxes, enlaces, bordes, separadores y tablas) y los grises azulados de
 fabrica quedan en gris neutro, así que al cambiar de color no quedan restos del
 azul clasico.
 
-- El **cielo** se renderiza como un degradado vertical entre *Color de la parte
+- El **cielo** se renderiza como un degradado entre *Color de la parte
   superior del cielo* y *Color de la parte inferior del cielo*. Los dos colores
   se guardan tal como los elige el usuario —un cielo claro es una eleccion
-  valida— y el degradado los mezcla de arriba hacia abajo. En modo
-  blanco y negro ambas partes se fuerzan a blanco (tema claro) o negro (tema
-  oscuro). El degradado se dibuja como primera pasada del viewport, con la
-  prueba de profundidad activa pero sin escribir en ella, asi que queda por
-  detras de la grilla y de los objetos. Si un objeto tiene el componente
-  **Skybox** visible con sus seis caras asignadas, su cubemap reemplaza al
-  degradado (ver "Skybox (cubemap de seis caras)" en la seccion 4).
+  valida— y el degradado los mezcla. En modo blanco y negro ambas partes se
+  fuerzan a blanco (tema claro) o negro (tema oscuro). El degradado se dibuja
+  como primera pasada del viewport, con la prueba de profundidad activa pero sin
+  escribir en ella, asi que queda por detras de la grilla y de los objetos. Si un
+  objeto tiene el componente **Skybox** visible con sus seis caras asignadas, su
+  cubemap reemplaza al degradado (ver "Skybox (cubemap de seis caras)" en la
+  seccion 4).
+
+- El color del cielo depende de **hacia donde mira la camara**, no de la
+  posicion del pixel en la pantalla: el shader des-proyecta cada pixel al plano
+  lejano y usa la componente vertical de ese rayo de vista. Por eso el cielo va
+  con la camara en vez de quedar clavado a la pantalla como un fondo de
+  escritorio. En la practica:
+
+  - Mirando al **cenit** se ve el color superior; mirando al **suelo**, el
+    inferior.
+  - En el **horizonte** queda la banda de mezcla, y los colores puros aparecen a
+    unos 20 grados por encima y por debajo de el.
+  - **Girar** la camara de un lado a otro recorre el degradado igual que mirar
+    arriba o abajo; **desplazarse** (translation) no lo cambia, porque la
+    direccion de vista es la misma.
 
 - Persistencia: la **apariencia**, el idioma y las dos sensibilidades se guardan
   en la configuracion general, en la raiz de datos del motor

@@ -24,6 +24,7 @@
 #include <iostream>
 #include <system_error>
 
+#include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <imgui.h>
@@ -52,6 +53,17 @@
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/GameObject.h"
 #include "../Objetos/Modelos3D.h"
+
+namespace {
+
+// Media anchura de la banda de degradado del cielo, en unidades de la
+// componente vertical de la direccion de vista. El degradado se reparte
+// alrededor del horizonte y satura a los dos extremos, asi que 0.35 lleva el
+// color inferior a toda la vista al mirar claramente hacia abajo y el superior
+// al mirar claramente hacia arriba, dejando la mezcla solo en el horizonte.
+constexpr float kCieloTransicion = 0.35f;
+
+}  // namespace
 
 SceneRenderer::SceneRenderer() : meshRenderer_(std::make_unique<MeshRenderer>()) {}
 
@@ -196,8 +208,10 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
         -(view[8] * view[12] + view[9] * view[13] + view[10] * view[14]);
 
     // Cielo degradado: primera pasada, con depth test on + depth mask off para
-    // que quede "detras" de todo sin escribir en el z-buffer.
-    dibujarCielo(ctx, view, projection);
+    // que quede "detras" de todo sin escribir en el z-buffer. Recibe la
+    // posicion de camara en el mundo (ya calculada arriba) porque el color del
+    // cielo sale de la direccion de vista, no de la posicion del pixel.
+    dibujarCielo(ctx, view, projection, camaraMundo);
 
     // La grilla se dibuja como una pasada independiente del renderer de
     // modelos: no depende de Modelos3D ni del recorrido normal de las
@@ -223,9 +237,16 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
 // "detras" de toda la geometria sin escribir profundidad (asi los objetos
 // delante ganan el test de profundidad y ocultan el cielo, pero el cielo no
 // oculta nada).
+//
+// El color NO sale de la posicion del pixel sino de la direccion de vista de
+// ese pixel: el shader des-proyecta el NDC al plano lejano, resta la camara y
+// usa dir.y. Por eso el cielo va con la camara en vez de quedar clavado a la
+// pantalla (mirar abajo lleva el color inferior a toda la vista, mirar arriba el
+// superior, y el horizonte queda en la transicion).
 void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
-                                 const float projection[16]) {
-    if (!ctx.apariencia) return;
+                                 const float projection[16],
+                                 const float camaraMundo[3]) {
+    if (!ctx.apariencia || !camaraMundo) return;
 
     auto& backend = Rendering::Backend::activeBackend();
 
@@ -292,8 +313,19 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
                            glm::vec3(colorSup[0], colorSup[1], colorSup[2]));
     cieloProgram_->setVec3("uColorBottom",
                            glm::vec3(colorInf[0], colorInf[1], colorInf[2]));
-    cieloProgram_->setMat4("uView", glm::make_mat4(view));
-    cieloProgram_->setMat4("uProjection", glm::make_mat4(projection));
+
+    // El shader necesita deshacer projection*view para recuperar el rayo de
+    // vista de cada pixel, y la posicion de camara para orientar ese rayo.
+    const glm::mat4 vista = glm::make_mat4(view);
+    const glm::mat4 proyeccion = glm::make_mat4(projection);
+    const glm::mat4 invViewProj = glm::inverse(proyeccion * vista);
+    cieloProgram_->setMat4("uInvViewProj", invViewProj);
+    cieloProgram_->setVec3("uCamPos", glm::vec3(camaraMundo[0], camaraMundo[1],
+                                               camaraMundo[2]));
+    // Media anchura de la transicion en unidades de dir.y: 0.35 satura el
+    // color a unos 20 grados por encima y por debajo del horizonte, que es lo
+    // que hace legible la banda de degradado en el horizonte.
+    cieloProgram_->setFloat("uTransicion", kCieloTransicion);
 
     // Fullscreen triangle: 3 vertices, sin VBO (gl_VertexID en el vertex shader).
     backend.drawFullscreenTriangle();
@@ -427,11 +459,31 @@ void main() {
     }
 
     backend.setDepthTestEnabled(true);
+    // El cubo se dibuja en el plano lejano (el vertex shader iguala z a w), o
+    // sea NDC z = 1.0 exacto, que es JUSTO el valor con el que se limpia el
+    // z-buffer. Con la funcion de comparacion por defecto (GL_LESS) el test
+    // 1.0 < 1.0 falla y el cubemap entero se descarta: el fondo queda en el
+    // color de limpieza. GL_LEQUAL acepta ese empate, y como la pasada no
+    // escribe profundidad (mask off) el resto de la escena sigue decidiendo
+    // por su cuenta. Se restaura la funcion base al terminar la pasada.
+    backend.setDepthFunc(Rendering::Backend::kDepthFuncLessEqual);
     backend.setDepthMask(false);
+
+    // El cubemap representa el fondo, que esta a distancia infinita: se dibuja
+    // con la ROTACION de la camara y sin su traslacion. Con la matriz de vista
+    // completa el cubo se desplaza junto con la camara (el fondo "se mueve" con
+    // ella) y ademas sale del frustum al alejarse del origen, hasta desaparecer
+    // del todo. En una matriz column-major la traslacion son los indices
+    // 12, 13 y 14: se copian y se ponen en cero.
+    float vistaSinTraslacion[16];
+    for (int i = 0; i < 16; ++i) vistaSinTraslacion[i] = view[i];
+    vistaSinTraslacion[12] = 0.0f;
+    vistaSinTraslacion[13] = 0.0f;
+    vistaSinTraslacion[14] = 0.0f;
 
     // Las locations de los uniforms quedan cacheadas en ShaderProgram.
     skyboxProgram_->use();
-    skyboxProgram_->setMat4("uView", glm::make_mat4(view));
+    skyboxProgram_->setMat4("uView", glm::make_mat4(vistaSinTraslacion));
     skyboxProgram_->setMat4("uProjection", glm::make_mat4(projection));
     skyboxProgram_->setInt("uSkybox", 0);
 
@@ -440,6 +492,7 @@ void main() {
 
     // Restaurar estado.
     backend.setDepthMask(true);
+    backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
     ShaderProgram::unbind();
 }
 

@@ -123,9 +123,12 @@ private:
     void dibujarMarcadorCamara(GameObject* object);
     // Cielo degradado (fullscreen triangle): se dibuja ANTES que la grilla y
     // los objetos, con depth test habilitado y depth mask deshabilitado, para
-    // que quede "detras" de todo sin escribir profundidad.
+    // que quede "detras" de todo sin escribir profundidad. El color sale de la
+    // direccion de vista de cada pixel, asi que el cielo acompanha a la camara
+    // (mirar abajo da el color inferior, arriba el superior, y el horizonte
+    // queda en la transicion) en vez de quedar clavado a la pantalla.
     void dibujarCielo(const FrameContext& ctx, const float view[16],
-                      const float projection[16]);
+                      const float projection[16], const float camaraMundo[3]);
     // Skybox cubemap: se dibuja en lugar del degradado si hay un componente
     // Skybox visible con 6 caras validas. Mismo estado de depth que el cielo.
     void dibujarSkyboxCubemap(const Skybox* skybox, const float view[16],
