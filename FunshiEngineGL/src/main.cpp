@@ -213,6 +213,13 @@ static int EjecutarMotor(int argc, char* argv[])
     // maquina de estado de movimiento (diagonales WASD normalizadas).
     EditorInput* input =
         new EditorInput(scene, &appStateMachine, &orquestadorDeGUI);
+    // El boton Activar/Detener del menu de escena pide aqui su cambio de
+    // play/stop: la accion va al orquestador, dueno de la decision, igual que
+    // las teclas F5/F7. Asi el boton no puede dejar la maquina de estados
+    // desfasada respecto de la simulacion que se ve.
+    if (SceneMenuBarInterface* menuBarEscena = managerOfGUI->getMenuBarGUI())
+        menuBarEscena->setAccionAlternarSimulacion(
+            [] { orquestadorDeGUI.alternarSimulacion(); });
     Time::start();
 
     // Resolucion de la raiz de datos y recuperacion de datos previos. Va antes
@@ -483,10 +490,22 @@ static int EjecutarMotor(int argc, char* argv[])
         // cuando el usuario la cambia en Opciones; ya no se relee el menu y se
         // reaplica estilo/fondo cada frame.
 
-        if (scene->isStart()) { //MODIFICAR , si se activa comenzar normal , si se quita volver todo al comienzo.
-            //loadNewComponents(); // Buscar y cargar componentes nuevas
-            scene->update(deltaTime);
-        }
+        // El estado de simulacion de la escena es un reflejo del orquestador: lo
+        // piden las teclas (F5/F6/F7/Escape) y el boton Activar/Detener, y aca se
+        // escribe una sola vez por frame. La pausa se refleja aparte porque
+        // congela fisica y scripts sin tocar `start` (asi no se dispara la
+        // limpieza de play->editor).
+        scene->setStart(orquestadorDeGUI.enSimulacion());
+        scene->setSimulacionPausada(orquestadorDeGUI.simulacionPausada());
+
+        // GameScene::update() se llama siempre: adentro cada bloque se auto-gatea
+        // por start (fisicas, scripts, cola de compilacion solo corren en play).
+        // Gatearlo desde aca hacia afuera dejaba inalcanzable el bloque de
+        // transicion play->editor (limpieza de audio, desconexion de servicios y
+        // cola) porque ese bloque vive en el flanco de bajada, que solo se evalua
+        // con update() corriendo; ademas previousStart quedaba pegado en true y
+        // el segundo arranque no disparaba su flanco de subida.
+        scene->update(deltaTime);
 
         
         // Limpieza del framebuffer de la ventana con el color de fondo vigente

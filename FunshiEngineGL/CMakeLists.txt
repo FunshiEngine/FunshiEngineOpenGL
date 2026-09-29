@@ -15,6 +15,17 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Runtime de C++ de MSVC (CMP0091): el engine y las .dll de script que compila
+# en runtime tienen que usar el MISMO CRT. Los SerializeField cruzan la frontera
+# de la .dll con std::string, std::vector y std::function: la memoria se aloca
+# en un modulo y se libera en el otro, y cada CRT estatico (/MT) trae su propio
+# heap (liberar memoria del otro corrompe el heap y el motor muere). Se declara
+# explicito para que el contrato sea visible en el build y no un default
+# implicito de CMake. En Debug el runtime es /MDd, y FUNSHI_CXX_RUNTIME_FLAG
+# hornea ese mismo valor para la linea de compilacion del script.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+set(FUNSHI_CXX_RUNTIME_FLAG "$<IF:$<CONFIG:Debug>,/MDd,/MD>")
+
 # Configuración de rutas
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 
@@ -111,7 +122,10 @@ if(BUILD_ENGINE)
     endif()
     target_compile_definitions(funshi_engine
         PUBLIC FUNSHI_SRC_DIR="${FUNSHI_SRC_ESCAPADO}"
-               FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+               FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
+               # Runtime de C++ del build: lo usa la linea de compilacion de los
+               # scripts C++ (ComandoCompilacionCpp.h) para no desajustar el CRT.
+               FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
 
 # 1. Configuración de GLFW
 find_package(glfw3 REQUIRED)
@@ -263,6 +277,32 @@ if(WIN32)
     target_compile_definitions(comandos-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
+# --- Pruebas headless de serializacion de escena (round-trip y nombres, H-6) --
+# Cubre lo que model-serialization-tests no alcanza: guardar -> recargar ->
+# conservar nombre, id y jerarquia, y que los objetos nuevos nazcan con nombre.
+# Necesita funshi_engine (SceneRegistry/SceneSerializer/EditorController), asi
+# que al igual que comandos-tests solo se compila con BUILD_ENGINE=ON.
+add_executable(escena-serializacion-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/SceneSerializationTests.cpp
+)
+target_include_directories(escena-serializacion-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+    ${CMAKE_SOURCE_DIR}/External/imgui
+)
+target_link_libraries(escena-serializacion-tests PRIVATE funshi_engine)
+set_target_properties(escena-serializacion-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME escena-serializacion-tests COMMAND escena-serializacion-tests)
+
+if(WIN32)
+    target_link_libraries(escena-serializacion-tests PRIVATE dbghelp)
+    target_compile_definitions(escena-serializacion-tests PRIVATE _HAS_STD_BYTE=0)
+endif()
+
 # Nucleo del manifiesto de assets de la escena (SceneAssets.json): headless,
 # sin GameObjects (como MenuModel). Cubre JSON round-trip, tolerancia a
 # archivos corruptos/inexistentes, relativizacion/absolutizacion contra la
@@ -357,6 +397,24 @@ set_target_properties(filemanager-tests PROPERTIES
     CXX_EXTENSIONS OFF
 )
 add_test(NAME filemanager-tests COMMAND filemanager-tests)
+
+# Runner de procesos sin shell (Proceso, H-3 nivel 2): round-trip de argv con
+# argumentos hostiles (espacios, &, comilla, barra final, vacio) relanzando
+# este mismo binario copiado a un directorio con espacios, exit codes,
+# truncado del log, cwd y entorno extra. En Windows ademas la receta cruda de
+# cmd.exe que usa el harvest de vcvars. Se compila Proceso.cpp directamente
+# (no hace falta funshi_engine: el modulo es std + API de SO).
+add_executable(proceso-tests
+    ${SRC_DIR}/FileManager/Proceso.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ProcesoTests.cpp
+)
+target_include_directories(proceso-tests PRIVATE ${SRC_DIR})
+set_target_properties(proceso-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME proceso-tests COMMAND proceso-tests)
 
 # EditorConfig (JSON tolerante) tambien se prueba headless y en las tres
 # plataformas: verifica round-trip y la carga ante ausencia/corrupcion.
@@ -498,9 +556,16 @@ add_test(NAME rendering-tests COMMAND rendering-tests)
 # anidados y vectores de grupos) y el round-trip binario del arbol de valores.
 add_executable(scripts-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
+    ${SRC_DIR}/FileManager/Proceso.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ScriptsTests.cpp
 )
+# El contrato de flags con el que se compilan los scripts C++ se verifica en
+# esta suite (headless y en las tres plataformas): el test necesita el mismo
+# compilador y runtime horneados que el engine, por eso recibe las definiciones.
+target_compile_definitions(scripts-tests PRIVATE
+    FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
+    FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
 set_target_properties(scripts-tests PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
@@ -511,11 +576,14 @@ add_test(NAME scripts-tests COMMAND scripts-tests)
 # Runtime de scripts: valida de punta a punta el BackendCpp (compila el fuente
 # de un script a .so, lo carga con dlopen y ejecuta el ciclo). Requiere un
 # compilador C++ en PATH; si no hay, el test sale con SKIP (77).
-# En Windows el test queda ignorado: cl necesita el entorno de Visual Studio.
+# El skip es por FAMILIA de toolchain, no por SO: con MSVC hace falta el
+# entorno de Visual Studio (vcvars), pero con GCC/MinGW el test corre en
+# Windows igual que en Linux (H-14).
 add_executable(scripts-runtime-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
     ${SRC_DIR}/Behaviour/Backends/BackendCpp.cpp
     ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
+    ${SRC_DIR}/FileManager/Proceso.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ScriptsRuntimeTests.cpp
 )
@@ -529,7 +597,8 @@ set_target_properties(scripts-runtime-tests PROPERTIES
 target_include_directories(scripts-runtime-tests PRIVATE ${SRC_DIR})
 target_compile_definitions(scripts-runtime-tests
     PRIVATE FUNSHI_SRC_DIR="${SRC_DIR}"
-            FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+            FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
+            FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
 # dlopen/dlsym on Linux/macOS requiere -ldl (en glibc moderno esta en libc,
 # pero -ldl no molesta); sin backend C fallaria con dlopen.
 if(UNIX)
@@ -590,6 +659,7 @@ if(FUNSHI_JAVA)
         ${SRC_DIR}/Behaviour/Backends/BackendJava.cpp
         ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
         ${SRC_DIR}/Configuracion/ProjectPaths.cpp
+        ${SRC_DIR}/FileManager/Proceso.cpp
         ${SRC_DIR}/Matematicas/StructVec3.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ScriptsJavaTests.cpp
     )

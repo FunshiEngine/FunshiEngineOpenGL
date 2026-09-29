@@ -28,11 +28,27 @@ OrquestadorEstadoGUI::OrquestadorEstadoGUI(ApplicationStateMachine* maquina) noe
     assert(maquina && "El orquestador necesita la maquina de estados");
 }
 
-// Centraliza "Escape en el editor vuelve al menu principal". Antes esta
-// transicion colgaba en el callback de teclado de main; ahora la regla vive
-// aqui. Es inofensivo si ya estamos en el menu (guardia explicita).
+// Centraliza "Escape en el editor vuelve al menu principal" y "Escape durante
+// el play detiene la simulacion". Antes esta transicion colgaba en el callback
+// de teclado de main; ahora la regla vive aqui. Es inofensivo si ya estamos en
+// el menu (guardia explicita).
+//
+// Reglas por estado:
+//  - MainMenu: no hay nada que abandonar.
+//  - Editing: vuelve al menu principal.
+//  - Playing: deja la simulacion como F7 (corta y vuelve al editor) en vez de
+//    saltar al menu, porque con la simulacion en marcha el menu no esta a la
+//    vista: la simulacion se abandona con la misma tecla que la detiene y el
+//    menu queda a un Escape mas, ya en el editor.
 void OrquestadorEstadoGUI::manejarTeclaEscape() noexcept
 {
+    if (maquina->is(ApplicationState::Playing)) {
+        // Misma regla que F7: cortar la simulacion y dejar la pausa limpia
+        // para el proximo play.
+        simulacionPausada_ = false;
+        maquina->transitionTo(ApplicationState::Editing);
+        return;
+    }
     if (maquina->is(ApplicationState::Editing)) {
         maquina->transitionTo(ApplicationState::MainMenu);
     }
@@ -92,9 +108,31 @@ void OrquestadorEstadoGUI::manejarTeclaSimulacion(TeclaSimulacion tecla) noexcep
     }
 }
 
+// El boton "Activar/Detener" del menu de escena no decide nada por su cuenta:
+// pide acá el mismo cambio que F5/F7 piden por teclado, para que play tenga un
+// unico dueño (esta maquina). Es la razon de que el botno y las teclas no
+// puedan discrepar: uno u otro camino, la transicion pasa por las reglas de
+// arriba.
+void OrquestadorEstadoGUI::alternarSimulacion() noexcept
+{
+    manejarTeclaSimulacion(enSimulacion() ? TeclaSimulacion::Stop
+                                          : TeclaSimulacion::Play);
+}
+
 bool OrquestadorEstadoGUI::menuDebeEstarVisible() const noexcept
 {
     return maquina->is(ApplicationState::MainMenu);
+}
+
+// "Dentro del editor" = editor o play. Es la condicion que comparten las teclas
+// del editor que tienen sentido mientras se edita Y mientras se simula (E,
+// WASD, guia de eje, modo del cursor): con la simulacion en marcha el editor no
+// desaparece, solo deja de dibujar sus interfaces, asi que el teclado sigue
+// siendo del editor. Solo el menu de inicio queda afuera.
+bool OrquestadorEstadoGUI::dentroDelEditor() const noexcept
+{
+    return maquina->is(ApplicationState::Editing) ||
+           maquina->is(ApplicationState::Playing);
 }
 
 bool OrquestadorEstadoGUI::escenaDebeCorrer() const noexcept

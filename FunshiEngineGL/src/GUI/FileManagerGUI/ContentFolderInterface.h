@@ -25,6 +25,7 @@
 
 #include "../../FileManager/FileManager.h"
 #include "../GeneralUserInterface.h"
+#include "RenombrarElemento.h"
 
 class IconosGUI;
 class EditorEventBus;
@@ -47,12 +48,10 @@ private:
     char nombreNuevo[256] = "";
     IconosGUI* iconosGUI = nullptr;
 
-    // Estado de renombrado (R6): ruta del elemento, si es carpeta (sube el
-    // contador del arbol) y el buffer con el nombre a confirmar en el modal.
-    std::string renombrarRuta;
-    bool renombrarEsCarpeta = false;
-    bool abrirPopupRenombrar = false;
-    char bufferRenombrar[256] = "";
+    // Estado de renombrado (R6): el modal compartido con el arbol
+    // (RenombrarElemento.h) guarda la ruta del elemento, si es carpeta y el
+    // nombre a confirmar.
+    RenombrarElemento::Modal modalRenombrar;
 
     // Estado de eliminacion de archivos y carpetas del grid (R7 similar a TreeFilesInterface):
     // se encola la RUTA en el menu contextual, confirmacion en modal, y eliminacion

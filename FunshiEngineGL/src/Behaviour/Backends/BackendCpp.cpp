@@ -45,13 +45,17 @@
 #endif
 
 #include "BackendCpp.h"
+#include "ComandoCompilacionCpp.h"
+#include "../../FileManager/Proceso.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <string>
+#include <vector>
 
 #include "../ScriptGameObject.h"
 #include "../IScriptBehaviour.h"
@@ -61,23 +65,6 @@
 #endif
 #ifndef FUNSHI_SRC_DIR
 #define FUNSHI_SRC_DIR ""
-#endif
-
-#if defined(_WIN32)
-// Ruta a vcvars64.bat subiendo desde la carpeta del compilador: el toolset
-// MSVC la tiene en <VS>/VC/Auxiliary/Build, arriba de VC/Tools/MSVC/<ver>.
-// Devuelve vacia si no es un compilador MSVC (MinGW, FUNSHI_CXX manual, etc.).
-std::string vcvars64Ruta(const std::string& compilador) {
-    std::error_code ec;
-    std::filesystem::path p = std::filesystem::weakly_canonical(compilador, ec);
-    if (ec) p = std::filesystem::path(compilador);
-    for (std::filesystem::path dir = p.parent_path(); !dir.empty();
-         dir = dir.parent_path()) {
-        std::filesystem::path cand = dir / "Auxiliary" / "Build" / "vcvars64.bat";
-        if (std::filesystem::exists(cand, ec)) return cand.string();
-    }
-    return std::string();
-}
 #endif
 
 namespace {
@@ -94,21 +81,6 @@ std::string compilador() {
     if (c.size() >= 2 && c.front() == '"' && c.back() == '"')
         c = c.substr(1, c.size() - 2);
     return c;
-}
-
-// Escapa una ruta para pasarla como argumento de linea de comandos.
-std::string escapar(const std::string& ruta) {
-    std::string resultado;
-    for (char c : ruta) {
-        if (c == '"') {
-            resultado += "\\\"";
-        } else if (c == '\\') {
-            resultado += "\\\\";
-        } else {
-            resultado += c;
-        }
-    }
-    return resultado;
 }
 
 // Directorio con las cabeceras del motor para que el script pueda incluir
@@ -142,6 +114,28 @@ std::string mtimeDe(const std::string& ruta) {
     if (ec) return "";
     return std::to_string(t.time_since_epoch().count());
 }
+
+// El artefacto esta vigente si existe y no es mas viejo que su fuente. La
+// clave del artefacto es por fuente (con compilador y flags), asi que dos
+// componentes de la escena que apuntan al mismo .cpp comparten la salida:
+// decidir la recompilacion por la frescura del ARCHIVO, y no por el mtime
+// que guarda cada componente (vacio en uno recien cargado), evita volver a
+// enlazar una salida que otro componente del mismo proceso ya dejo cargada.
+// En Windows una imagen cargada bloquea su archivo y el enlazador no puede
+// reescribirlo (permiso denegado); con el artefacto al dia, el segundo
+// componente solo lo vuelve a abrir (la biblioteca se referencia, no se
+// duplica).
+bool artefactoVigente(const std::string& artefactoPath,
+                      const std::string& fuente) {
+    std::error_code ecArtefacto;
+    const auto tArtefacto =
+        std::filesystem::last_write_time(artefactoPath, ecArtefacto);
+    if (ecArtefacto) return false; // no existe o ilegible: hay que compilar
+    std::error_code ecFuente;
+    const auto tFuente = std::filesystem::last_write_time(fuente, ecFuente);
+    if (ecFuente) return false;
+    return tArtefacto >= tFuente;
+}
 } // namespace
 
 const char* BackendCpp::lenguaje() const { return "cpp"; }
@@ -153,8 +147,18 @@ std::string BackendCpp::compiladorRuta() {
 std::string BackendCpp::cacheDir() { return directorioCache(); }
 
 std::string BackendCpp::artefacto(const std::string& fuente) {
-    std::size_t hash =
-        std::hash<std::string>{}(std::filesystem::weakly_canonical(fuente).string());
+    // La clave del artefacto incluye el CONTRATO de compilacion (compilador +
+    // flags), no solo la ruta del fuente: la decision de recompilar compara
+    // tiempos de archivo y no mira los flags, asi que un cambio de flags
+    // reusaria el artefacto viejo para siempre (un .dll compilado con el CRT
+    // estatico seguiria cargandose y el desajuste de heap no se corregiria
+    // nunca). Cambiar la clave equivale a invalidar el cache: el artefacto
+    // anterior simplemente no se encuentra y se recompila en el proximo uso,
+    // sin que el usuario tenga que borrar %TEMP%/funshi_scripts a mano.
+    const std::string clave =
+        std::filesystem::weakly_canonical(fuente).string() + "|" + compilador() +
+        "|" + CompilacionCpp::flagsCompilador(std::string());
+    std::size_t hash = std::hash<std::string>{}(clave);
     return (std::filesystem::path(directorioCache()) /
             ("script_" + std::to_string(hash) + "." + FUNSHI_ARTEFACTO_EXT))
         .string();
@@ -178,69 +182,54 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
     const std::string artefactoPath = artefacto(fuente);
     const std::string mtime = mtimeDe(fuente);
 
-    // Compilar solo si cambio el fuente (hot reload; recompila en play mode).
-    bool hayQueRecompilar = !std::filesystem::exists(artefactoPath, ec) ||
-                            salida.mtimeFuente != mtime;
+    // Compilar solo si el artefacto quedo por detras del fuente (hot reload
+    // y primera carga); si ya esta al dia se usa tal cual, aunque el
+    // componente que lo trae no lo haya cargado nunca.
+    const bool hayQueRecompilar = !artefactoVigente(artefactoPath, fuente);
     if (hayQueRecompilar) {
-        // -I al dir de cabeceras del motor + fuente a compilar, ambos
-        // entrecomillados (rutas con espacios). En Windows ademas del /I no
-        // existia el include path, asi que el script nunca encontraba las
-        // cabeceras del SDK: se arregla aqui.
-        std::string logic;
-        const std::string dirSrc = directorioSrcMotor();
-        if (!dirSrc.empty()) {
-#if defined(_WIN32)
-            logic = "/I\"" + escapar(dirSrc) + "\" ";
-#else
-            logic = "-I\"" + escapar(dirSrc) + "\" ";
-#endif
-        }
-        // El fuente va SIEMPRE entrecomillado: es una ruta de proyecto del
-        // usuario y puede tener espacios (p. ej. "...\Nuevo Proyecto\...\x.cpp").
-        // Sin comillas el shell la parte en trozos y el compilador no encuentra
-        // el archivo (C1083 "no se puede abrir el archivo origen").
-        logic += "\"" + escapar(fuente) + "\"";
+        // Los ARGV del proceso hijo se arman en ComandoCompilacionCpp.h: la
+        // familia del compilador (MSVC o GCC/Clang) decide flags, include y
+        // salida, y el contrato de CRT con el engine lo verifica el test de
+        // esa suite. Sin shell (H-3 nivel 2): cada token va como argumento
+        // propio y la salida la redirige Proceso por handles/fd.
         const std::string logPath =
             (std::filesystem::path(directorioCache()) / "compilar.log")
                 .string();
-        // El compilador va SIEMPRE entrecomillado: en Windows vive en una ruta
-        // con espacios (C:/Program Files/...) y sin comillas el shell corta en
-        // el primer espacio ("C:/Program" no se reconoce como comando interno).
-        const std::string compiladorCmd = "\"" + compilador() + "\"";
-        std::string cuerpo;
+        CompilacionCpp::DatosComando datos;
+        datos.compilador = compilador();
+        datos.nombreClase = nombreClase;
+        datos.fuente = fuente;
+        datos.dirSrc = directorioSrcMotor();
+        datos.dirObjetos = directorioCache();
+        datos.artefacto = artefactoPath;
+        const std::vector<std::string> argv =
+            CompilacionCpp::argumentosCompilacion(datos);
+
+        int rc = -1;
+        const std::string vcvars = CompilacionCpp::vcvars64Ruta(compilador());
 #if defined(_WIN32)
-        // /Fo y /Fe entrecomillados y con el backslash final duplicado: con
-        // /Fo"dir\" el compilador lee \" como comilla escapada, se traga el
-        // argumento siguiente y falla con C1083 sobre el archivo generado.
-        cuerpo = compiladorCmd +
-                 " /nologo /LD /std:c++17 /O2 /DFUNSHI_NOMBRE_CLASE=" +
-                 nombreClase + " " + logic + " /Fo\"" + directorioCache() +
-                 "\\\\\" /Fe\"" + escapar(artefactoPath) + "\" > \"" + logPath +
-                 "\" 2>&1";
-#else
-        cuerpo = compiladorCmd +
-                 " -std=c++17 -shared -fPIC -O2 -DFUNSHI_NOMBRE_CLASE=" +
-                 nombreClase + " " + logic + " -o " + escapar(artefactoPath) +
-                 " > " + logPath + " 2>&1";
+        if (!vcvars.empty()) {
+            // MSVC: cl.exe necesita el entorno del toolset (INCLUDE/LIB/
+            // link.exe). Lo unico que todavia pasa por cmd.exe es la receta
+            // fija del harvest (sin datos de usuario, ver
+            // comandoEntornoVcvars); el compilador corre solo, con ese bloque
+            // UTF-16 como entorno. Si el harvest falla se hereda el entorno
+            // del motor y el error exacto de cl queda en el log.
+            const std::wstring& bloque =
+                CompilacionCpp::entornoVcvars(vcvars);
+            if (!bloque.empty())
+                rc = Proceso::ejecutarConBloque(argv, bloque, logPath);
+            else {
+                std::cerr << "[scripts] entorno de vcvars no disponible; se "
+                             "compila con el entorno heredado\n";
+                rc = Proceso::ejecutar(argv, logPath);
+            }
+        } else
 #endif
-        std::string cmd = cuerpo;
-#if defined(_WIN32)
-        // std::system arma `cmd.exe /c <comando>`: si el comando arranca con
-        // comilla, cmd aplica su regla vieja y se come la PRIMERA y la ULTIMA
-        // comilla de la linea, desarmadolo (cl.exe no arranca y el log queda
-        // con '"C:/Program" no se reconoce'). Dos envoltorios resuelven:
-        // 1) cl.exe necesita el entorno del toolset (INCLUDE/LIB): si existe,
-        //    se antepone vcvars64.bat con `call` (sin comilla inicial no hay
-        //    strip, y el && encadena cl con el entorno ya armado).
-        // 2) Sin vcvars (compilador no MSVC), se envuelve el comando entero en
-        //    una comilla extra: cmd se come esas dos y el cuerpo queda intacto.
-        const std::string vcvars = vcvars64Ruta(compilador());
-        if (!vcvars.empty())
-            cmd = "call \"" + vcvars + "\" >nul 2>&1 && " + cuerpo;
-        else
-            cmd = "\"" + cuerpo + "\"";
-#endif
-        int rc = std::system(cmd.c_str());
+        {
+            (void)vcvars; // fuera de MSVC siempre viene vacio
+            rc = Proceso::ejecutar(argv, logPath);
+        }
         if (rc != 0) {
             std::ifstream log(logPath);
             std::string contenido((std::istreambuf_iterator<char>(log)),
@@ -267,6 +256,13 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
     Fabrica fabrica =
         reinterpret_cast<Fabrica>(FUNSHI_DLSYM(manejador, nombreFabrica()));
     if (!fabrica) {
+        // En Windows/MSVC este error suele significar que el fuente usa el
+        // template viejo, sin FUNSHI_COMPORTAMIENTO_EXPORT en la fabrica: la
+        // .dll compila, pero el simbolo no se exporta y GetProcAddress no lo
+        // encuentra (H-15). El motor ya pide el export en el link para esos
+        // fuentes, pero los scripts compilados ANTES de ese cambio siguen sin
+        // exportarlo: basta con borrar el artefacto viejo o tocar el fuente
+        // para que recompile.
         error = "El .so no exporta 'FUNSHI_CREAR_COMPORTAMIENTO'. ¿El fuente "
                 "deriva de IScriptBehaviour y usa el template del motor?";
         FUNSHI_DLOPENCERRAR(manejador);

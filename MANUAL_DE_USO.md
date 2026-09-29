@@ -69,7 +69,8 @@ cmake --build FunshiEngineGL/build -j$(nproc)
    eliminabas el proyecto abierto, el motor vuelve al estado "sin proyecto".
    "Iniciar Estudio" crea el proyecto y sus carpetas automaticamente.
 2. Navega la escena con `W`/`A`/`S`/`D`, `Espacio`/`Shift` y el mouse (nav FPS).
-   `E` oculta la UI; `Escape` vuelve al menu.
+   `E` oculta la UI; `Escape` vuelve al menu (y durante el play, detiene la
+   simulacion y deja el editor).
 
 ---
 
@@ -127,7 +128,10 @@ proyecto** (`src<nombre>`).
 **Operaciones sobre los archivos.** En el **grid** de la carpeta seleccionada
 (clic derecho sobre un elemento) el menu contextual ofrece "Renombrar",
 "Eliminar Archivo" o "Eliminar Carpeta" (segun corresponda); en el **arbol**, el
-mismo menu aparece sobre la carpeta. Eliminar pide confirmacion en un dialogo y
+mismo menú aparece sobre la carpeta (además de "Nueva Carpeta"), y el renombre
+pide el nombre en un **diálogo** con el campo ya listo para escribir: `Enter`
+confirma y `Escape` (o **Cancelar**) descarta. En los dos paneles el diálogo es
+el mismo. Eliminar pide confirmacion en un dialogo y
 **no se puede deshacer**: al borrar una carpeta desaparece tambien todo su
 contenido, y el arbol y el grid se refrescan en el acto. El **undo/redo**
 (`Ctrl+Z` / `Ctrl+Y`) no cubre el borrado de archivos.
@@ -140,9 +144,19 @@ entera con el proyecto. Dentro del explorador, al **renombrar** o al **mover**
 un archivo o carpeta el motor reescribe al instante las referencias de la
 escena que apuntaban a esa ruta y guarda la escena modificada. Limitaciones:
 una **copia** (arrastre con `Ctrl`) no se rastrea, porque no cambia ninguna de
-las dos rutas; y los sonidos de `Sonidos/` e interfaces de `Interfaces/` se
+las dos rutas; los cambios hechos **fuera** del motor (explorador de Windows,
+una terminal, un `mv`) solo sirven para refrescar el arbol de archivos, no
+reescriben nada, asi que ahi si hay que volver a arrastrar el asset en su
+inspector; y los sonidos de `Sonidos/` e interfaces de `Interfaces/` se
 referencian por **nombre**: un move con el mismo nombre conserva la referencia
 y un rename la rompe (vuelve a seleccionar el clip/interfaz en su dropdown).
+Si una referencia quedo apuntando a un archivo que ya no existe, al **abrir la
+escena** el motor busca ese archivo por nombre dentro de la carpeta del
+proyecto: con **una sola coincidencia** repara la referencia, lo anota en el
+log (`[escena] ruta reparada: ...`) y guarda la escena; con **varias** o con
+**ninguna** no adivina y deja la ruta como estaba, y ahi si hay que volver a
+arrastrar el asset en su inspector (el inspector de script ademas avisa
+`El fuente del script no existe` con la ruta que busco).
 
 **Manifiesto de assets (`SceneAssets.json`).** Junto a los binarios de la
 escena se mantiene `Memory/Binarios/SceneAssets.json`, un add-on legible que
@@ -154,8 +168,12 @@ renombrar/mover assets el guardado automatico lo mantiene al dia.
 
 **Guardado sin salir (Ctrl+S).** El editor guarda el proyecto completo
 (escena + manifiesto + configuracion de ventanas/gizmo/camara) con
-`Ctrl+S`, ademas del guardado automatico al salir. En un campo de texto de
-ImGui la combinacion la consume el editor de texto y no guarda.
+`Ctrl+S`, ademas del guardado automatico al salir. El atajo funciona **siempre**,
+tambien mientras escribes en un campo de texto: guardar no le quita ninguna tecla
+al campo y asi se evita perder el cambio recien escrito (renombrar un objeto y
+guardar sin hacer clic en otro lado). `Ctrl+Z` y `Ctrl+Y` si se ceden al campo,
+que ahi tienen su propio deshacer/rehacer. Si no hay proyecto abierto, la barra
+de estado avisa en vez de ignorar el atajo.
 
 ---
 
@@ -163,17 +181,17 @@ ImGui la combinacion la consume el editor de texto y no guarda.
 
 | Tecla / accion | Funcion |
 |---|---|
-| `W` `A` `S` `D` | Mover la camara activa (diagonales normalizadas). Solo con las interfaces del editor ocultas (`E`) o con el clic derecho sostenido sobre el viewport |
+| `W` `A` `S` `D` | Mover la camara activa (diagonales normalizadas). Solo con las interfaces del editor ocultas (`E`) o con el clic derecho sostenido sobre el viewport. Funciona en edicion y tambien durante el play |
 | `Espacio` / `Shift izq.` | Subir / bajar la camara (misma condicion que `WASD`) |
 | Mouse / clic der. | Nav FPS; el clic derecho sostenido sobre el viewport navega **sin** esconder las interfaces (sensibilidad en Opciones) |
-| `E` | Mostrar/ocultar interfaces del editor (solo funciona dentro del editor, no en el menu de inicio) |
+| `E` | Mostrar/ocultar interfaces del editor (en edicion y durante el play; no en el menu de inicio) |
 | `F5` | Simular (Play): arranca la simulacion de la escena (fisica, scripts y audio) desde el editor |
 | `F6` | Pausar/reanudar la simulacion (solo durante el play; congela fisica y scripts sin salir) |
 | `F7` | Detener la simulacion y volver al modo edicion |
 | `Ctrl+S` | Guardar el proyecto en caliente (escena + manifiesto + config) |
 | `Ctrl+Z` | Deshacer ultima accion del editor (undo) |
 | `Ctrl+Y` | Rehacer accion deshecha (redo) |
-| `Escape` | Volver al menu de inicio |
+| `Escape` | Durante el play: detener la simulacion y volver al modo edicion (igual que `F7`). En edicion: volver al menu de inicio. En el menu: no hace nada |
 | `1` / `T` | Gizmo: traslacion (apaga la guia de eje) |
 | `2` / `R` | Gizmo: rotacion (apaga la guia de eje) |
 | `3` / `U` | Gizmo: escala (la `Y` suelta la tomo la guia de eje; apaga la guia) |
@@ -181,8 +199,9 @@ ImGui la combinacion la consume el editor de texto y no guarda.
 | `G` | Gizmo local / mundo (gizmo y guia de eje) |
 | Clic en objeto | Seleccionar en viewport |
 
-El modo Play/Stop se controla desde la barra de menu de la escena; la fisica y
-los scripts solo se ejecutan en Play. Clic en un objeto del arbol o del
+El modo Play/Stop tambien se controla con el boton **Activar/Detener** de la
+barra de menu de la escena, que hace exactamente lo mismo que `F5` y `F7`; la
+fisica y los scripts solo se ejecutan en Play. Clic en un objeto del arbol o del
 viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 
 ---
@@ -290,8 +309,11 @@ de la izquierda -- y arrastrar un archivo o una carpeta sirve para las dos:
 | Una fila de **carpeta** del arbol | Mueve el elemento dentro de esa carpeta |
 | El espacio vacio del grid | Mueve el elemento a la carpeta que se esta viendo |
 
-Manteniendo `Ctrl` (o `Cmd` en macOS) el arrastre **copia** en vez de mover. El
-tooltip indica cual de las dos va a ocurrir antes de soltar.
+Soltar sobre una fila del arbol **siempre mueve** (cortar y pegar): hacia el
+explorador no hay opcion de copia, con o sin Ctrl. Dentro del grid —sobre una
+celda de carpeta o sobre el espacio vacio— manteniendo `Ctrl` (o `Cmd` en
+macOS) el arrastre **copia** en vez de mover; el tooltip indica cual de las dos
+va a ocurrir antes de soltar.
 
 Al mover se actualizan al instante las referencias de la escena que apuntaban
 a la ruta anterior (mallas, texturas, fuentes de script) y se guarda la escena;
@@ -527,7 +549,11 @@ public:
 
 // Export requerida por el backend del motor; NO renombrar. Va FUERA de la
 // clase, al final del archivo.
-extern "C" IScriptBehaviour* FUNSHI_CREAR_COMPORTAMIENTO(
+// En Windows/MSVC la fabrica tiene que viajar marcada con
+// FUNSHI_COMPORTAMIENTO_EXPORT: sin ese atributo la .dll compila pero no
+// exporta el simbolo y el motor no la encuentra (GetProcAddress). En
+// MinGW/Linux/macOS el macro queda vacio (ahi se exporta todo solo).
+extern "C" FUNSHI_COMPORTAMIENTO_EXPORT IScriptBehaviour* FUNSHI_CREAR_COMPORTAMIENTO(
     const MotorScript::ApiScriptGameObject* api) {
     (void)api;
     return new FUNSHI_NOMBRE_CLASE();
@@ -707,9 +733,24 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 
 ### 13.5 Notas del backend C++
 
-- El fuente se compila a `.so` (Linux), `.dll` (Windows/MSVC) o `.dylib`
-  (macOS) con `-std=c++17 -shared -fPIC -O2` y
-  `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
+- El fuente se compila a `.so` (Linux), `.dll` (Windows) o `.dylib` (macOS). El
+  juego de flags lo decide la **familia del compilador**, no el sistema
+  operativo: MSVC (`cl.exe`) recibe
+  `/nologo /LD /std:c++17 /O2 /MD /EHsc` y GCC/Clang (`g++`, `c++`, `clang++`,
+  incluido MinGW en Windows) recibe `-std=c++17 -shared -fPIC -O2`; en los dos
+  casos se agrega `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
+- **Runtime de C++ compartido (Windows/MSVC):** el `.dll` del script se compila
+  con el **mismo CRT dinamico que el engine** (`/MD` en Release, `/MDd` en
+  Debug) y con `/EHsc`. No es una preferencia de estilo: los `SerializeField`
+  cruzan la frontera del `.dll` con `std::string`, `std::vector` y
+  `std::function`, asi que la memoria se aloca en un modulo y se libera en el
+  otro. Compilar el script con el CRT estatico (`/MT`) le da a la `.dll` su
+  propio heap, y liberar memoria del otro lado corrompe el heap: el motor muere
+  al asignar el script, sin log ni backtrace. El runtime del engine se declara
+  en `CMakeLists.txt` (`CMAKE_MSVC_RUNTIME_LIBRARY`) y llega al script como
+  `FUNSHI_CXX_RUNTIME_FLAG`; el cache de artefactos incluye ese contrato, asi
+  que cambiar los flags recompila solo (no hay que borrar
+  `%TEMP%/funshi_scripts` a mano).
 - El `.so` del script **no enlaza contra el motor**: todo el acceso pasa por
   la tabla `api` de punteros a funcion. No incluyas cabeceras del motor mas
   alla de `IScriptBehaviour.h`; en particular evita arrastrar Bullet/Assimp
@@ -722,10 +763,19 @@ void onUpdate(GameObject* owner, float deltaTime) override {
   toolset MSVC (se busca subiendo desde la carpeta del compilador), porque
   `cl.exe` resuelve los headers del CRT (incluido `<cstddef>`) y las librerias
   por `INCLUDE`/`LIB`. Con esto el editor funciona igual si se lanza desde el
-  Explorador o desde Visual Studio. Si el compilador configurado no es MSVC
-  (`FUNSHI_CXX` a MinGW/g++, por ejemplo), hace falta un entorno con `cl.exe`
-  disponible. Los scripts Java no tienen este requisito (javac se invoca por
-  ruta absoluta).
+  Explorador o desde Visual Studio. Si el compilador configurado es MinGW/g++
+  (`FUNSHI_CXX`, o el horneado por el build), se emiten los flags de GCC: ese
+  camino tambien funciona y no necesita `cl.exe` en el entorno. Los scripts Java
+  no tienen este requisito (javac se invoca por ruta absoluta).
+- **Export de la fabrica en Windows/MSVC:** la funcion
+  `FUNSHI_CREAR_COMPORTAMIENTO` tiene que declararse con
+  `FUNSHI_COMPORTAMIENTO_EXPORT` (asi la genera el editor). En MSVC un
+  `extern "C"` pelado **no se exporta solo**: la `.dll` compila, pero
+  `GetProcAddress` no la encuentra. Para los scripts escritos con el template
+  viejo (sin el macro), el motor pide el export tambien en el link
+  (`/EXPORT:`), asi que siguen funcionando; los `.dll` compilados antes de ese
+  cambio simplemente se recompilan solos. En MinGW/Linux/macOS el macro queda
+  vacio porque ahi los simbolos se exportan por defecto.
 
 ---
 
@@ -798,6 +848,11 @@ public class MiScript implements Comportamiento {
   fuente con el del artefacto cargado. Los valores SerializeField se extraen
   antes de descargar y se reinyectan por nombre de campo al terminar, de modo
   que reordenar campos en el fuente no pierde valores.
+- **Varios objetos sobre el mismo script:** si dos objetos apuntan al mismo
+  `.cpp` (o al mismo `.java`), solo se compila una vez: el segundo componente
+  usa el artefacto que ya está al día en vez de compilarlo otra vez, que en
+  Windows sería reescribir una `.dll` que está cargada (y el sistema lo
+  rechaza).
 - **Java:** igual, con el classloader child-first; la JVM se reutiliza.
 - **Ventana Estado:** para cada script muestra nombre, ok/error y mensaje
   (errores de compilacion incluidos), ademas del toolchain detectado.

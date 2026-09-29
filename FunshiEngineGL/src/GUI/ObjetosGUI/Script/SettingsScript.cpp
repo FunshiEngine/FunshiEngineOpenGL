@@ -136,12 +136,23 @@ void SettingsScript::showDataComponent() {
 		if (const ImGuiPayload* payload =
 		        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
 			const char* path = (const char*)payload->Data;
-			// setDllPath invalida la carga; cargarSiNecesario la fuerza para
-			// poder mostrar/editar los SerializeField en el editor.
+			// setDllPath invalida la carga previa y fija la nueva ruta.
+			// La compilacion/carga NO se hace aqui dentro (H-4): invocar
+			// cl.exe o javac sincronicamente bloquea el hilo varios segundos
+			// en plena re-entrada de ImGui y la ventana parece colgada. Se
+			// marca pendiente para el frame siguiente, fuera del target.
 			myScript->setDllPath(path);
-			myScript->cargarSiNecesario();
+			cargaDiferidaPendiente_ = true;
 		}
 		ImGui::EndDragDropTarget();
+	}
+
+	// Indicador de carga mientras se compila/carga el script
+	// Procesar la carga diferida al comienzo del siguiente frame (fuera de
+	// cualquier contexto de drag & drop).
+	if (cargaDiferidaPendiente_) {
+		cargaDiferidaPendiente_ = false;
+		myScript->cargarSiNecesario();
 	}
 
 	if (!myScript->getPath().empty()) {

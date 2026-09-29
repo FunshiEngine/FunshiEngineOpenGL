@@ -18,13 +18,20 @@
 */
 #include "GameObjectFactory.h"
 
-#include "Modelos3D.h"
+#include <cstdio>
+
+#include "NombreUnico.h"
 #include "SimpleObject.h"
 
-std::unique_ptr<GameObject> GameObjectFactory::createModelObject() {
-    return std::make_unique<Modelos3D>();
-}
-
-std::unique_ptr<GameObject> GameObjectFactory::createSimpleObject() {
-    return std::make_unique<SimpleObject>();
+std::unique_ptr<GameObject> GameObjectFactory::createSimpleObject(
+    const GameObject* raiz) {
+    auto objeto = std::make_unique<SimpleObject>();
+    // Contador de proceso como pista de arranque: el primer "Objeto N" no
+    // tiene que recorrer el arbol entero para saber que `Objeto 1` ya existe.
+    static int contadorObjetos = 0;
+    const std::string nombre =
+        NombresUnicos::porDefecto("Objeto", contadorObjetos, raiz);
+    std::snprintf(objeto->inputName, sizeof(objeto->inputName), "%s",
+                  nombre.c_str());
+    return objeto;
 }

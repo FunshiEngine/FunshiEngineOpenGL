@@ -97,10 +97,10 @@ void Modelos3D::deserializeEntity() {
     }
 }
 
-void Modelos3D::saveEntity(std::string filename) {
+bool Modelos3D::saveEntity(std::string filename) {
     const std::string path = filename + "/ObjectN" + std::to_string(getId()) + ".db";
     myBinario = std::make_unique<Binario>(path);
-    myBinario->ofOpenBinary();
+    if (!myBinario->ofOpenBinary()) return false;
 
     // El indice de la escena (SceneBBDDObjetos.txt) lo escribe en exclusiva
     // SceneSerializer::savePreOrder. Historicamente esta funcion lo re-leia y
@@ -108,15 +108,17 @@ void Modelos3D::saveEntity(std::string filename) {
     GameObject::serializeEntity();
     serializeEntity();
     myBinario->ofCloseBinary();
+    return true;
 }
 
-void Modelos3D::loadEntity(std::string filename) {
+bool Modelos3D::loadEntity(std::string filename) {
     const std::string path = filename + "/ObjectN" + std::to_string(getId()) + ".db";
     myBinario = std::make_unique<Binario>(path);
-    myBinario->ifOpenBinary();
+    if (!myBinario->ifOpenBinary()) return false;
     GameObject::deserializeEntity();
     deserializeEntity();
     myBinario->ifCloseBinary();
+    return true;
 }
 
 bool Modelos3D::getBoundingBox(vec3& outMin, vec3& outMax) const {

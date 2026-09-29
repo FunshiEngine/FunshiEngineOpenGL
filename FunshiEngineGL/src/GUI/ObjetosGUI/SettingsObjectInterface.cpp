@@ -40,7 +40,16 @@
 #include "../../Objetos/Componentes/AudioSource.h"
 #include "../../Objetos/Componentes/InterfaceComponent.h"
 #include "../../Objetos/Componentes/Grid.h"
+#include "../../Objetos/Componentes/Transform.h"
+#include "../../Objetos/Componentes/Color.h"
+#include "../../Objetos/Componentes/Script.h"
+#include "../../Objetos/Componentes/Model.h"
+#include "../../Objetos/Componentes/RigidBody/RigidBody.h"
+#include "../../Objetos/Componentes/Colliders/EsfereCollider.h"
+#include "../../Objetos/Componentes/Colliders/CubeCollider.h"
+#include "../../Objetos/Componentes/Colliders/MallaCollider.h"
 #include "../../Scenes/EditorController.h"
+#include "../../Events/EventBus.h"
 #include "../../Herramientas/TypeUtils.h"
 #include <imgui.h>
 #include <typeinfo>
@@ -49,24 +58,65 @@ SettingsObjectInterface::SettingsObjectInterface(GameObject* object,
                                                  bool stateGUI)
 	: GeneralUserInterface("Settings", stateGUI, ImGuiWindowFlags_MenuBar) {
 	this->object = object;
-	momentaneantID = object ? object->getId() : 0;
 	listaDESettingsComponent = new ListaDE<SettingsComponent*>();
-	if (!object->getComponents()->isEmpty()) {
+	if (object && !object->getComponents()->isEmpty()) {
 		loadComponents();
 	}
 }
 
 SettingsObjectInterface::~SettingsObjectInterface() {
-	while (!listaDESettingsComponent->isEmpty()) {
-		Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
-		delete pos->getElement();
-		listaDESettingsComponent->remove(pos);
-	}
-	delete listaDESettingsComponent;
+    if (events && eventSubscription != 0) {
+        events->unsubscribe(eventSubscription);
+        eventSubscription = 0;
+    }
+    desvincular();
+    delete listaDESettingsComponent;
 }
 
 void SettingsObjectInterface::setEditor(EditorController* editor) {
 	this->editor = editor;
+}
+
+// Desvincula el inspector del objeto actual: libera los Settings* y deja
+// object = nullptr. Se llama desde la suscripcion al bus y desde el destructor.
+void SettingsObjectInterface::desvincular() {
+    while (!listaDESettingsComponent->isEmpty()) {
+        Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+        delete pos->getElement();
+        listaDESettingsComponent->remove(pos);
+    }
+    object = nullptr;
+}
+
+void SettingsObjectInterface::setEventBus(EventBus* bus) {
+    if (events == bus) return;
+    if (events && eventSubscription != 0) {
+        events->unsubscribe(eventSubscription);
+        eventSubscription = 0;
+    }
+    events = bus;
+    if (events) {
+        eventSubscription = events->subscribe([this](const SceneEvent& event) {
+            if (event.type == SceneEventType::ObjectDeleted) {
+                if (event.object == object) {
+                    desvincular();
+                }
+            } else if (event.type == SceneEventType::SceneCleared) {
+                desvincular();
+            } else if (event.type == SceneEventType::ComponentChanged) {
+                if (event.object == object && !iterandoComponentes) {
+                    // Recargar lista de componentes tras add/remove (solo si NO estamos iterando)
+                    while (!listaDESettingsComponent->isEmpty()) {
+                        Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+                        delete pos->getElement();
+                        listaDESettingsComponent->remove(pos);
+                    }
+                    loadComponents();
+                }
+                // Si estamos iterando, el caller (contentGUI) se encarga del reload diferido
+            }
+        });
+    }
 }
 
 void SettingsObjectInterface::loadComponents() {
@@ -148,7 +198,6 @@ void SettingsObjectInterface::setTargetObject(GameObject* newObject) {
         delete pos->getElement();
         listaDESettingsComponent->remove(pos);
     }
-    momentaneantID = object->getId();
     loadComponents();
 }
 
@@ -158,144 +207,10 @@ void SettingsObjectInterface::initGUI() {
 }
 
 void SettingsObjectInterface::contentGUI() {
-	ImGui::InputInt("Id", &momentaneantID);
-	if (ImGui::Button("Confirmar")) {
-		object->setId(momentaneantID);
-		momentaneantID = 0;
-	}
-
-	ImGui::InputText("Nombre", object->inputName, IM_ARRAYSIZE(object->inputName));
-
-	ImGui::Separator();
-
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1.f));
-	if (ImGui::Button("Eliminar Objeto", ImVec2(-1, 0)) && editor) {
-		GameObject* target = object;
-		editor->deleteGameObject(target);
-		stateGUI = false;
-		ImGui::PopStyleColor();
-		return;
-	}
-	ImGui::PopStyleColor();
-
-	if (ImGui::BeginPopupContextWindow("AddComponentPopup",
-	                                   ImGuiPopupFlags_MouseButtonRight)) {
-		if (ImGui::MenuItem("Agregar Transform") &&
-		    object->getComponent<Transform>() == nullptr) {
-			object->addComponent(new Transform());
-			listaDESettingsComponent->addLast(
-			    new SettingsTransform(object->getComponent<Transform>(),
-			                          object));
-		}
-		if (ImGui::MenuItem("Agregar Color") &&
-		    object->getComponent<Color>() == nullptr) {
-			object->addComponent(new Color());
-			listaDESettingsComponent->addLast(new SettingsColor(object));
-		}
-		if (ImGui::MenuItem("Agregar Material") &&
-		    object->getComponent<Material>() == nullptr) {
-			object->addComponent(new Material());
-			listaDESettingsComponent->addLast(new SettingsMaterial(object));
-		}
-		if (ImGui::MenuItem("Agregar Luz") &&
-		    object->getComponent<Light>() == nullptr) {
-			object->addComponent(new Light());
-			listaDESettingsComponent->addLast(new SettingsLight(object));
-		}
-		if (ImGui::MenuItem("Agregar Camara") &&
-		    object->getComponent<CameraComponent>() == nullptr) {
-			object->addComponent(new CameraComponent());
-			listaDESettingsComponent->addLast(new SettingsCamera(object));
-		}
-		if (ImGui::TreeNodeEx("Agregar Collider",
-		                      ImGuiTreeNodeFlags_OpenOnArrow |
-		                          ImGuiTreeNodeFlags_SpanAvailWidth)) {
-			if (ImGui::Selectable("EsfereCollider")) {
-				if (object->getComponent<Collider>() == nullptr &&
-				    object->getComponent<Transform>() != nullptr) {
-					object->addComponent(
-					    new EsfereCollider(5.0f,
-					                       object->getComponent<Transform>(),
-					                       object));
-					listaDESettingsComponent->addLast(
-					    new SettingsColliderEsfera(object));
-				}
-			}
-			if (ImGui::Selectable("CubeCollider")) {
-				if (object->getComponent<Collider>() == nullptr &&
-				    object->getComponent<Transform>() != nullptr) {
-					object->addComponent(
-					    new CubeCollider(5.0f,
-					                     object->getComponent<Transform>(),
-					                     object));
-					listaDESettingsComponent->addLast(
-					    new SettingsColliderCubo(object));
-				}
-			}
-			if (ImGui::Selectable("MallaCollider")) {
-				if (object->getComponent<Collider>() == nullptr &&
-				    object->getComponent<Transform>() != nullptr) {
-					object->addComponent(
-					    new MallaCollider(
-					        5.0f, object->getComponent<Transform>(), object));
-					listaDESettingsComponent->addLast(
-					    new SettingsColliderMalla(object));
-				}
-			}
-			ImGui::TreePop();
-		}
-		if (ImGui::MenuItem("RigidBody")) {
-			if (object->getComponent<RigidBody>() == nullptr &&
-			    object->getComponent<Collider>() != nullptr) {
-				RigidBody* rb =
-				    new RigidBody(object->getComponent<Collider>(), 1.0f);
-				if (editor) {
-					// El controller agrega el componente y lo registra en la
-					// fisica de forma centralizada.
-					editor->addComponent(object,
-					                     std::unique_ptr<RigidBody>(rb));
-				} else {
-					object->addComponent(rb);
-				}
-				listaDESettingsComponent->addLast(new SettingsRigidBody(object));
-			}
-		}
-		if (ImGui::MenuItem("Script")) {
-			if (object->getComponent<Script>() == nullptr) {
-				object->addComponent(new Script());
-				listaDESettingsComponent->addLast(new SettingsScript(object));
-			}
-		}
-		if (ImGui::MenuItem("Model")) {
-			if (object->getComponent<Model>() == nullptr) {
-				object->addComponent(new Model());
-				listaDESettingsComponent->addLast(new SettingsModel(object));
-			}
-		}
-		if (ImGui::MenuItem("Agregar Fuente de audio")) {
-			if (object->getComponent<AudioSource>() == nullptr) {
-				object->addComponent(new AudioSource());
-				SettingsAudioSource* settingsAudioSource =
-				    new SettingsAudioSource(object);
-				settingsAudioSource->setAudioEngine(audioMotor);
-				listaDESettingsComponent->addLast(settingsAudioSource);
-			}
-		}
-		if (ImGui::MenuItem("Grilla") &&
-		    object->getComponent<Grid>() == nullptr &&
-		    object->getComponent<Transform>() != nullptr) {
-			object->addComponent(new Grid());
-			listaDESettingsComponent->addLast(new SettingsGrid(object));
-		}
-		if (ImGui::MenuItem("Agregar Interfaz") &&
-		    object->getComponent<InterfaceComponent>() == nullptr) {
-			object->addComponent(new InterfaceComponent());
-			listaDESettingsComponent->addLast(new SettingsInterface(object));
-		}
-		ImGui::EndPopup();
-	}
-
 	// MOSTRAMOS COMPONENTES
+	iterandoComponentes = true;
+	componenteABorrar = nullptr;
+
 	if (!listaDESettingsComponent->isEmpty()) {
 		Position<SettingsComponent*>* position =
 		    listaDESettingsComponent->first();
@@ -346,8 +261,8 @@ void SettingsObjectInterface::contentGUI() {
 					} else {
 						object->deleteComponent(target);
 					}
-					listaDESettingsComponent->remove(position);
-					delete comp;
+					// Borrado diferido: encolar para procesar DESPUÉS de la iteracion
+					componenteABorrar = comp;
 					ImGui::EndPopup();
 					ImGui::PopID();
 					break;
@@ -364,6 +279,86 @@ void SettingsObjectInterface::contentGUI() {
 			               ? listaDESettingsComponent->next(position)
 			               : nullptr;
 		}
+	}
+
+	iterandoComponentes = false;
+
+	// Procesar borrado diferido fuera de la iteracion
+	if (componenteABorrar) {
+		listaDESettingsComponent->remove(
+		    listaDESettingsComponent->whatElementPosition(componenteABorrar));
+		delete componenteABorrar;
+		componenteABorrar = nullptr;
+		// Recargar lista completa tras el borrado (el evento ComponentChanged
+		// ya se publico, pero como iterandoComponentes=true no recargo;
+		// lo hacemos aqui explicitamente)
+		while (!listaDESettingsComponent->isEmpty()) {
+			Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+			delete pos->getElement();
+			listaDESettingsComponent->remove(pos);
+		}
+		loadComponents();
+	}
+
+	// Menu contextual en area vacia del inspector: agregar componente
+	if (ImGui::BeginPopupContextWindow(
+	        "InspectorAddComponentPopup",
+	        ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+		if (object && editor) {
+			Transform* transform = object->getComponent<Transform>();
+			Collider* collider = object->getComponent<Collider>();
+
+			if (ImGui::MenuItem("Transform")) {
+				editor->addComponent(object, std::make_unique<Transform>());
+			}
+			if (ImGui::MenuItem("Color")) {
+				editor->addComponent(object, std::make_unique<Color>());
+			}
+			if (ImGui::MenuItem("Material")) {
+				editor->addComponent(object, std::make_unique<Material>());
+			}
+			if (ImGui::MenuItem("Light")) {
+				editor->addComponent(object, std::make_unique<Light>());
+			}
+			if (ImGui::MenuItem("CameraComponent")) {
+				editor->addComponent(object, std::make_unique<CameraComponent>());
+			}
+			if (transform) {
+				if (ImGui::BeginMenu("Add Collider")) {
+					if (ImGui::MenuItem("EsfereCollider")) {
+						editor->addComponent(object, std::make_unique<EsfereCollider>(5.0f, transform, object));
+					}
+					if (ImGui::MenuItem("CubeCollider")) {
+						editor->addComponent(object, std::make_unique<CubeCollider>(5.0f, transform, object));
+					}
+					if (ImGui::MenuItem("MallaCollider")) {
+						editor->addComponent(object, std::make_unique<MallaCollider>(5.0f, transform, object));
+					}
+					ImGui::EndMenu();
+				}
+			}
+			if (collider) {
+				if (ImGui::MenuItem("RigidBody")) {
+					editor->addComponent(object, std::make_unique<RigidBody>(collider, 1.0f));
+				}
+			}
+			if (ImGui::MenuItem("Script")) {
+				editor->addComponent(object, std::make_unique<Script>());
+			}
+			if (ImGui::MenuItem("Model")) {
+				editor->addComponent(object, std::make_unique<Model>());
+			}
+			if (ImGui::MenuItem("Grid")) {
+				editor->addComponent(object, std::make_unique<Grid>());
+			}
+			if (ImGui::MenuItem("AudioSource")) {
+				editor->addComponent(object, std::make_unique<AudioSource>());
+			}
+			if (ImGui::MenuItem("InterfaceComponent")) {
+				editor->addComponent(object, std::make_unique<InterfaceComponent>());
+			}
+		}
+		ImGui::EndPopup();
 	}
 }
 

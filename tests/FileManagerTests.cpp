@@ -28,10 +28,16 @@
 //     rechazo de separadores), copiar carpeta/archivo, mover (incluye el
 //     rechazo de pisar un destino existente y de meter una carpeta en si
 //     misma), eliminar.
+//   - Plantilla de script C++: la fabrica que el motor busca con GetProcAddress
+//     tiene que viajar exportada en MSVC (H-15): la plantilla debe declarar el
+//     macro portable de exportacion.
 //   - Busqueda por ruta en el arbol vigente.
 //   - Arrastre-y-suelta (soltarEnCarpeta): mueve con Ctrl copia, y solo el
 //     movimiento publica ArchivosReubicados (lo que reescribe las rutas de la
 //     escena).
+//   - Renombre por click derecho (RenombrarElemento, compartido por el arbol y
+//     el grid): la ruta nueva es hermana de la vieja, el disco lo hace
+//     FileManager y solo un cambio real publica ArchivosReubicados.
 //   - Busqueda por ruta en el arbol vigente.
 //   - FileSystemWatcher (solo en Linux, donde usa inotify): deteccion de
 //     cambios externos y de ramas multi-nivel.
@@ -48,6 +54,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/FileManager/FileManager.h"
+#include "../FunshiEngineGL/src/GUI/FileManagerGUI/RenombrarElemento.h"
 #include "../FunshiEngineGL/src/GUI/FileManagerGUI/SoltarEnCarpeta.h"
 
 #if defined(__linux__)
@@ -256,6 +263,24 @@ int main() {
     CHECK(fm.buscarCarpetaPorRuta(rutaRenombrada) == nullptr,
           "tras el rescaneo la carpeta eliminada no esta en el arbol");
 
+    // --- Plantilla de script C++ (H-15: la fabrica debe viajar exportada) -----
+    // La plantilla declara la fabrica con el macro portable de exportacion,
+    // para que en Windows/MSVC la .dll la exporte y GetProcAddress la
+    // encuentre. Sin el macro la .dll compila pero el simbolo no existe y el
+    // script nunca carga (en MinGW/ELF no se nota: ahi se exporta todo solo).
+    const std::string plantilla = FileManager::plantillaScript("MiScript", false);
+    CHECK(plantilla.find("FUNSHI_COMPORTAMIENTO_EXPORT") != std::string::npos,
+          "la plantilla del script declara el macro de exportacion");
+    CHECK(plantilla.find("extern \"C\" " + std::string("FUNSHI_COMPORTAMIENTO_EXPORT")) !=
+              std::string::npos,
+          "el macro de exportacion aparece en la declaracion de la fabrica");
+    CHECK(plantilla.find("FUNSHI_CREAR_COMPORTAMIENTO") != std::string::npos,
+          "la plantilla conserva la fabrica con su nombre para GetProcAddress");
+    // El camino Java no lleva exportacion (la carga el JVM, no LoadLibrary).
+    const std::string plantillaJava = FileManager::plantillaScript("MiJava", true);
+    CHECK(plantillaJava.find("FUNSHI_COMPORTAMIENTO_EXPORT") == std::string::npos,
+          "la plantilla Java no lleva el macro de exportacion nativa");
+
     // --- Rescaneo refleja carpetas creadas FUERA del editor -----------------
     CHECK(fs::create_directory(proy / "Assets" / "DiscDirecto"),
           "carpeta sembrada externamente");
@@ -360,6 +385,191 @@ int main() {
               "carpeta dentro de si misma: la operacion se cancela");
         CHECK(recibidos.size() == 1,
               "una carpeta en si misma no publica evento");
+    }
+
+    // --- Drag&Drop: invalidacion de vistas (arbol + grid) ---------------------
+    // Soltar un ARCHIVO sobre una carpeta del arbol debe:
+    //   - mover el archivo en disco
+    //   - incrementar contadorCambios (para que el arbol se rescanee)
+    //   - publicar ArchivosReubicados (para reescribir referencias de la escena)
+    {
+        EditorEventBus bus;
+        std::vector<EditorEvent> recibidos;
+        bus.subscribe([&recibidos](const EditorEvent& ev) {
+            recibidos.push_back(ev);
+        });
+
+        const std::string origenArchivo = unir(proy, "Assets/archivo_suelto.txt");
+        const std::string destinoCarpeta = unir(proy, "Assets/Meshes");
+        CHECK(fm.crearArchivo(origenArchivo, "contenido"), "archivo para arrastrar al arbol");
+
+        // Estado antes: contadorCambios actual
+        FileSelection* sel = fm.getSelection();
+        unsigned long contadorAntes = sel->contadorCambios;
+
+        CHECK(soltarEnCarpeta(&fm, &bus, origenArchivo, destinoCarpeta, false),
+              "soltar archivo sobre carpeta del arbol mueve el archivo");
+
+        // Verificar disco
+        CHECK(!fs::exists(origenArchivo), "archivo ya no existe en origen");
+        CHECK(fs::is_regular_file(unir(destinoCarpeta, "archivo_suelto.txt")),
+              "archivo existe en destino");
+
+        // Verificar evento
+        CHECK(recibidos.size() == 1, "mover archivo publica un evento");
+        CHECK(recibidos[0].type == EditorEventType::ArchivosReubicados,
+              "evento es ArchivosReubicados");
+
+        // Verificar que contadorCambios subio (invalida arbol)
+        CHECK(sel->contadorCambios == contadorAntes + 1,
+              "contadorCambios incrementa al mover archivo (invalida arbol)");
+
+        // Verificar que el arbol rescaneado refleja el cambio (carpeta Meshes sigue ahi)
+        fm.refrescar();
+        CHECK(fm.buscarCarpetaPorRuta(destinoCarpeta) != nullptr,
+              "arbol rescaneado conserva la carpeta destino");
+    }
+
+    // Soltar una CARPETA sobre otra carpeta del arbol debe:
+    //   - mover la carpeta con TODO su subarbol (hijos, nietos)
+    //   - incrementar contadorCambios
+    //   - publicar ArchivosReubicados con la ruta de la carpeta (prefijo)
+    //   - tras refrescar, el arbol tiene la carpeta en la nueva ubicacion
+    {
+        EditorEventBus bus;
+        std::vector<EditorEvent> recibidos;
+        bus.subscribe([&recibidos](const EditorEvent& ev) {
+            recibidos.push_back(ev);
+        });
+
+        const std::string ramaOrigen = unir(proy, "Assets/RamaAMover");
+        CHECK(fm.crearCarpeta(ramaOrigen), "crea carpeta origen");
+        CHECK(fm.crearCarpeta(unir(ramaOrigen, "hijo")), "crea subcarpeta");
+        CHECK(fm.crearCarpeta(unir(ramaOrigen, "hijo/nieto")), "crea sub-subcarpeta");
+        CHECK(fm.crearArchivo(unir(ramaOrigen, "hijo/nieto/dato.txt"), "x"),
+              "archivo en nivel profundo");
+
+        const std::string destinoCarpeta = unir(proy, "Assets/Meshes");
+        FileSelection* sel = fm.getSelection();
+        unsigned long contadorAntes = sel->contadorCambios;
+
+        CHECK(soltarEnCarpeta(&fm, &bus, ramaOrigen, destinoCarpeta, false),
+              "soltar carpeta sobre carpeta del arbol mueve la rama");
+
+        // Verificar disco: origen desaparecio, destino tiene la rama completa
+        CHECK(!fs::exists(ramaOrigen), "carpeta origen ya no existe");
+        const std::string ramaNueva = unir(destinoCarpeta, "RamaAMover");
+        CHECK(fs::is_directory(ramaNueva), "carpeta movida existe en destino");
+        CHECK(fs::is_regular_file(unir(ramaNueva, "hijo/nieto/dato.txt")),
+              "subarbol completo se movio (archivo profundo existe)");
+
+        // Verificar evento: rutaAnterior = ramaOrigen, rutaNueva = ramaNueva
+        CHECK(recibidos.size() == 1, "mover carpeta publica un evento");
+        CHECK(recibidos[0].rutaAnterior == ramaOrigen, "evento lleva ruta anterior");
+        CHECK(recibidos[0].rutaNueva == ramaNueva, "evento lleva ruta nueva");
+
+        // Verificar contadorCambios
+        CHECK(sel->contadorCambios == contadorAntes + 1,
+              "contadorCambios incrementa al mover carpeta");
+
+        // Verificar arbol rescaneado
+        fm.refrescar();
+        CHECK(fm.buscarCarpetaPorRuta(ramaNueva) != nullptr,
+              "arbol rescaneado tiene la carpeta en nueva ubicacion");
+        CHECK(fm.buscarCarpetaPorRuta(unir(ramaNueva, "hijo")) != nullptr,
+              "arbol rescaneado tiene subcarpeta");
+        CHECK(fm.buscarCarpetaPorRuta(unir(ramaNueva, "hijo/nieto")) != nullptr,
+              "arbol rescaneado tiene sub-subcarpeta (subarbol completo)");
+        CHECK(fm.buscarCarpetaPorRuta(ramaOrigen) == nullptr,
+              "arbol rescaneado ya no tiene la ruta vieja");
+    }
+
+    // --- Renombre por click derecho: helper compartido arbol/grid ------------
+    // Renombrar no cambia de carpeta: la ruta nueva es hermana de la vieja. El
+    // disco lo hace FileManager (que rechaza separadores en el nombre) y el
+    // exito se avisa una sola vez, porque de ese evento depende que la escena
+    // reescriba las referencias que apuntaban a la ruta vieja.
+    {
+        CHECK(RenombrarElemento::rutaConNombreNuevo("a/b/c.txt", "d.txt") ==
+                  "a/b/d.txt",
+              "la ruta nueva es hermana de la vieja");
+        CHECK(RenombrarElemento::rutaConNombreNuevo("suelto.txt", "otro.txt") ==
+                  "otro.txt",
+              "sin separadores, la ruta nueva es el nombre nuevo");
+#ifdef _WIN32
+        // En Windows el motor mezcla separadores: la parte de carpeta se
+        // conserva byte a byte, no se reescribe con el separador nativo.
+        CHECK(RenombrarElemento::rutaConNombreNuevo("C:\\a\\b", "c") ==
+                  "C:\\a\\c",
+              "el separador de la ruta original se conserva");
+#endif
+        EditorEventBus bus;
+        std::vector<EditorEvent> recibidos;
+        bus.subscribe([&recibidos](const EditorEvent& ev) {
+            recibidos.push_back(ev);
+        });
+
+        const std::string carpetaVieja = unir(proy, "Assets/Renombrable");
+        CHECK(fm.crearCarpeta(carpetaVieja), "carpeta para renombrar");
+        CHECK(fm.crearArchivo(unir(carpetaVieja, "dato.txt"), "x"),
+              "contenido de la carpeta a renombrar");
+
+        CHECK(RenombrarElemento::ejecutar(&fm, &bus, carpetaVieja, "Renombrada"),
+              "renombrar la carpeta se completa");
+        const std::string carpetaNueva =
+            RenombrarElemento::rutaConNombreNuevo(carpetaVieja, "Renombrada");
+        CHECK(recibidos.size() == 1, "renombrar publica un unico evento");
+        CHECK(recibidos.size() == 1 &&
+                  recibidos[0].type == EditorEventType::ArchivosReubicados,
+              "el evento es ArchivosReubicados");
+        CHECK(recibidos.size() == 1 && recibidos[0].rutaAnterior == carpetaVieja,
+              "el evento lleva la ruta anterior");
+        CHECK(recibidos.size() == 1 && recibidos[0].rutaNueva == carpetaNueva,
+              "el evento lleva la ruta nueva");
+        CHECK(fs::is_directory(carpetaNueva),
+              "renombrar renombra la carpeta en disco");
+        CHECK(!fs::exists(carpetaVieja), "la ruta vieja ya no existe");
+        CHECK(fs::is_regular_file(unir(carpetaNueva, "dato.txt")),
+              "renombrar arrastra el contenido de la carpeta");
+
+        // El arbol vigente refleja el nombre nuevo tras el rescaneo.
+        fm.refrescar();
+        CHECK(fm.buscarCarpetaPorRuta(carpetaNueva) != nullptr,
+              "tras el rescaneo el arbol tiene la carpeta con el nombre nuevo");
+        CHECK(fm.buscarCarpetaPorRuta(carpetaVieja) == nullptr,
+              "tras el rescaneo la ruta vieja no esta en el arbol");
+
+        // Rechazos: nada de esto toca disco ni publica.
+        CHECK(!RenombrarElemento::ejecutar(&fm, &bus, carpetaNueva, ""),
+              "un nombre vacio no renombra");
+        CHECK(!RenombrarElemento::ejecutar(&fm, &bus, carpetaNueva, "a/b"),
+              "un nombre con separadores no renombra (no crea una ruta nueva)");
+        CHECK(!RenombrarElemento::ejecutar(&fm, &bus, carpetaNueva, "Renombrada"),
+              "el mismo nombre no es un cambio");
+        CHECK(recibidos.size() == 1,
+              "los renombres rechazados no publican evento");
+        CHECK(fs::is_directory(carpetaNueva),
+              "los rechazos dejan la carpeta intacta");
+
+        // Renombrar no pisa un destino existente (mismo criterio que mover):
+        // rename reemplazaria en silencio el archivo destino y se perderia su
+        // contenido con un renombre accidental. Se permite el renombre al MISMO
+        // elemento (cambiar mayusculas/minusculas) mediante equivalent.
+        const std::string destinoProtegido = unir(proy, "Assets/protegido.txt");
+        const std::string archivoARenombrar = unir(proy, "Assets/cambiable.txt");
+        CHECK(fm.crearArchivo(destinoProtegido, "conservar"),
+              "archivo destino que no debe tocarse");
+        CHECK(fm.crearArchivo(archivoARenombrar, "cambiar"),
+              "archivo fuente para el renombre rechazado");
+        CHECK(!RenombrarElemento::ejecutar(&fm, &bus, archivoARenombrar,
+                                           "protegido.txt"),
+              "renombrar se niega a pisar un archivo existente");
+        CHECK(contenidoDe(destinoProtegido) == "conservar",
+              "el archivo existente quedo intacto tras el renombre rechazado");
+        CHECK(fs::is_regular_file(archivoARenombrar),
+              "el origen sigue en su sitio tras el renombre rechazado");
+        CHECK(recibidos.size() == 1,
+              "el renombre a un destino ocupado no publica evento");
     }
 
     // --- Resultado ----------------------------------------------------------

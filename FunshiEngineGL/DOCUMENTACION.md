@@ -39,8 +39,11 @@ escupe texto a ninguna consola.
 
 - **Doble clic** sobre el binario (o abrirlo con tu gestor de archivos): sin
   terminal.
-- **`./ejecutar.sh`**: compila si hace falta y lanza el editor desacoplado
-  (en segundo plano) escribiendo al log.
+- **`./ejecutar.sh`** (solo Linux): compila si hace falta y lanza el editor
+  desacoplado (en segundo plano) escribiendo al log. En Windows no funciona
+  (es un script de bash que espera el binario `build/FunshiEngineGL` sin
+  `.exe`); la via equivalente es lanzar `build\FunshiEngineGL.exe` como se
+  indica abajo.
 - **Escritorio Linux** (`.desktop` en `~/.local/share/applications/`):
 
   ```
@@ -53,6 +56,26 @@ escupe texto a ninguna consola.
 Solo el lanzamiento **manual desde una terminal** (`./FunshiEngineGL`)
 mantiene esa terminal como padre del proceso; incluso ahi la salida ya va al
 log y la terminal no muestra basura.
+
+### 1.1 Lanzar en Windows
+
+El binario de Windows (`build\FunshiEngineGL.exe`, construido como app GUI, sin
+consola) se lanza igual que en Linux, pero la **carpeta de trabajo (`cwd`)
+importa**: los assets relativos —en particular la carpeta `Imagenes/` con los
+36 iconos del explorador— se buscan primero junto al ejecutable y despues
+relativo al `cwd`. Si ninguna ruta coincide, el editor abre y funciona pero la
+grilla de iconos queda vacia, y la unica pista son las lineas `[IconosGUI]` del
+log. Por eso:
+
+```bat
+cd FunshiEngineGL
+build\FunshiEngineGL.exe
+```
+
+Lanzar con doble clic desde el Explorador equivale a lo mismo (el `cwd` es la
+carpeta del proyecto). No lanzar el `.exe` desde otra carpeta esperando que
+"encuentre solo" los assets: en ese caso revisa el log para confirmar donde
+resolvio `Imagenes/`.
 
 ## 2. Logs
 

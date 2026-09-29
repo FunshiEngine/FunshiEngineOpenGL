@@ -19,6 +19,7 @@
 #include "Binario.h"
 
 #include <cstdio>
+#include <iostream>
 #include <utility>
 
 Binario::Binario(std::string path)
@@ -37,13 +38,28 @@ Binario::~Binario() {
 
 std::string Binario::getPath() { return path; }
 
-void Binario::ofOpenBinary() {
-    std::remove(path.c_str());
+bool Binario::ofOpenBinary() {
+    // Sin std::remove() previo: std::ofstream trunca al abrir, asi que hace lo
+    // mismo; y si el abrir falla (directorio inexistente, sin permisos), el
+    // archivo que ya estaba en disco queda INTACTO. Antes se borraba primero,
+    // con lo que un fallo de apertura ya habia destruido el archivo bueno.
     ofBin = new std::ofstream(path, std::ios::binary);
+    if (!ofBin->is_open()) {
+        std::cerr << "[binario] no se pudo abrir para escritura: " << path
+                  << std::endl;
+        return false;
+    }
+    return true;
 }
 
-void Binario::ifOpenBinary() {
+bool Binario::ifOpenBinary() {
     ifBin = new std::ifstream(path, std::ios::binary);
+    if (!ifBin->is_open()) {
+        std::cerr << "[binario] no se pudo abrir para lectura: " << path
+                  << std::endl;
+        return false;
+    }
+    return true;
 }
 
 void Binario::ofCloseBinary() { if (ofBin) ofBin->close(); }

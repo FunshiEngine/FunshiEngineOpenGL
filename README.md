@@ -95,6 +95,11 @@ cmake --build build -j$(nproc)
 
 # Ejecutar (Linux)
 ./build/FunshiEngineGL
+
+# Ejecutar (Windows, con la carpeta de trabajo en la raiz del proyecto:
+# los assets relativos, como la carpeta Imagenes/, se resuelven contra el cwd)
+cd FunshiEngineGL
+build\FunshiEngineGL.exe
 ```
 
 Build de Release más rápido (sin sanitizers):
@@ -114,32 +119,40 @@ En Windows la misma receta funciona con el generador de Visual Studio, que deja 
 
 ## Pruebas y CI
 
-Las pruebas son headless (sin pila gráfica), corren con CTest y hay **18 targets**
-(diecisiete siempre + `scripts-java-tests` si el build encontró el JDK):
+Las pruebas son headless (sin pila gráfica), corren con CTest y hay **20 targets**
+(decinueve siempre + `scripts-java-tests` si el build encontró el JDK):
 
 ```bash
-cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests tema-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests manifiesto-assets-tests orquestador-estado-tests
+# Compilar TODAS las pruebas (la misma lista que compila la CI en el job del
+# engine: ver .github/workflows/ci.yml, release.yml y windows-release.yml)
+cmake --build build --target filemanager-tests configuracion-tests eventbus-tests menu-tests tema-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests userinterface-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests comandos-tests escena-serializacion-tests proceso-tests
 ctest --test-dir build --output-on-failure
 ```
 
-- `filemanager-tests` (34 verificaciones): explorador de archivos (`GestorDeArchivos`/`FileManager`/`FileSystemWatcher`).
-- `configuracion-tests` (99): `EditorConfig` sobre `ConfigPersistence`/`ProjectPaths` (round-trip general y por proyecto, prioridad de las claves modernas sobre el `menu/*` legacy, tolerancia a archivos ausentes/corruptos/parciales, `restablecer`, escritura atómica sin temporales colgados y guardado diferido con `volcarGuardadoGeneral`).
+- `filemanager-tests` (132 verificaciones): explorador de archivos (`GestorDeArchivos`/`FileManager`/`FileSystemWatcher`), el arrastre (`soltarEnCarpeta`) con invalidación explícita de caché del grid en carpeta origen y destino, el renombre por click derecho (`RenombrarElemento`, compartido por el árbol y el grid: ruta nueva hermana de la vieja, sin pisar destinos existentes, y un único `ArchivosReubicados` sólo si el cambio se hizo) y el contrato de la plantilla de script C++ (la fábrica viaja con el macro portable de exportación, obligatorio en MSVC).
+- `proceso-tests` (26): el runner de procesos sin shell `Proceso`: round-trip de argv byte a byte relanzando el propio binario copiado a una carpeta **con espacios** con argumentos hostiles (espacios, operadores de shell, comilla interior, barra final, argumento vacío), exit codes, truncado del log, `cwd`, entorno extra, programa inexistente, la tabla de citación de `citar()` (antes en `scripts-tests`) y, en Windows, la receta cruda de `cmd.exe` del harvest de vcvars.
+- `configuracion-tests` (128): `EditorConfig` sobre `ConfigPersistence`/`ProjectPaths` (round-trip general y por proyecto, prioridad de las claves modernas sobre el `menu/*` legacy, tolerancia a archivos ausentes/corruptos/parciales, `restablecer`, escritura atómica sin temporales colgados y guardado diferido con `volcarGuardadoGeneral`) y el cotejo de prefijos de ruta `rutaBajo` (en Windows `/` y `\` equivalen, que es lo que hace posible reescribir las referencias al mover/renombrar).
 - `eventbus-tests` (16): canal tipado de GUI interna (`EditorEventBus`).
-- `menu-tests` (30): `MenuModel` (traducción en vivo, observer de cambios y reset).
+- `menu-tests` (38): `MenuModel` (traducción en vivo, observer de cambios y reset).
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia` al estilo ImGui): el acento llega a **todos** los roles y ningún rol conserva el azul de fábrica de Dear ImGui (regresión "el color de acento no se aplica a toda la interfaz"), el acento por defecto no cambia el aspecto histórico, un acento translúcido no apaga los roles de primer plano, la aplicación es idempotente y el modo B/N deja la paleta monocroma.
 - `assetmanager-tests` (82) y `texturemanager-tests` (15): caches Flyweight de meshes (incluido el cálculo de normales por cara, y el que rellena solo las normales que faltan en assets mixtos) e imágenes.
 - `estructuras-tests` (87): listas, árboles, heaps y ordenamiento propios.
-- `rendering-tests` (79): geometría de las líneas del pipeline moderno (`LineBuilder`: expansión de cada segmento al quad que ensancha el shader, color por extremo, polilíneas, aristas de collider y caja de 12 aristas), sin entrar a OpenGL.
-- `scripts-tests` (42): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario).
-- `scripts-runtime-tests`: compila un script C++ real con `BackendCpp`, lo carga con `dlopen` y ejecuta el ciclo; se omite en Windows (SKIP, requiere `cl.exe` con entorno de Visual Studio).
-- `scripts-java-tests`: end-to-end del backend Java (JNI); se compila si el build detecta el JDK (SKIP sin JDK).
+- `rendering-tests` (131): geometría de las líneas del pipeline moderno (`LineBuilder`: expansión de cada segmento al quad que ensancha el shader, color por extremo, polilíneas, aristas de collider y caja de 12 aristas), sin entrar a OpenGL.
+- `scripts-tests` (100): reflexión `SerializeField` (campos, arrays, grupos y round-trip binario), el contrato de flags con el que `BackendCpp` compila el script C++ (mismo CRT dinámico que el engine, `/EHsc`, elección por familia de compilador —MSVC o GCC/Clang—, los ARGV armados sin flags cruzadas ni redirección de shell, y pedido de exportación de la fábrica en el link MSVC, `vcvars64Ruta` que termina en la raíz), el harvest del entorno de vcvars (receta cruda de `cmd` con `/U`, parser UTF-16 del `set /U` y bloque multi-sz ordenado) y el contrato del sondeo de toolchain (dispositivo nulo `NUL`/`/dev/null` abierto por el runner, sin `std::system` ni envoltorios de `cmd.exe`; un hijo `--hijo` ejercita el spawn real).
+- `scripts-runtime-tests` (según toolchain): compila un script C++ real con `BackendCpp`, lo carga con `dlopen`/`LoadLibrary` y ejecuta el ciclo; además valida que un segundo componente sobre el **mismo** fuente reutiliza el artefacto al día en vez de volver a enlazarlo (en Windows una `.dll` cargada no se puede reescribir). Se omite si el sondeo del compilador de este build falla (SKIP: con MSVC hace falta `cl.exe` del toolchain de Visual Studio —el entorno del toolset, `INCLUDE`/`LIB`, lo obtiene `BackendCpp` del `vcvars64.bat` al compilar, no del shell—). En Windows con MinGW/GCC corre igual que en Linux.
+- `scripts-java-tests` (según toolchain): end-to-end del backend Java (JNI); se compila si el build detecta el JDK (SKIP 77 sin JDK). El sondeo de `javac` resuelve la ruta real —`JAVAC`, `JAVA_HOME`, rutas del JDK— en vez de asumir el `javac` del PATH, así que también corre en Windows.
+- `model-serialization-tests` (16): serialización binaria del componente `Model` (path con prefijo de longitud; regresión del core al cargar escenas con paths largos).
 - `audio-tests` (16): `AudioEngine`/`AudioClipsManager` con `NullAudioBackend` (contrato de la cola de comandos: clips, handles, encolado, detención, volumen).
 - `userinterface-tests` (34): `UserInterfaceCustom` (modelo del Creador de interfaces, `src/GUI/CreadorUI/`): round-trip JSON de los 5 tipos de widget, guardar/cargar y tolerancia a JSON parcial.
 - `manifiesto-assets-tests` (29): `ManifiestoAssetsCore` (manifiesto `SceneAssets.json`): JSON round-trip, tolerancia a manifiestos corruptos/inexistentes, relativizar/absolutizar contra la raíz `src<proyecto>`/ y precedencia del manifiesto sobre el `.db`.
-- `orquestador-estado-tests` (34): `OrquestadorEstadoGUI` (la "función de marco" de F5/F6/F7 y las teclas): reglas por estado de Play/Pausa/Stop, Escape → menú e "Iniciar Estudio" → editor.
+- `orquestador-estado-tests` (54): `OrquestadorEstadoGUI` (la "función de marco" de F5/F6/F7, del botón Activar/Detener y de las teclas): reglas por estado de Play/Pausa/Stop, Escape por estado (en play detiene la simulación, en editor vuelve al menú), la condición compartida por las teclas del editor (editor o play) e "Iniciar Estudio" → editor; y los atajos del editor frente al teclado de ImGui (Ctrl+S guarda siempre; Ctrl+Z/Ctrl+Y ceden al campo de texto).
 - `comandos-tests` (77): sistema de comandos (undo/redo) del editor: los 7 comandos con su deshacer/rehacer, la cadena de redo múltiple, el límite de 50 entradas y que `deshacer()`/`rehacer()` devuelvan la descripción del comando aplicado (la que muestra la barra de estado al pulsar `Ctrl+Z`/`Ctrl+Y`).
+- `escena-serializacion-tests` (75): round-trip completo de escena (guardar → recargar → conservar nombre, id y jerarquía), el nombre por defecto de los objetos nuevos, que no puedan repetirse dentro del árbol, que guardar con el árbol vacío deje el archivo vacío **avisándolo en el log**, que `Binario` reporte cuando no pudo abrir un archivo (sin `std::remove()` destructivo previo, con valor de retorno `bool` y propagación en `saveEntity`/`loadEntity`), y las defensas del índice de escena: líneas corruptas del `BBDDObjetos.txt` saltadas con aviso en vez de leer la raíz como hijo (objeto fantasma "Scene"), auto-sanado de un hijo con id 0 al guardar, y que cuatro hermanos consecutivos sobrevivan intactos (el look-ahead no pierde la posición de ninguna línea), y la reescritura de referencias al reubicar: mover la carpeta de un script y renombrar las de malla y de textura reescribe exactamente las referencias que caen bajo el prefijo y deja intactas las demás; y el sanado de referencias rotas al cargar: si una
+  ruta guardada ya no existe y el nombre base aparece **una sola vez** bajo la
+  carpeta del proyecto, se repara y se guarda la escena; con varias o con
+  ninguna no se adivina y queda el aviso en el log. Es la suite que faltaba: `model-serialization-tests` cubre el componente `Model` aislado.
 
-Con `-DBUILD_ENGINE=OFF` se compilan **solo** las pruebas: no se requieren GLFW/OpenGL/Bullet/Assimp y funcionan en cualquier plataforma. `.github/workflows/ci.yml` hace exactamente eso en Linux, Windows y macOS (más el backend Java en Ubuntu con JDK), además de un build completo del engine en Ubuntu.
+Con `-DBUILD_ENGINE=OFF` se compilan **solo** las pruebas que no necesitan el engine: no se requieren GLFW/OpenGL/Bullet/Assimp y funcionan en cualquier plataforma. Quedan fuera las que enlazan `funshi_engine` (`comandos-tests`, `manifiesto-assets-tests`, `orquestador-estado-tests`, `tema-tests` y `escena-serializacion-tests`, que solo se compilan con `BUILD_ENGINE=ON`). `.github/workflows/ci.yml` hace exactamente eso en Linux y Windows (más el backend Java en Ubuntu con JDK), además de un build completo del engine en Ubuntu.
 
 ---
 

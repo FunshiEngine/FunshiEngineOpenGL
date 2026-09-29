@@ -327,6 +327,14 @@ void MenuView::renderizarOpciones() {
         ImGui::EndCombo();
     }
 
+    ImGui::TextUnformatted(model->traducir("sensibilidad_camara").c_str());
+    float sensibilidad = model->getSensibilidadCamara();
+    ImGui::SetNextItemWidth(-1.0f);
+    if (ImGui::SliderFloat("##sensibilidad", &sensibilidad, 0.02f, 5.0f,
+                           "%.2f")) {
+        model->setSensibilidadCamara(sensibilidad);
+    }
+
     ImGui::TextUnformatted(model->traducir("sensibilidad_movimiento").c_str());
     float movimiento = model->getSensibilidadMovimientoCamara();
     ImGui::SetNextItemWidth(-1.0f);

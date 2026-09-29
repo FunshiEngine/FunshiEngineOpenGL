@@ -10,9 +10,22 @@ Guía rápida para agentes (y humanos) que trabajen en este repositorio.
 cmake -S FunshiEngineGL -B FunshiEngineGL/build
 cmake --build FunshiEngineGL/build -j$(nproc)
 
-# Ejecutar la suite de tests (18 targets headless + scripts-java si hay JDK)
+# Ejecutar la suite de tests (19 targets headless + scripts-java si hay JDK)
 cd FunshiEngineGL/build && ctest --output-on-failure
 ```
+
+- **`cmake` sin `-DCMAKE_BUILD_TYPE` fuerza Debug** (`CMakeLists.txt`), y en
+  Debug se activan ASan+UBSan para compiladores GNU/Clang. Con el GCC de MSYS2
+  eso **no linkea**: el toolchain no trae los runtimes de sanitizer. Para un
+  build de trabajo normal y para igualar la CI:
+
+  ```bash
+  cmake -S FunshiEngineGL -B FunshiEngineGL/build \
+      -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF -DFUNSHI_JAVA=ON
+  ```
+
+  Con el generador de Visual Studio el sanitizer no se activa
+  (`CMAKE_CXX_COMPILER_ID` no es GNU/Clang), así que ahí el flag es inofensivo.
 
 - **Build y tests como parte del cambio**: al tocar código fuente (o `CMakeLists.txt`
   y tests), revisar SIEMPRE si hay que actualizar el build y la suite: el engine
@@ -20,6 +33,124 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   sus fuentes explícitamente; un `.cpp`/`.h` nuevo, un include, una dependencia,
   un `add_test` o el conteo de comprobaciones de un test existente pueden quedar
   fuera de sincronía. Ajustarlos en el mismo commit que el código que los motiva.
+
+## Pruebas
+
+- **Autoría de un test headless**: seguir el patrón de
+  `tests/ModelSerializationTests.cpp` — macro `CHECK(cond, msg)` definida en el
+  propio archivo, `TempPruebas::CarpetaPrueba` para una carpeta temporal que se
+  limpia sola al salir (RAII), y cierre con
+  `std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << ... << " comprobaciones"`,
+  saliendo con 0 o 1.
+- **Código de salida 77 = *skipped*, no fallo**. Lo esperado: para
+  `scripts-runtime-tests` cuando el toolchain es MSVC (necesita `cl.exe` con el
+  entorno de Visual Studio; con GCC/MinGW corre en cualquier SO) y para
+  `scripts-java-tests` si no hay JDK resoluble (`JAVAC`/`JAVA_HOME`/PATH).
+  `ctest` los reporta como *skipped* aparte; no son tests rotos. El skip es por
+  **familia de toolchain**, nunca por sistema operativo (H-14).
+
+## Depuración de bugs: instrumentación y validación
+
+Cuando un bug no se resuelve leyendo el código, se depura con instrumentación y
+evidencia: reproducirlo de forma **determinista**, aislar la causa cambiando
+**una sola variable** por corrida y comprobar que el fix lo cierra en **más de
+una circunstancia** (distintos estados, órdenes de pasos y plataformas). Esta
+sección es el "cómo" de la evidencia que pide el análisis de bugs: la cadena
+`síntoma → evidencia → causa → fix → test` se sostiene con estas técnicas, no
+con suposiciones.
+
+- **Bajar el fallo a un test antes que a una corrida manual**: si el síntoma se
+  observa sin UI (lógica, rutas, serialización, ciclo de compilación/carga de
+  scripts), se escribe un test headless (ver "Pruebas") y se exige **rojo antes
+  y verde después**: un test que pasa con el bug y con el fix no prueba nada.
+  El test queda además como regresión permanente de esa causa.
+- **Sondas y laboratorios en directorios locales ignorados por git**: los
+  artefactos desechables de una depuración —sondas C++ que compilan y corren
+  sueltos (`FunshiEngineGL/sondas/*.cpp`), scripts de observación, volcados de
+  log, copias locales de proyecto/escena usadas como laboratorio de
+  experimentación— se viven en carpetas registradas en `.gitignore`
+  (`FunshiEngineGL/sondas/`, `vgcore.*`). Producen la evidencia del análisis y
+  se quedan en local: no son código del motor ni del juego, no entran en
+  commits y se retiran cuando el análisis cierra.
+- **Experimentos deterministas**: para que dos corridas sean comparables hay que
+  fijar todo lo que no es la variable bajo prueba — mismo proyecto/escena y
+  estado inicial, mismo cwd (las rutas relativas se resuelven contra él), mismo
+  orden de pasos, timeouts acotados —. Las hipótesis se comparan con un
+  experimento A/B: con y sin la condición sospechada, **una sola condición
+  cambiada por corrida**, nunca varias a la vez.
+- **Comparar hechos, no apariencias**: bytes, mtimes y tamaños con las
+  herramientas del toolchain (`cmp`, `od`/`xxd`, `stat`, `grep -a`) y exit
+  codes, en vez de "se veía igual". El log del motor es fuente primaria: cuando
+  algo se descarta o se elige un camino, que el log diga **por qué** (prefijo
+  del módulo + causa técnica), no solo qué pasó.
+- **Sanitizadores en C++**: la opción `ENABLE_ASAN` de `CMakeLists.txt`
+  (por defecto `ON`) agrega `-fsanitize=address` y `-fsanitize=undefined` con
+  `-fno-omit-frame-pointer -O1 -g` cuando el compilador es GNU/Clang. Un fix de
+  memoria —fuga, doble liberación, use-after-free, buffer overflow— debe correr
+  contra un build con sanitizer antes de darse por cerrado. Ojo: con el GCC de
+  MSYS2 esos runtimes no linkean (ver "Comandos esenciales"), por eso los
+  builds de trabajo y la CI usan `-DENABLE_ASAN=OFF`; cuando el toolchain local
+  no los soporte, el build con sanitizer se hace donde sí compile (Linux con
+  GCC/Clang), idealmente sobre los targets de test que cubren el caso.
+- **Otras herramientas**: `gdb`/`lldb` (breakpoint y backtrace) cuando la causa
+  no se alcanza por log; en Linux, `valgrind` como respaldo del sanitizer; y la
+  compilación aislada de la sonda o del test que reproduce el caso —sin compilar
+  todo el engine— para iterar rápido.
+- **Varias circunstancias, un solo fix**: antes de cerrar, reproducir el caso
+  también en las variantes que existan —distintos estados de la máquina, con y
+  sin interacción previa, rutas con y sin espacios, plataforma cuando esté
+  disponible—. Un fix validado en una sola corrida sigue siendo una hipótesis.
+
+## Depuración por orden de dependencia
+
+Cuando un lote de correcciones tiene varios ítems (bugs, hallazgos nuevos,
+mejoras), la lista de tareas se arma **por orden de dependencia**, no por el
+orden en que se descubrieron los problemas ni por su severidad:
+
+1. **Primero, las bases**: los fixes de los que cuelgan otros —los que tocan el
+   mismo código, fijan un contrato que los demás heredan o habilitan un camino
+   que otros dan por supuesto—, aunque su severidad sea menor que la de sus
+   dependientes. Un ítem que hereda el arreglo de otro va después de ese otro,
+   sin excepción.
+2. **Después, los independientes**: los que no tocan a nadie, en cualquier
+   orden. Si un fix puede revelar problemas nuevos (p. ej. un test que pasa a
+   correr donde antes se saltaba), hacerlo antes que los que dependan de que
+   el alcance esté cerrado.
+3. **Al final, los de mayor riesgo**: los que reescriben lo ya validado o
+   tocan caminos críticos; siempre después de que sus bases estén commiteadas
+   y verificadas.
+
+Reglas de trabajo sobre la lista:
+
+- Es explícita y se trabaja contra ella, no de memoria (ver "Lista de tareas
+  antes de escribir código"). Cada ítem se marca en cuanto queda hecho y
+  verificado, no todo al final.
+- Un ítem bloqueado por otro se espera, no se salta: saltar el orden deja
+  fixes aplicados sobre bases que todavía pueden cambiar.
+- Al aparecer un hallazgo nuevo, insertarlo en la posición que le corresponda
+  según sus dependencias e indicar de qué ítem cuelga, en vez de agregarlo al
+  final de la cola.
+- El orden se documenta donde viva el lote (plan de trabajo, issue, tabla de
+  secuencia de commits), para que quien retome el trabajo sepa por dónde
+  sigue.
+
+## Ejecutar el editor para prueba manual
+
+El criterio de aceptación de un fix lo define el usuario probando la app real
+(ver "NO confirmar fixes hasta validación del usuario"), así que hace falta
+poder lanzarla:
+
+```bash
+cd FunshiEngineGL && ./build/FunshiEngineGL       # Linux
+cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
+```
+
+- Lanzarlo **desde `FunshiEngineGL/`**: los assets y las rutas relativas se
+  resuelven contra el cwd.
+- La salida (stdout y stderr) se redirige a un archivo por arranque en
+  `logs/`, junto al ejecutable —`FunshiEngineGL_<AAAAMMDD_HHMMSS>.log`, con
+  timestamp **UTC**—, así que el editor no abre consola. Es lo primero que hay
+  que mirar cuando algo falla.
 
 ## Convenciones del código
 
@@ -30,6 +161,20 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   Apache 2.0 (ver cabecera de cualquier `.h`/`.cpp` existente como modelo) o
   al menos `SPDX-License-Identifier: Apache-2.0`.
 - **Estilo**: 4 espacios, llaves en la línea siguiente para clases/funciones.
+- **Sin referencias de gestión en los textos del proyecto.** Los comentarios
+  del código, la documentación técnica (`README.md`, `MANUAL_DE_USO.md`,
+  `PROJECT_STRUCTURE.md`, `DOCUMENTACION.md`, `DocuTecnicoBugs.md` y los
+  documentos de diseño), los mensajes de los tests (`CHECK(...)`) y los
+  mensajes de log de la consola describen **piezas, comportamiento, contratos y
+  causas técnicas, nada más**. No llevan identificadores de tareas o de bugs,
+  planes, fases, hitos, fechas, estados ("pendiente", "por hacer") ni alusiones
+  a documentos o secciones ajenas al texto (p. ej. "ver §22 del plan",
+  "parte de H-19"). Ese contexto pertenece a los documentos de gestión — plan,
+  issues, historial de cambios y mensajes de commit/PR —, donde sí debe quedar;
+  dentro de los textos del código envejece, porque más adelante nadie sabe qué
+  era esa tarea y solo distrae de la lectura. Si una decisión o un texto solo
+  se entiende con ese contexto, se explica por sí mismo a partir de lo que hace
+  el código.
 - **Documentación**: los cambios de API visibles para usuarios se reflejan en
   `MANUAL_DE_USO.md` (especialmente la sección 13, scripting). Cambios de
   arquitectura en `PROJECT_STRUCTURE.md`.
@@ -64,6 +209,37 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   `IRenderBackend`, `FileSystemWatcher`, `BackendCpp`/`BackendJava`). No asumir
   que headers o comportamientos de un SO existen en el otro; probar o validar
   compilación cruzada en CI antes de confirmar cambios.
+
+## Memoria de trabajo: documentos locales ignorados por git
+
+Dos documentos de trabajo viven en la raíz del repo y están en `.gitignore` a
+propósito: no son documentación del proyecto ni se versionan, pero son la
+memoria con la que un agente retoma el trabajo sin re-investigarlo desde cero:
+
+| Archivo | Para qué sirve |
+|---|---|
+| `PLAN GENERAL DE FIX.md` | Lote de correcciones: cada hallazgo con su cadena `síntoma → evidencia → causa → fix → test`, la tabla de avance con los commits que cierran cada ítem y lo que queda por validar. |
+| `MemoryaAgente` | Memoria de contexto entre sesiones: estado del trabajo en curso, sistemas del código ya analizados (con punteros a archivos y líneas), supuestos abiertos, comandos de build/test que funcionan en el entorno y archivos que no se deben tocar. |
+
+Reglas:
+
+- **Si falta uno de los dos, recrearlo**: reconstruir su contenido desde el
+  estado real (git log, código fuente, esta guía) y tratarlo desde ese momento
+  como la fuente de contexto de la tarea — no empezar de cero sin comprobar
+  antes qué ya sabía el documento.
+- **Leerlos al arrancar** una tarea que toque temas que cubren, y **escribir
+  en ellos** lo nuevo relevante (decisiones, evidencia, estado verificado) de
+  forma incremental durante el trabajo: así la siguiente sesión no repaga el
+  análisis y no arrastra contexto que ya no sirve.
+- **Actualizarlos al cerrar cada paso** (mismo criterio que la lista de
+  tareas): lo que quedó hecho, verificado y con qué commit queda registrado
+  ahí.
+- Lo que se vuelva regla estable del proyecto **se promueve** a los `.md` del
+  repo (`MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`, esta guía) en el commit
+  que lo justifica; mientras tanto vive solo en el documento local.
+- Al commitear, **nunca** incluir estos archivos: están ignorados a propósito
+  y un `git add <ruta>` explícito de los archivos propios de la tarea es la
+  única forma correcta de agregar cambios.
 
 ## Flujo de trabajo
 
@@ -108,15 +284,91 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   conflictos por commits ajenos, reportarlos y esperar instrucciones en lugar de
   resolverlos por cuenta propia.
 - **Documentación sincronizada**: la documentación no es un extra, es parte de
-  la tarea. Antes de empezar, revisar los `.md` que describen el área afectada
-  (`README.md`, `MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`,
-  `FLUJO_DE_RAMAS.md`, `DocuTecnicoBugs.md` y los de diseño); durante el trabajo,
-  ir comparando en paralelo lo que la documentación afirma contra lo que el
-  código realmente hace y corregir todo lo que quedó desactualizado — APIs,
-  arquitectura, comandos y conteo de tests, atajos, limitaciones, ejemplos —,
-  además de reflejar lo nuevo que se introduce. Los ajustes de documentación
-  entran en el mismo commit que el código que los motiva: nunca "la
-  documentación al final", ni entregar avances sin sus documentos al día.
+  la tarea. Antes de empezar, revisar dos cosas: (1) los `.md` que describen el
+  área afectada — `README.md`, `MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`,
+  `FLUJO_DE_RAMAS.md`, `DocuTecnicoBugs.md` y los de diseño —; (2) **el
+  directorio `.github/`, que también es documentación del proyecto** (aunque
+  viva fuera de la raíz y ya se lo cite en reglas puntuales, existen estas
+  fuentes):
+
+  - `.github/COMMIT_TEMPLATE.md`: tipos admitidos, ámbitos frecuentes y reglas
+    de redacción de los mensajes de commit.
+  - `.github/PULL_REQUEST_TEMPLATE.md`: estructura y casillas obligatorias de
+    la descripción de todo PR.
+  - `.github/workflows/*.yml` (`ci.yml`, `release.yml`, `windows-release.yml`):
+    qué plataformas, flags y targets de test compila y ejecuta la CI. Es la
+    fuente para saber qué debe seguir en verde: si el cambio agrega un `.cpp`,
+    un target de test o una dependencia, ahí hay que mantenerlo al día (los
+    targets se listan explícitamente, ver `ci.yml`).
+
+  Durante el trabajo, ir comparando en paralelo lo que la documentación afirma
+  contra lo que el código realmente hace y corregir todo lo que quedó
+  desactualizado — APIs, arquitectura, comandos y conteo de tests, atajos,
+  limitaciones, ejemplos —, además de reflejar lo nuevo que se introduce. Los
+  ajustes de documentación entran en el mismo commit que el código que los
+  motiva: nunca "la documentación al final", ni entregar avances sin sus
+  documentos al día.
+- **Exploraciones con subagentes: delegarlas cuando el análisis lo pida.**
+  Para recorrer el código hay disponibles subagentes exploradores, y conviene
+  lanzarlos cuando la tarea es mayor que un vistazo puntual. Habitualmente es
+  necesario en dos casos: (1) **análisis técnico de varias funcionalidades** —
+  varios módulos implicados, rastrear un flujo de punta a punta o comparar
+  vías alternativas de una misma operación (p. ej. todas las formas de
+  renombrar algo y qué actualiza cada una)—; (2) **comparación contra la
+  documentación** — contrastar lo que afirman `README.md`, `MANUAL_DE_USO.md`
+  u otros `.md` con lo que el código realmente hace, idealmente con los
+  recorridos separados por tema y lanzados en paralelo. Si la razón de
+  lanzarlos es otra, mencionar antes el porqué (p. ej. un recorrido largo de
+  `git log`, una búsqueda que cruza todo el árbol) y proseguir. Para tareas
+  acotadas y lineales se sigue con las herramientas directas. Lo que los
+  subagentes devuelven es **insumo** de la regla siguiente (fuentes 2 y 3),
+  no una conclusión: contrastarlo antes de declarar una causa.
+- **Análisis profundo de cada bug: contrastarlo contra TODAS las fuentes
+  disponibles antes de arreglarlo.** Un síntoma —aunque lo haya reportado el
+  usuario— no es un diagnóstico. Antes de tocar código hay que reconstruir la
+  cadena `síntoma → evidencia → causa → fix → test` contrastando el caso con
+  cada fuente que pueda contradecirlo:
+  1. **Evidencia primaria**: reproducirlo y aislar las variables (paso a paso
+     exacto, `logs/` junto al ejecutable, stdout/stderr, exit codes,
+     artefactos que quedan en disco). Lo que solo "se ve" sin evidencia
+     reproducible es hipótesis, no causa. El "cómo" consigue esa evidencia —
+     tests rojo/verde, experimento A/B determinista, sondas y laboratorios en
+     carpetas ignoradas por git, sanitizadores, gdb/valgrind — está en
+     "Depuración de bugs: instrumentación y validación".
+  2. **Documentación del repo**: `README.md`, `MANUAL_DE_USO.md`,
+     `PROJECT_STRUCTURE.md`, `DOCUMENTACION.md`, `DocuTecnicoBugs.md`,
+     `AGENTS.md`, los documentos de diseño y el plan/issue del lote. Si la doc
+     afirma que ese comportamiento es el correcto y el código no lo cumple, es
+     bug de código; si el código es el correcto y la doc quedó vieja, se
+     arregla la doc; si nadie lo documenta, es un hallazgo nuevo.
+  3. **Código fuente**: rastrear el flujo completo —llamadores, estados,
+     ciclo de vida, caminos alternativos—, no solo la línea del síntoma, y
+     verificar si el comportamiento es intencional (comentarios, diseño) o si
+     otra parte del código ya lo compensa.
+  4. **Historial**: `git log` / `git blame` para saber si es una regresión
+     reciente, un bug conocido que recae o un fix dejado a medias.
+  5. **Tests existentes**: qué cubren, qué asumen y por qué no lo detectaron
+     (¿falta el test, o el test fija el comportamiento erróneo?).
+  6. **Fuentes externas**: documentación oficial de la API o herramienta
+     involucrada (`std::filesystem`, `cmd.exe`, GLFW, ImGui, JNI…) e issues
+     conocidas, para no "arreglar" algo que en realidad es el contrato de la
+     herramienta.
+  7. **Alternativa antes que el fix**: si el problema se puede sortear con
+     otra técnica (cambiar el enfoque, renombrar, aplazar, otra API), evaluarla
+     y compararla contra arreglar la causa; si no se arregla aún, dejarlo
+     anotado con su justificación.
+  Cierre del análisis: (a) **no se declara causa raíz sin evidencia que la
+  aisle** y descarte al menos la hipótesis competidora principal — si dos
+  hipótesis explican el síntoma, buscar el caso que las diferencie, no
+  quedarse con la primera plausible—, y esa evidencia se consigue con las
+  técnicas de "Depuración de bugs: instrumentación y validación"
+  (experimento A/B con una sola variable, test rojo→verde, sanitizer cuando
+  toque memoria); (b) el análisis queda escrito donde viva
+  el lote (plan, issue), con síntoma, evidencia, causa, fix y test, en la
+  posición por dependencias; (c) si el contraste no alcanza para decidir qué
+  lado está mal, se reporta y se esperan instrucciones en vez de elegir una
+  causa por conveniencia. Nunca se declara un bug ni se arregla algo "al
+  vuelo" sin ese contraste.
 - **Commits atómicos por tarea**: cada tarea terminada cierra con su commit
   (o los que sean necesarios si la tarea es grande), con mensaje descriptivo
   y convencionales (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). El
@@ -149,7 +401,10 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   3. Esperar confirmación antes de ejecutarlo.
   Esto evita pérdida accidental de trabajo del usuario o cambios ajenos sin
   commitear.
-- Validar antes de commitear: build completo + `ctest` en verde.
+- Validar antes de commitear: build completo + `ctest` en verde. Si el cambio
+  cierra un bug, además la comprobación que corresponda según "Depuración de
+  bugs: instrumentación y validación": test rojo→verde, sanitizer cuando toque
+  memoria, y la reproducción del caso en más de una circunstancia.
 - **Build con cambios ajenos**: si el build falla y hay archivos modificados
   por otros colaboradores (no tocados por el agente), reportar el fallo,
   indicar que hay cambios ajenos pendientes, y esperar instrucciones;
@@ -160,4 +415,7 @@ cd FunshiEngineGL/build && ctest --output-on-failure
   como "resuelto" o "fix real" hasta que el usuario lo pruebe y lo confirme
   explícitamente. Los tests automatizados (ctest) no cubren flujos visuales
   de UI (dock, layout, ventanas); el criterio de aceptación lo define el
-  usuario probando la aplicación real.
+  usuario probando la aplicación real. El fix llega a esa validación con su
+  evidencia técnica ya lista (test rojo→verde, sanitizer, experimento en más
+  de una circunstancia, ver "Depuración de bugs: instrumentación y
+  validación"), no solo con la impresión de haberlo visto funcionar una vez.

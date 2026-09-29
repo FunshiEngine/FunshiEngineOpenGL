@@ -71,10 +71,13 @@ void SceneSelectedInterface::contentGUI() {
     if (ImGui::BeginPopupContextWindow(
             "SelectedEntitysPopup",
             ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
-        if (ImGui::MenuItem("New GameObject")) {
+        if (ImGui::MenuItem("New SimpleObject")) {
             if (editor) {
+                // El raiz se pasa a la factoria para que el nombre por defecto
+                // no repita el de ningun objeto del arbol (H-6).
                 GameObject* created = editor->createGameObject(
-                    GameObjectFactory::createSimpleObject(),
+                    GameObjectFactory::createSimpleObject(
+                        scene ? scene->getRoot() : nullptr),
                     scene ? scene->getRoot() : nullptr);
                 if (created) setReturnableEntity(created);
             }

@@ -23,6 +23,10 @@
 SceneMenuBarInterface::SceneMenuBarInterface(bool state)
     : GeneralUserInterface("MenuBar", state, ImGuiWindowFlags_MenuBar), toggleBool(nullptr) {}
 void SceneMenuBarInterface::setActivador(bool* target) { toggleBool = target; }
+
+void SceneMenuBarInterface::setAccionAlternarSimulacion(std::function<void()> accion) {
+    accionAlternarSimulacion = std::move(accion);
+}
 void SceneMenuBarInterface::setGizmoGlobal(bool* target) { gizmoGlobal = target; }
 bool* SceneMenuBarInterface::getActivador() { return toggleBool; }
 bool SceneMenuBarInterface::getCargarScripts() { return cargarScripts; }
@@ -125,7 +129,13 @@ void SceneMenuBarInterface::contentGUI() {
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hover);
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, color);
     if (ImGui::Button(activo ? "Detener" : "Activar", ImVec2(100, 30))) {
-        *toggleBool = !*toggleBool;
+        // El boton no decide el estado de la simulacion: pide el cambio a la
+        // accion inyectada, que va al orquestador de estados (el mismo dueno que
+        // las teclas F5/F7). Escribir el flag desde aca dejaba la maquina de
+        // estados sin enterarse, con el editor y la simulacion corriendo al
+        // mismo tiempo. La carga de scripts la dispara el flanco de arranque de
+        // la escena, asi que la bandera solo marca que el usuario toco play.
+        if (accionAlternarSimulacion) accionAlternarSimulacion();
         cargarScripts = true;
     }
     ImGui::PopStyleColor(3);

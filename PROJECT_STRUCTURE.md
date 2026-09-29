@@ -68,6 +68,7 @@ FunshiEngineGL/                          ← raíz del repo
 │   ├── ScriptsRuntimeTests.cpp          ← BackendCpp end-to-end (compila y dlopen un .so)
 │   ├── ScriptsJavaTests.cpp             ← BackendJava end-to-end (solo con FUNSHI_JAVA)
 │   ├── AudioEngineTests.cpp             ← AudioEngine/AudioClipsManager con NullAudioBackend
+│   ├── SceneSerializationTests.cpp      ← round-trip de escena + nombres por defecto
 │   └── UserInterfaceTests.cpp           ← modelo del Creador de interfaces (round-trip JSON)
 └── FunshiEngineGL/                      ← proyecto CMake principal
     ├── CMakeLists.txt                   ← GLOB de fuentes, dependencias, sanitizers,
@@ -147,7 +148,11 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                              Y toda la E/S nativa (diálogos, abrir con la app del
         │   │                              sistema, listado de directorio, plantillas de scripts)
         │   ├── FileSelection.h          ← estado de navegación compartido entre vistas
-        │   └── FileSystemWatcher.h/.cpp ← vigilancia de cambios externos (inotify)
+        │   ├── FileSystemWatcher.h/.cpp ← vigilancia de cambios externos (inotify)
+        │   └── Proceso.h/.cpp           ← runner de procesos SIN shell (argv propio:
+        │                                  CreateProcessW / fork+execvp, log por handles/fd,
+        │                                  cwd, entorno extra; única vía a `cmd.exe` es la
+        │                                  receta cruda del harvest de vcvars)
         ├── GestorDeArchivos/            ← Binario (streams binarios), File, Carpeta,
         │                                  GestorDeArchivos (exploración del filesystem)
         ├── GUI/
@@ -163,9 +168,13 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                  y grises azulados de fábrica a gris neutro; ver tests/TemaEditorTests.cpp)
         │   ├── FileManagerGUI/             ← TreeFilesInterface + ContentFolderInterface
         │   │                                  (vistas del explorador; conversan con FileManager)
-        │   │   └── SoltarEnCarpeta.h       ← helper header-only del arrastre: mueve (Ctrl=copia) y
-        │   │                                  publica ArchivosReubicados; lo usan las dos vistas
-        │   │                                  para que arrastrar al árbol y al grid se comporten igual
+        │   │   ├── SoltarEnCarpeta.h       ← helper header-only del arrastre: mueve y publica
+        │   │   │                              ArchivosReubicados; lo usan las dos vistas (en el
+        │   │   │                              grid Ctrl copia; soltar en el árbol siempre mueve)
+        │   │   └── RenombrarElemento.h     ← helper header-only del renombre por click derecho:
+        │   │                                  modal (campo enfocado al abrir, Enter confirma) y
+        │   │                                  camino único de disco + ArchivosReubicados, también
+        │   │                                  compartido por el grid y el árbol
         │   ├── MenusGUI/                   ← paquete del menú de inicio (MVP); ver su README.md
         │   │   ├── MenuModel.h/.cpp        ← lógica pura sin ImGui/GLFW
         │   │   ├── MenuView.h/.cpp         ← dibujo ImGui
@@ -193,7 +202,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   └── GUIManager.h/.cpp         ← fábrica y registro de ventanas; posee FileManager
         ├── Herramientas/
         │   ├── TypeUtils.h/.cpp          ← nombres legibles de tipos
-        │   ├── PathUtils.h               ← PATH_SEP multiplataforma compartido
+        │   ├── PathUtils.h               ← PATH_SEP + regla de cotejo de rutas (rutaBajo)
         │   ├── MaterialPresets.h         ← presets de Material como datos (reemplaza a materiales.h)
         │   ├── TreeGUI/TreeGUI.h         ← widget de árbol genérico para ImGui
         │   └── IconosGUI/                ← carga de íconos con stb_image
@@ -274,7 +283,10 @@ FunshiEngineGL/                          ← raíz del repo
             ├── EditorController.h/.cpp   ← mutaciones + GizmoTarget + registro de física
             ├── SceneSerializer.h/.cpp    ← save/load binario preorden con marcadores =>/<=
             ├── RutasReescritura.h/.cpp   ← reescribe referencias (model/textura/script) al
-            │                                mover/renombrar assets en el explorador
+            │                                mover/renombrar assets en el explorador y sanea
+            │                                al cargar las que apuntan a un archivo que ya no
+            │                                existe (una coincidencia del nombre bajo la raíz
+            │                                → repara y guarda; varias/ninguna → avisa)
             ├── ManifiestoAssets.h/.cpp   ← manifiesto SceneAssets.json (add-on del .db):
             │                                guarda/carga rutas de asset por objeto con
             │                                precedencia sobre el binario (Ctrl+S)
@@ -314,8 +326,12 @@ main.cpp
       ├── EngineTime::update (deltaTime)
       ├── ImGui::NewFrame
       ├── refleja el estado del menú en la fachada MenuGUI (guardia de cambio)
-      ├── si Playing → GameScene::update(dt) = física (start==true, F5) + scripts, con
-      │   F6 pausando fisica/scripts sin salir de play y F7 cortando (Playing → Editing)
+      ├── refleja en la escena lo que pide el orquestador (start + pausa de la simulación)
+      ├── GameScene::update(dt) SIEMPRE: dentro, física y scripts se auto-gatean por start
+      │   y el resto corre en los flancos de transición (editor→play: pose a los cuerpos
+      │   Bullet + audio + servicios de script + cola de compilación; play→editor: vacía la
+      │   cola, desconecta los servicios, corta el audio y avisa onStop), con F6 pausando
+      │   y F7 cortando (Playing → Editing)
       ├── pasada de la grilla (batch de líneas + shader de ancho en píxeles; color según apariencia)
       ├── dibujarGameObjects (MeshRenderer VBO/VAO+shader; único pipeline)
       ├── gizmo ImGuizmo sobre el objetivo activo (objeto o collider)
@@ -451,11 +467,26 @@ solo como orquestador de arranque y bucle.
   propios).
   `FileSystemWatcher` avisa de cambios externos (inotify) para re-escanear.
   El **arrastre** lo resuelve `SoltarEnCarpeta.h`, compartido por las dos
-  vistas: soltar mueve (con `Ctrl` copia) y, al mover, publica
+  vistas: dentro del grid soltar mueve (con `Ctrl` copia) y sobre una fila del
+  árbol siempre mueve (cortar y pegar, sin opción de copia); al mover, publica
   `ArchivosReubicados` para que el gestor de proyectos reescriba y guarde las
-  referencias de la escena. `GestorDeArchivos::mover` usa `rename`, que es
+  referencias de la escena; el cotejo de ese prefijo vive en
+  `PathUtils::rutaBajo` y trata `/` y `\` como el mismo separador en Windows,
+  porque el explorador trae las rutas de `std::filesystem` con `\` y
+  la escena las resuelve con `/`. El **renombre por click derecho** (grid y
+  árbol) vive en `RenombrarElemento.h`: mismo modal en los dos paneles y un
+  único camino de disco que, si el cambio se hizo, publica el mismo
+  `ArchivosReubicados`; quien renombra sigue siendo dueño de su navegación (el
+  árbol reubica `rutaVisible` y la expansión por ruta de la rama antes del
+  rescaneo). `GestorDeArchivos::renombrar` también se niega a pisar un destino
+  existente (mismo criterio que mover, permitido solo el MISMO elemento, p. ej.
+  para cambios de mayúsculas); `GestorDeArchivos::mover` usa `rename`, que es
   atómico, y solo cae a copiar+borrar si el destino está en otro volumen;
-  rechaza pisar un destino ocupado y meter una carpeta en sí misma.
+  rechaza pisar un destino ocupado y meter una carpeta en sí misma. Al cargar
+  la escena, `GameScene::loadScene` invoca el mismo módulo para sanar las
+  referencias rotas (busca el nombre bajo la raíz del proyecto): con una sola
+  coincidencia repara y guarda; con varias o con ninguna avisa en el log y no
+  adivina.
 - `SceneSelectedInterface` observa la escena inyectada y delega las
   operaciones de edición a `EditorController`. Usa `GameObjectFactory` para crear objetos.
 - `SceneObjectTree` dibuja el árbol de objetos (con drag & drop para reparentar).
@@ -476,7 +507,11 @@ solo como orquestador de arranque y bucle.
   registra la ruta; inserta `=>` para abrir un bloque de hijos y `<=` para cerrarlo.
 - La carga reconstruye la escena **de forma recursiva** (`loadPreOrder` con
   look-ahead de marcadores), restaurando padres e hijos; inserta cada objeto
-  directamente en `SceneRegistry` vía `EditorController`.
+  directamente en `SceneRegistry` vía `EditorController`. El índice se abre en
+  **binario** (el `seekg(tellg())` del look-ahead no es fiable en modo texto
+  con CRLF, ver `DocuTecnicoBugs.md` §7) y cada línea se valida contra el
+  patrón estricto `ObjectN<entero>.db`: lo que no cumple — o un hijo con
+  id 0, que leería `ObjectN0.db`, el binario de la raíz — se salta con aviso.
 - `Binario` encapsula los streams binarios usados por las entidades.
 - `GameObject::saveEntity/loadEntity` coordina la serialización binaria propia
   (atributos globales, locales, componentes).
@@ -537,6 +572,12 @@ solo como orquestador de arranque y bucle.
 - `BackendCpp` compila el `.cpp` a `.so`/`.dll` con el compilador configurado y lo
   carga con `dlopen`/`LoadLibrary`; `BackendJava` (opcional, `-DFUNSHI_JAVA=ON`)
   compila con `javac` y ejecuta sobre un JVM cargado dinámicamente vía JNI.
+  Los flags con los que se compila el script viven en
+  `Behaviour/Backends/ComandoCompilacionCpp.h` y cumplen el mismo contrato de
+  CRT que el engine (`/MD` o `/MDd` según la configuración, más `/EHsc`): la
+  reflexión cruza la frontera de la `.dll` con objetos STL que aloca un módulo y
+  libera el otro, así que un CRT distinto (p. ej. el estático `/MT`) separa los
+  heaps y corrompe la memoria.
 - El editor (`SettingsScript`) dibuja los campos reflejados (escalares, arrays,
   grupos y referencias a `GameObject`) y dispara la recompilación.
 
@@ -575,18 +616,27 @@ La convención general es un par `.h`/`.cpp` por clase. Las excepciones son:
 al build sin enumerarlos manualmente. Los archivos de ImGui se recopilan por separado
 desde `src/ImGui/` y los de ImGuizmo desde `ImGuizmo/` (fuera de `src/`).
 
-Además del ejecutable, el proyecto define **doce targets de prueba headless**
-registrados en CTest (compilan en cualquier plataforma con `BUILD_ENGINE=OFF`;
-`scripts-java-tests` solo se registra con `-DFUNSHI_JAVA=ON`):
+Además del ejecutable, el proyecto define **veinte targets de prueba headless**
+registrados en CTest (`scripts-java-tests` solo se registra con
+`-DFUNSHI_JAVA=ON`; cinco de ellos enlazan `funshi_engine` y requieren
+`BUILD_ENGINE=ON`, el resto compila también con `BUILD_ENGINE=OFF`):
 
-- `filemanager-tests` (34): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
-  contra un proyecto temporal, sin ventanas ni pila gráfica.
-- `configuracion-tests` (99): round-trip del JSON de `EditorConfig` (general y
+- `filemanager-tests` (132): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
+  contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
+  con invalidación explícita de caché del grid en carpeta origen y destino, y el
+  renombre por click derecho de las vistas del explorador.
+- `proceso-tests` (26): el runner de procesos sin shell `Proceso`: round-trip
+  de argv byte a byte (el binario se relanza a sí mismo copiado en una carpeta
+  con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,
+  entorno extra, tabla de `citar()` y, en Windows, la receta cruda de `cmd.exe`
+  del harvest de vcvars.
+- `configuracion-tests` (128): round-trip del JSON de `EditorConfig` (general y
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
   archivos ausentes/corruptos/parciales, prioridad de las claves modernas sobre
-  el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido.
+  el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, y el
+  cotejo de prefijos `rutaBajo` (en Windows `/` y `\` equivalen).
 - `eventbus-tests` (16): suscripción/publicación/unsubscribe del canal tipado de GUI.
-- `menu-tests` (30): lógica pura del menú (traducción, observer de cambios y reset).
+- `menu-tests` (38): lógica pura del menú (traducción, observer de cambios y reset).
 - `assetmanager-tests` (82): caché Flyweight de meshes (rutas `AssetPath`, geometría
   `Mesh` con `computeBounds`, `computeNormals` —incluido el modo `soloFaltantes`
   para assets que mezclan sub-mallas con y sin normales— y `computeTangents`) y el
@@ -603,16 +653,50 @@ registrados en CTest (compilan en cualquier plataforma con `BUILD_ENGINE=OFF`;
   distancia 3D a la cámara, difuminado por vértice y los rechazos defensivos
   (eje inválido, NaN/Inf, eje degenerado, horizonte degenerado, recta fuera del
   horizonte). Solo CPU, sin OpenGL.
-- `scripts-tests` (42): reflexión `SerializeField` (escalares, arrays, grupos
-  anidados) y el round-trip binario del árbol de valores.
+- `scripts-tests` (100): reflexión `SerializeField` (escalares, arrays, grupos
+  anidados) y su round-trip binario; el contrato de flags con el que
+  `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
+  ARGV armados sin shell ni redirección); el harvest del entorno de vcvars
+  (receta cruda de `cmd`, parser UTF-16, bloque multi-sz); y el contrato del
+  sondeo de toolchain (dispositivo nulo `NUL`/`/dev/null` abierto por el
+  runner, sin `std::system`).
 - `scripts-runtime-tests`: compila un `.cpp` real con `BackendCpp`, lo carga con
-  `dlopen` y ejecuta el ciclo + hot reload (en Windows sale con 77/SKIP).
+  `dlopen`/`LoadLibrary` y ejecuta el ciclo + hot reload, y comprueba que un
+  segundo componente sobre el **mismo** fuente reutiliza el artefacto ya al
+  día en vez de volver a enlazarlo (SKIP 77 solo si el
+  sondeo del compilador del build falla; con MSVC el entorno del toolset lo
+  obtiene `BackendCpp` del `vcvars64.bat`).
 - `scripts-java-tests`: end-to-end del backend Java (JNI); solo con `FUNSHI_JAVA=ON`.
+- `model-serialization-tests` (16): serialización binaria del componente `Model`
+  (path con prefijo de longitud; regresión del core al cargar escenas con paths
+  largos).
 - `audio-tests` (16): `AudioEngine`/`AudioClipsManager` con `NullAudioBackend`
   (contrato de la cola de comandos: clips, handles, encolado, detención, volumen).
 - `userinterface-tests` (34): `UserInterfaceCustom` (modelo del Creador de
   interfaces, `src/GUI/CreadorUI/`): round-trip JSON de los 5 tipos de widget,
   guardar/cargar y tolerancia a JSON parcial.
+- `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia`): el acento
+  llega a todos los roles de ImGui y el modo B/N deja la paleta monocroma.
+- `comandos-tests` (77): undo/redo del editor (7 comandos, cadena de redo
+  múltiple, límite de 50 entradas y descripción del comando aplicado).
+- `manifiesto-assets-tests` (29): manifiesto `SceneAssets.json` (JSON round-trip,
+  tolerancia a manifiestos corruptos y precedencia sobre el `.db`).
+- `orquestador-estado-tests` (54): la "función de marco" F5/F6/F7 y el botón
+  Activar/Detener (reglas por estado de Play/Pausa/Stop), Escape por estado (en
+  play detiene, en editor vuelve al menú), la condición compartida de las teclas
+  del editor (editor o play) y los atajos del editor frente a ImGui.
+- `escena-serializacion-tests` (75): round-trip completo de escena (guardar →
+  recargar → conservar nombre, id y jerarquía), defensas del índice de escena
+  (líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
+  apertura avisada de archivos `Binario` inexistente sin `std::remove()`
+  destructivo, la reescritura de referencias al mover/renombrar (script,
+  malla y textura bajo el prefijo reubicado, los demás intactos) y el
+  sanado de referencias rotas al cargar (una sola coincidencia del nombre bajo
+  la raíz → repara; varias o ninguna → no adivina y avisa).
+
+Las cinco suites que enlazan el engine (`tema-tests`, `comandos-tests`,
+`manifiesto-assets-tests`, `orquestador-estado-tests` y
+`escena-serializacion-tests`) solo se compilan con `BUILD_ENGINE=ON`.
 
 La opción `BUILD_ENGINE=OFF` compila solo las pruebas (útil en CI y plataformas
 sin las librerías gráficas), y `ENABLE_ASAN` (ON por defecto en Debug) activa
@@ -629,10 +713,12 @@ main.cpp
   │                                       ──► tecla E: toggleEditorInterfaces()
   │                                       ──► 1/T, 2/R, 3/U: operación del gizmo (y apagan la guía)
   │                                       ──► X/Y/Z: guía de eje del objeto seleccionado
-  │                                       ──► Escape: volver al menú (máquina de estados)
+  │                                       ──► Escape: en play detiene (como F7), en editor
+  │                                         vuelve al menú (regla en el orquestador)
   │
   ├─ GameScene::GUI()
-  │     ├─ SceneMenuBarInterface ──► flag start (Play/Stop) ──► GameScene::update
+  │     ├─ SceneMenuBarInterface ──► botón Activar/Detener ──► Orquestador::alternarSimulacion
+  │     │                          (misma regla que F5/F7; el bool solo muestra el estado)
   │     ├─ SceneSelectedInterface ──► EditorController (crear/borrar/reparentar GO)
   │     │                         ──► EventBus.publish(ObjectCreated/Deleted/Selected)
   │     ├─ SceneObjectTree ──► selección y reparentado por drag & drop
@@ -640,8 +726,11 @@ main.cpp
   │           └─ SettingsObjectInterface ──► EditorController (add/removeComponent,
   │                                          sync colliders, "Gizmo activo")
   │
-  ├─ GameScene::update(dt)
+  ├─ GameScene::update(dt)  (siempre, también con start en false: es donde viven los
+  │                          flancos de transición; física/scripts se auto-gatean)
   │     ├─ transición editor→play: empuja la pose visual a los cuerpos Bullet
+  │     ├─ transición play→editor: cola de compilación vacía, servicios de script
+  │     │   desconectados, audio cortado y onStop a cada script
   │     ├─ si start y gizmo libre: PhysicsEngine::stepSimulation(dt)
   │     │               └─ btDiscreteDynamicsWorld::stepSimulation
   │     └─ scripts: IScriptBehaviour::onUpdate (si compilados)
@@ -739,7 +828,11 @@ cargar, así que mover la raíz no invalida las escenas existentes.
   global compuesta del dueño, de modo que mover un collider no desincroniza el cuerpo.
 - Las rutas de usuario (`<directorioEjecutable>/MotorGrafico`) están
   centralizadas en `EditorConfig` para la configuración y el layout, pero los assets
-  del proyecto todavía se resuelven a mano; `PathUtils.h` solo comparte el separador.
+  del proyecto todavía se resuelven a mano; `PathUtils.h` comparte el separador
+  (`PATH_SEP`) y la regla única de cotejo de rutas (`rutaBajo`/`esSeparadorPath`):
+  en Windows `/` y `\` equivalen, que es lo que permite reescribir las
+  referencias de la escena cuando el explorador trae rutas con `\` y
+  `ProjectPaths` arma las suyas con `/`.
 - La serialización binaria no tiene versionado ni validación formal de tamaños. Un
   cambio en la estructura de atributos invalida escenas guardadas.
 - `SettingsObjectInterface` y algunos componentes todavía incluyen y construyen
@@ -805,6 +898,15 @@ GameScene → coordina todos los subsistemas del frame
   `Model` (path con prefijo de longitud). Cubre la regresión del core al cargar
   escenas: verifica que un path más largo que el buffer de lectura no desalinee
   el stream, además de round-trip corto/largo/vacío y archivos truncados.
+- `tests/SceneSerializationTests.cpp`: round-trip completo de escena (guardar →
+  recargar → conservar nombre, id y jerarquía), el nombre por defecto de los
+  objetos nuevos (`GameObjectFactory` + `NombreUnico.h`, que no puede repetirse
+  en el árbol), el guardado con el árbol vacío (archivo vacío **con aviso en el
+  log**, nunca un trunc silencioso) y el reporte de fallos de apertura en
+  `Binario` (sin `std::remove` destructivo previo, con valor de retorno `bool` y
+  propagación en `saveEntity`/`loadEntity`). Es la suite que faltaba: hasta
+  ahora solo existía `ModelSerializationTests`, que cubre el componente `Model`
+  aislado.
 - `tests/TemaEditorTests.cpp`: aplicación del perfil `Apariencia` al estilo de ImGui
   (`TemaEditor::aplicarEstilo`, solo contexto de ImGui, sin pila gráfica). Cubre la
   regresión "el color de acento no llega a toda la interfaz": con un acento no azul
@@ -820,7 +922,7 @@ GameScene → coordina todos los subsistemas del frame
   `AgregarComponenteComando`, `QuitarComponenteComando`, `LimpiarEscenaComando`)
   con deshacer/rehacer, la cadena de redo múltiple, el límite del historial y la
   descripción que el historial devuelve para avisar en la barra de estado.
-- Los dieciocho targets compilan en cualquier plataforma y se ejecutan con `ctest`.
+- Los diecinueve targets compilan en cualquier plataforma y se ejecutan con `ctest`.
 - `.github/workflows/ci.yml` compila el engine completo en Ubuntu (Release, sin
   ASan) y ejecuta las pruebas; además ejecuta las headless en
   Linux/Windows con `BUILD_ENGINE=OFF` y el backend Java en Ubuntu con JDK.
@@ -866,7 +968,9 @@ suele necesitarlas están resueltos con otras herramientas:
   `External/`); las claves se validan por acceso estructurado, no por patrones.
 - **Serialización de escenas**: `SceneSerializer` usa un formato binario en
   preorden con marcadores literales `=>`/`<=`, decididos con comparaciones de
-  `std::string` exactas (búsqueda del look-ahead), no con matching.
+  `std::string` exactas (búsqueda del look-ahead), no con matching; el patrón
+  de las líneas del índice (`ObjectN<entero>.db`) se valida a mano, sin
+  regex.
 - **Nombres de tipos**: `ComponentFactory`/`TypeUtils` comparan huesos
   exactamente (`"CameraComponent"` y alias `"Camera"`), sin patrones.
 

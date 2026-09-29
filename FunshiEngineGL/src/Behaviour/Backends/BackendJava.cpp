@@ -41,6 +41,7 @@
 
 #include "../ScriptGameObject.h"
 #include "../../Configuracion/ProjectPaths.h"
+#include "../../FileManager/Proceso.h"
 
 #ifndef FUNSHI_LIBJVM_DEFAULT
 #define FUNSHI_LIBJVM_DEFAULT ""
@@ -595,27 +596,35 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
     const std::string claseCompilada =
         (fs::path(clasesDir) / (nombreClase + ".class")).string();
     const std::string mtimeFuente = mtime(fuente);
-    const bool recompilar = !fs::exists(claseCompilada, ec) ||
-                            salida.mtimeFuente != mtimeFuente;
+    // La clase esta vigente si existe y no es mas vieja que el fuente: la
+    // salida la comparten los componentes que apuntan al mismo .java, asi
+    // que manda la frescura del archivo, no el mtime que guarda cada
+    // componente (vacio en uno recien cargado), igual que en BackendCpp.
+    auto claseVigente = [&]() {
+        std::error_code ecClase;
+        const auto tClase = fs::last_write_time(claseCompilada, ecClase);
+        if (ecClase) return false; // no existe o ilegible: hay que compilar
+        std::error_code ecFuente;
+        const auto tFuente = fs::last_write_time(fuente, ecFuente);
+        if (ecFuente) return false;
+        return tClase >= tFuente;
+    };
+    const bool recompilar = !claseVigente();
     if (recompilar) {
         const std::string javac = javacExe();
         const std::string sdkComportamiento =
             (fs::path(sdkDir) / "Comportamiento.java").string();
         const std::string sdkNativo = (fs::path(sdkDir) / "Nativo.java").string();
         const std::string sdkCargador = (fs::path(sdkDir) / "Cargador.java").string();
-        std::string cmd =
-            "\"" + javac + "\" -d \"" + clasesDir + "\" -cp \"" + clasesDir +
-            "\" \"" + sdkComportamiento + "\" \"" + sdkNativo + "\" \"" +
-            sdkCargador + "\" \"" + fuente + "\" > \"" + logPath + "\" 2>&1";
-#if defined(_WIN32)
-        // Mismo motivo que BackendCpp: std::system arma `cmd.exe /c <comando>`
-        // y con comilla inicial cmd se come la primera y la ultima de la
-        // linea, rompiendo el comando (javac no arrancaba y el log quedaba
-        // vacio). Envolverlo hace que cmd se coma el par extra y el cuerpo
-        // llegue intacto.
-        cmd = "\"" + cmd + "\"";
-#endif
-        int rc = std::system(cmd.c_str());
+        // Sin shell (H-3 nivel 2): javac recibe cada ruta como argumento
+        // propio y el log lo redirige Proceso por handles/fd. Se borra el
+        // envoltorio de comillas que cmd.exe se comia (y con el, el
+        // std::system entero).
+        const std::vector<std::string> argv = {
+            javac,          "-d",          clasesDir,     "-cp",
+            clasesDir,      sdkComportamiento, sdkNativo, sdkCargador,
+            fuente};
+        int rc = Proceso::ejecutar(argv, logPath);
         if (rc != 0) {
             error = "Error al compilar el script Java:\n" + leerArchivo(logPath);
             return false;

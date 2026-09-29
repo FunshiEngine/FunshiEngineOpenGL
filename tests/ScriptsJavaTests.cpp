@@ -30,6 +30,8 @@
 #include <chrono>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/BackendJava.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/Reflection/BehaviourReflection.h"
 #include "../FunshiEngineGL/src/Behaviour/ScriptRuntime.h"
 
@@ -86,9 +88,22 @@ static const ValorCampo* buscar(const std::vector<ValorCampo>& v,
     return nullptr;
 }
 
+// Sondeo del toolchain Java con la MISMA resolucion que usa el backend
+// (BackendJava::javacRuta: JAVAC > raices del JDK como JAVA_HOME > default
+// horneado por CMake). Sin shell (H-3 nivel 2): sondear() ejecuta javac
+// directamente y el output va al dispositivo nulo de la plataforma (H-14:
+// NUL / /dev/null, ahora abierto por el runner en vez de escrito por
+// cmd.exe). Si la resolucion da una ruta (lo normal), tampoco hay shell que
+// intermedie — lo que se verifica es que javac realmente corre.
+static bool hayJavac() {
+    const std::string ruta = BackendJava::javacRuta();
+    return SondeoToolchain::sondear(ruta, "-version");
+}
+
 int main() {
-    if (std::system("javac -version > /dev/null 2>&1") != 0) {
-        std::cout << "scripts-java-tests: SKIP (no hay javac en PATH)."
+    if (!hayJavac()) {
+        std::cout << "scripts-java-tests: SKIP (no hay javac; resuelto por "
+                     "JAVAC/JAVA_HOME/PATH y no encontrado)."
                   << std::endl;
         return 77;
     }
@@ -155,6 +170,31 @@ int main() {
     valores = ScriptRuntime::extraer(comportamiento);
     vid = buscar(valores, "vidas");
     CHECK(vid && vid->como<int>() == -1, "detener deja vidas = -1");
+
+    // Segundo componente sobre el MISMO fuente: la cola de la escena lo
+    // entrega con un ComportamientoCargado vacio (estado por componente).
+    // La clase ya esta compilada, asi que no hay que volver a pasar por javac.
+    {
+        const fs::path claseCompilada =
+            fs::path(BackendJava::cacheDir()) / "clases" / "MiPruebaJava.class";
+        std::error_code ecClase;
+        const auto mtimeAntes = fs::last_write_time(claseCompilada, ecClase);
+        CHECK(!ecClase, "la clase del primer componente existe");
+
+        ComportamientoCargado segundo;
+        const bool okSegundo = ScriptRuntime::compilarYCargar(
+            fuente, "MiPruebaJava", segundo, error);
+        CHECK(okSegundo, "segundo componente Java sobre el mismo fuente carga bien");
+        if (!okSegundo) std::cout << "  Error: " << error << std::endl;
+        if (!ecClase) {
+            std::error_code ecDespues;
+            const auto mtimeDespues =
+                fs::last_write_time(claseCompilada, ecDespues);
+            CHECK(!ecDespues && mtimeDespues == mtimeAntes,
+                  "la clase no se volvio a compilar (sigue al dia)");
+        }
+        ScriptRuntime::descargar(segundo);
+    }
 
     ScriptRuntime::descargar(comportamiento);
     CHECK(!comportamiento.valido(), "descargar invalida el comportamiento Java");

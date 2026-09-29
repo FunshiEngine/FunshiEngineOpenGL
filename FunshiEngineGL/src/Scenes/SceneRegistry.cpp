@@ -125,10 +125,7 @@ GameObject* SceneRegistry::createObject(std::unique_ptr<GameObject> object,
     if (!parentPosition) return nullptr;
 
     if (object->getId() == 0) {
-        int nextId = 1;
-        for (const auto& candidate : ownedGameObjects)
-            nextId = std::max(nextId, candidate->getId() + 1);
-        object->setId(nextId);
+        object->setId(siguienteIdDisponible());
     }
 
     GameObject* raw = object.get();
@@ -138,6 +135,13 @@ GameObject* SceneRegistry::createObject(std::unique_ptr<GameObject> object,
     raw->setParentEntity(parent);
     refreshGameObjectView();
     return raw;
+}
+
+int SceneRegistry::siguienteIdDisponible() const noexcept {
+    int nextId = 1;
+    for (const auto& candidate : ownedGameObjects)
+        nextId = std::max(nextId, candidate->getId() + 1);
+    return nextId;
 }
 
 bool SceneRegistry::replaceRoot(std::unique_ptr<GameObject> root) {

@@ -22,6 +22,8 @@
 #include <fstream>
 #include <utility>
 
+#include "../Herramientas/PathUtils.h"
+
 GestorDeArchivos::GestorDeArchivos(std::string pathProyect, std::string rootName)
     : treeFilePath(new ArbolEnlazado<File*>()), folderActual(nullptr), rootName(std::move(rootName)) {
     setTreeFilePath(pathProyect, this->rootName);
@@ -214,13 +216,23 @@ bool GestorDeArchivos::renombrar(const std::string& ruta,
     // Cualquier separador / \ es invalido en un nombre de salida; no dejar
     // que un nombre malicioso cree una ruta nueva por accidente.
     if (nuevoNombre.find_first_of("/\\") != std::string::npos) return false;
+    const std::filesystem::path destino = objetivo.parent_path() / nuevoNombre;
     std::error_code ec;
-    std::filesystem::rename(objetivo, objetivo.parent_path() / nuevoNombre, ec);
+    // No se pisa un destino existente (mismo criterio que mover): en POSIX un
+    // rename sobre un archivo lo reemplaza en silencio y se perderia su
+    // contenido con un renombre accidental. Se permite renombrar al MISMO
+    // elemento (cambiar "assets" por "Assets" en Windows, donde resuelven al
+    // mismo directorio).
+    if (std::filesystem::exists(destino, ec)) {
+        std::error_code otro;
+        if (!std::filesystem::equivalent(objetivo, destino, otro)) return false;
+    }
+    std::filesystem::rename(objetivo, destino, ec);
     return !ec;
 }
 
 bool GestorDeArchivos::mover(const std::string& origen,
-                             const std::string& destino) {
+                              const std::string& destino) {
     if (origen.empty() || destino.empty()) return false;
 
     std::error_code ec;
@@ -232,18 +244,15 @@ bool GestorDeArchivos::mover(const std::string& origen,
     // original intacto y el usuario creeria que se movio cuando no.
     if (std::filesystem::exists(hacia, ec)) return false;
 
-    // Carpeta dentro de si misma (o de un descendiente): el error_code de la
-    // recursion cortaria a mitad y dejaria el arbol a medias en disco.
+    // Evitar mover una carpeta DENTRO de si misma o de un descendiente:
+    // el destino no puede estar bajo el origen (mover ancestro -> descendiente).
     if (std::filesystem::is_directory(desde, ec)) {
-        const std::filesystem::path padreDestino =
-            hacia.parent_path().lexically_normal();
-        std::filesystem::path actual = desde.lexically_normal();
-        for (;;) {
-            if (actual == padreDestino) return false;
-            const std::filesystem::path padre = actual.parent_path();
-            if (padre == actual) break; // se llego a la raiz sin coincidir
-            actual = padre;
-        }
+        const std::filesystem::path srcNorm = desde.lexically_normal();
+        const std::filesystem::path dstNorm = hacia.lexically_normal();
+        // Si dstNorm empieza con srcNorm + separador, el destino está dentro del origen.
+        if (dstNorm.string().rfind(srcNorm.string() + PATH_SEP, 0) == 0) return false;
+        // También bloquear si son exactamente iguales (mover sobre si mismo).
+        if (dstNorm == srcNorm) return false;
     }
 
     std::filesystem::rename(desde, hacia, ec);

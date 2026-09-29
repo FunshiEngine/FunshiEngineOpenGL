@@ -67,8 +67,8 @@ protected:
     void deserializeEntity() override;
 
 public:
-    void saveEntity(std::string filename) override;
-    void loadEntity(std::string filename) override;
+    bool saveEntity(std::string filename) override;
+    bool loadEntity(std::string filename) override;
 };
 
 #endif

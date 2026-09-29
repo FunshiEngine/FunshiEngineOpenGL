@@ -25,6 +25,7 @@
 #include "../GeneralUserInterface.h"
 #include "../../Herramientas/TreeGUI/TreeGUI.h"
 #include "../WindowNames.h"
+#include "RenombrarElemento.h"
 
 class File;
 class Carpeta;
@@ -59,14 +60,17 @@ protected:
     // rescaneo entra con el modal abierto.
     bool confirmarEliminar = false;
     std::string carpetaAConfirmar;
-    // Renombrado inline de una carpeta en el arbol (R6), por RUTA igualmente.
-    // El editor se dibuja en la fila cuya ruta coincide; si la carpeta deja de
-    // existir tras un rescaneo el editor simplemente deja de dibujarse, sin
-    // referenciar memoria liberada ni confundir filas (el heap reusa
-    // la direccion del nodo viejo).
-    std::string carpetaRenombrando;
-    bool renombrandoInline = false;
-    char bufferRenombrar[256] = "";
+    // Renombrado de una carpeta en el arbol (R6): el modal compartido con el
+    // grid (RenombrarElemento.h) guarda la ruta a renombrar. Por RUTA y no por
+    // puntero: un rescaneo reconstruye el arbol y los File* quedan colgando
+    // (mismo invariante que rutaVisible y navegacionPendiente).
+    RenombrarElemento::Modal modalRenombrar;
+    // Crear nueva carpeta con dialogo de nombre (patron del grid: abrir popup,
+    // input texto, confirmar). Estado aislado para no colisionar con renombrado.
+    bool creandoCarpeta = false;
+    bool abrirPopupNombre = false;
+    char nombreNuevo[256] = {0};
+    std::string rutaPadreNuevaCarpeta;
     // Ultimo contador de cambios que este panel ya rescaneco.
     unsigned long ultimoContadorVisto = 0;
 
