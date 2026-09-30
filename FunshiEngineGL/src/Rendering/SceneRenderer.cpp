@@ -641,8 +641,18 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
             if (auto* model = object->getComponent<Model>(); model && meshRenderer_ && ctx.assetManager) {
                 const std::string& path = model->getPath();
                 if (!path.empty()) {
-                    // Cargar malla via AssetManager (cache compartida)
-                    auto mesh = ctx.assetManager->getMesh(path);
+                    // Cargar malla via AssetManager (cache compartida). Una
+                    // ruta que no se puede importar (por ejemplo un script
+                    // asignado por error, o un archivo movido) hace que el
+                    // loader lance; se avisa y el objeto simplemente no se
+                    // dibuja en vez de tumbar el editor.
+                    std::shared_ptr<const Mesh> mesh;
+                    try {
+                        mesh = ctx.assetManager->getMesh(path);
+                    } catch (const std::exception& e) {
+                        std::cerr << "[Model] no se pudo cargar la malla '"
+                                  << path << "': " << e.what() << std::endl;
+                    }
                     if (mesh && !mesh->isEmpty() && mesh->hasNormals()) {
                         // Render temporal: un Modelos3D local por objeto con transform copiado
                         Modelos3D tempModel(nullptr);

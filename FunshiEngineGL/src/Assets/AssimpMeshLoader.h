@@ -29,6 +29,14 @@ public:
     // Devuelve la malla, o lanza AssetLoadException si el archivo no puede
     // leerse o no tiene geometria util.
     std::shared_ptr<Mesh> load(const std::string& path) override;
+
+    // true si Assimp reconoce el archivo como un formato 3D importable.
+    // Consulta los importers registrados en vez de mantener una lista de
+    // extensiones a mano, que se desactualiza con cada version de Assimp.
+    // Se usa para filtrar en la UI antes de asignar una ruta a un Model:
+    // Model::setPath guarda cualquier cadena (toda ruta se serializa), asi
+    // que el formato se comprueba al elegir el archivo, no al almacenarlo.
+    static bool puedeLeerFormato(const std::string& path);
 };
 
 #endif

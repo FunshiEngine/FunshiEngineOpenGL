@@ -20,34 +20,10 @@
 
 #include <cstring>
 #include <iostream>
-#include <algorithm>
-#include <vector>
-#include <string>
-using namespace std;
 
 #include "Configuracion/EditorConfig.h"
 
-// Extensiones de modelo 3D soportadas por Assimp
-static bool esModeloValido(const string& path) {
-    static const vector<string> extensionesModelo = {
-        ".obj", ".fbx", ".gltf", ".glb", ".dae", ".blend", ".3ds", ".ase",
-        ".ply", ".stl", ".x", ".dxf", ".lwo", ".lws", ".lxo", ".off",
-        ".ifc", ".gltf", ".glb", ".usdz", ".usda", ".usdc", ".usd",
-        ".md2", ".md3", ".md5", ".mdl", ".ms3d", ".bvh", ".iqm", ".pmx",
-        ".vrm", ".gltf", ".glb", ".gltf", ".glb", ".gltf", ".glb"
-    };
-    size_t pos = path.find_last_of('.');
-    if (pos == string::npos) return false;
-    string ext = path.substr(pos);
-    transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-    return find(extensionesModelo.begin(), extensionesModelo.end(), ext) != extensionesModelo.end();
-}
-
 void Model::setPath(string path) {
-    if (!esModeloValido(path)) {
-        std::cerr << "[Model] Extension no valida para modelo 3D: " << path << std::endl;
-        return;
-    }
 #if defined(_WIN32)
     strncpy_s(this->filePath, sizeof(this->filePath), path.c_str(), _TRUNCATE);
 #elif defined(__linux__)

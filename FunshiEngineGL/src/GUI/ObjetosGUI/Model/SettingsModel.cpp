@@ -20,7 +20,9 @@
 
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/Model.h"
+#include "../../../Assets/AssimpMeshLoader.h"
 #include <imgui.h>
+#include <iostream>
 #include <string>
 
 SettingsModel::SettingsModel(GameObject* objeto) {
@@ -47,7 +49,16 @@ void SettingsModel::showDataComponent() {
 		if (const ImGuiPayload* payload =
 		        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
 			const char* path = (const char*)payload->Data;
-			myModel->setPath(path);
+			// Se filtra aqui y no en Model::setPath: el componente guarda
+			// cualquier cadena porque todas las rutas se serializan, y el
+			// formato solo importa al elegir el archivo que se va a cargar.
+			if (AssimpMeshLoader::puedeLeerFormato(path)) {
+				myModel->setPath(path);
+			} else {
+				std::cerr << "[Model] archivo no es un formato 3D que Assimp "
+				             "pueda importar; ruta sin asignar: "
+				          << path << std::endl;
+			}
 		}
 		ImGui::EndDragDropTarget();
 	}
