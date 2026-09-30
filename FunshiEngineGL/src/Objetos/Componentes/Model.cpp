@@ -23,8 +23,6 @@
 
 #include "Configuracion/EditorConfig.h"
 
-using namespace std;
-
 void Model::setPath(string path) {
 #if defined(_WIN32)
     strncpy_s(this->filePath, sizeof(this->filePath), path.c_str(), _TRUNCATE);
