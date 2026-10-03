@@ -745,9 +745,10 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   largos).
 - `audio-tests` (16): `AudioEngine`/`AudioClipsManager` con `NullAudioBackend`
   (contrato de la cola de comandos: clips, handles, encolado, detención, volumen).
-- `userinterface-tests` (34): `UserInterfaceCustom` (modelo del Creador de
+- `userinterface-tests` (42): `UserInterfaceCustom` (modelo del Creador de
   interfaces, `src/GUI/CreadorUI/`): round-trip JSON de los 5 tipos de widget,
-  guardar/cargar y tolerancia a JSON parcial.
+  guardar/cargar y tolerancia a JSON parcial; y `BarraProgresoTexto` (formato de
+  la barra de la ventana Estado, acotado ante `hecha > total` y `total == 0`).
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia`): el acento
   llega a todos los roles de ImGui y el modo B/N deja la paleta monocroma.
 - `comandos-tests` (77): undo/redo del editor (7 comandos, cadena de redo
