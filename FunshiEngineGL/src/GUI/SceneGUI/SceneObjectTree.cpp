@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SceneObjectTree.h"
+#include "JerarquiaArbol.h"
 
 #include "../../Objetos/GameObject.h"
 #include "../../Scenes/EditorController.h"
@@ -154,8 +155,9 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
             std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
             dialogoRecienAbierto = true;
         }
-        // Desanidar a raiz: solo si el objeto tiene padre (no es la raiz)
-        if (object->getParentEntity() != nullptr) {
+        // Desanidar a raiz: solo si cuelga de un padre intermedio (un hijo
+        // directo de la raiz ya esta al nivel superior).
+        if (esCandidatoADesanidar(object, scene ? scene->getRoot() : nullptr)) {
             if (ImGui::MenuItem("Desanidar a raiz")) {
                 // Diferido: mutar el arbol tras el recorrido para no invalidar
                 // iteradores (patron igual que objetoAReParentar).
@@ -306,9 +308,9 @@ void SceneObjectTree::applyDeferredOperations() {
     objetoAReParentar = nullptr;
     objetoPadreNuevo = nullptr;
 
-    if (objetoADesanidar && editor) {
+    if (objetoADesanidar) {
         GameObject* raiz = scene ? scene->getRoot() : nullptr;
-        if (raiz) editor->reparentGameObject(objetoADesanidar, raiz);
+        if (editor && raiz) editor->reparentGameObject(objetoADesanidar, raiz);
         objetoADesanidar = nullptr;
     }
 

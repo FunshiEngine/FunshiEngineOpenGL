@@ -105,8 +105,16 @@ bool EditorController::deleteObjectByID(int id) {
 
 bool EditorController::reparentGameObject(GameObject* object, GameObject* parent) {
     const bool changed = scene && scene->reparent(object, parent);
-    if (changed && events)
-        events->publish({SceneEventType::ObjectReparented, object, parent});
+    if (changed) {
+        // El cuerpo fisico sigue ligado a su transform viejo: al cambiar de
+        // padre hay que reconstruirlo para que herede la pose preservada y no
+        // se teletransporte de vuelta en el siguiente paso de simulacion.
+        // Queda anotado que reconstruirlo reinicia la velocidad: en edicion es
+        // inofensivo, pero reparentar durante Play frena el objeto.
+        refreshRigidBody(object);
+        if (events)
+            events->publish({SceneEventType::ObjectReparented, object, parent});
+    }
     return changed;
 }
 
@@ -157,7 +165,7 @@ void EditorController::registerSceneRigidBodies() {
 }
 
 void EditorController::refreshRigidBody(GameObject* object) {
-    if (!scene || !object || !scene->contains(object)) return;
+    if (!scene || !physics || !object || !scene->contains(object)) return;
     RigidBody* body = object->getComponent<RigidBody>();
     if (!body) return;
     // La shape de Bullet se cachea con el radio/escala/malla con que se creo:

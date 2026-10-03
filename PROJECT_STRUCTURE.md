@@ -761,7 +761,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   Activar/Detener (reglas por estado de Play/Pausa/Stop), Escape por estado (en
   play detiene, en editor vuelve al menú), la condición compartida de las teclas
   del editor (editor o play) y los atajos del editor frente a ImGui.
-- `escena-serializacion-tests` (130): round-trip completo de escena (guardar →
+- `escena-serializacion-tests` (151): round-trip completo de escena (guardar →
   recargar → conservar nombre, id y jerarquía), defensas del índice de escena
   (líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
   apertura avisada de archivos `Binario` inexistente sin `std::remove()`
@@ -772,7 +772,10 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   componente `Model` con la matriz mundial del objeto y la separacion del
   evento estructural (`ComponentStructureChanged`) del de propiedad en el bus
   de escena: editar un campo no reconstruye los paneles del Inspector y
-  agregar un componente crea unicamente el que falta.
+  agregar un componente crea unicamente el que falta. Cubre ademas el
+  reparentado: preserva la pose mundial reescribiendo el local como
+  `inverse(padre) × mundo` (los descendientes no saltan), refresca el cuerpo
+  fisico del objeto y deja el local consistente en disco.
 
 Las cinco suites que enlazan el engine (`tema-tests`, `comandos-tests`,
 `manifiesto-assets-tests`, `orquestador-estado-tests` y

@@ -35,6 +35,7 @@
 // salida final "OK/FALLOS: N comprobaciones" saliendo con 0 o 1.
 
 #include <cstdio>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -48,13 +49,18 @@
 #include "../FunshiEngineGL/src/Assets/Mesh.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Events/EventBus.h"
+#include "../FunshiEngineGL/src/Fisicas/IPhysicsBackend.h"
+#include "../FunshiEngineGL/src/Fisicas/PhysicsEngine.h"
 #include "../FunshiEngineGL/src/GUI/ObjetosGUI/SettingsObjectInterface.h"
+#include "../FunshiEngineGL/src/GUI/SceneGUI/JerarquiaArbol.h"
 #include "../FunshiEngineGL/src/Herramientas/PathUtils.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Color.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/EsfereCollider.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Skybox.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
@@ -1214,6 +1220,165 @@ void elEventoDePropiedadNoReconstruyeElInspector() {
           "el componente nuevo tiene su panel en la lista");
 }
 
+// --- Reparentar preserva la pose y refresca el cuerpo fisico ------------------
+// SceneRegistry::reparent movia el nodo en el arbol y cambiaba parentEntity,
+// pero no tocaba el transform local: como el local se interpreta contra el
+// padre nuevo, el objeto "saltaba" a otra pose mundial. Ademas el btRigidBody
+// seguia en la pose vieja y se teletransportaba de vuelta en el siguiente paso
+// de simulacion. Ahora el local se reescribe como inverse(mundoPadre) *
+// mundoHijo y el cuerpo se reconstruye.
+class BackendFisicoFalso : public IPhysicsBackend {
+public:
+    int agregados = 0;
+    int quitados = 0;
+    RigidBody* ultimo = nullptr;
+
+    void stepSimulation(float) override {}
+    void addRigidBody(RigidBody* body) override {
+        ++agregados;
+        ultimo = body;
+    }
+    void removeRigidBody(RigidBody*) override { ++quitados; }
+};
+
+void reparentarPreservaLaPoseYRefrescaElCuerpo() {
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    auto backend = std::make_unique<BackendFisicoFalso>();
+    BackendFisicoFalso* espia = backend.get();
+    PhysicsEngine physics(std::move(backend));
+    EditorController editor(&registry, &physics, &events, &assets);
+    GameObject* raiz = registry.getRoot();
+
+    auto padreObj = GameObjectFactory::createSimpleObject(raiz);
+    GameObject* padre = editor.createGameObject(std::move(padreObj), raiz);
+    auto hijoObj = GameObjectFactory::createSimpleObject(padre);
+    GameObject* hijo = editor.createGameObject(std::move(hijoObj), padre);
+    auto nietoObj = GameObjectFactory::createSimpleObject(hijo);
+    GameObject* nieto = editor.createGameObject(std::move(nietoObj), hijo);
+    CHECK(padre && hijo && nieto, "se arma la jerarquia padre/hijo/nieto");
+    if (!padre || !hijo || !nieto) return;
+
+    padre->getComponent<Transform>()->setTranslatef(5, 0, 5);
+    hijo->getComponent<Transform>()->setTranslatef(5, 0, 5);
+    nieto->getComponent<Transform>()->setTranslatef(1, 0, 0);
+
+    auto aprox = [](float a, float b) { return std::abs(a - b) < 1e-4f; };
+    float* mundoHijoAntes = hijo->getGlobalTransform()->getTranslatef();
+    CHECK(aprox(mundoHijoAntes[0], 10) && aprox(mundoHijoAntes[2], 10),
+          "el hijo parte en (10,0,10)");
+
+    EsfereCollider* col =
+        new EsfereCollider(1.0f, hijo->getComponent<Transform>(), hijo);
+    CHECK(editor.addComponent(hijo, std::unique_ptr<Component>(col)),
+          "se agrega el collider del hijo");
+    CHECK(editor.addComponent(hijo, std::make_unique<RigidBody>(col, 1.0f)),
+          "se agrega el RigidBody del hijo");
+    CHECK(espia->agregados == 1, "el cuerpo entra una vez al mundo");
+
+    const int agregadosAntes = espia->agregados;
+    const int quitadosAntes = espia->quitados;
+
+    // Predicado del menu: un objeto anidado si es candidato a desanidar; un
+    // hijo directo de la raiz ya esta al nivel superior.
+    CHECK(esCandidatoADesanidar(hijo, raiz),
+          "el hijo anidado es candidato a desanidar");
+    CHECK(!esCandidatoADesanidar(padre, raiz),
+          "un hijo directo de la raiz no es candidato");
+    CHECK(!esCandidatoADesanidar(raiz, raiz), "la raiz no es candidata");
+
+    CHECK(editor.reparentGameObject(hijo, raiz),
+          "se reparenta el hijo a la raiz");
+    CHECK(hijo->getParentEntity() == raiz, "el hijo cuelga de la raiz");
+
+    float* mundoHijoDespues = hijo->getGlobalTransform()->getTranslatef();
+    CHECK(aprox(mundoHijoDespues[0], 10) && aprox(mundoHijoDespues[2], 10),
+          "la pose mundial del hijo se conserva al reparentar");
+    float* localHijo = hijo->getComponent<Transform>()->getTranslatef();
+    CHECK(aprox(localHijo[0], 10) && aprox(localHijo[2], 10),
+          "el local del hijo pasa a inverse(padre)*mundo");
+
+    float* mundoNieto = nieto->getGlobalTransform()->getTranslatef();
+    CHECK(aprox(mundoNieto[0], 11) && aprox(mundoNieto[2], 10),
+          "el descendiente conserva su pose mundial");
+
+    CHECK(espia->quitados == quitadosAntes + 1,
+          "reparentar saca el cuerpo viejo del mundo");
+    CHECK(espia->agregados == agregadosAntes + 1,
+          "reparentar reconstruye y reinserta el cuerpo");
+    CHECK(espia->ultimo && espia->ultimo->getRigidBody() != nullptr,
+          "el cuerpo reconstruido esta vivo");
+
+    CHECK(!esCandidatoADesanidar(hijo, raiz),
+          "tras desanidar, el hijo ya no es candidato");
+}
+
+// --- La pose reparentada sobrevive el guardado -------------------------------
+// El local reescrito al reparentar debe quedar consistente en disco: al recargar,
+// el objeto vuelve a su misma pose mundial y cuelga de la raiz.
+void reparentarSobreviveElGuardado() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_escena_reparent");
+    const fs::path base = carpetaDir.ruta();
+    std::error_code ec;
+    fs::create_directories(base / "Scene", ec);
+    const std::string prefijo = (base / "Scene").string();
+    const std::string pathTxt = (base / "SceneBBDDObjetos.txt").string();
+    const std::string semiPath = (base / "Scene").string() + "/";
+
+    {
+        SceneRegistry registry;
+        EventBus events;
+        AssetManager assets;
+        EditorController editor(&registry, nullptr, &events, &assets);
+        SceneSerializer serializer(&registry, &editor, &assets);
+        GameObject* raiz = registry.getRoot();
+
+        auto padreObj = GameObjectFactory::createSimpleObject(raiz);
+        GameObject* padre = editor.createGameObject(std::move(padreObj), raiz);
+        auto hijoObj = GameObjectFactory::createSimpleObject(padre);
+        std::snprintf(hijoObj->inputName, sizeof(hijoObj->inputName),
+                      "Reubicado");
+        GameObject* hijo = editor.createGameObject(std::move(hijoObj), padre);
+        CHECK(padre && hijo, "se arma la escena a guardar");
+        if (!padre || !hijo) return;
+
+        padre->getComponent<Transform>()->setTranslatef(5, 0, 5);
+        hijo->getComponent<Transform>()->setTranslatef(5, 0, 5);
+        CHECK(editor.reparentGameObject(hijo, raiz),
+              "el hijo se reparenta antes de guardar");
+        serializer.save(prefijo);
+    }
+
+    {
+        SceneRegistry registry;
+        EventBus events;
+        AssetManager assets;
+        EditorController editor(&registry, nullptr, &events, &assets);
+        SceneSerializer serializer(&registry, &editor, &assets);
+        serializer.load(pathTxt, semiPath);
+
+        GameObject* raiz = registry.getRoot();
+        GameObject* reubicado = nullptr;
+        if (raiz) {
+            for (auto* e : raiz->getChildEntities()) {
+                auto* go = dynamic_cast<GameObject*>(e);
+                if (go && std::string(go->inputName) == "Reubicado") {
+                    reubicado = go;
+                    break;
+                }
+            }
+        }
+        CHECK(reubicado != nullptr,
+              "el objeto reparentado se recarga bajo la raiz");
+        if (reubicado) {
+            float* t = reubicado->getGlobalTransform()->getTranslatef();
+            CHECK(std::abs(t[0] - 10) < 1e-3f && std::abs(t[2] - 10) < 1e-3f,
+                  "la pose reparentada sobrevive el guardado");
+        }
+    }
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -1229,6 +1394,8 @@ int main() {
     borrarCrearBorrarNoDesalineaElBinario();
     elModeloSeResuelveConLaMatrizMundial();
     elEventoDePropiedadNoReconstruyeElInspector();
+    reparentarPreservaLaPoseYRefrescaElCuerpo();
+    reparentarSobreviveElGuardado();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;
