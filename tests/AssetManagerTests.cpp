@@ -316,6 +316,7 @@ void testAssetManager() {
     CHECK(loaderRaw->cargas == 1, "sin recarga por solo cambiar separadores");
 
     // Loader que falla: la excepcion del loader debe propagarse.
+    const size_t mallasAntesDelFallo = manager.meshCount();
     try {
         manager.getMesh("Ro to.obj.corrupto");
         CHECK(false, "getMesh con loader fallido deberia lanzar");
@@ -324,6 +325,40 @@ void testAssetManager() {
     } catch (...) {
         CHECK(false, "tipo de excepcion incorrecto para carga fallida");
     }
+
+    // Una ruta que ya fallo no vuelve a tocar el disco: el error se repite
+    // (mismo contrato) pero el loader no se invoca de nuevo.
+    const int cargasTrasPrimerFallo = loaderRaw->cargas;
+    try {
+        manager.getMesh("Ro to.obj.corrupto");
+        CHECK(false, "getMesh sobre una ruta que ya fallo debe lanzar");
+    } catch (const AssetLoadException&) {
+        // esperado
+    } catch (...) {
+        CHECK(false, "tipo de excepcion incorrecto al repetir una carga fallida");
+    }
+    CHECK(loaderRaw->cargas == cargasTrasPrimerFallo,
+          "una ruta fallida no vuelve a llamar al loader");
+    CHECK(manager.hasFailedMesh("Ro to.obj.corrupto"),
+          "la ruta fallida queda registrada");
+    CHECK(manager.failedMeshCount() == 1,
+          "el registro de fallos cuenta la ruta fallida");
+    CHECK(manager.meshCount() == mallasAntesDelFallo,
+          "un fallo no crea una entrada en la cache de mallas");
+
+    // Invalidar el fallo permite reintentar: tras clearFailedMeshes el loader
+    // se vuelve a invocar.
+    manager.clearFailedMeshes();
+    CHECK(!manager.hasFailedMesh("Ro to.obj.corrupto"),
+          "clearFailedMeshes olvida el fallo");
+    try {
+        manager.getMesh("Ro to.obj.corrupto");
+        CHECK(false, "tras invalidar el fallo la ruta se reintenta y lanza");
+    } catch (const AssetLoadException&) {
+        // esperado
+    }
+    CHECK(loaderRaw->cargas == cargasTrasPrimerFallo + 1,
+          "clearFailedMeshes permite reintentar la carga");
 
     // putMesh/contains/remove.
     manager.putMesh("Procedural/Tri.obj", cuboUnitario());

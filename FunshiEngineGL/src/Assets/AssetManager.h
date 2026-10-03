@@ -74,6 +74,15 @@ public:
     // (use_count == 1): no hay usuarios externos vivos de esa malla.
     void clearUnusedMeshes();
 
+    // Fallos de carga recordados: una ruta que ya fallo al cargarse no vuelve a
+    // tocar el disco en cada llamada (el render la pide por frame y por objeto);
+    // getMesh sigue lanzando el mismo error. El fallo se olvida con
+    // clearFailedMeshes(), reloadMesh(), removeMesh(), putMesh() o al cambiar de
+    // loader, que es cuando la ruta puede intentarse otra vez.
+    void clearFailedMeshes();
+    bool hasFailedMesh(const std::string& path) const;
+    size_t failedMeshCount() const;
+
     // Reemplaza la malla de un path por una version recargada SIN invalidar
     // a los usuarios actuales: se crea un Mesh nuevo y se hace swap, de modo
     // que quien conservaba el anterior sigue leyendo datos validos.
@@ -86,6 +95,9 @@ public:
 
 private:
     std::unordered_map<std::string, std::shared_ptr<Mesh>> meshes_;
+    // Ruta normalizada -> motivo del ultimo fallo. Vacio no es un estado valido:
+    // si la clave esta, la ruta fallo.
+    std::unordered_map<std::string, std::string> fallos_;
     std::unique_ptr<IMeshLoader> loader_;
 };
 
