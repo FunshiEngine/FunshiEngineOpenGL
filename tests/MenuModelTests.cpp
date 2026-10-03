@@ -136,6 +136,25 @@ int main() {
               "reset notifica Reiniciar para reaplicar el resto del motor");
     }
 
+    // 5b. Reaplicar el mismo perfil de apariencia no notifica: el arranque
+    //     aplica la apariencia cargada y no debe contar como cambio del usuario.
+    {
+        MenuModel m;
+        Apariencia ap;
+        ap.temaClaro = true;
+        m.setApariencia(ap);
+
+        int avisos = 0;
+        m.setOnCampoCambio([&](MenuModel::Campo) { ++avisos; });
+        m.setApariencia(ap);
+        CHECK(avisos == 0, "setApariencia con el mismo perfil no notifica");
+
+        Apariencia otro = ap;
+        otro.blancoYNegro = true;
+        m.setApariencia(otro);
+        CHECK(avisos == 1, "setApariencia con perfil distinto si notifica");
+    }
+
     // 6. La sensibilidad ignora valores no positivos.
     {
         MenuModel m;

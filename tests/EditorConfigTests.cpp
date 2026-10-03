@@ -31,12 +31,14 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <thread>
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
+#include "../FunshiEngineGL/src/Configuracion/ProyectoInicial.h"
 #include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
 
 namespace fs = std::filesystem;
@@ -69,7 +71,8 @@ int main() {
         EditorConfig cfg;
         cfg.cargarGeneral(rutaGeneral);
         cfg.cargarProyecto(proyNombreTest, rutaProyecto);
-        CHECK(cfg.datos().nombreProyecto == "Nuevo Proyecto", "default nombreProyecto");
+        CHECK(cfg.datos().nombreProyecto.empty(),
+              "default nombreProyecto (sin proyecto abierto)");
         CHECK(cfg.datos().idioma == "Espanol", "default idioma");
         CHECK(cfg.datos().sensibilidadCamara == 0.15f, "default sensibilidad");
         CHECK(cfg.datos().sensibilidadMovimientoCamara == 1.0f,
@@ -96,7 +99,56 @@ int main() {
               "default fondoInferior = 0.1, 0.1, 0.1");
     }
 
-    // 1b. Colores del cielo: se guardan y se leen tal cual quedaron, incluidos
+    // 1b. Persistencia del proyecto activo: sin "ultimoProyecto" no se abre
+    //     ningun proyecto y el nombre queda vacio; asi guardarGeneral no
+    //     materializa un proyecto fantasma ("Nuevo Proyecto").
+    {
+        // JSON general existente pero sin ultimoProyecto: el proyecto resuelto
+        // es ninguno (vacio), no el default del struct.
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << R"({"version": 2, "idioma": "Espanol"})";
+        }
+        EditorConfig cfg;
+        cfg.cargarGeneral(rutaGeneral);
+        CHECK(cfg.datos().nombreProyecto.empty(),
+              "config sin ultimoProyecto -> sin proyecto abierto");
+
+        // Con el nombre vacio, guardarGeneral no debe escribir la clave.
+        cfg.guardarGeneral(rutaGeneral);
+        std::ifstream entrada(rutaGeneral);
+        const std::string contenido((std::istreambuf_iterator<char>(entrada)),
+                                    std::istreambuf_iterator<char>());
+        CHECK(contenido.find("ultimoProyecto") == std::string::npos,
+              "nombre vacio: guardarGeneral no escribe ultimoProyecto");
+    }
+
+    // 1c. ProyectoInicial::resolver: politica de arranque sin disco ni UI.
+    {
+        using ProyectoInicial::resolver;
+        const auto conConfig = resolver("MiEscena", "", true);
+        CHECK(conConfig.nombre == "MiEscena", "resolver: retoma el persistido");
+        CHECK(!conConfig.primerArranque,
+              "resolver: con config no es primer arranque");
+
+        const auto sinUltimo = resolver("", "", true);
+        CHECK(sinUltimo.nombre.empty(),
+              "resolver: config sin ultimoProyecto -> sin proyecto");
+        CHECK(!sinUltimo.primerArranque,
+              "resolver: la config existe aunque falte el nombre");
+
+        const auto primer = resolver("", "", false);
+        CHECK(primer.nombre.empty(), "resolver: primer arranque sin proyecto");
+        CHECK(primer.primerArranque, "resolver: sin config es primer arranque");
+
+        const auto conCLI = resolver("", "ProyectoCLI", false);
+        CHECK(conCLI.nombre == "ProyectoCLI",
+              "resolver: --proyecto tiene prioridad");
+        CHECK(!conCLI.primerArranque,
+              "resolver: --proyecto entra directo al editor");
+    }
+
+    // 1d. Colores del cielo: se guardan y se leen tal cual quedaron, incluidos
     // los claros (un cielo de tonos altos es una eleccion valida del usuario).
     // Solo se acotan los valores que no pueden salir del selector y romperian
     // el degradado: componentes fuera de [0, 1].
@@ -218,7 +270,7 @@ int main() {
         }
         EditorConfig cfg;
         cfg.cargarGeneral(rutaGeneral);
-        CHECK(cfg.datos().nombreProyecto == "Nuevo Proyecto", "corrupto -> defaults");
+        CHECK(cfg.datos().nombreProyecto.empty(), "corrupto -> defaults");
         CHECK(cfg.datos().idioma == "Espanol", "corrupto -> defaults idioma");
     }
 
@@ -236,8 +288,8 @@ int main() {
               "parcial: campo presente se aplica");
         CHECK(cfg.datos().sensibilidadCamara == 0.15f,
               "parcial: campo ausente conserva default");
-        CHECK(cfg.datos().nombreProyecto == "Nuevo Proyecto",
-              "parcial: sin seccion general -> default");
+        CHECK(cfg.datos().nombreProyecto.empty(),
+              "parcial: sin seccion general -> proyecto no abierto");
     }
 
     // 4b. Radio de difuminado: un archivo sin el campo conserva el default (no
@@ -638,8 +690,8 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "restablecer vuelve el gizmo a LOCAL");
         CHECK(cfg.datos().camaraActivaId == -1,
               "restablecer vuelve la camara a automatica");
-        CHECK(cfg.datos().nombreProyecto == "Nuevo Proyecto",
-              "restablecer vuelve el nombre por defecto (main lo conserva luego)");
+        CHECK(cfg.datos().nombreProyecto.empty(),
+              "restablecer deja el proyecto sin abrir (main conserva el actual)");
         CHECK(cfg.datos().estadoVentanas.empty(),
               "restablecer limpia el estado de ventanas");
     }

@@ -574,11 +574,13 @@ solo como orquestador de arranque y bucle.
   sobre `Configuracion/ProjectPaths.{h,cpp}` (rutas), con
   `EditorConfig.{h,cpp}` como fachada estable que expone `datos()` y
   `cargar*/guardar*` a main, escenas y tests. El **ciclo de vida de los
-  proyectos** (`asegurarEstructuraProyecto`, `crearProyectoPorDefecto`,
+  proyectos** (`asegurarEstructuraProyecto`, `asegurarEstructuraBase`,
   `renombrarProyecto`, `eliminarProyecto`) no se implementa en EditorConfig:
   son **delegaciones a `ProjectManager`**, único dueño del CRUD, las
   migraciones de estructura antigua y los fallbacks de copia entre
-  dispositivos. La orquestación de todo el flujo de proyectos sobre esta
+  dispositivos. La política de qué proyecto queda abierto al arrancar (último
+  persistido vs. `--proyecto`, y si es primer arranque) vive aislada y sin
+  disco ni UI en `Configuracion/ProyectoInicial.h`. La orquestación de todo el flujo de proyectos sobre esta
   fachada (qué hará al arrancar, entrar, guardar, renombrar, eliminar,
   exportar y cuál es el `imgui.ini` vigente) vive en
   `Proyectos/GestorDeProyectos` (extraído de `main.cpp`). Guarda dos archivos
@@ -690,15 +692,17 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,
   entorno extra, tabla de `citar()` y, en Windows, la receta cruda de `cmd.exe`
   del harvest de vcvars.
-- `configuracion-tests` (145): round-trip del JSON de `EditorConfig` (general y
+- `configuracion-tests` (154): round-trip del JSON de `EditorConfig` (general y
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
   archivos ausentes/corruptos/parciales, prioridad de las claves modernas sobre
-  el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, los colores del cielo
+  el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, la
+  política de proyecto inicial `ProyectoInicial::resolver`, los colores del cielo
   (se conservan tal como se guardaron —un cielo claro incluido— y solo se
   acotan los componentes fuera de `[0, 1]`), y el cotejo de prefijos `rutaBajo` (en Windows `/` y `\` equivalen).
 - `eventbus-tests` (17): suscripción/publicación/unsubscribe del canal tipado de GUI.
-- `menu-tests` (38): lógica pura del menú (traducción, observer de cambios y reset).
-- `assetmanager-tests` (82): caché Flyweight de meshes (rutas `AssetPath`, geometría
+- `menu-tests` (40): lógica pura del menú (traducción, observer de cambios —sin
+  notificar al reaplicar una apariencia idéntica— y reset).
+- `assetmanager-tests` (88): caché Flyweight de meshes (rutas `AssetPath`, geometría
   `Mesh` con `computeBounds`, `computeNormals` —incluido el modo `soloFaltantes`
   para assets que mezclan sub-mallas con y sin normales— y `computeTangents`) y el
   registro compartido con un loader artificial.

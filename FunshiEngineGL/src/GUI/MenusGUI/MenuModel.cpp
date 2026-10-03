@@ -119,6 +119,10 @@ const Apariencia& MenuModel::getApariencia() const noexcept {
 }
 
 void MenuModel::setApariencia(const Apariencia& valor) {
+    // Apariencia tiene operator== justo para esto: reaplicar el mismo perfil no
+    // debe republicar ni reescribir el tema. En particular evita que el
+    // setApariencia inicial del arranque se considere un cambio del usuario.
+    if (apariencia == valor) return;
     apariencia = valor;
     if (onCampoCambio) onCampoCambio(Campo::Apariencia);
 }

@@ -30,6 +30,7 @@
 #include "../src/GUIManager/GUIManager.h"
 #include "../src/Configuracion/EditorConfig.h"
 #include "../src/Configuracion/ProjectPaths.h"
+#include "../src/Configuracion/ProyectoInicial.h"
 #include "../src/GUI/WindowNames.h"
 #include "../src/GUI/Tema/TemaEditor.h"
 #include <imgui.h>
@@ -251,28 +252,29 @@ static int EjecutarMotor(int argc, char* argv[])
     // exportar + imgui.ini): main delega todo en esta fachada.
     GestorDeProyectos gestor(editorConfig, scene, managerOfGUI, mainMenu);
 
-    // Crear proyecto por defecto "NuevoProyecto" si no hay ninguno
-    EditorConfig::crearProyectoPorDefecto();
+    // Estructura base de datos del motor (Proyects/, Configuraciones/,
+    // Exportaciones/) y migraciones de estructuras antiguas. No crea ningun
+    // proyecto: elegirlo (o crearlo) es una decision del usuario en el menu.
+    EditorConfig::asegurarEstructuraBase();
 
-    std::string proyectoActual = editorConfig.datos().nombreProyecto;
-    // Primer arranque (sin Configuracion.json todavia): no hay proyecto abierto.
-    // Se deja el nombre vacio para OBLIGAR a elegir (o crear) un proyecto en el
-    // menu — "Iniciar Estudio" queda deshabilitado — y evitar que las carpetas
-    // de "Nuevo Proyecto" se creen solas al arrancar. Si ya hay config, el
-    // ultimo proyecto vuelve preseleccionado en el menu.
-    const bool primerArranque =
-        !std::filesystem::exists(EditorConfig::rutaPorDefecto());
-    if (!proyectoCLI.empty()) {
-        // --proyecto tiene prioridad: fuerza ese proyecto y entra directo al
-        // editor (skip menu).
-        proyectoActual = proyectoCLI;
-    } else if (primerArranque) {
-        proyectoActual.clear();
-        mainMenu->setNombreProyecto("");
-    } else if (proyectoActual.empty()) {
-        proyectoActual = "Nuevo Proyecto";
-    }
+    // Proyecto activo al arrancar: lo decide ProyectoInicial::resolver a partir
+    // de lo persistido y de --proyecto, sin leer disco ni UI (asi la politica es
+    // testeable headless). Primer arranque (sin Configuracion.json): no hay
+    // proyecto abierto y el nombre queda vacio para OBLIGAR a elegir (o crear)
+    // uno en el menu — "Iniciar Estudio" queda deshabilitado — y evitar que las
+    // carpetas de "Nuevo Proyecto" se creen solas. --proyecto tiene prioridad y
+    // entra directo al editor (skip menu).
+    const bool hayConfigGeneral =
+        std::filesystem::exists(EditorConfig::rutaPorDefecto());
+    const ProyectoInicial::Resolucion arranque = ProyectoInicial::resolver(
+        editorConfig.datos().nombreProyecto, proyectoCLI, hayConfigGeneral);
+    std::string proyectoActual = arranque.nombre;
     gestor.fijarProyectoActual(proyectoActual);
+    // El nombre persistido debe reflejar el proyecto realmente resuelto: en
+    // primer arranque queda vacio para que guardarGeneral no escriba
+    // "ultimoProyecto" (si no, al releer se crearian las carpetas de "Nuevo
+    // Proyecto" solas).
+    editorConfig.datos().nombreProyecto = proyectoActual;
 
     // Contexto de rutas de la serializacion portable: con proyecto, la raiz de
     // assets (src<nombre>) es el ancla con la que se guardan (relativas) y se
@@ -286,36 +288,11 @@ static int EjecutarMotor(int argc, char* argv[])
     if (gestor.hayProyecto())
         gestor.prepararProyectoAlArrancar();
 
-    mainMenu->setNombreProyecto(editorConfig.datos().nombreProyecto);
+    mainMenu->setNombreProyecto(proyectoActual);
     mainMenu->setIdioma(editorConfig.datos().idioma);
     mainMenu->setSensibilidadCamara(editorConfig.datos().sensibilidadCamara);
     mainMenu->setSensibilidadMovimientoCamara(
         editorConfig.datos().sensibilidadMovimientoCamara);
-
-    // Suscriptores del bus de GUI ANTES de setApariencia inicial: asi el
-    // primer AparienciaCambio que publique mainMenu se propaga a la escena y la
-    // primera pasada ya usa el perfil guardado (colores de cielo incluidos) en
-    // vez del default del struct.
-    EditorEventBus* eventosGUI = managerOfGUI->getEditorEventBus();
-    if (eventosGUI) {
-        eventosGUI->subscribe([scene, &editorConfig](const EditorEvent& ev) {
-            if (ev.type != EditorEventType::AparienciaCambio) return;
-            // scene->setApariencia es seguro en cualquier momento; TemaEditor::aplicarEstilo
-            // requiere contexto ImGui creado (se llama despues de ImGui::CreateContext).
-            scene->setApariencia(ev.apariencia);
-            float fondo[3];
-            AparienciaUtil::fondoEfectivo(ev.apariencia, fondo);
-            Rendering::Backend::activeBackend().setClearColor(fondo);
-            auto& cfg = editorConfig.datos();
-            cfg.apariencia = ev.apariencia;
-            editorConfig.solicitarGuardadoGeneral();
-        });
-        eventosGUI->subscribe([&editorConfig](const EditorEvent& ev) {
-            if (ev.type != EditorEventType::IdiomaCambio) return;
-            editorConfig.datos().idioma = ev.idioma;
-            editorConfig.solicitarGuardadoGeneral();
-        });
-    }
 
     mainMenu->setApariencia(editorConfig.datos().apariencia);
     scene->setVentanaCamarasAbierta(editorConfig.datos().ventanaCamarasAbierta);
@@ -364,6 +341,32 @@ static int EjecutarMotor(int argc, char* argv[])
     float FPS = 60.0;    //LIMITE DE FPS
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+
+    // Suscriptores del bus de GUI. Se registran despues de crear el contexto
+    // porque AparienciaCambio aplica TemaEditor::aplicarEstilo, que necesita
+    // ImGui. La apariencia inicial no depende de esto: la escena la recibe
+    // directo y el estilo se aplica mas abajo. Los cambios en vivo del usuario
+    // si llegan por el bus.
+    EditorEventBus* eventosGUI = managerOfGUI->getEditorEventBus();
+    if (eventosGUI) {
+        eventosGUI->subscribe([scene, &editorConfig](const EditorEvent& ev) {
+            if (ev.type != EditorEventType::AparienciaCambio) return;
+            scene->setApariencia(ev.apariencia);
+            TemaEditor::aplicarEstilo(ev.apariencia);
+            float fondo[3];
+            AparienciaUtil::fondoEfectivo(ev.apariencia, fondo);
+            Rendering::Backend::activeBackend().setClearColor(fondo);
+            auto& cfg = editorConfig.datos();
+            cfg.apariencia = ev.apariencia;
+            editorConfig.solicitarGuardadoGeneral();
+        });
+        eventosGUI->subscribe([&editorConfig](const EditorEvent& ev) {
+            if (ev.type != EditorEventType::IdiomaCambio) return;
+            editorConfig.datos().idioma = ev.idioma;
+            editorConfig.solicitarGuardadoGeneral();
+        });
+    }
+
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     // El imgui.ini (layout de docks y geometria de ventanas) lo gestiona el

@@ -135,6 +135,12 @@ std::string EditorConfig::rutaPorDefecto() {
     return rutaConfiguracionGeneral();
 }
 
+void EditorConfig::asegurarEstructuraBase() {
+    // Solo la base y las migraciones legacy; NO crea proyecto (eso es una
+    // decision del usuario). Toda la logica vive en ProjectManager.
+    ProjectManager::asegurarEstructuraBase();
+}
+
 bool EditorConfig::renombrarProyecto(const std::string& viejo,
                                      const std::string& nuevo) {
     return ProjectManager::renombrarProyecto(viejo, nuevo);
@@ -142,10 +148,6 @@ bool EditorConfig::renombrarProyecto(const std::string& viejo,
 
 bool EditorConfig::eliminarProyecto(const std::string& nombre) {
     return ProjectManager::eliminarProyecto(nombre);
-}
-
-bool EditorConfig::crearProyectoPorDefecto() {
-    return ProjectManager::crearProyectoPorDefecto();
 }
 
 std::string EditorConfig::directorioProyectoPorDefecto() {

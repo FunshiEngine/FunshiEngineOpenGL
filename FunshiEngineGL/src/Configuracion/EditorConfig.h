@@ -39,7 +39,11 @@ public:
     struct Datos {
         int version = 2;
         // Seccion "menu": MenuModel (vista Opciones).
-        std::string nombreProyecto = "Nuevo Proyecto";
+        // Vacio = no hay proyecto abierto todavia (primer arranque o config sin
+        // ultimoProyecto). Debe quedarse vacio hasta que el usuario elija o cree
+        // uno: si se materializara, guardarGeneral escribe "ultimoProyecto" y
+        // sus carpetas se crearian solas al reabrir.
+        std::string nombreProyecto = "";
         std::string idioma = "Espanol";
         float sensibilidadCamara = 0.15f;
         // Sensibilidad de movimiento (WASD) de la camara del editor. Es global
@@ -139,10 +143,11 @@ public:
     // a la nueva estructura MotorGrafico/Proyects/
     static void asegurarEstructuraProyecto(const std::string& nombreProyecto = "Nuevo Proyecto");
 
-    // Crea el proyecto por defecto "NuevoProyecto" si no hay ningun proyecto
-    // en MotorGrafico/Proyects/. Devuelve true si se creo, false si ya habia
-    // proyectos o si fallo la creacion.
-    static bool crearProyectoPorDefecto();
+    // Asegura la estructura base de datos del motor (Proyects/,
+    // Configuraciones/, Exportaciones/) y ejecuta las migraciones de estructura
+    // antigua. Idempotente y SIN crear ningun proyecto: se llama al arrancar
+    // para que el motor tenga donde trabajar, y el proyecto lo elige el usuario.
+    static void asegurarEstructuraBase();
 
     // Renombra un proyecto en disco: <base>/<viejo> -> <base>/<nuevo> y su raiz
     // src dentro (<nuevo>/src<viejo> -> <nuevo>/src<nuevo>). Devuelve false sin
