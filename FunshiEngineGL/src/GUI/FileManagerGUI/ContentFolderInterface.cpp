@@ -29,6 +29,7 @@
 #include "../../FileManager/FileSelection.h"
 #include "../WindowNames.h"
 #include "SoltarEnCarpeta.h"
+#include "CrearCarpeta.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
 #include <imgui.h>
 
@@ -42,21 +43,24 @@ void ContentFolderInterface::setEditorEventBus(EditorEventBus* bus) noexcept {
     eventoArchivos_ = bus;
 }
 
-void ContentFolderInterface::crearNuevoElemento() {
+std::string ContentFolderInterface::crearNuevoElemento() {
     FileSelection* sel = fileManager->getSelection();
-    if (!sel->carpetaActual || nombreNuevo[0] == '\0') return;
+    if (!sel->carpetaActual)
+        return "No hay ninguna carpeta seleccionada: no se puede crear el elemento.";
+    if (nombreNuevo[0] == '\0')
+        return "Escribe un nombre para el elemento.";
 
     const std::string destFolder =
         sel->carpetaActual->getPathRoot() + PATH_SEP +
         sel->carpetaActual->getPathName();
 
     if (creandoCarpeta) {
-        const std::string ruta = destFolder + PATH_SEP + nombreNuevo;
-        if (fileManager->crearCarpeta(ruta)) {
-            // El arbol de carpetas cambia: se rescanceara al detectar el
-            // contador (R3). La carpeta visible se conserva por rutaVisible.
-            sel->contadorCambios++;
-        }
+        const CrearCarpeta::Resultado resultado =
+            CrearCarpeta::crear(fileManager, destFolder, nombreNuevo);
+        if (!resultado.creada) return resultado.error;
+        // El contador ya lo sube el helper: el arbol de carpetas cambia y se
+        // rescanceara al detectarlo. La carpeta visible se conserva por
+        // rutaVisible.
     } else {
         std::string nombre = nombreNuevo;
         if (creandoScript || creandoScriptJava) {
@@ -77,13 +81,16 @@ void ContentFolderInterface::crearNuevoElemento() {
         const std::string ruta = destFolder + PATH_SEP + nombre;
         // No sube el contador: los archivos no aparecen en el arbol de
         // carpetas y no merece colapsar la navegacion por un rescaneo.
-        fileManager->crearArchivo(ruta, contenido);
+        if (!fileManager->crearArchivo(ruta, contenido))
+            return "No se pudo crear el elemento: el nombre ya existe o la "
+                   "carpeta no tiene permisos de escritura.";
     }
 
     creandoCarpeta = false;
     creandoScript = false;
     creandoScriptJava = false;
     memset(nombreNuevo, 0, sizeof(nombreNuevo));
+    return std::string();  // sin error: el elemento quedo creado
 }
 
 void ContentFolderInterface::recorrer(const std::string& path) {
@@ -355,26 +362,37 @@ void ContentFolderInterface::initGUI() {
     if (abrirPopupNombre) {
         ImGui::OpenPopup("Ingresar nombre");
         abrirPopupNombre = false;
+        errorNuevoElemento.clear();
     }
 
     if (ImGui::BeginPopupModal("Ingresar nombre", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
         ImGui::Text("Escribe el nombre del %s:",
                     creandoCarpeta ? "folder"
                                    : (creandoScriptJava ? "script java"
                                                         : (creandoScript ? "script C++"
                                                                          : "file")));
-        ImGui::InputText("##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo));
-        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) ||
-                                (ImGui::IsItemFocused() &&
-                                 ImGui::IsKeyPressed(ImGuiKey_Enter));
+        const bool enter = ImGui::InputText(
+            "##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo),
+            ImGuiInputTextFlags_EnterReturnsTrue);
+        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) || enter;
         if (confirmado) {
-            crearNuevoElemento();
-            ImGui::CloseCurrentPopup();
+            // Cierra solo si el elemento quedo creado; si no, el popup sigue
+            // abierto con el motivo y el texto para corregirlo.
+            errorNuevoElemento = crearNuevoElemento();
+            if (errorNuevoElemento.empty())
+                ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+        const bool cancelar = ImGui::Button("Cancelar", ImVec2(120, 0)) ||
+                              ImGui::IsKeyPressed(ImGuiKey_Escape);
+        if (cancelar) {
+            memset(nombreNuevo, 0, sizeof(nombreNuevo));
             ImGui::CloseCurrentPopup();
         }
+        if (!errorNuevoElemento.empty())
+            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s",
+                               errorNuevoElemento.c_str());
         ImGui::EndPopup();
     }
 

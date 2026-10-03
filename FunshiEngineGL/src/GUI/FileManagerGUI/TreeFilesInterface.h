@@ -67,10 +67,12 @@ protected:
     RenombrarElemento::Modal modalRenombrar;
     // Crear nueva carpeta con dialogo de nombre (patron del grid: abrir popup,
     // input texto, confirmar). Estado aislado para no colisionar con renombrado.
-    bool creandoCarpeta = false;
     bool abrirPopupNombre = false;
     char nombreNuevo[256] = {0};
     std::string rutaPadreNuevaCarpeta;
+    // Motivo por el que no se pudo crear la carpeta, para mostrarlo sin cerrar
+    // el modal. Se limpia al abrirlo.
+    std::string errorNuevaCarpeta;
     // Ultimo contador de cambios que este panel ya rescaneco.
     unsigned long ultimoContadorVisto = 0;
 

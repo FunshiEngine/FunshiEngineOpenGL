@@ -171,9 +171,11 @@ bool GestorDeArchivos::eliminarArchivo(const std::string& path) {
 bool GestorDeArchivos::crearCarpeta(const std::string& path) {
     if (path.empty()) return false;
     std::error_code ec;
-    if (std::filesystem::create_directory(path, ec)) return true;
-    // create_directory devuelve false si ya existe (sin error): es exitoso.
-    return std::filesystem::is_directory(path, ec);
+    // create_directory devuelve false tanto si el destino ya existia como si el
+    // sistema lo rechazo, y quien llama solo ve un bool: un destino ya ocupado
+    // devuelve false porque esta vez no se creo nada, y el explorador puede
+    // avisarlo en vez de reportar un exito que no ocurrio.
+    return std::filesystem::create_directory(path, ec);
 }
 
 bool GestorDeArchivos::crearArchivo(const std::string& path,

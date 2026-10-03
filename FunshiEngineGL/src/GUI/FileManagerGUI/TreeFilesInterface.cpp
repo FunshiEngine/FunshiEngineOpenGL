@@ -29,6 +29,7 @@
 #include "../../GestorDeArchivos/Carpeta.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
 #include "SoltarEnCarpeta.h"
+#include "CrearCarpeta.h"
 #include <imgui.h>
 
 namespace {
@@ -222,7 +223,7 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
                                      folderRoot->getPathName());
         }
         if (ImGui::MenuItem("Nueva Carpeta")) {
-            creandoCarpeta = true;
+            errorNuevaCarpeta.clear();
             abrirPopupNombre = true;
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             rutaPadreNuevaCarpeta = rutaDe(folderRoot);
@@ -279,31 +280,40 @@ void TreeFilesInterface::initGUI() {
     if (abrirPopupNombre) {
         ImGui::OpenPopup("Ingresar nombre");
         abrirPopupNombre = false;
+        errorNuevaCarpeta.clear();
     }
     if (ImGui::BeginPopupModal("Ingresar nombre", nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
         ImGui::Text("Escribe el nombre de la carpeta:");
-        ImGui::InputText("##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo));
-        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) ||
-                                (ImGui::IsItemFocused() &&
-                                 ImGui::IsKeyPressed(ImGuiKey_Enter));
-        if (confirmado && nombreNuevo[0] != '\0') {
-            const std::string rutaNueva =
-                rutaPadreNuevaCarpeta + PATH_SEP + nombreNuevo;
-            if (fileManager->crearCarpeta(rutaNueva)) {
-                FileSelection* sel = fileManager->getSelection();
-                sel->contadorCambios++;
+        const bool enter = ImGui::InputText(
+            "##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo),
+            ImGuiInputTextFlags_EnterReturnsTrue);
+        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) || enter;
+        if (confirmado) {
+            // El modal se cierra SOLO si la carpeta quedo creada: con un nombre
+            // repetido o invalido sigue abierto, con el motivo a la vista y el
+            // texto en el campo para corregirlo.
+            const CrearCarpeta::Resultado resultado =
+                CrearCarpeta::crear(fileManager, rutaPadreNuevaCarpeta,
+                                    nombreNuevo);
+            if (resultado.creada) {
+                memset(nombreNuevo, 0, sizeof(nombreNuevo));
+                ImGui::CloseCurrentPopup();
+            } else {
+                errorNuevaCarpeta = resultado.error;
             }
-            creandoCarpeta = false;
-            memset(nombreNuevo, 0, sizeof(nombreNuevo));
-            ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
-            creandoCarpeta = false;
+        const bool cancelar = ImGui::Button("Cancelar", ImVec2(120, 0)) ||
+                              ImGui::IsKeyPressed(ImGuiKey_Escape);
+        if (cancelar) {
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             ImGui::CloseCurrentPopup();
         }
+        if (!errorNuevaCarpeta.empty())
+            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s",
+                               errorNuevaCarpeta.c_str());
         ImGui::EndPopup();
     }
 

@@ -54,6 +54,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/FileManager/FileManager.h"
+#include "../FunshiEngineGL/src/GUI/FileManagerGUI/CrearCarpeta.h"
 #include "../FunshiEngineGL/src/GUI/FileManagerGUI/RenombrarElemento.h"
 #include "../FunshiEngineGL/src/GUI/FileManagerGUI/SoltarEnCarpeta.h"
 #include "../FunshiEngineGL/src/GUI/ObjetosGUI/Skybox/SelectorArchivoCubemap.h"
@@ -159,6 +160,68 @@ int main() {
     const std::string rutaArchivo = unir(proy, "Assets/Nueva/ok.txt");
     CHECK(fm.crearArchivo(rutaArchivo, "12345"), "crearArchivo crea en disco");
     CHECK(contenidoDe(rutaArchivo) == "12345", "el archivo nuevo tiene contenido");
+
+    // --- Crear carpeta: "se creo" en vez de "existe" (B7) -------------------
+    // Un destino ya ocupado tiene que informar que esta vez no se creo nada; si
+    // no, el explorador cierra el modal creyendo que la carpeta nacio.
+    const std::string rutaRepetida = unir(proy, "Assets/Repetida");
+    CHECK(fm.crearCarpeta(rutaRepetida), "la primera creacion si crea");
+    CHECK(!fm.crearCarpeta(rutaRepetida),
+          "crearCarpeta no reporta exito si la carpeta ya existe");
+    CHECK(fs::is_directory(rutaRepetida),
+          "la carpeta existente sigue en su sitio");
+
+    CHECK(!fm.crearCarpeta(""), "crearCarpeta rechaza la ruta vacia");
+    const std::string archivoOcupado = unir(proy, "Assets/ocupado.txt");
+    CHECK(fm.crearArchivo(archivoOcupado, "x"), "archivo que ocupa el nombre");
+    CHECK(!fm.crearCarpeta(archivoOcupado),
+          "crearCarpeta falla si el destino es un archivo");
+
+    // El helper compartido por arbol y grid valida el nombre y decide el cierre.
+    CHECK(CrearCarpeta::nombreValido("Carpeta con espacios"),
+          "un nombre normal es valido");
+    CHECK(!CrearCarpeta::nombreValido(""), "el nombre vacio no es valido");
+    CHECK(!CrearCarpeta::nombreValido("."), "'.' no es un nombre de carpeta");
+    CHECK(!CrearCarpeta::nombreValido(".."), "'..' no es un nombre de carpeta");
+    CHECK(!CrearCarpeta::nombreValido("con/separador"),
+          "un nombre con '/' no es un nombre de carpeta");
+    CHECK(!CrearCarpeta::nombreValido("con\\separador"),
+          "un nombre con '\\' no es un nombre de carpeta");
+
+    CHECK(!CrearCarpeta::crear(nullptr, unir(proy, "Assets"), "SinProyecto").creada,
+          "sin FileManager no se crea nada");
+    CHECK(!CrearCarpeta::crear(&fm, "", "SinPadre").creada,
+          "sin carpeta padre no se crea nada");
+
+    const std::string rutaPadre = unir(proy, "Assets");
+    const unsigned long contadorAntes = sel->contadorCambios;
+    const CrearCarpeta::Resultado creadaOk =
+        CrearCarpeta::crear(&fm, rutaPadre, "Creada");
+    CHECK(creadaOk.creada && creadaOk.error.empty(),
+          "el helper crea con un nombre libre");
+    CHECK(fs::is_directory(unir(rutaPadre, "Creada")),
+          "la carpeta creada queda donde se pidio");
+    CHECK(sel->contadorCambios == contadorAntes + 1,
+          "crear una carpeta sube el contador exactamente una vez");
+
+    const unsigned long contadorTrasCrear = sel->contadorCambios;
+    const CrearCarpeta::Resultado repetida =
+        CrearCarpeta::crear(&fm, rutaPadre, "Creada");
+    CHECK(!repetida.creada, "el helper no reporta exito si el nombre se repite");
+    CHECK(repetida.error.find("Ya existe") != std::string::npos,
+          "el helper explica que el nombre ya esta en uso");
+    CHECK(sel->contadorCambios == contadorTrasCrear,
+          "un intento fallido no sube el contador");
+
+    CHECK(fm.crearCarpeta(unir(proy, "Assets/pruebas")),
+          "carpeta padre para el nombre con separador");
+    const CrearCarpeta::Resultado conSeparador =
+        CrearCarpeta::crear(&fm, rutaPadre, "pruebas/nueva");
+    CHECK(!conSeparador.creada,
+          "un nombre con separador no crea una carpeta anidada");
+    CHECK(!fs::exists(unir(proy, "Assets/pruebas/nueva")),
+          "no aparece la carpeta que el nombre pedia en otra ruta");
+
 
     // Renombrar carpeta.
     const std::string rutaRenombrada = unir(proy, "Assets/Renombrada");

@@ -46,6 +46,9 @@ private:
     bool creandoScript = false;
     bool creandoScriptJava = false;
     char nombreNuevo[256] = "";
+    // Motivo por el que no se pudo crear el elemento, para mostrarlo sin cerrar
+    // el modal. Se limpia al abrirlo.
+    std::string errorNuevoElemento;
     IconosGUI* iconosGUI = nullptr;
 
     // Estado de renombrado (R6): el modal compartido con el arbol
@@ -82,7 +85,7 @@ private:
     std::string cacheCarpeta;
     std::filesystem::file_time_type cacheMtime{};
 
-    void crearNuevoElemento();
+    std::string crearNuevoElemento();
     void recorrer(const std::string& path);
 
     // Invalida el cache del grid (R5): la entrada desaparecio de hecho de la
