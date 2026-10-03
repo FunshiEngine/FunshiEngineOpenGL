@@ -56,6 +56,7 @@ Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; Group
 Source: "{#MiExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Imagenes\*"; DestDir: "{app}\Imagenes"; Flags: ignoreversion recursesubdirs
+Source: "include\*"; DestDir: "{app}\include"; Flags: ignoreversion recursesubdirs
 Source: "..\..\..\LICENSE"; DestDir: "{app}\licencia"; Flags: ignoreversion
 Source: "..\..\..\NOTICE"; DestDir: "{app}\licencia"; Flags: ignoreversion
 Source: "..\..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\licencia"; Flags: ignoreversion

@@ -111,20 +111,36 @@ if(BUILD_ENGINE)
             "Java queda desactivado.")
     endif()
 
-    # Ruta al fuente del motor (para que los scripts usen las cabeceras al
-    # compilarse en caliente) y compilador C++ a invocar por el BackendCpp.
-    # En Windows los backslashes del path se escapan para el literal C++; el
-    # BackendCpp entrecomilla la ruta al armar el argumento -I al usarla.
-    set(FUNSHI_SRC_ESCAPADO "${SRC_DIR}")
-    if(WIN32)
-        string(REPLACE "\\" "\\\\" FUNSHI_SRC_ESCAPADO
-               "${FUNSHI_SRC_ESCAPADO}")
-    endif()
+    # Cabeceras que un script C++ necesita al compilarse en caliente. El valor
+    # horneado es un NOMBRE relativo, no la ruta del workspace de build: el
+    # BackendCpp lo resuelve contra la carpeta del ejecutable, asi el mismo
+    # binario funciona en el arbol de desarrollo (build/include) y en la
+    # instalacion (<app>/include). La ruta absoluta al checkout solo sirve en la
+    # maquina que construyo el motor y no existe para el usuario.
+    set(FUNSHI_SRC_DIR_RELATIVO "include")
+    add_custom_target(funshi_cabeceras_script ALL
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "${CMAKE_BINARY_DIR}/include/Behaviour/Reflection"
+                "${CMAKE_BINARY_DIR}/include/Matematicas"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${SRC_DIR}/Behaviour/IScriptBehaviour.h"
+                "${SRC_DIR}/Behaviour/ScriptGameObject.h"
+                "${CMAKE_BINARY_DIR}/include/Behaviour"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.h"
+                "${CMAKE_BINARY_DIR}/include/Behaviour/Reflection"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${SRC_DIR}/Matematicas/StructVec3.h"
+                "${CMAKE_BINARY_DIR}/include/Matematicas"
+        COMMENT "Copiando las cabeceras que necesitan los scripts C++")
+    add_dependencies(funshi_engine funshi_cabeceras_script)
+
+    # Compilador C++ a invocar por el BackendCpp. El runtime de C++ del build lo
+    # usa la linea de compilacion de los scripts (ComandoCompilacionCpp.h) para
+    # no desajustar el CRT.
     target_compile_definitions(funshi_engine
-        PUBLIC FUNSHI_SRC_DIR="${FUNSHI_SRC_ESCAPADO}"
+        PUBLIC FUNSHI_SRC_DIR="${FUNSHI_SRC_DIR_RELATIVO}"
                FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
-               # Runtime de C++ del build: lo usa la linea de compilacion de los
-               # scripts C++ (ComandoCompilacionCpp.h) para no desajustar el CRT.
                FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
 
 # 1. Configuración de GLFW
@@ -586,6 +602,7 @@ add_executable(scripts-runtime-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
     ${SRC_DIR}/Behaviour/Backends/BackendCpp.cpp
     ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
+    ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/FileManager/Proceso.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ScriptsRuntimeTests.cpp

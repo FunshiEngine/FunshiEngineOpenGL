@@ -108,6 +108,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── Backends/
         │   │   ├── BackendScript.h      ← interfaz de backend (C++/Java)
         │   │   ├── BackendCpp.*         ← compila .cpp→.so/.dll y lo carga (dlopen)
+        │   │   ├── RutaCabecerasScript.h ← resuelve include/ junto al ejecutable o la ruta del checkout
         │   │   └── BackendJava.*        ← Java vía JNI/JVM dinámico (solo con FUNSHI_JAVA)
         │   └── Reflection/
         │       └── BehaviourReflection.* ← reflexión, macros SerializeField y serialización
@@ -641,6 +642,12 @@ solo como orquestador de arranque y bucle.
   heaps y corrompe la memoria.
 - El editor (`SettingsScript`) dibuja los campos reflejados (escalares, arrays,
   grupos y referencias a `GameObject`) y dispara la recompilación.
+- Las cabeceras que el script incluye al compilarse (`Behaviour/IScriptBehaviour.h`
+  y las tres que arrastra) se resuelven con `RutaCabecerasScript`: en el árbol de
+  desarrollo se hornea la ruta absoluta del checkout y en la app instalada el
+  nombre relativo `include`, que el paquete deja junto al ejecutable (`stage_dist_*`
+  y el instalador). Sin esa carpeta el backend avisa antes de invocar al
+  compilador, en vez de dejar que falle con un `-I` inexistente.
 
 ---
 
@@ -731,17 +738,21 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   tema resueltos; y la identidad del cubemap del Skybox (`CacheCubemap`): la
   clave que decide cada cuanto volver a subirlo a GPU cambia solo si cambia una
   ruta o su fecha de modificación. Solo CPU, sin OpenGL.
-- `scripts-tests` (99): reflexión `SerializeField` (escalares, arrays, grupos
+- `scripts-tests` (105): reflexión `SerializeField` (escalares, arrays, grupos
   anidados) y su round-trip binario; el contrato de flags con el que
   `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
-  ARGV armados sin shell ni redirección); el harvest del entorno de vcvars
+  ARGV armados sin shell ni redirección); la resolución de la carpeta de
+  cabeceras del script (`RutaCabecerasScript`: absoluta del checkout o nombre
+  relativo `include` resuelto contra la carpeta del ejecutable en la app
+  instalada); el harvest del entorno de vcvars
   (receta cruda de `cmd`, parser UTF-16, bloque multi-sz); y el contrato del
   sondeo de toolchain (dispositivo nulo `NUL`/`/dev/null` abierto por el
   runner, sin `std::system`).
 - `scripts-runtime-tests`: compila un `.cpp` real con `BackendCpp`, lo carga con
-  `dlopen`/`LoadLibrary` y ejecuta el ciclo + hot reload, y comprueba que un
+  `dlopen`/`LoadLibrary` y ejecuta el ciclo + hot reload, comprueba que un
   segundo componente sobre el **mismo** fuente reutiliza el artefacto ya al
-  día en vez de volver a enlazarlo (SKIP 77 solo si el
+  día en vez de volver a enlazarlo, y que sin las cabeceras del motor el
+  backend avisa con su propio mensaje (SKIP 77 solo si el
   sondeo del compilador del build falla; con MSVC el entorno del toolset lo
   obtiene `BackendCpp` del `vcvars64.bat`).
 - `scripts-java-tests`: end-to-end del backend Java (JNI); solo con `FUNSHI_JAVA=ON`.

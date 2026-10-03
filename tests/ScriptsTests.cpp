@@ -36,6 +36,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Behaviour/Backends/ComandoCompilacionCpp.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/RutaCabecerasScript.h"
 #include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/IScriptBehaviour.h"
 
@@ -604,6 +605,48 @@ static void testContratoCompilacion() {
     // Comparacion por tokens: "/MD" no puede dar positivo sobre "/MDd".
     CHECK(!CompilacionCpp::tieneFlag("/MDd /EHsc", "/MD"),
           "el chequeo de flags compara tokens completos");
+
+    // Ruta de las cabeceras del script: absoluta en el checkout de desarrollo o
+    // relativa junto al ejecutable en la app instalada ("include"). La
+    // resolucion no toca el disco: `existe` simula que rutas son utilizables.
+    {
+        const std::string raiz = std::filesystem::temp_directory_path().string();
+        const std::string fakeExe =
+            (std::filesystem::temp_directory_path() / "funshi_fake_exe").string();
+        const std::string absoluta = raiz;
+        const std::string absolutaMala =
+            (std::filesystem::temp_directory_path() / "funshi_no_existe").string();
+        const std::string relativaBien = "include";
+        const std::string relativaSoloJuntoAlExe = "solo_junto_al_exe";
+        const std::string candidatoExe =
+            (std::filesystem::path(fakeExe) / relativaSoloJuntoAlExe).string();
+        const std::vector<std::string> existentes = {
+            absoluta, relativaBien, candidatoExe};
+
+        auto existe = [&](const std::string& ruta) {
+            return std::find(existentes.begin(), existentes.end(), ruta) !=
+                   existentes.end();
+        };
+
+        CHECK(RutaCabecerasScript::resolver("", fakeExe, existe).empty(),
+              "sin valor configurado no hay carpeta de cabeceras");
+        CHECK(RutaCabecerasScript::resolver(absoluta, fakeExe, existe) ==
+                  absoluta,
+              "una ruta absoluta existente se usa tal cual");
+        CHECK(RutaCabecerasScript::resolver(absolutaMala, fakeExe, existe)
+                  .empty(),
+              "una ruta absoluta inexistente no se devuelve muerta");
+        CHECK(RutaCabecerasScript::resolver(relativaBien, fakeExe, existe) ==
+                  relativaBien,
+              "una ruta relativa al directorio de trabajo se usa tal cual");
+        CHECK(RutaCabecerasScript::resolver(relativaSoloJuntoAlExe, fakeExe,
+                                            existe) == candidatoExe,
+              "una ruta relativa se resuelve contra la carpeta del ejecutable");
+        CHECK(RutaCabecerasScript::resolver(relativaSoloJuntoAlExe, "",
+                                            existe)
+                  .empty(),
+              "sin carpeta del ejecutable no se inventa una ruta");
+    }
 
     // vcvars64Ruta: el recorte por parent_path() tenia que terminar. En
     // MinGW/libstdc++ `path("C:\\\\").parent_path()` devuelve `C:\\\\` (nunca

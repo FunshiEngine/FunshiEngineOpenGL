@@ -46,6 +46,8 @@
 
 #include "BackendCpp.h"
 #include "ComandoCompilacionCpp.h"
+#include "RutaCabecerasScript.h"
+#include "../../Configuracion/ProjectPaths.h"
 #include "../../FileManager/Proceso.h"
 
 #include <cstdio>
@@ -84,13 +86,20 @@ std::string compilador() {
 }
 
 // Directorio con las cabeceras del motor para que el script pueda incluir
-// ScriptGameObject.h. Prioridad: variable de entorno FUNSHI_SRC_DIR; si no,
-// la ruta horneada en el build (el repo en un build dev, o la carpeta de
-// instalacion en un build de CI/instalador). Vacia si no hay cabeceras.
+// ScriptGameObject.h. Prioridad: variable de entorno FUNSHI_SRC_DIR; si no, el
+// valor horneado en el build. El valor puede ser absoluto (checkout de
+// desarrollo o tests) o un nombre relativo a la carpeta del ejecutable (paquete
+// instalado, donde vale "include"). Vacio si no hay cabeceras utilizables, para
+// que el backend avise en vez de pasar un -I a una ruta inexistente.
 std::string directorioSrcMotor() {
     const char* env = std::getenv("FUNSHI_SRC_DIR");
-    if (env && *env) return env;
-    return FUNSHI_SRC_DIR;
+    const std::string configurado = (env && *env) ? env : FUNSHI_SRC_DIR;
+    const auto existe = [](const std::string& ruta) {
+        std::error_code ec;
+        return std::filesystem::exists(ruta, ec);
+    };
+    return RutaCabecerasScript::resolver(
+        configurado, ProjectPaths::directorioEjecutable(), existe);
 }
 
 std::string directorioCache() {
@@ -199,7 +208,18 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
         datos.compilador = compilador();
         datos.nombreClase = nombreClase;
         datos.fuente = fuente;
+        // Sin cabeceras del motor el script no puede incluir IScriptBehaviour.h.
+        // Se avisa antes de invocar al compilador: un -I a una ruta inexistente
+        // solo produce el "No such file or directory" del toolchain, que no
+        // explica al usuario que falta el paquete de cabeceras.
         datos.dirSrc = directorioSrcMotor();
+        if (datos.dirSrc.empty()) {
+            error =
+                "No se encontraron las cabeceras del motor para compilar el "
+                "script C++ (se esperaba la carpeta 'include' junto al "
+                "ejecutable, o la ruta de la variable FUNSHI_SRC_DIR).";
+            return false;
+        }
         datos.dirObjetos = directorioCache();
         datos.artefacto = artefactoPath;
         const std::vector<std::string> argv =
