@@ -31,6 +31,7 @@
 #include "../Objetos/Componentes/Color.h"
 #include "../Objetos/Componentes/Material.h"
 #include "../Objetos/Componentes/Model.h"
+#include "../Objetos/GameObject.h"
 #include "../Objetos/Modelos3D.h"
 #include "MeshGPU.h"
 #include "Shaders/ShaderProgram.h"
@@ -138,7 +139,7 @@ void MeshRenderer::aplicarLuces() {
     }
 }
 
-void MeshRenderer::aplicarMaterial(Modelos3D* objeto) {
+void MeshRenderer::aplicarMaterial(GameObject* objeto) {
     if (Material* material = objeto->getComponent<Material>()) {
         shader_->setVec4("uMaterialAmbient", material->getAmbient());
         shader_->setVec4("uMaterialDiffuse", material->getDiffuse());
@@ -194,7 +195,7 @@ bool MeshRenderer::enlazarSlotTextura(const std::string& path, int unit,
     }
 }
 
-void MeshRenderer::aplicarTexturas(Modelos3D* objeto, const Mesh* mesh) {
+void MeshRenderer::aplicarTexturas(GameObject* objeto, const Mesh* mesh) {
     // Por defecto: sin texturas en ningun slot.
     shader_->setInt("uUseTexture", 0);
     shader_->setInt("uUseSpecularMap", 0);
@@ -237,13 +238,7 @@ void MeshRenderer::aplicarTexturas(Modelos3D* objeto, const Mesh* mesh) {
 bool MeshRenderer::intentarRender(Modelos3D* objeto, const float view[16],
                                   const float projection[16],
                                   float deltaTime) {
-    if (!inicializar()) return false;
-
-    // El render NO simula: los scripts y la fisica se actualizan una sola vez
-    // por frame en GameScene::update (y solo en play). Antes se llamaba aca a
-    // objeto->update(), lo que corria los scripts tambien en el editor, los
-    // duplicaba en play y reactivaba el loop al detener el play.
-    (void)deltaTime;
+    if (!objeto) return false;
 
     // El componente Model (path) manda sobre el path actual. Se toma el
     // puntero a la malla DESPUES de este paso, porque setPath() puede
@@ -253,7 +248,30 @@ bool MeshRenderer::intentarRender(Modelos3D* objeto, const float view[16],
         model && model->getPath() != objeto->getPath())
         objeto->setPath(model->getPath());
 
-    const Mesh* mesh = objeto->getMesh();
+    Transform* transform = objeto->getGlobalTransform();
+    if (!transform) return false;
+
+    float modelo[16];
+    buildMatrixFromTransform(transform, modelo);
+    return intentarRenderMesh(objeto, objeto->getMesh(), modelo, view,
+                              projection, deltaTime);
+}
+
+bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
+                                      const float modelo[16],
+                                      const float view[16],
+                                      const float projection[16],
+                                      float deltaTime) {
+    if (!inicializar()) return false;
+
+    // El render NO simula: los scripts y la fisica se actualizan una sola vez
+    // por frame en GameScene::update (y solo en play). Antes se llamaba aca a
+    // objeto->update(), lo que corria los scripts tambien en el editor, los
+    // duplicaba en play y reactivaba el loop al detener el play.
+    (void)deltaTime;
+
+    if (!contexto) return false;
+
     // Sin malla, vacia o sin normales no hay nada que pintar. Ya no existe el
     // modo inmediato de respaldo, asi que se avisa una vez por malla (el loader
     // rellena las normales que faltan, de modo que esto solo deberia tocar a
@@ -268,12 +286,7 @@ bool MeshRenderer::intentarRender(Modelos3D* objeto, const float view[16],
         return false;
     }
 
-    Transform* transform = objeto->getGlobalTransform();
-    if (!transform) return false;
-
-    float modelArr[16];
-    buildMatrixFromTransform(transform, modelArr);
-    const glm::mat4 model = glm::make_mat4(modelArr);
+    const glm::mat4 model = glm::make_mat4(modelo);
 
     // Deja la matriz normal como transpose(inverse(model)) pero identidad si la
     // inversa degenero (fracciones no finitas); evita NaN en el shader.
@@ -291,8 +304,8 @@ bool MeshRenderer::intentarRender(Modelos3D* objeto, const float view[16],
     shader_->setVec3("uCameraPosition",
                      glm::vec3(invView[3][0], invView[3][1], invView[3][2]));
 
-    aplicarMaterial(objeto);
-    aplicarTexturas(objeto, mesh);
+    aplicarMaterial(contexto);
+    aplicarTexturas(contexto, mesh);
 
     auto it = gpu_.find(mesh);
     if (it == gpu_.end()) {

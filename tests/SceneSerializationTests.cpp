@@ -45,6 +45,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Assets/AssetManager.h"
+#include "../FunshiEngineGL/src/Assets/Mesh.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Events/EventBus.h"
 #include "../FunshiEngineGL/src/GUI/ObjetosGUI/SettingsObjectInterface.h"
@@ -52,9 +53,11 @@
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Skybox.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
+#include "../FunshiEngineGL/src/Rendering/DibujoModelo.h"
 #include "../FunshiEngineGL/src/Scenes/EditorController.h"
 #include "../FunshiEngineGL/src/Scenes/RutasReescritura.h"
 #include "../FunshiEngineGL/src/Scenes/SceneRegistry.h"
@@ -1071,6 +1074,92 @@ void borrarCrearBorrarNoDesalineaElBinario() {
           "ninguna linea invalida en el indice");
 }
 
+// --- El componente Model se resuelve con la matriz MUNDIAL del objeto ---------
+// El camino de render de un GameObject con componente Model armaba un
+// Modelos3D temporal y le copiaba el Transform LOCAL. El temporal nacia sin
+// padre y con un Transform identidad propio, asi que el modelo se dibujaba en
+// el origen y, con jerarquia, en el sitio equivocado. resolverDibujoModelo()
+// resuelve la malla y la matriz desde el Transform GLOBAL del propio objeto;
+// esta prueba fija esa decision sin pila grafica.
+void elModeloSeResuelveConLaMatrizMundial() {
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    GameObject* raiz = registry.getRoot();
+    CHECK(raiz != nullptr, "la escena tiene raiz para el caso de Model");
+    if (!raiz) return;
+
+    // Malla registrada sin loader: putMesh la deja en la cache compartida.
+    auto malla = std::make_shared<Mesh>();
+    malla->vertices = {vec3(0.f, 0.f, 0.f), vec3(1.f, 0.f, 0.f),
+                       vec3(0.f, 1.f, 0.f)};
+    malla->indices = {0, 1, 2};
+    assets.putMesh("Modelos/cubo.obj", malla);
+
+    // Padre desplazado a (2,0,0).
+    auto padre = GameObjectFactory::createSimpleObject(raiz);
+    padre->getComponent<Transform>()->setTranslatef(2.f, 0.f, 0.f);
+    GameObject* nPadre = editor.createGameObject(std::move(padre), raiz);
+    CHECK(nPadre != nullptr, "el objeto padre entra en la escena");
+    if (!nPadre) return;
+
+    CHECK(!resolverDibujoModelo(nPadre, assets).valido,
+          "sin componente Model no hay dibujo");
+
+    auto modeloPadre = std::make_unique<Model>();
+    modeloPadre->setPath("Modelos/cubo.obj");
+    nPadre->addComponent(std::move(modeloPadre));
+
+    const DibujoModelo dibujoPadre = resolverDibujoModelo(nPadre, assets);
+    CHECK(dibujoPadre.valido, "con Model y malla registrada el dibujo es valido");
+    CHECK(dibujoPadre.malla == malla.get(),
+          "se dibuja la malla resuelta por el AssetManager");
+    CHECK(dibujoPadre.modelo[12] == 2.f && dibujoPadre.modelo[13] == 0.f &&
+              dibujoPadre.modelo[14] == 0.f,
+          "la matriz del objeto raiz lleva su traslacion (2,0,0)");
+
+    // Hijo local en (10,0,10): el mundo tiene que combinar padre + local.
+    auto hijo = GameObjectFactory::createSimpleObject(nPadre);
+    hijo->getComponent<Transform>()->setTranslatef(10.f, 0.f, 10.f);
+    GameObject* nHijo = editor.createGameObject(std::move(hijo), nPadre);
+    CHECK(nHijo != nullptr, "el objeto hijo entra en la escena");
+    if (!nHijo) return;
+
+    auto modeloHijo = std::make_unique<Model>();
+    modeloHijo->setPath("Modelos/cubo.obj");
+    nHijo->addComponent(std::move(modeloHijo));
+
+    const DibujoModelo dibujoHijo = resolverDibujoModelo(nHijo, assets);
+    CHECK(dibujoHijo.valido, "el hijo con Model tambien resuelve dibujo");
+    CHECK(dibujoHijo.modelo[12] == 12.f && dibujoHijo.modelo[13] == 0.f &&
+              dibujoHijo.modelo[14] == 10.f,
+          "la matriz del hijo combina el padre (2,0,0) con el local (10,0,10)");
+
+    // Ruta que no carga: no propaga y deja el dibujo invalido, con aviso.
+    auto malo = GameObjectFactory::createSimpleObject(raiz);
+    auto modeloMalo = std::make_unique<Model>();
+    modeloMalo->setPath("Modelos/no_existe.obj");
+    malo->addComponent(std::move(modeloMalo));
+    GameObject* nMalo = editor.createGameObject(std::move(malo), raiz);
+    CHECK(nMalo != nullptr, "el objeto con ruta invalida entra en la escena");
+    if (!nMalo) return;
+
+    std::ostringstream aviso;
+    std::streambuf* buferAnterior = std::cerr.rdbuf(aviso.rdbuf());
+    DibujoModelo dibujoMalo;
+    try {
+        dibujoMalo = resolverDibujoModelo(nMalo, assets);
+    } catch (...) {
+        std::cerr.rdbuf(buferAnterior);
+        CHECK(false, "una ruta que no carga no debe propagar excepcion");
+    }
+    std::cerr.rdbuf(buferAnterior);
+    CHECK(!dibujoMalo.valido, "una ruta que no carga deja el dibujo invalido");
+    CHECK(aviso.str().find("no se pudo cargar") != std::string::npos,
+          "la ruta que no carga queda registrada en el log");
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -1084,6 +1173,7 @@ int main() {
     sanadoDeRutasRotas();
     elInspectorSeDesvinculaAlBorrar();
     borrarCrearBorrarNoDesalineaElBinario();
+    elModeloSeResuelveConLaMatrizMundial();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

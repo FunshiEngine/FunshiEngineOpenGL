@@ -229,6 +229,11 @@ FunshiEngineGL/                          ← raíz del repo
         ├── Rendering/
         │   ├── MeshGPU.h/.cpp            ← malla residente en GPU (buffers VBO/VAO)
         │   ├── MeshRenderer.h/.cpp       ← dibuja MeshGPU con shader program
+        │   ├── DibujoModelo.h/.cpp       ← resuelve malla + matriz mundial de un
+        │   │                                GameObject con componente Model (CPU
+        │   │                                puro, sin OpenGL): toma la malla del
+        │   │                                AssetManager y la matriz del Transform
+        │   │                                GLOBAL, para respetar la jerarquía
         │   ├── LineBuilder.h/.cpp        ← geometría CPU de líneas (cada segmento
         │   │                                expandido a un quad; sin OpenGL)
         │   ├── LineBatch.h/.cpp          ← batch de líneas en GPU (VAO+VBO, RAII)

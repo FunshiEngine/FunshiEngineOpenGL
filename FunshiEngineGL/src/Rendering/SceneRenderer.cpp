@@ -32,6 +32,7 @@
 #include "Backend/IRenderBackend.h"
 #include "CacheCubemap.h"
 #include "Cielo.h"
+#include "DibujoModelo.h"
 #include "../Objetos/Componentes/Skybox.h"
 
 #include "../Herramientas/IconosGUI/stb_image.h"
@@ -638,41 +639,18 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
                                           ctx.deltaTime);
         } else {
             // Tambien renderizar GameObjects con componente Model (no Modelos3D)
-            if (auto* model = object->getComponent<Model>(); model && meshRenderer_ && ctx.assetManager) {
-                const std::string& path = model->getPath();
-                if (!path.empty()) {
-                    // Cargar malla via AssetManager (cache compartida). Una
-                    // ruta que no se puede importar (por ejemplo un script
-                    // asignado por error, o un archivo movido) hace que el
-                    // loader lance; se avisa y el objeto simplemente no se
-                    // dibuja en vez de tumbar el editor.
-                    std::shared_ptr<const Mesh> mesh;
-                    try {
-                        mesh = ctx.assetManager->getMesh(path);
-                    } catch (const std::exception& e) {
-                        std::cerr << "[Model] no se pudo cargar la malla '"
-                                  << path << "': " << e.what() << std::endl;
-                    }
-                    if (mesh && !mesh->isEmpty() && mesh->hasNormals()) {
-                        // Render temporal: un Modelos3D local por objeto con transform copiado
-                        Modelos3D tempModel(nullptr);
-                        tempModel.setAssetManager(ctx.assetManager);
-                        tempModel.setPath(path);
-                        // Copiar Transform del objeto original (posicion, rotacion, escala)
-                        Transform* origTransform = static_cast<Transform*>(object->getComponentByName("Transform"));
-                        if (origTransform) {
-                            Transform* newTransform = new Transform(*origTransform);
-                            tempModel.addComponent(newTransform);
-                        }
-                        // Copiar componentes relevantes del objeto original (Material, Color)
-                        if (Material* mat = static_cast<Material*>(object->getComponentByName("Material"))) {
-                            tempModel.addComponent(new Material(*mat));
-                        }
-                        if (Color* col = static_cast<Color*>(object->getComponentByName("Color"))) {
-                            tempModel.addComponent(new Color(*col));
-                        }
-                        meshRenderer_->intentarRender(&tempModel, view, projection, ctx.deltaTime);
-                    }
+            if (object->getComponent<Model>() && meshRenderer_ && ctx.assetManager) {
+                // El componente Model no es un Modelos3D: se resuelve la malla
+                // y la matriz mundo del propio objeto (jerarquia incluida) y se
+                // dibuja con la sobrecarga que recibe ambas ya calculadas. Antes
+                // se fabricaba un Modelos3D temporal, que duplicaba el Transform
+                // y dejaba el modelo pegado al origen.
+                const DibujoModelo dibujo =
+                    resolverDibujoModelo(object, *ctx.assetManager);
+                if (dibujo.valido) {
+                    meshRenderer_->intentarRenderMesh(
+                        object, dibujo.malla, dibujo.modelo, view, projection,
+                        ctx.deltaTime);
                 }
             }
         }
