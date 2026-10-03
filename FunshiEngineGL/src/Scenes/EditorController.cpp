@@ -217,7 +217,7 @@ bool EditorController::addComponent(GameObject* object,
     object->addComponent(std::move(component));
     if (physics && body) physics->addRigidBody(body);
     if (events)
-        events->publish({SceneEventType::ComponentChanged, object, nullptr});
+        events->publish({SceneEventType::ComponentStructureChanged, object, nullptr});
     return true;
 }
 
@@ -246,7 +246,7 @@ bool EditorController::removeComponent(GameObject* object, Component* component)
     }
     object->deleteComponent(component);
     if (events)
-        events->publish({SceneEventType::ComponentChanged, object, nullptr});
+        events->publish({SceneEventType::ComponentStructureChanged, object, nullptr});
     return true;
 }
 

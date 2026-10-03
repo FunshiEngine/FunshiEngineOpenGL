@@ -434,7 +434,9 @@ solo como orquestador de arranque y bucle.
   y cualquier ancestro del nuevo padre (no se pueden crear ciclos).
 - `EventBus` implementa suscripción tipada mediante tokens (`size_t`). Soporta
   `ObjectCreated`, `ObjectDeleted`, `ObjectReparented`, `ComponentChanged`,
-  `SceneCleared` y `ObjectSelected`. No es global: vive dentro de `GameScene`.
+  `SceneCleared`, `ObjectSelected` y `ComponentStructureChanged` (alta o baja de
+  componente; el inspector reconcilia solo con este último). No es global: vive
+  dentro de `GameScene`.
 - `LightSystem` es el dueño del estado GL de luces: cada frame escanea los objetos,
   toma los componentes `Light` y parametriza los slots `GL_LIGHT0..7`. No queda
   lógica de luz en el bucle ni en los componentes.
@@ -759,14 +761,18 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   Activar/Detener (reglas por estado de Play/Pausa/Stop), Escape por estado (en
   play detiene, en editor vuelve al menú), la condición compartida de las teclas
   del editor (editor o play) y los atajos del editor frente a ImGui.
-- `escena-serializacion-tests` (98): round-trip completo de escena (guardar →
+- `escena-serializacion-tests` (130): round-trip completo de escena (guardar →
   recargar → conservar nombre, id y jerarquía), defensas del índice de escena
   (líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
   apertura avisada de archivos `Binario` inexistente sin `std::remove()`
   destructivo, la reescritura de referencias al mover/renombrar (script,
-  malla y textura bajo el prefijo reubicado, los demás intactos) y el
+  malla y textura bajo el prefijo reubicado, los demás intactos), el
   sanado de referencias rotas al cargar (una sola coincidencia del nombre bajo
-  la raíz → repara; varias o ninguna → no adivina y avisa).
+  la raíz → repara; varias o ninguna → no adivina y avisa), la resolucion del
+  componente `Model` con la matriz mundial del objeto y la separacion del
+  evento estructural (`ComponentStructureChanged`) del de propiedad en el bus
+  de escena: editar un campo no reconstruye los paneles del Inspector y
+  agregar un componente crea unicamente el que falta.
 
 Las cinco suites que enlazan el engine (`tema-tests`, `comandos-tests`,
 `manifiesto-assets-tests`, `orquestador-estado-tests` y

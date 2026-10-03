@@ -52,6 +52,7 @@
 #include "../FunshiEngineGL/src/Herramientas/PathUtils.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Color.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Skybox.h"
@@ -1160,6 +1161,59 @@ void elModeloSeResuelveConLaMatrizMundial() {
           "la ruta que no carga queda registrada en el log");
 }
 
+// --- Un cambio de propiedad no reconstruye el inspector -----------------------
+// El bus publicaba el mismo evento para "cambio de propiedad" (renombrar,
+// editar un campo) y para "alta/baja de componente". El inspector reaccionaba a
+// ambos borrando y recreando todos los Settings, con lo que se perdia el estado
+// local de cada panel (radio sin confirmar, preset de material, header abierto)
+// y el puntero de identidad cambiaba en cada edicion. Ahora solo el cambio
+// estructural reconcilia, y ademas reutiliza los paneles vigentes.
+void elEventoDePropiedadNoReconstruyeElInspector() {
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    GameObject* raiz = registry.getRoot();
+
+    auto objeto = GameObjectFactory::createSimpleObject(raiz);
+    GameObject* a = editor.createGameObject(std::move(objeto), raiz);
+    CHECK(a != nullptr, "el objeto para el inspector entra en la escena");
+    if (!a) return;
+
+    SettingsObjectInterface inspector(a, true);
+    inspector.setEditor(&editor);
+    inspector.setEventBus(&events);
+
+    CHECK(inspector.reconstruccionesSettings() == 0,
+          "la carga inicial no cuenta como reconciliacion");
+    SettingsComponent* transformAntes = inspector.settingsEnIndice(0);
+    CHECK(transformAntes != nullptr,
+          "el inspector lista el Transform del objeto");
+
+    // Cambio de PROPIEDAD: no debe reconstruir ni crear paneles nuevos.
+    const size_t antes = inspector.reconstruccionesSettings();
+    const size_t creadosAntes = inspector.settingsCreados();
+    events.publish({SceneEventType::ComponentChanged, a, nullptr});
+    CHECK(inspector.reconstruccionesSettings() == antes,
+          "un cambio de propiedad no reconcilia el inspector");
+    CHECK(inspector.settingsCreados() == creadosAntes,
+          "un cambio de propiedad no crea paneles nuevos");
+    CHECK(inspector.settingsEnIndice(0) == transformAntes,
+          "el panel del Transform sobrevive a un cambio de propiedad");
+
+    // Cambio ESTRUCTURAL: si reconcilia y conserva el panel vigente.
+    CHECK(editor.addComponent(a, std::make_unique<Color>()),
+          "se agrega un Color al objeto");
+    CHECK(inspector.reconstruccionesSettings() == antes + 1,
+          "agregar un componente dispara exactamente una reconciliacion");
+    CHECK(inspector.settingsCreados() == creadosAntes + 1,
+          "agregar un componente crea exactamente un panel");
+    CHECK(inspector.settingsEnIndice(0) == transformAntes,
+          "el panel del Transform sobrevive a agregar otro componente");
+    CHECK(inspector.settingsEnIndice(1) != nullptr,
+          "el componente nuevo tiene su panel en la lista");
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -1174,6 +1228,7 @@ int main() {
     elInspectorSeDesvinculaAlBorrar();
     borrarCrearBorrarNoDesalineaElBinario();
     elModeloSeResuelveConLaMatrizMundial();
+    elEventoDePropiedadNoReconstruyeElInspector();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;
