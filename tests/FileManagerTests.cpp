@@ -161,7 +161,7 @@ int main() {
     CHECK(fm.crearArchivo(rutaArchivo, "12345"), "crearArchivo crea en disco");
     CHECK(contenidoDe(rutaArchivo) == "12345", "el archivo nuevo tiene contenido");
 
-    // --- Crear carpeta: "se creo" en vez de "existe" (B7) -------------------
+    // --- Crear carpeta: "se creo" en vez de "existe" ------------------------
     // Un destino ya ocupado tiene que informar que esta vez no se creo nada; si
     // no, el explorador cierra el modal creyendo que la carpeta nacio.
     const std::string rutaRepetida = unir(proy, "Assets/Repetida");

@@ -86,7 +86,7 @@ void drawTreeKeyed(ArbolEnlazado<T>* tree, Position<T>* pos,
 
     // La clave de colapso NO tiene que ser el puntero del elemento: clave =
     // keyOf(element) admite claves que sobreviven a una reconstruccion del
-    // arbol (p.ej. la ruta de un archivo, R4) o punteros (como antes).
+    // arbol (p.ej. la ruta de un archivo) o punteros (como antes).
     const auto key = keyOf(element);
     const bool wasOpen = openState.count(key) != 0;
     const RowResult result = drawRow(element, wasOpen);

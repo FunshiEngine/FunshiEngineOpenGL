@@ -61,7 +61,7 @@ inline bool ctrlOCmd() {
 // Si `origenCarpetaOut` no es nullptr, se escribe ahi la carpeta que contenia
 // al elemento movido/copiado (padre de `origen`). Esto permite al llamador
 // invalidar el cache del grid tanto en la carpeta origen como en la destino
-// (R7: invalidacion explicita, no depender del mtime).
+// (invalidacion explicita, no depender del mtime).
 //
 // Devuelve true si la operacion se completo. Quien la llama decide que invalidar
 // de su cache: el grid relee el listado de la carpeta visible, el arbol solo
@@ -112,7 +112,7 @@ inline bool soltarEnCarpeta(FileManager* fileManager,
     // incrementamos contadorCambios en cualquier operacion exitosa.
     fileManager->getSelection()->contadorCambios++;
 
-    // Devolver carpeta origen para invalidacion explicita del grid (R7)
+    // Devolver carpeta origen para invalidacion explicita del grid
     if (origenCarpetaOut != nullptr) *origenCarpetaOut = origenCarpeta;
 
     return true;

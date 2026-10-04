@@ -96,7 +96,7 @@ std::string ContentFolderInterface::crearNuevoElemento() {
 void ContentFolderInterface::recorrer(const std::string& path) {
     FileSelection* sel = fileManager->getSelection();
 
-    // R5: re-scanear solo si cambio la ruta mostrada o el mtime del directorio
+    // Re-scanear solo si cambio la ruta mostrada o el mtime del directorio
     // (mtime de un directorio sube al agregar/quitar entradas, justo lo que
     // pinta este panel; crear/renombrar/borrar dentro lo actualiza).
     const auto mtime = FileManager::mtimeDirectorio(path);
@@ -157,7 +157,7 @@ void ContentFolderInterface::recorrer(const std::string& path) {
             ImGui::Button(icon, ImVec2(iconSize, iconSize));
         }
 
-        // R6/R7: menu contextual de la celda -> Renombrar / Eliminar (archivo o carpeta).
+        // Menu contextual de la celda -> Renombrar / Eliminar (archivo o carpeta).
         if (ImGui::BeginPopupContextItem("PopRenombrar")) {
             if (ImGui::MenuItem("Renombrar")) {
                 // El modal compartido se encarga del disco y del aviso a la
@@ -193,7 +193,7 @@ void ContentFolderInterface::recorrer(const std::string& path) {
 
         if (isDoubleClicked) {
             if (esCarpeta && sel->carpetaActual) {
-                // FASE 1: solo se registra la ruta a abrir; el arbol la
+                // Solo se registra la ruta a abrir; el arbol la
                 // aplica al inicio de su contentGUI contra el arbol vigente.
                 sel->navegacionPendiente =
                     sel->carpetaActual->getPathRoot() + PATH_SEP +
@@ -398,7 +398,7 @@ void ContentFolderInterface::initGUI() {
         ImGui::EndPopup();
     }
 
-    // R6: renombre del elemento del grid. El modal (campo enfocado al abrir,
+    // Renombre del elemento del grid. El modal (campo enfocado al abrir,
     // Enter confirma) y el camino de disco/aviso viven en RenombrarElemento.h,
     // compartidos con el arbol.
     const RenombrarElemento::Resultado renombre = modalRenombrar.dibujar();
@@ -438,7 +438,7 @@ void ContentFolderInterface::initGUI() {
         ImGui::EndPopup();
     }
 
-    // Modal de confirmacion para eliminar archivo (R7)
+    // Modal de confirmacion para eliminar archivo
     if (confirmarEliminarArchivo && !archivoAEliminar.empty()) {
         ImGui::OpenPopup("ConfirmarEliminarArchivo");
         confirmarEliminarArchivo = false;
@@ -459,7 +459,7 @@ void ContentFolderInterface::initGUI() {
         ImGui::EndPopup();
     }
 
-    // Modal de confirmacion para eliminar carpeta desde el grid (R7)
+    // Modal de confirmacion para eliminar carpeta desde el grid
     if (confirmarEliminarCarpetaGrid && !carpetaAEliminarGrid.empty()) {
         ImGui::OpenPopup("ConfirmarEliminarCarpetaGrid");
         confirmarEliminarCarpetaGrid = false;
@@ -488,7 +488,7 @@ void ContentFolderInterface::contentGUI() {
         sel->carpetaActual->getPathRoot() + PATH_SEP +
         sel->carpetaActual->getPathName();
 
-    // Eliminacion diferida (R7): ejecutada ANTES de recorrer() para que el cache
+    // Eliminacion diferida: ejecutada ANTES de recorrer() para que el cache
     // del grid se invalide y no muestre el elemento "fantasma" en este frame.
     if (!archivoAEliminarConfirmado.empty()) {
         fileManager->eliminarArchivo(archivoAEliminarConfirmado);

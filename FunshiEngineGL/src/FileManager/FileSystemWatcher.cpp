@@ -140,7 +140,7 @@ bool FileSystemWatcher::huboCambiosYConsumir() {
     // Fallback sin inotify: dimensionar por el mtime de la raiz evita el
     // rescaneo completo cada 3s aun sin ningun cambio. Detecta choques
     // directos de la raiz; los cambios anidados fuera de la carpeta visible
-    // quedan para el grid (que se auto-invalida por mtime, R5) o un rescaneo
+    // quedan para el grid (que se auto-invalida por mtime) o un rescaneo
     // manual. Es el mejor esfuerzo en una plataforma sin watch nativo aqui.
     const auto ahora = std::chrono::steady_clock::now();
     if (ahora - ultimoPulso_ >= INTERVALO_POLLING) {

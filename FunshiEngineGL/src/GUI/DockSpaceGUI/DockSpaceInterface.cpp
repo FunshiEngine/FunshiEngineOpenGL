@@ -42,8 +42,8 @@ void DockSpaceInterface::initGUI() {
         // La columna izquierda se divide: arbol de objetos arriba, archivos abajo
         ImGuiID leftBottom = ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.5f, nullptr, &left);
 
-        // Los nombres vienen de WindowNames para no divergir con los paneles
-        // (R8): antes el contenido era "Show Folder " (con espacio) escrito a
+        // Los nombres vienen de WindowNames para no divergir con los paneles:
+        // antes el contenido era "Show Folder " (con espacio) escrito a
         // mano en dos sitios y un rename rompia el anclaje del dock.
         ImGui::DockBuilderDockWindow(WindowNames::SelectedObjects, left);
         ImGui::DockBuilderDockWindow(WindowNames::BrowseFile,     leftBottom);
