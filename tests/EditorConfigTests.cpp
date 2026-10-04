@@ -647,6 +647,29 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
                   .empty(),
               "en Linux '\\' es un caracter normal de nombre");
 #endif
+        // Mayusculas y minusculas: el sistema de archivos de Windows no las
+        // distingue, asi que "assets/scripts" y "Assets/Scripts" son la misma
+        // carpeta y el cotejo tiene que reconocerlo (si no, al mover o
+        // renombrar con distinta capitalizacion la referencia de la escena se
+        // queda con la ruta vieja). En Linux SI se distinguen: "X" y "x" pueden
+        // ser dos archivos distintos, asi que ahi el cotejo es sensible.
+#ifdef _WIN32
+        CHECK(EditorConfig::reemplazarPrefijoRuta(
+                  raiz + "/assets/scripts/cpp.cpp", raiz + "/Assets/Scripts",
+                  raiz + "/Assets/Cpp")
+                  == raiz + "/Assets/Cpp/cpp.cpp",
+              "en Windows el prefijo se coteja sin distinguir mayusculas");
+        CHECK(EditorConfig::relativizarRuta("c:\proyecto\ASSETS\scripts\a.dll") ==
+                  "scripts/a.dll",
+              "en Windows relativizar no depende de como este escrita la raiz");
+#else
+        CHECK(EditorConfig::reemplazarPrefijoRuta(
+                  raiz + "/assets/scripts/cpp.cpp", raiz + "/Assets/Scripts",
+                  raiz + "/Assets/Cpp")
+                  .empty(),
+              "en Linux el prefijo se coteja distinguiendo mayusculas");
+#endif
+
         // Sin falsos positivos en ninguna plataforma: el prefijo tiene que
         // cerrar en un separador (mismo contrato que 6a).
         CHECK(EditorConfig::reemplazarPrefijoRuta(
