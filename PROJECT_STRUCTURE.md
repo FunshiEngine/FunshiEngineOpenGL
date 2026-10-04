@@ -345,7 +345,8 @@ FunshiEngineGL/                          ← raíz del repo
             │                                guarda/carga rutas de asset por objeto con
             │                                precedencia sobre el binario (Ctrl+S)
             ├── ManifiestoAssetsCore.h/.cpp ← núcleo puro headless (JSON + relativizar/
-            │                                absolutizar + precedencia); tests propios
+            │                                absolutizar + precedencia, con las 6 caras del
+            │                                Skybox); tests propios
         └── States/
             ├── ApplicationStateMachine.h/.cpp ← MainMenu/Editing/Playing/Exiting
             └── OrquestadorEstadoGUI.h/.cpp    ← reglas de transición menú↔editor y de
@@ -788,8 +789,9 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   llega a todos los roles de ImGui y el modo B/N deja la paleta monocroma.
 - `comandos-tests` (77): undo/redo del editor (7 comandos, cadena de redo
   múltiple, límite de 50 entradas y descripción del comando aplicado).
-- `manifiesto-assets-tests` (29): manifiesto `SceneAssets.json` (JSON round-trip,
-  tolerancia a manifiestos corruptos y precedencia sobre el `.db`).
+- `manifiesto-assets-tests` (37): manifiesto `SceneAssets.json` (JSON round-trip de
+  malla, texturas, script y las seis caras del cubemap, tolerancia a manifiestos
+  corruptos y precedencia sobre el `.db`).
 - `orquestador-estado-tests` (54): la "función de marco" F5/F6/F7 y el botón
   Activar/Detener (reglas por estado de Play/Pausa/Stop), Escape por estado (en
   play detiene, en editor vuelve al menú), la condición compartida de las teclas

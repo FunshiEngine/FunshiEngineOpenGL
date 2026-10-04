@@ -61,6 +61,21 @@ EntradaAssets crearEntrada(const std::string& malla, const std::string& t0,
     e.script = script;
     return e;
 }
+
+// Entrada con las seis caras del cubemap del Skybox, en el orden +X, -X, +Y, -Y,
+// +Z, -Z en que las expone el componente.
+EntradaAssets crearEntradaSkybox(const std::string& posX, const std::string& negX,
+                                 const std::string& posY, const std::string& negY,
+                                 const std::string& posZ, const std::string& negZ) {
+    EntradaAssets e;
+    e.caraMasX = posX;
+    e.caraMenosX = negX;
+    e.caraMasY = posY;
+    e.caraMenosY = negY;
+    e.caraMasZ = posZ;
+    e.caraMenosZ = negZ;
+    return e;
+}
 } // namespace
 
 int main() {
@@ -208,7 +223,58 @@ int main() {
               "path persistido distinto y no vacio aplica (precedencia)");
     }
 
-    // 8. entradaVacia.
+    // 8. Las seis caras del cubemap del Skybox: el manifiesto promete
+    //    precedencia sobre el .db, asi que tambien las tiene que guardar.
+    {
+        const fs::path archivo = base / "skybox.json";
+        std::map<int, EntradaAssets> entradas;
+        entradas[4] = crearEntradaSkybox(
+            "Cielo/px.png", "Cielo/nx.png", "Cielo/py.png", "Cielo/ny.png",
+            "Cielo/pz.png", "Cielo/nz.png");
+        CHECK(ManifiestoAssetsCore::escribirArchivo(archivo.string(), entradas),
+              "escribirArchivo escribe un manifiesto con solo Skybox");
+
+        std::map<int, EntradaAssets> leidas;
+        CHECK(ManifiestoAssetsCore::leerArchivo(archivo.string(), leidas),
+              "leerArchivo lee el manifiesto del Skybox");
+        CHECK(leidas.size() == 1, "se lee la entrada del Skybox");
+        CHECK(leidas[4].caraMasX == "Cielo/px.png" &&
+                  leidas[4].caraMenosX == "Cielo/nx.png" &&
+                  leidas[4].caraMasY == "Cielo/py.png" &&
+                  leidas[4].caraMenosY == "Cielo/ny.png" &&
+                  leidas[4].caraMasZ == "Cielo/pz.png" &&
+                  leidas[4].caraMenosZ == "Cielo/nz.png",
+              "round-trip de las seis caras del cubemap");
+
+        // Con la raiz de assets fijada, las caras se relativizan y absolutizan
+        // igual que la malla: si no, al mover el proyecto el .db era el unico que
+        // conservaba de donde venian.
+        const std::string raiz = "/motor/MotorGrafico/MiJuego/srcMiJuego";
+        EditorConfig::fijarRaizAssets(raiz);
+        EntradaAssets entrada = crearEntradaSkybox(
+            raiz + "/Cielo/px.png", "", raiz + "/Cielo/py.png", "",
+            raiz + "/Cielo/pz.png", "");
+        ManifiestoAssetsCore::relativizarEntrada(entrada);
+        CHECK(entrada.caraMasX == "Cielo/px.png" &&
+                  entrada.caraMasZ == "Cielo/pz.png",
+              "relativizarEntrada deja las caras relativas");
+        CHECK(entrada.caraMenosX.empty() && entrada.caraMenosY.empty() &&
+                  entrada.caraMenosZ.empty(),
+              "una cara vacia sigue vacia al relativizar");
+        ManifiestoAssetsCore::absolutizarEntrada(entrada);
+        CHECK(entrada.caraMasX == raiz + "/Cielo/px.png" &&
+                  entrada.caraMenosY.empty(),
+              "absolutizarEntrada resuelve las caras a absolutas");
+        EditorConfig::limpiarRaizAssets();
+
+        // Una entrada con solo caras no esta vacia: si lo estuviera, quien decide
+        // guardar se saltaria al Skybox.
+        CHECK(!ManifiestoAssetsCore::entradaVacia(
+                  crearEntradaSkybox("", "", "", "", "", "Cielo/pz.png")),
+              "una sola cara ya hace que la entrada no este vacia");
+    }
+
+    // 9. entradaVacia.
     {
         CHECK(ManifiestoAssetsCore::entradaVacia(EntradaAssets()),
               "entrada con todos los campos vacios se considera vacia");
