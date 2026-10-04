@@ -24,6 +24,19 @@
 
 #include "../Herramientas/PathUtils.h"
 
+namespace {
+// El destino de una copia o de un movimiento de carpeta no puede caer dentro de
+// la propia carpeta de origen: el recorrido del origen se encuentra la copia que
+// acaba de crear y se reproduce hasta que la ruta deja de caber, dejando un
+// arbol basura a medias. El cotejo cierra en un separador para no tomar
+// "srcCopia" por algo dentro de "src".
+bool destinoDentroDelOrigen(const std::filesystem::path& origen,
+                            const std::filesystem::path& destino) {
+    return rutaBajo(destino.lexically_normal().string(),
+                    origen.lexically_normal().string());
+}
+} // namespace
+
 GestorDeArchivos::GestorDeArchivos(std::string pathProyect, std::string rootName)
     : treeFilePath(new ArbolEnlazado<File*>()), folderActual(nullptr), rootName(std::move(rootName)) {
     setTreeFilePath(pathProyect, this->rootName);
@@ -191,6 +204,9 @@ bool GestorDeArchivos::crearArchivo(const std::string& path,
 bool GestorDeArchivos::copiarCarpeta(const std::string& origen,
                                      const std::string& destino) {
     if (origen.empty() || destino.empty()) return false;
+    // Antes de tocar el disco: copy() no se detiene solo ante un destino
+    // anidado, se copia el mismo origen una y otra vez hasta fallar.
+    if (destinoDentroDelOrigen(origen, destino)) return false;
     std::error_code ec;
     // Si destino no existe, copy() lo crea y vuelca el contenido de origen
     // dentro (con dotfiles, a diferencia del "cp -r src/* dst" anterior).
@@ -247,14 +263,11 @@ bool GestorDeArchivos::mover(const std::string& origen,
     if (std::filesystem::exists(hacia, ec)) return false;
 
     // Evitar mover una carpeta DENTRO de si misma o de un descendiente:
-    // el destino no puede estar bajo el origen (mover ancestro -> descendiente).
-    if (std::filesystem::is_directory(desde, ec)) {
-        const std::filesystem::path srcNorm = desde.lexically_normal();
-        const std::filesystem::path dstNorm = hacia.lexically_normal();
-        // Si dstNorm empieza con srcNorm + separador, el destino está dentro del origen.
-        if (dstNorm.string().rfind(srcNorm.string() + PATH_SEP, 0) == 0) return false;
-        // También bloquear si son exactamente iguales (mover sobre si mismo).
-        if (dstNorm == srcNorm) return false;
+    // el destino no puede estar bajo el origen (mover ancestro -> descendiente),
+    // ni ser el propio origen.
+    if (std::filesystem::is_directory(desde, ec) &&
+        destinoDentroDelOrigen(desde, hacia)) {
+        return false;
     }
 
     std::filesystem::rename(desde, hacia, ec);

@@ -248,6 +248,35 @@ int main() {
     CHECK(fs::is_directory(unir(copiaCarpeta, "nucleo")),
           "copiarCarpeta es recursiva (nucleo existe dentro)");
 
+    // Copiar una carpeta dentro de si misma (Ctrl+arrastrar sobre una
+    // subcarpeta del propio arbol): el recorrido se copia a si mismo y se
+    // reproduce hasta que la ruta deja de caber, dejando un arbol basura a
+    // medias. Se usa un arbol propio para que el resto de la prueba no dependa
+    // de lo que quede colgando del caso anidado.
+    CHECK(fm.crearCarpeta(unir(proy, "Assets/anidado")),
+          "crea la carpeta padre del caso anidado");
+    CHECK(fm.crearCarpeta(unir(proy, "Assets/anidado/origen")),
+          "crea el origen del caso anidado");
+    CHECK(fm.crearArchivo(unir(proy, "Assets/anidado/origen/dato.txt"), "x"),
+          "archivo dentro del origen del caso anidado");
+    const std::string raizAnidada = unir(proy, "Assets/anidado/origen");
+    // Un destino que solo empieza por el nombre del origen NO esta dentro de
+    // el: el cotejo tiene que cerrar en un separador.
+    CHECK(fm.copiarCarpeta(raizAnidada, unir(proy, "Assets/anidado/origenCopia")),
+          "copiarCarpeta acepta un destino que solo empieza igual que el origen");
+    CHECK(fs::is_regular_file(unir(proy, "Assets/anidado/origenCopia/dato.txt")),
+          "la copia legitima al lado del origen esta entera");
+    const std::string anidado = unir(raizAnidada, "dentro");
+    CHECK(!fm.copiarCarpeta(raizAnidada, anidado),
+          "copiarCarpeta rechaza un destino dentro del propio origen");
+    CHECK(!fs::exists(anidado), "el destino anidado ni siquiera se crea");
+    CHECK(!fs::exists(unir(anidado, "dato.txt")),
+          "no se copia nada al destino anidado");
+    CHECK(!fm.copiarCarpeta(raizAnidada, raizAnidada),
+          "copiarCarpeta rechaza el origen sobre si mismo");
+    CHECK(contenidoDe(unir(raizAnidada, "dato.txt")) == "x",
+          "el origen queda intacto tras rechazar la copia anidada");
+
     // --- Mover (drag&drop del explorador) -----------------------------------
     // Es la operacion que usa el arrastre: por defecto mueve, con Ctrl copia.
     // Los casos que importan son los que un rename Ingenuo no cubre.
