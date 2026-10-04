@@ -90,9 +90,18 @@ Al crear un proyecto, el motor genera la estructura bajo
 > anterior, si había algo, se avisa en la barra de estado. Los proyectos que
 > migran siguen funcionando: las rutas de assets se guardan relativas al
 > proyecto, no absolutas.
+>
+> El log de arranque (`logs/FunshiEngineGL_<AAAAMMDD_HHMMSS>.log`, ver el árbol)
+> vive también en esa carpeta de datos, de modo que se escribe aunque el motor
+> esté instalado en `Program Files`. Si esa carpeta tampoco admite escritura, el
+> motor cae a la carpeta temporal del sistema
+> (`%TEMP%\FunshiEngineGL\logs` o `/tmp/FunshiEngineGL/logs`), y solo si las tres
+> opciones fallan se queda sin archivo de log y escribe en la consola.
 
 ```
 MotorGrafico/
+├── logs/
+│   └── FunshiEngineGL_<AAAAMMDD_HHMMSS>.log   ← log de arranque (UTC), uno por ejecucion
 ├── Proyects/
 │   └── <proyecto>/
 │       ├── Memory/
@@ -645,8 +654,9 @@ ejecuta en modo Play.
 - La ventana **Estado** muestra el toolchain (compilador C++, javac, libjvm,
   cache) y el resultado de compilacion/carga de cada script de la escena.
 - Los errores de carga/compilacion se informan en la ventana **Estado** y en el
-  log del motor (`logs/FunshiEngineGL_*.log`); el panel del componente no los
-  repite: queda con el fuente asignado y sus SerializeField.
+  log del motor (`logs/FunshiEngineGL_*.log` en la carpeta de datos, seccion 2);
+  el panel del componente no los repite: queda con el fuente asignado y sus
+  SerializeField.
 
 ---
 
@@ -994,9 +1004,9 @@ public class MiScript implements Comportamiento {
 - **Ventana Estado:** para cada script muestra nombre, ok/error y mensaje
   (errores de compilacion incluidos), ademas del toolchain detectado.
 - **Errores de carga/compilacion C++** aparecen en la ventana Estado y en el log
-  del motor (`logs/FunshiEngineGL_*.log` junto al ejecutable), no en el panel del
-  componente; corregi el fuente y guardalo de nuevo (no hace falta salir de
-  Play).
+  del motor (`logs/FunshiEngineGL_*.log` en la carpeta de datos, seccion 2), no
+  en el panel del componente; corregi el fuente y guardalo de nuevo (no hace
+  falta salir de Play).
 - Al cerrar la aplicacion los comportamientos se descargan sin disparar
   `onStop`; los backends (incluida la JVM) se apagan despues.
 

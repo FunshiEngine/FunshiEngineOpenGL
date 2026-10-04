@@ -34,12 +34,14 @@
 #include <iterator>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
 #include "../FunshiEngineGL/src/Configuracion/ProyectoInicial.h"
 #include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
+#include "../FunshiEngineGL/src/Configuracion/RutasLog.h"
 
 namespace fs = std::filesystem;
 
@@ -865,6 +867,53 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
             (raizCopia / "destino3").string(), error3);
         CHECK(!copio3, "falla si el origen no es un directorio");
         CHECK(!error3.empty(), "deja el motivo en error");
+    }
+
+    // 9. Carpetas candidatas del log: la de la raiz de datos va primero (ya cae
+    //    a la carpeta del usuario cuando el ejecutable no admite escritura), y
+    //    la temporal del sistema es el ultimo recurso. Sin esto, instalado en
+    //    Program Files el motor se queda sin log ni consola que lo muestre.
+    {
+        const std::string exe = "/opt/FunshiEngineGL";
+        const std::string datosUsuario = "/home/usuario/.local/share/FunshiEngineGL/MotorGrafico";
+        const std::string temp = "/tmp";
+
+        const std::vector<std::string> rutas = RutasLog::candidatas(
+            datosUsuario, exe, temp);
+        CHECK(rutas.size() == 3, "tres candidatas: raiz de datos, ejecutable y temporal");
+        CHECK(rutas[0] == datosUsuario + "/logs",
+              "la primera candidata es la raiz de datos");
+        CHECK(rutas[1] == exe + "/logs", "la segunda, la carpeta del ejecutable");
+        CHECK(rutas[2] == temp + "/FunshiEngineGL/logs",
+              "la tercera, la temporal del motor");
+
+        // Sin raiz de datos no se pierde la carpeta del ejecutable.
+        const std::vector<std::string> sinDatos = RutasLog::candidatas("", exe, temp);
+        CHECK(sinDatos.size() == 2 && sinDatos[0] == exe + "/logs",
+              "sin raiz de datos arranca por la carpeta del ejecutable");
+
+        // Todo vacio: no hay candidatas, el arranque lo reporta como log vacio.
+        CHECK(RutasLog::candidatas("", "", "").empty(),
+              "sin ninguna ruta no hay candidatas");
+
+        // Candidatas repetidas (raiz de datos y ejecutable iguales) se unifican:
+        // el motor prueba la primera que acepte escritura, no la ultima.
+        const std::vector<std::string> repetidas =
+            RutasLog::candidatas(exe, exe, temp);
+        CHECK(repetidas.size() == 2 && repetidas[0] == exe + "/logs" &&
+                  repetidas[1] == temp + "/FunshiEngineGL/logs",
+              "una ruta repetida no se prueba dos veces");
+    }
+
+    // 10. La carpeta "logs" es de la raiz de datos, no un proyecto legacy: si
+    //     no estuviera reservada, la migracion de proyectos antiguos la
+    //     arrastraba dentro de Proyects/ y el log se escribia a otro sitio del
+    //     que el motor anuncia.
+    {
+        CHECK(!ProjectPaths::esNombreValido("logs"),
+              "'logs' no es un proyecto: queda reservada en la raiz de datos");
+        CHECK(ProjectPaths::esNombreValido("Loges del Pueblo"),
+              "un nombre de proyecto corriente sigue siendo valido");
     }
 
     fs::remove_all(base);

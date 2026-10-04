@@ -105,6 +105,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **R10 — La bandera de encoding viaja junto al dato** | Si una API acepta un bloque/cadena cuyo encoding depende de una bandera (`CREATE_UNICODE_ENVIRONMENT`), la bandera se decide **dentro** de la función que recibe el dato, nunca en el llamador | `Proceso::lanzar()` (ver §8.4) |
 | **R11 — La frescura del artefacto manda, no el estado del que pide** | Antes de reescribir una salida, decidir por los tiempos de **archivo** (existe y no es más viejo que su fuente); una `.dll` cargada en el proceso no se puede reescribir en Windows | `BackendCpp::compilarYCargar()` (ver §9.4) |
 | **R12 — El que dibuja posee su VAO** | En un contexto core todo `glDraw*` necesita un VAO ligado, incluso si la pasada no lee atributos (`gl_VertexID`); el VAO lo crea y lo liga el backend, no el llamador | `OpenGL3Backend::drawFullscreenTriangle()` (ver §10.4) |
+| **R13 — Toda carpeta del motor en la raíz de datos es un nombre reservado** | Una migración de compatibilidad que mueve "lo que haya en la raíz" se lleva también las carpetas del motor; hay que declararlas reservadas al crear la carpeta, no después | `ProjectPaths::esReservado()` (ver §11.4) |
 
 ---
 
@@ -207,6 +208,7 @@ Reglas complementarias:
 | 1 | `ProjectPaths::directorioBase()` | Guardar proyecto, escena, config e `imgui.ini` | Windows / `Program Files` / ACL del instalador | Patrón R8: prueba de escritura + caída a `%APPDATA%` / `$XDG_DATA_HOME`, decisión cacheada, migración sin sobrescribir | `fix(configuracion): resolver la raiz de datos cuando no se puede escribir` |
 | 2 | `SettingsScript.cpp` (lectura de `SerializeField`) | Editar un campo del inspector | `std::variant` (efecto, no causa) | Índice acotado al menor de los dos cardinales | Ídem |
 | 3 | `Script::cargarSiNecesario()` | Cargar los valores guardados de un script | `std::variant` (efecto, no causa) | `ReflejoScripts::alinearValores()` empareja por nombre al compilar | Ídem |
+| 4 | `redirigirSalidaALog()` en `main.cpp` | Escribir el log de arranque | Windows / `Program Files` / ACL del instalador | Patrón R8 aplicado al log: lista ordenada de candidatas (`RutasLog::candidatas()`) —raíz de datos, carpeta del ejecutable y temporal del sistema— y se usa la **primera que acepte escribir**; con la carpeta del ejecutable sola no había log y toda la salida se iba a la consola | `fix(ventana): escribir el log de arranque en una carpeta escribible` |
 
 > **Nota**: las instancias #2 y #3 no son la causa del crash sino el punto donde
 > se manifiesta. La causa es la instancia #1: sin ella no habría divergencia
@@ -214,6 +216,11 @@ Reglas complementarias:
 > arreglaron las tres porque el acceso fuera de rango es un defecto real por sí
 > mismo: la escena guardada y la reflexión actual pueden discrepar siempre, no
 > solo cuando falla la escritura.
+>
+> La instancia #4 tiene además un remate que no es de permisos: al escribir el log
+> en la raíz de datos, la carpeta `logs/`$resultó ser una carpeta más de la raíz
+> y `migrarProyectosAntiguos()` la arrastró dentro de `Proyects/`. Se documenta
+> aparte en §11 (Patrón R13).
 
 ---
 
@@ -570,7 +577,90 @@ Checklist de mitigación:
 ---
 
 
-## 11. Historial de Cambios
+## 11. Séptimo concepto: **Una migración de compatibilidad se lleva las carpetas del motor**
+
+Distinto de §6: aquí la escritura **sí funciona**. El daño lo produce, unos
+segundos más tarde, código del propio motor que reorganiza la carpeta de datos.
+
+### 11.1 Descripción del problema
+
+La raíz de datos (`MotorGrafico/`) comparte sitio con dos cosas a la vez: los
+proyectos del usuario y las carpetas del motor (`Proyects`, `Configuraciones`,
+`Exportaciones`, `logs`). Para migrar los proyectos de una estructura antigua,
+`migrarProyectosAntiguos()` recorre **todo** lo que hay en la raíz y mueve a
+`Proyects/` cada carpeta cuyo nombre sea válido como proyecto:
+
+```cpp
+for (const auto& entry : std::filesystem::directory_iterator(base, ec)) {
+    if (!entry.is_directory(ec)) continue;
+    const std::string nombre = entry.path().filename().string();
+    if (ProjectPaths::esNombreValido(nombre) && !existeDir(proyectsDir + "/" + nombre)) {
+        std::filesystem::rename(entry.path(), proyectsDir + "/" + nombre, ec);
+    }
+}
+```
+
+`esNombreValido()` es la **única** barrera: una carpeta del motor cuyo nombre no
+esté en la lista de reservados se comporta como un proyecto legacy.
+
+### 11.2 Síntomas
+
+- La carpeta se crea y el archivo se escribe en ella **correctamente**.
+- En el mismo arranque, la carpeta desaparece de su sitio y aparece anidada
+  dentro de `Proyects/`, con su contenido dentro.
+- El motor anuncia una ruta que ya no es la real: el log dice
+  `Log en: <raiz>/logs/…` y el archivo está en `<raiz>/Proyects/logs/…`.
+- En el arranque siguiente se crea una carpeta nueva y vacía, así que el
+  síntoma se renueva solo y parece intermitente.
+- No hay ningún error: `rename()` dentro del mismo volumen funciona.
+
+### 11.3 Causa raíz
+
+La lista de nombres reservados y la migración se escribieron en momentos
+distintos, y la lista no se revisó al añadir una carpeta nueva a la raíz. El
+defecto no está en la migración (que hace lo que debe para lo que conoce), sino
+en que **el conocimiento de "esto es mío" no tiene una fuente única**: vive en
+una lista de cadenas que se olvida actualizar.
+
+### 11.4 Solución canónica (Patrón R13 — declarar la reserva al crear la carpeta)
+
+**Toda carpeta que el motor cree dentro de la raíz de datos se declara reservada
+en el mismo cambio que la crea.** Si el nombre está reservado, la migración la
+ignora y el usuario tampoco puede elegirlo como nombre de proyecto, que es justo
+lo que tiene que pasar.
+
+```cpp
+// La lista es la frontera entre "carpeta del motor" y "proyecto del usuario".
+// Si añades una carpeta aquí abajo, añádela también a esReservado().
+static const char* reservados[] = {
+    "Proyects", "Configuraciones", "Exportaciones",
+    "Binarios", "Memory", "Interfaces", "Sonidos",
+    "Configuracion.json", "imgui.ini", "logs"
+};
+```
+
+Regla operativa: **la prueba de que una carpeta del motor no se mueve es que su
+nombre no es válido como proyecto.** No hace falta una lista paralela en el
+lugar donde se crea la carpeta.
+
+Checklist antes de cerrar un cambio que cree una carpeta en la raíz de datos:
+
+- [ ] El nombre está en `esReservado()` (o cumple el patrón `src*`).
+- [ ] Hay un test que fija `!esNombreValido(<nombre>)` para ese nombre.
+- [ ] El arranque completo del motor deja la carpeta donde se creó: se comprueba
+      en disco **después** de la inicialización, no justo después de crearla.
+- [ ] Si la carpeta puede convivir con proyectos, el nombre en pantalla y la
+      documentación la nombra en el árbol de la raíz.
+
+### 11.5 Registro de instancias
+
+| # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
+|---|-----------|-----------|----------------|--------------|--------|
+| 1 | `ProjectPaths::esReservado()` | Crear `logs/` en la raíz de datos al escribir el log de arranque | `std::filesystem` / cualquier SO | Patrón R13: `logs` pasa a ser nombre reservado, así `migrarProyectosAntiguos()` no la mueve a `Proyects/` y ningún proyecto puede usar ese nombre | `fix(ventana): escribir el log de arranque en una carpeta escribible` |
+
+---
+
+## 12. Historial de Cambios
 
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
@@ -581,6 +671,7 @@ Checklist de mitigación:
 | 2026-09-28 | Gianfranco Ivan Enrique | Añadido el quinto concepto (Patrón R11, una imagen cargada bloquea su archivo en Windows) con su instancia #1, a raíz del `Permission denied` de `ld` al haber dos objetos sobre el mismo script (H-20). |
 | 2026-09-28 | Gianfranco Ivan Enrique | Añadida instancia #4 al primer concepto: drop entre paneles (ShowFolder → BrowseFile y ShowFolder → ShowFolder carpeta distinta) con invalidación explícita de cache grid en origen y destino. |
 | 2026-09-29 | Gianfranco Ivan Enrique | Añadido el sexto concepto (Patrón R12, un contexto Core Profile rechaza todo dibujo sin VAO ligado) con su instancia #1, a raíz del cielo degradado que no se dibujaba en un contexto 4.6 core. |
+| 2026-10-03 | Gianfranco Ivan Enrique | Añadido el séptimo concepto (Patrón R13, una migración de compatibilidad se lleva las carpetas del motor) con su instancia #1, y registrada la instancia #4 del segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) a raíz del log de arranque que no se escribía instalado en `Program Files`. |
 
 ---
 

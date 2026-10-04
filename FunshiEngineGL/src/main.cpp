@@ -31,6 +31,7 @@
 #include "../src/Configuracion/EditorConfig.h"
 #include "../src/Configuracion/ProjectPaths.h"
 #include "../src/Configuracion/ProyectoInicial.h"
+#include "../src/Configuracion/RutasLog.h"
 #include "../src/GUI/WindowNames.h"
 #include "../src/GUI/Tema/TemaEditor.h"
 #include <imgui.h>
@@ -98,46 +99,54 @@ static float deltaTime = 0.0f;
 static FILE* g_logSalida = nullptr;
 
 // Redirige stdout y stderr (cubriendo cout/cerr y printf) a un archivo de log
-// en la carpeta "logs/" junto al ejecutable, con timestamp por arranque. Asi el
-// editor NO escupe texto a la terminal: se puede lanzar con doble clic o desde
-// un .desktop y no queda ninguna consola atras de la ventana que moleste.
-// Devuelve la ruta del archivo de log (vacia si no se pudo crear).
+// en la carpeta "logs/" de la primera candidata que acepte escritura, con
+// timestamp por arranque. Asi el editor NO escupe texto a la terminal: se puede
+// lanzar con doble clic o desde un .desktop y no queda ninguna consola atras de
+// la ventana que moleste.
+// La carpeta no es siempre la del ejecutable: instalado en Program Files sin
+// elevar no admite escritura, y ahi el log se va a la raiz de datos (que el
+// motor ya resuelve a la carpeta del usuario) o, en ultimo caso, a la temporal.
+// Devuelve la ruta del archivo de log (vacia si no se pudo crear en ninguna).
 static std::string redirigirSalidaALog(char* argv0) {
     namespace fs = std::filesystem;
-    try {
-        const fs::path ejecutable =
-            argv0 && argv0[0] != '\0' ? fs::path(argv0).parent_path()
-                                      : fs::path(".");
-        const fs::path carpetaLogs = ejecutable / "logs";
-        fs::create_directories(carpetaLogs);
+    const fs::path ejecutable =
+        argv0 && argv0[0] != '\0' ? fs::path(argv0).parent_path() : fs::path(".");
+    std::error_code ec;
+    const fs::path temporal = fs::temp_directory_path(ec);
 
-        const std::time_t ahora = std::time(nullptr);
-        // gmtime() del <ctime> estandar: portable entre MSVC, MinGW y Linux
-        // (gmtime_s y gmtime_r no existen en todos los compiladores de Windows).
-        // No hay threads en este punto del arranque, asi que la zona estatica
-        // que devuelve es segura.
-        const std::tm tmUtc = *std::gmtime(&ahora);
-        char sufijo[32];
-        std::strftime(sufijo, sizeof(sufijo), "%Y%m%d_%H%M%S", &tmUtc);
-        const std::string ruta =
-            (carpetaLogs / ("FunshiEngineGL_" + std::string(sufijo) + ".log"))
-                .string();
+    const std::time_t ahora = std::time(nullptr);
+    // gmtime() del <ctime> estandar: portable entre MSVC, MinGW y Linux
+    // (gmtime_s y gmtime_r no existen en todos los compiladores de Windows).
+    // No hay threads en este punto del arranque, asi que la zona estatica
+    // que devuelve es segura.
+    const std::tm tmUtc = *std::gmtime(&ahora);
+    char sufijo[32];
+    std::strftime(sufijo, sizeof(sufijo), "%Y%m%d_%H%M%S", &tmUtc);
+    const std::string nombre = "FunshiEngineGL_" + std::string(sufijo) + ".log";
 
-        // freopen redirige el FILE* de C (printf, cin/cout via sync_with_stdio
-        // y fprintf). Se reabre en modo append por si ya existe.
-        g_logSalida = std::freopen(ruta.c_str(), "a", stdout);
-        if (std::freopen(ruta.c_str(), "a", stderr) == nullptr) {
+    for (const std::string& carpeta :
+         RutasLog::candidatas(ProjectPaths::directorioBase(),
+                              ejecutable.string(), temporal.string())) {
+        try {
+            fs::create_directories(carpeta);
+            const std::string ruta = (fs::path(carpeta) / nombre).string();
+            // freopen redirige el FILE* de C (printf, cin/cout via
+            // sync_with_stdio y fprintf). Se reabre en modo append por si ya
+            // existe.
+            g_logSalida = std::freopen(ruta.c_str(), "a", stdout);
+            if (!g_logSalida) continue;
+            // stderr sin redirigir no es motivo para renunciar: stdout ya lleva
+            // el log y el resto de la salida (cout) sigue llegando ahi.
+            std::freopen(ruta.c_str(), "a", stderr);
+            std::cout << "\n========== Arranque FunshiEngineGL " << sufijo
+                      << " ==========\n";
+            std::cout << "Log en: " << ruta << "\n";
+            return ruta;
+        } catch (...) {
             g_logSalida = nullptr;
         }
-        if (g_logSalida) {
-            std::cout << "\n========== Arranque FunshiEngineGL "
-                      << sufijo << " ==========\n";
-            std::cout << "Log en: " << ruta << "\n";
-        }
-        return g_logSalida ? ruta : std::string();
-    } catch (...) {
-        return std::string();
     }
+    return std::string();
 }
 
 #if defined(_WIN32)

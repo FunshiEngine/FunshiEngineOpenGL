@@ -58,11 +58,16 @@ std::string exeDir() {
 #endif
 }
 
+// Las carpetas del motor que viven en la raiz se marcan como reservadas para
+// que migrarProyectosAntiguos() no las interprete como un proyecto legacy y las
+// mueva dentro de Proyects/. "logs" entra en la lista por el log de arranque:
+// sin esto, el log se escribia bien en <raiz>/logs y a continuacion la propia
+// migracion lo arrastraba a Proyects/logs y dejaba la carpeta original vacia.
 bool esReservado(const std::string& nombre) {
     static const char* reservados[] = {
         "Proyects", "Configuraciones", "Exportaciones",
         "Binarios", "Memory", "Interfaces", "Sonidos",
-        "Configuracion.json", "imgui.ini"
+        "Configuracion.json", "imgui.ini", "logs"
     };
     for (const char* r : reservados) {
         if (nombre == r) return true;
