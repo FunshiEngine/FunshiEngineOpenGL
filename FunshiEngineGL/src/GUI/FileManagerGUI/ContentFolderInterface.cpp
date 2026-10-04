@@ -334,7 +334,9 @@ void ContentFolderInterface::initGUI() {
                 const std::string destFolder =
                     sel->carpetaActual->getPathRoot() + PATH_SEP +
                     sel->carpetaActual->getPathName();
-                size_t pos = sourceFolder.find_last_of("/\\");
+                // La barra invertida solo separa donde el sistema la trata
+                // como separador; en Linux es un caracter del nombre.
+                const std::string::size_type pos = indiceSeparadorFinal(sourceFolder);
                 std::string folderName = (pos != std::string::npos) ? sourceFolder.substr(pos + 1) : sourceFolder;
                 const std::string finalDest = destFolder + PATH_SEP + folderName;
                 if (fileManager->copiarCarpeta(sourceFolder, finalDest)) {
@@ -349,7 +351,7 @@ void ContentFolderInterface::initGUI() {
                 const std::string destFolder =
                     sel->carpetaActual->getPathRoot() + PATH_SEP +
                     sel->carpetaActual->getPathName();
-                size_t pos = sourceFile.find_last_of("/\\");
+                const std::string::size_type pos = indiceSeparadorFinal(sourceFile);
                 std::string fileName = (pos != std::string::npos) ? sourceFile.substr(pos + 1) : sourceFile;
                 const std::string finalDest = destFolder + PATH_SEP + fileName;
                 // Sin contador: copiar un archivo no modifica el arbol.

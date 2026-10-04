@@ -478,6 +478,29 @@ int main() {
               "carpeta dentro de si misma: la operacion se cancela");
         CHECK(recibidos.size() == 1,
               "una carpeta en si misma no publica evento");
+
+#ifndef _WIN32
+        // En Linux y macOS la barra invertida es un caracter LEGAL del nombre de
+        // archivo: "Assets/con\\barra.txt" es un archivo, no una ruta. Si al
+        // partir la ruta se trata como separador, el arrastre lo renombra a
+        // "barra.txt" y ademas invalida el cache de una carpeta que no existe.
+        CHECK(fm.crearCarpeta(unir(proy, "Assets/ConBarra")), "carpeta destino con barra");
+        const std::string conBarra = unir(proy, "Assets/con\\barra.txt");
+        CHECK(fm.crearArchivo(conBarra, "con barra"), "archivo con barra invertida en el nombre");
+        std::string padreReportado;
+        CHECK(soltarEnCarpeta(&fm, &bus, conBarra, unir(proy, "Assets/ConBarra"),
+                              false, &padreReportado),
+              "soltar un archivo con barra invertida lo mueve");
+        CHECK(fs::is_regular_file(unir(proy, "Assets/ConBarra/con\\barra.txt")),
+              "el archivo conserva su nombre completo (no se renombra)");
+        CHECK(!fs::exists(unir(proy, "Assets/ConBarra/barra.txt")),
+              "no aparece un archivo truncado en el destino");
+        CHECK(padreReportado == unir(proy, "Assets"),
+              "la carpeta padre reportada es la real, para invalidar su cache");
+        CHECK(recibidos.size() == 2 &&
+                  recibidos[1].rutaNueva == unir(proy, "Assets/ConBarra/con\\barra.txt"),
+              "el evento lleva la ruta nueva con la barra intacta");
+#endif
     }
 
     // --- Drag&Drop: invalidacion de vistas (arbol + grid) ---------------------

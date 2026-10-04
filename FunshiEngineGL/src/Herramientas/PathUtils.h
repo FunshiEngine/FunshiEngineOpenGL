@@ -58,6 +58,18 @@ inline bool bytesRutaEquivalentes(char a, char b) {
     return esSeparadorPath(a) && esSeparadorPath(b);
 }
 
+// Indice del ULTIMO separador de la ruta, o std::string::npos si no tiene
+// ninguno: sirve para partir "carpeta/archivo" en sus dos partes sin inventarse
+// un directorio. Al revisar los bytes con esSeparadorPath, la barra invertida
+// solo cuenta donde el sistema de archivos la trata como separador; en Linux es
+// un caracter mas del nombre ("con\barra.txt" es un archivo de una carpeta, no
+// una ruta anidada).
+inline std::string::size_type indiceSeparadorFinal(const std::string& ruta) {
+    for (std::string::size_type i = ruta.size(); i-- > 0;)
+        if (esSeparadorPath(ruta[i])) return i;
+    return std::string::npos;
+}
+
 // Dice si `ruta` cae exactamente bajo `prefijo` (igual o seguida de un
 // separador), respetando NUNCA igualar un prefijo que no cierre en un
 // separador (p.ej. "srcA" no debe cubrir "srcAb"). El cotejo es byte a byte

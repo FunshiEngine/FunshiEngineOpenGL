@@ -714,7 +714,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 `-DFUNSHI_JAVA=ON`; cinco de ellos enlazan `funshi_engine` y requieren
 `BUILD_ENGINE=ON`, el resto compila también con `BUILD_ENGINE=OFF`):
 
-- `filemanager-tests` (183): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
+- `filemanager-tests` (190; 186 en Windows): ejercita `GestorDeArchivos`/`FileManager`/`FileSystemWatcher`
   contra un proyecto temporal, sin ventanas ni pila gráfica; incluye el arrastre
   con invalidación explícita de caché del grid en carpeta origen y destino, el
   renombre por click derecho de las vistas del explorador y la creación de

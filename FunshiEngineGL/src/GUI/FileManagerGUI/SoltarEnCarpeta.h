@@ -75,7 +75,10 @@ inline bool soltarEnCarpeta(FileManager* fileManager,
     if (fileManager == nullptr || origen.empty() || destFolder.empty())
         return false;
 
-    const std::string::size_type sep = origen.find_last_of("/\\");
+    // El ultimo separador que SEPARA: en Linux la barra invertida es un
+    // caracter mas del nombre, y tomarla por separador renombraba el archivo
+    // arrastrado y reportaba como padre una carpeta que no existe.
+    const std::string::size_type sep = indiceSeparadorFinal(origen);
     const std::string nombre =
         (sep != std::string::npos) ? origen.substr(sep + 1) : origen;
     const std::string finalDest = destFolder + PATH_SEP + nombre;
