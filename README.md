@@ -16,7 +16,7 @@ Motor y editor 3D en tiempo real escrito en C++17, con interfaz ImGui y renderiz
   perfil core es un requisito duro: si el driver no da 3.3 core, el arranque
   aborta con un mensaje en consola en vez de mostrar una pantalla negra.
 - Interfaz de editor con **Dear ImGui** (docking) y gizmos con **ImGuizmo**.
-- Sistema **Entity–Component**: `Transform`, `Color`, `Model`, `Material`, `Light`, `CameraComponent`, `Grid`, colliders (esfera / cubo / malla), `RigidBody`, `AudioSource`, `InterfaceComponent` (HUD por asset JSON del CreadorDeInterfaces) y `Script`.
+- Sistema **Entity–Component**: `Transform`, `Color`, `Model`, `Material`, `Light`, `CameraComponent`, `Grid`, `Skybox` (cubemap de 6 caras que reemplaza al cielo degradado), colliders (esfera / cubo / malla), `RigidBody`, `AudioSource`, `InterfaceComponent` (HUD por asset JSON del CreadorDeInterfaces) y `Script`.
 - **Scripts dinámicos** (`Script` + `IScriptBehaviour`): reflexión por macros con campos `SerializeField` (escalares, arrays y grupos anidados) editables en el inspector; compilación en caliente de C++ a `.so`/`.dll` (`BackendCpp`) y soporte de **Java vía JNI** (`BackendJava`, se activa automáticamente si el build encuentra el JDK). Hot reload por fecha de modificación que reinyecta los valores serializados, y ciclo `onStart`/`onUpdate`/`onStop`.
 - **Jerarquía de objetos** con árbol enlazado propio (`ArbolEnlazado<GameObject*>`) y reparentado seguro (rechaza ciclos y la raíz).
 - Carga de modelos 3D con **Assimp** (`.obj`, `.fbx` y formatos soportados por Assimp).
@@ -33,8 +33,10 @@ Motor y editor 3D en tiempo real escrito en C++17, con interfaz ImGui y renderiz
   tema claro/oscuro (arranca en **oscuro**), **modo blanco y negro** (desatura toda
   la interfaz y fuerza el fondo del viewport y el color de la grilla a blanco o
   negro según el tema, ignorando los colores elegidos), color de acento de la
-  interfaz (solo RGB: la transparencia la define el tema) y color de fondo de la
-  escena, aplicados en vivo por `TemaEditor`/`AparienciaUtil`.
+  interfaz (solo RGB: la transparencia la define el tema) y los dos colores del
+  cielo, `fondoSuperior` (cenit) y `fondoInferior` (suelo), con `radioDifuminado`
+  como media anchura de la transicion alrededor del horizonte; todo aplicado en
+  vivo por `TemaEditor`/`AparienciaUtil`.
   El acento se inyecta en **todos** los roles visuales de ImGui (botones,
   solapas del dock, campos de entrada, sliders, checks, enlaces, cabeceras de
   tabla) y los grises azulados de fábrica pasan a gris neutro: la interfaz no
@@ -133,7 +135,7 @@ ctest --test-dir build --output-on-failure
 
 - `filemanager-tests` (173 verificaciones): explorador de archivos (`GestorDeArchivos`/`FileManager`/`FileSystemWatcher`), el arrastre (`soltarEnCarpeta`) con invalidación explícita de caché del grid en carpeta origen y destino, el renombre por click derecho (`RenombrarElemento`, compartido por el árbol y el grid: ruta nueva hermana de la vieja, sin pisar destinos existentes, y un único `ArchivosReubicados` sólo si el cambio se hizo), la creación de carpetas (`CrearCarpeta`, compartida por el árbol y el grid: nombre válido, aviso de nombre repetido en vez de reportar un éxito que no ocurrió, y una sola subida del contador de cambios) y el contrato de la plantilla de script C++ (la fábrica viaja con el macro portable de exportación, obligatorio en MSVC), más la lógica pura del selector de caras del cubemap (`SelectorArchivoCubemap`: filtro de extensiones, aviso de caras faltantes y comparación de resolución entre caras (en píxeles, con el mismo criterio que el render)).
 - `proceso-tests` (24): el runner de procesos sin shell `Proceso`: round-trip de argv byte a byte relanzando el propio binario copiado a una carpeta **con espacios** con argumentos hostiles (espacios, operadores de shell, comilla interior, barra final, argumento vacío), exit codes, truncado del log, `cwd`, entorno extra, programa inexistente, la tabla de citación de `citar()` (antes en `scripts-tests`) y, en Windows, la receta cruda de `cmd.exe` del harvest de vcvars.
-- `configuracion-tests` (154): `EditorConfig` sobre `ConfigPersistence`/`ProjectPaths` (round-trip general y por proyecto, prioridad de las claves modernas sobre el `menu/*` legacy, tolerancia a archivos ausentes/corruptos/parciales, `restablecer`, escritura atómica sin temporales colgados, guardado diferido con `volcarGuardadoGeneral` y política de proyecto inicial `ProyectoInicial::resolver`), los colores del cielo (se conservan tal como se guardaron —un cielo claro incluido— y solo se acotan los componentes fuera de `[0, 1]`) y el cotejo de prefijos de ruta `rutaBajo` (en Windows `/` y `\` equivalen, que es lo que hace posible reescribir las referencias al mover/renombrar).
+- `configuracion-tests` (163): `EditorConfig` sobre `ConfigPersistence`/`ProjectPaths` (round-trip general y por proyecto, prioridad de las claves modernas sobre el `menu/*` legacy, tolerancia a archivos ausentes/corruptos/parciales, `restablecer`, escritura atómica sin temporales colgados, guardado diferido con `volcarGuardadoGeneral` y política de proyecto inicial `ProyectoInicial::resolver`), los colores del cielo (se conservan tal como se guardaron —un cielo claro incluido— y solo se acotan los componentes fuera de `[0, 1]`) y el cotejo de prefijos de ruta `rutaBajo` (en Windows `/` y `\` equivalen, que es lo que hace posible reescribir las referencias al mover/renombrar).
 - `eventbus-tests` (17): canal tipado de GUI interna (`EditorEventBus`).
 - `menu-tests` (40): `MenuModel` (traducción en vivo, observer de cambios —sin notificar al reaplicar una apariencia idéntica— y reset).
 - `tema-tests` (28): `TemaEditor` (aplicación del perfil `Apariencia` al estilo ImGui): el acento llega a **todos** los roles y ningún rol conserva el azul de fábrica de Dear ImGui (regresión "el color de acento no se aplica a toda la interfaz"), el acento por defecto no cambia el aspecto histórico, un acento translúcido no apaga los roles de primer plano, la aplicación es idempotente y el modo B/N deja la paleta monocroma.

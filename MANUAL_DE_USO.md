@@ -127,9 +127,10 @@ MotorGrafico/
         └── lib/                      ← dependencias runtime (Bullet, miniaudio, GLFW, etc.)
 ```
 
-La convencion de assets por nombre usa carpetas `Sonidos/` y `Interfaces/` (el usuario las crea al agregar el primer asset) con
-mayuscula inicial. El arbol de archivos del editor lista la **raiz del
-proyecto** (`src<nombre>`).
+En el arbol, las carpetas marcadas con `#` las crea el motor al crear el proyecto
+(no hace falta hacerlas a mano). La convencion de assets por nombre usa las carpetas
+`src<proyecto>/Sonidos/` y `Memory/Interfaces/`, con mayuscula inicial. El arbol de
+archivos del editor lista la **raiz del proyecto** (`src<nombre>`).
 
 > **Nota de packaging:** en el instalador Windows el explorador apunta a la
 > raiz del proyecto; en builds de desarrollo antiguas (Linux) podia apuntar a
@@ -158,7 +159,7 @@ una **copia** (arrastre con `Ctrl`) no se rastrea, porque no cambia ninguna de
 las dos rutas; los cambios hechos **fuera** del motor (explorador de Windows,
 una terminal, un `mv`) solo sirven para refrescar el arbol de archivos, no
 reescriben nada, asi que ahi si hay que volver a arrastrar el asset en su
-inspector; y los sonidos de `Sonidos/` e interfaces de `Interfaces/` se
+inspector; y los sonidos de `src<proyecto>/Sonidos/` e interfaces de `Memory/Interfaces/` se
 referencian por **nombre**: un move con el mismo nombre conserva la referencia
 y un rename la rompe (vuelve a seleccionar el clip/interfaz en su dropdown).
 Si una referencia quedo apuntando a un archivo que ya no existe, al **abrir la
@@ -220,7 +221,11 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 ## 4. Objetos y componentes
 
 - **Crear objetos:** "New GameObject" (crea un objeto simple en la escena que posee únicamente el componente `Transform`).
-- **Menú contextual en la jerarquía:** clic derecho sobre un objeto despliega "Renombrar" y "Eliminar"; clic derecho en espacio vacío del panel despliega "New GameObject".
+- **Menú contextual en la jerarquía:** clic derecho sobre un objeto despliega cuatro
+  opciones: **Cambiar ID**, **Renombrar**, **Desanudar a raíz** y **Eliminar**. "Desanudar
+  a raíz" solo aparece cuando el objeto cuelga de un padre intermedio: un hijo directo de
+  la raíz ya está al nivel superior, así que no hay nada que desenanidar. Clic derecho en
+  espacio vacío del panel despliega "New GameObject".
 - **Componentes:** `Transform`, `Color`, `Model`, `Material`, `Light`,
   `CameraComponent`, `Grid`, `Skybox`, colliders (esfera / cubo / malla),
   `RigidBody`, `AudioSource`, `InterfaceComponent` y `Script`.
@@ -467,9 +472,9 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 ## 9. Interfaces de juego (HUD)
 
 - Crea el asset de interfaz con el **CreadorDeInterfaces** (genera un JSON en
-  `Interfaces/<nombre>.json`).
+  `Memory/Interfaces/<nombre>.json`).
 - Agrega `InterfaceComponent` a un GameObject; su inspector muestra el nombre
-  del asset (dropdown + drop desde `Interfaces/`).
+  del asset (dropdown + drop desde `Memory/Interfaces/`).
 - Al entrar en **Play**, la escena muestra esa interfaz a pantalla completa
   delante de la camara principal (HUD del juego).
 

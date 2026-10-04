@@ -146,6 +146,10 @@ FunshiEngineGL/                          ← raíz del repo
         │                                  dueño: GUIManager)
         ├── ExcepcionesCPP/              ← Throwable, RuntimeException, excepciones de
         │                                  contenedores (ExcepcionesEstructuras/)
+        ├── Exportador/
+        │   └── GameExporter.h/.cpp      ← exporta el juego standalone: proyecto CMake temporal,
+        │                                  compila el juego (recompilando scripts), empaqueta
+        │                                  ejecutable + assets + dependencias en Linux/Windows
         ├── Fisicas/
         │   ├── IPhysicsBackend.h        ← contrato Strategy del backend de física
         │   ├── PhysicsEngine.h/.cpp     ← fachada PIMPL; el header no expone Bullet
@@ -196,8 +200,9 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   ├── Camera/SettingsCamera.*       ← FOV, planos, velocidad, vista previa
         │   │   ├── Grid/SettingsGrid.*           ← visible y color de la grilla (infinita,
         │   │   │                                 densidad fija: no hay tamaño/separación)
-        │   │   ├── AudioSource/SettingsAudioSource.* ← dropdown de clip (Sonidos/), volumen, loop
-        │   │   ├── Interface/SettingsInterface.* ← dropdown de asset de interfaz (Interfaces/)
+        │   │   ├── AudioSource/SettingsAudioSource.* ← dropdown de clip (src<proyecto>/Sonidos/),
+        │   │   │                                 volumen, loop
+        │   │   ├── Interface/SettingsInterface.* ← dropdown de asset de interfaz (Memory/Interfaces/)
         │   │   ├── Skybox/SettingsSkybox.*       ← visible + las seis caras del cubemap
         │   │   │   └── SelectorArchivoCubemap.h ← modal de elección de cara (header-only):
         │   │   │                                la lógica que decide (extensiones válidas,
@@ -207,7 +212,10 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   ├── RigidBody/SettingsRigidBody.*
         │   │   └── Colliders/ (Esfera, Cubo, Malla) ← sync transform/shape con física
         │   ├── CreadorUI/                        ← Creador de interfaces (editor de HUD;
-        │   │                                      UserInterfaceCustom, JSON en Interfaces/)
+        │   │                                      UserInterfaceCustom, JSON en Memory/Interfaces/)
+        │   ├── Export/
+        │   │   └── ExportDialog.h/.cpp           ← diálogo de exportación del juego standalone
+        │   │                                      (arma `GameExporter::Config` y lo lanza)
         │   └── SceneGUI/
         │       ├── SceneSelectedInterface.h/.cpp  ← jerarquía y selección; usa EditorController
         │       ├── SceneObjectTree.h/.cpp         ← árbol de objetos (con drag & drop)
@@ -304,6 +312,7 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── Grid.h/.cpp           ← grilla del suelo: pasada independiente, visible/color
         │       │                            (los campos tam/separacion quedan solo para que las
         │       │                            escenas viejas se lean igual; no se dibujan con ellos)
+        │       ├── Skybox.h/.cpp         ← cubemap de 6 caras que reemplaza al cielo degradado
         │       ├── Color.h / Model.h / Script.h
         │       ├── RigidBody/RigidBody.h/.cpp ← cuerpo Bullet sincronizado (RAII)
         │       └── Colliders/
@@ -720,7 +729,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,
   entorno extra, tabla de `citar()` y, en Windows, la receta cruda de `cmd.exe`
   del harvest de vcvars.
-- `configuracion-tests` (154): round-trip del JSON de `EditorConfig` (general y
+- `configuracion-tests` (163): round-trip del JSON de `EditorConfig` (general y
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
   archivos ausentes/corruptos/parciales, prioridad de las claves modernas sobre
   el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, la
@@ -1040,7 +1049,7 @@ GameScene → coordina todos los subsistemas del frame
   `AgregarComponenteComando`, `QuitarComponenteComando`, `LimpiarEscenaComando`)
   con deshacer/rehacer, la cadena de redo múltiple, el límite del historial y la
   descripción que el historial devuelve para avisar en la barra de estado.
-- Los diecinueve targets compilan en cualquier plataforma y se ejecutan con `ctest`.
+- Los veinte targets compilan en cualquier plataforma y se ejecutan con `ctest`.
 - `.github/workflows/ci.yml` compila el engine completo en Ubuntu (Release, sin
   ASan) y ejecuta las pruebas; además ejecuta las headless en
   Linux/Windows con `BUILD_ENGINE=OFF` y el backend Java en Ubuntu con JDK.
