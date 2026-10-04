@@ -739,10 +739,10 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 - `eventbus-tests` (17): suscripción/publicación/unsubscribe del canal tipado de GUI.
 - `menu-tests` (40): lógica pura del menú (traducción, observer de cambios —sin
   notificar al reaplicar una apariencia idéntica— y reset).
-- `assetmanager-tests` (88): caché Flyweight de meshes (rutas `AssetPath`, geometría
-  `Mesh` con `computeBounds`, `computeNormals` —incluido el modo `soloFaltantes`
-  para assets que mezclan sub-mallas con y sin normales— y `computeTangents`) y el
-  registro compartido con un loader artificial.
+- `assetmanager-tests` (95): caché Flyweight de meshes (rutas `AssetPath`, con los prefijos
+  UNC y `\\?` preservados al normalizar) y geometría de `Mesh` con `computeBounds`,
+  `computeNormals` —incluido el modo `soloFaltantes` para assets que mezclan sub-mallas con
+  y sin normales— y `computeTangents`; registro compartido con un loader artificial.
 - `texturemanager-tests` (15): caché Flyweight de imágenes CPU (sin entrar la pila gráfica).
 - `estructuras-tests` (87): `ListaDE`, `ArbolEnlazado`, `PriorityListaDE`,
   `MinHeap`/`MaxHeap`, `ListMergeSort` y `ArbolBinarioEnlazado`.
