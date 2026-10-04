@@ -2,7 +2,10 @@
 ;  FunshiEngineGL - Instalador Windows (Inno Setup 6)
 ; ============================================================================
 ;  PARA PUBLICAR UNA BETA / ALPHA / DEMO:
-;    1. Edita MiVersion y MiCanal abajo.
+;    1. Edita MiVersion y MiCanal abajo. MiVersion tiene que coincidir con
+;       FUNSHI_VERSION de FunshiEngineGL/CMakeLists.txt (la del .exe que se
+;       empaqueta): al publicar desde GitHub Actions el numero sale del tag y
+;       este archivo se reescribe solo, asi que ahi no hay que tocar nada.
 ;    2. Ejecuta HacerInstalador.bat (monta packaging/dist/ y compila este
 ;       script con ISCC). Alternativa manual: ISCC.exe FunshiEngineGL_setup.iss
 ;    3. El instalador queda en packaging/instalador/.

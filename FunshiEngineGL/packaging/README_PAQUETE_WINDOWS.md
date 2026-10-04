@@ -85,12 +85,26 @@ podía guardar ni la configuración ni las escenas.
 
 ## Versionar para demo/alpha/beta
 
-Edita arriba del `.iss`:
+La versión del producto tiene una sola fuente: `FUNSHI_VERSION` en
+`FunshiEngineGL/CMakeLists.txt`. De ahí salen la versión del proyecto y el
+recurso `VERSIONINFO` del `.exe`. Se puede cambiar sin tocar el archivo:
+
+```bash
+cmake -B build -S FunshiEngineGL -DFUNSHI_VERSION=0.6.0
+```
+
+El `.iss` lleva su propio `MiVersion` para el nombre del instalador y el canal:
 
 ```iss
 #define MiVersion "0.5.0"
 #define MiCanal "alpha"   ; demo | alpha | beta | rc
 ```
+
+Tiene que coincidir con la del `.exe` que se está empaquetando; si no, el
+instalador anuncia una versión y dentro viaja otra. Al publicar desde GitHub
+Actions eso no hay que controlarlo: el workflow pasa el número del tag a
+`-DFUNSHI_VERSION` y reescribe el `MiVersion` del `.iss` con el mismo valor.
+Compilando a mano, cambia los dos sitios.
 
 Cada combinacion genera su propio archivo de salida, así no se mezclan builds
 (por ejemplo `FunshiEngineGL-0.5.0-beta-setup.exe`).

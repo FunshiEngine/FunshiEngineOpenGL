@@ -75,7 +75,12 @@ FunshiEngineGL/                          ← raíz del repo
 │   └── UserInterfaceTests.cpp           ← modelo del Creador de interfaces (round-trip JSON)
 └── FunshiEngineGL/                      ← proyecto CMake principal
     ├── CMakeLists.txt                   ← GLOB de fuentes, dependencias, sanitizers,
-    │                                      pruebas (CTest) y opción BUILD_ENGINE
+    │                                      pruebas (CTest), opción BUILD_ENGINE y la
+    │                                      versión del producto (FUNSHI_VERSION, variable
+    │                                      de caché: la de project() y la del
+    │                                      VERSIONINFO del .exe salen de ahí; el
+    │                                      workflow la fija con -DFUNSHI_VERSION al
+    │                                      publicar por tag)
     ├── Imagenes/                        ← íconos del explorador (cpp, cubo, file, folder, hpp)
     ├── ImGuizmo/                        ← dependencia integrada (ImGuizmo.cpp/.h, etc.)
     ├── External/nlohmann/json.hpp       ← nlohmann/json vendoriado (EditorConfig)

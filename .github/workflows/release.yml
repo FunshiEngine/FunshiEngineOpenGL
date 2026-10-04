@@ -58,6 +58,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DENABLE_ASAN=OFF
           -DFUNSHI_JAVA=ON
+          -DFUNSHI_VERSION=${{ steps.ver.outputs.version }}
 
       - name: Compilar engine
         run: cmake --build build --config Release --target FunshiEngineGL
@@ -148,7 +149,7 @@ jobs:
             libfontconfig1 libdbus-1-3 libglib2.0-0
 
       - name: Configurar
-        run: cmake -B build -S FunshiEngineGL -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF -DFUNSHI_JAVA=ON
+        run: cmake -B build -S FunshiEngineGL -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF -DFUNSHI_JAVA=ON -DFUNSHI_VERSION=${{ steps.ver.outputs.version }}
 
       - name: Compilar engine
         run: cmake --build build --target FunshiEngineGL
