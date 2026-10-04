@@ -118,6 +118,11 @@ public:
     // <directorioProyecto>/src<nombreProyecto>/Sonidos
     static std::string directorioSonidos(const std::string& nombreProyecto = "Nuevo Proyecto");
 
+    // Carpeta con los fuentes de script del proyecto (los que el usuario
+    // compila para su juego, junto a los demas assets del explorador):
+    // <directorioProyecto>/src<nombreProyecto>/Scripts
+    static std::string directorioScripts(const std::string& nombreProyecto = "Nuevo Proyecto");
+
     // Carpeta de interfaces de usuario creadas (assets JSON del creador de
     // interfaces): <directorioMemory>/Interfaces
     static std::string directorioInterfaces(const std::string& nombreProyecto = "Nuevo Proyecto");

@@ -106,6 +106,10 @@ std::string EditorConfig::directorioSonidos(const std::string& nombreProyecto) {
     return ProjectPaths::directorioSonidos(nombreProyecto);
 }
 
+std::string EditorConfig::directorioScripts(const std::string& nombreProyecto) {
+    return ProjectPaths::directorioScripts(nombreProyecto);
+}
+
 std::string EditorConfig::directorioInterfaces(const std::string& nombreProyecto) {
     return ProjectPaths::directorioInterfaces(nombreProyecto);
 }

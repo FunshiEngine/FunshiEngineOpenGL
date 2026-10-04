@@ -622,6 +622,16 @@ solo como orquestador de arranque y bucle.
     `kIntervaloEscritura` (250 ms); `guardarGeneral()` (Ctrl+S, salida, reset)
     vuelca el pendiente sin esperar.
   - El layout `imgui.ini` también se guarda junto al proyecto (no en el CWD).
+- Carpeta de un proyecto: `Proyects/<proyecto>/` con `Memory/` (escena,
+  configuración del proyecto e `imgui.ini`), `Memory/Interfaces/` y la raíz de
+  assets `src<proyecto>/` (meshes, texturas, materiales, `Sonidos/`,
+  `Scripts/`). Todas esas rutas salen de `ProjectPaths`
+  (`directorioSrc`, `directorioSonidos`, `directorioScripts`), incluido el
+  exportador del juego standalone, que las pide ahí mediante
+  `Exportador/RutasExportacion.h` (lógica pura, header-only) en vez de
+  componerlas desde la carpeta del proyecto: componiéndolas a mano las copias
+  se saltaban en silencio y el juego exportado salía sin sonidos, sin scripts
+  del usuario y sin configuración.
 - Limitación conocida: la serialización binaria no tiene versionado ni validación
   de tamaños; un cambio en la estructura de atributos invalida escenas guardadas.
 
@@ -729,7 +739,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,
   entorno extra, tabla de `citar()` y, en Windows, la receta cruda de `cmd.exe`
   del harvest de vcvars.
-- `configuracion-tests` (164): round-trip del JSON de `EditorConfig` (general y
+- `configuracion-tests` (169): round-trip del JSON de `EditorConfig` (general y
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
   archivos ausentes/corruptos/parciales, prioridad de las claves modernas sobre
   el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, la

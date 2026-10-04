@@ -121,6 +121,7 @@ void ExportDialog::iniciarExportacion() {
 
     GameExporter::Config cfg;
     cfg.proyectoOrigen = proyectoPath;
+    cfg.nombreProyecto = proyectoActual_;
     cfg.nombreEjecutable = nombreEjecutable_;
     cfg.nombreProyectoExportado = nombreProyectoExportado_;
     cfg.plataforma = (plataformaIdx_ == 0) ? GameExporter::Plataforma::Linux : GameExporter::Plataforma::Windows;

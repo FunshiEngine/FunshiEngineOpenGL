@@ -314,6 +314,10 @@ std::string directorioSonidos(const std::string& nombreProyecto) {
     return directorioSrc(nombreProyecto) + "/Sonidos";
 }
 
+std::string directorioScripts(const std::string& nombreProyecto) {
+    return directorioSrc(nombreProyecto) + "/Scripts";
+}
+
 std::string rutaConfiguracionGeneral() {
     return directorioConfiguraciones() + "/Configuracion.json";
 }

@@ -39,6 +39,7 @@
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
+#include "../FunshiEngineGL/src/Exportador/RutasExportacion.h"
 #include "../FunshiEngineGL/src/Configuracion/ProyectoInicial.h"
 #include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
 #include "../FunshiEngineGL/src/Configuracion/RutasLog.h"
@@ -435,6 +436,36 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(EditorConfig::rutaConfiguracionProyecto(proyNombre) ==
               memDir + "/ConfiguracionProyecto.json",
               "rutaConfiguracionProyecto dentro de Memory");
+
+    // 5b. Rutas que el exportador copia al Data/ del juego standalone. Salen de
+    // la disposicion real del proyecto: los sonidos y los fuentes de script
+    // viven bajo src<nombre>/ y la configuracion del proyecto dentro de Memory.
+    {
+        const std::string nombre = "JuegoExport";
+        const std::string salida = EditorConfig::directorioExportacion("JuegoExportado");
+        const std::vector<std::pair<std::string, std::string>> rutas =
+            rutasDatosProyecto(nombre, salida);
+
+        auto origenDe = [&rutas, &salida](const std::string& destinoEnData) {
+            for (const auto& par : rutas)
+                if (par.second == salida + destinoEnData) return par.first;
+            return std::string();
+        };
+
+        CHECK(origenDe("/Data/Memory") == EditorConfig::directorioMemory(nombre),
+              "el exportador copia Memory desde la ruta real");
+        CHECK(origenDe("/Data/Sonidos") == EditorConfig::directorioSonidos(nombre),
+              "los sonidos se copian desde src<nombre>/Sonidos");
+        CHECK(origenDe("/Data/ConfiguracionProyecto.json") ==
+                  EditorConfig::rutaConfiguracionProyecto(nombre),
+              "la configuracion del proyecto se copia desde Memory/");
+        CHECK(directorioScriptsProyecto(nombre) ==
+                  EditorConfig::directorioSrc(nombre) + "/Scripts",
+              "los fuentes de script se compilan desde src<nombre>/Scripts");
+        CHECK(nombreProyectoDesdeRuta(EditorConfig::directorioProyecto(nombre)) ==
+                  nombre,
+              "el nombre del proyecto es el de su carpeta");
+    }
 
         CHECK(EditorConfig::rutaSceneBBDD(proyNombre) ==
               memDir + "/Binarios/SceneBBDDObjetos.txt",
