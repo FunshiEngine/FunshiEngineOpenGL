@@ -109,6 +109,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   ├── BackendScript.h      ← interfaz de backend (C++/Java)
         │   │   ├── BackendCpp.*         ← compila .cpp→.so/.dll y lo carga (dlopen)
         │   │   ├── RutaCabecerasScript.h ← resuelve include/ junto al ejecutable o la ruta del checkout
+        │   │   ├── ResolucionJdk.h    ← empareja libjvm y javac de una misma raíz de JDK
         │   │   └── BackendJava.*        ← Java vía JNI/JVM dinámico (solo con FUNSHI_JAVA)
         │   └── Reflection/
         │       └── BehaviourReflection.* ← reflexión, macros SerializeField y serialización
@@ -634,6 +635,19 @@ solo como orquestador de arranque y bucle.
 - `BackendCpp` compila el `.cpp` a `.so`/`.dll` con el compilador configurado y lo
   carga con `dlopen`/`LoadLibrary`; `BackendJava` (opcional, `-DFUNSHI_JAVA=ON`)
   compila con `javac` y ejecuta sobre un JVM cargado dinámicamente vía JNI.
+  La eleccion del toolchain Java vive en `Behaviour/Backends/ResolucionJdk.h`, que
+  es codigo puro (sin JNI, para poder probarlo en un test headless): recorre las
+  raices candidatas en un orden fijo y **empareja** `libjvm` y `javac` de una misma
+  raiz, para que el `.class` se compile con el mismo JDK que lo ejecuta (con dos
+  toolchains distintos, un `javac` mas nuevo que la JVM produce
+  `UnsupportedClassVersionError`, que el motor|reportaba como "clase no
+  encontrada"). `FUNSHI_LIBJVM` y `JAVAC` siguen mandando por encima de la
+  busqueda; si la raiz elegida no trae `javac` (es un JRE) no se busca otro
+  compilador. El texto que cruza la frontera JNI (`NewStringUTF`) se convierte a
+  UTF-8 con `std::filesystem::path::u8string`, que en Windows convierte la
+  codificacion ANSI nativa a UTF-8; las rutas que van a `JavaVMOption` y a
+  `Proceso::ejecutar` se dejan estrechas a proposito, porque esas APIs usan la
+  codificacion nativa.
   Los flags con los que se compila el script viven en
   `Behaviour/Backends/ComandoCompilacionCpp.h` y cumplen el mismo contrato de
   CRT que el engine (`/MD` o `/MDd` según la configuración, más `/EHsc`): la
@@ -643,11 +657,12 @@ solo como orquestador de arranque y bucle.
 - El editor (`SettingsScript`) dibuja los campos reflejados (escalares, arrays,
   grupos y referencias a `GameObject`) y dispara la recompilación.
 - Las cabeceras que el script incluye al compilarse (`Behaviour/IScriptBehaviour.h`
-  y las tres que arrastra) se resuelven con `RutaCabecerasScript`: en el árbol de
-  desarrollo se hornea la ruta absoluta del checkout y en la app instalada el
-  nombre relativo `include`, que el paquete deja junto al ejecutable (`stage_dist_*`
-  y el instalador). Sin esa carpeta el backend avisa antes de invocar al
-  compilador, en vez de dejar que falle con un `-I` inexistente.
+  y las tres que arrastra) se resuelven con `RutaCabecerasScript`: el motor recibe
+  la carpeta de fuentes por `FUNSHI_SRC_DIR`, que el paquete deja como el nombre
+  relativo `include` y el editor resuelve contra la carpeta del ejecutable (el
+  build de desarrollo lo sobreescribe con la ruta absoluta del checkout). Sin esa
+  carpeta el backend avisa antes de invocar al compilador, en vez de dejar que
+  falle con un `-I` inexistente.
 
 ---
 
@@ -738,7 +753,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   tema resueltos; y la identidad del cubemap del Skybox (`CacheCubemap`): la
   clave que decide cada cuanto volver a subirlo a GPU cambia solo si cambia una
   ruta o su fecha de modificación. Solo CPU, sin OpenGL.
-- `scripts-tests` (105): reflexión `SerializeField` (escalares, arrays, grupos
+- `scripts-tests` (125): reflexión `SerializeField` (escalares, arrays, grupos
   anidados) y su round-trip binario; el contrato de flags con el que
   `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
   ARGV armados sin shell ni redirección); la resolución de la carpeta de
@@ -747,7 +762,11 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   instalada); el harvest del entorno de vcvars
   (receta cruda de `cmd`, parser UTF-16, bloque multi-sz); y el contrato del
   sondeo de toolchain (dispositivo nulo `NUL`/`/dev/null` abierto por el
-  runner, sin `std::system`).
+  runner, sin `std::system`); el emparejamiento de `libjvm` y `javac` de una
+  misma raíz de JDK (`ResolucionJdk`, con sus overrides por entorno y la
+  dedución de la raíz desde la ruta de la biblioteca en los layouts de POSIX y
+  Windows, y que el compilador que se pasa al proceso sea ejecutable) y la paridad del requisito de JDK del instalador (que exige
+  `jvm.dll` **y** `javac.exe`).
 - `scripts-runtime-tests`: compila un `.cpp` real con `BackendCpp`, lo carga con
   `dlopen`/`LoadLibrary` y ejecuta el ciclo + hot reload, comprueba que un
   segundo componente sobre el **mismo** fuente reutiliza el artefacto ya al

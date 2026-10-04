@@ -30,6 +30,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -37,6 +38,7 @@
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Behaviour/Backends/ComandoCompilacionCpp.h"
 #include "../FunshiEngineGL/src/Behaviour/Backends/RutaCabecerasScript.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/ResolucionJdk.h"
 #include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/IScriptBehaviour.h"
 
@@ -642,10 +644,143 @@ static void testContratoCompilacion() {
         CHECK(RutaCabecerasScript::resolver(relativaSoloJuntoAlExe, fakeExe,
                                             existe) == candidatoExe,
               "una ruta relativa se resuelve contra la carpeta del ejecutable");
-        CHECK(RutaCabecerasScript::resolver(relativaSoloJuntoAlExe, "",
+CHECK(RutaCabecerasScript::resolver(relativaSoloJuntoAlExe, "",
                                             existe)
-                  .empty(),
+                   .empty(),
               "sin carpeta del ejecutable no se inventa una ruta");
+    }
+
+    // Emparejamiento de libjvm y javac: tienen que salir de la MISMA raiz. Con
+    // dos raices falsas (una con JVM y otra con compilador) el emparejamiento
+    // tiene que quedarse con la primera que tenga JVM y no mezclar, porque un
+    // javac de otra version genera bytecode que la JVM rechaza y el fallo sale
+    // como "no se encontro la clase".
+    {
+        // Arbol falso: jdkA trae las dos cosas, jdkB solo la JVM, jdkC solo
+        // javac (no sirve de raiz de JVM).
+        const std::string jdkA = "/opt/jdkA";
+        const std::string jdkB = "/opt/jdkB";
+        const std::string jdkC = "/opt/jdkC";
+        auto libjvmEn = [&](const std::string& raiz) -> std::string {
+            if (raiz == jdkA) return raiz + "/lib/server/libjvm.so";
+            if (raiz == jdkB) return raiz + "/lib/server/libjvm.so";
+            return {};
+        };
+        auto javacEn = [&](const std::string& raiz) -> std::string {
+            if (raiz == jdkA) return raiz + "/bin/javac";
+            if (raiz == jdkC) return raiz + "/bin/javac";
+            return {};
+        };
+
+        const ResolucionJdk::Herramientas conPrimero =
+            ResolucionJdk::desdeRaices({jdkA, jdkB}, libjvmEn, javacEn);
+        CHECK(conPrimero.libjvm == jdkA + "/lib/server/libjvm.so" &&
+                  conPrimero.javac == jdkA + "/bin/javac" &&
+                  conPrimero.raiz == jdkA,
+              "la primera raiz con las dos herramientas manda para ambas");
+
+        const ResolucionJdk::Herramientas sinJavacPrimero =
+            ResolucionJdk::desdeRaices({jdkB, jdkA}, libjvmEn, javacEn);
+        CHECK(sinJavacPrimero.libjvm == jdkB + "/lib/server/libjvm.so" &&
+                  sinJavacPrimero.javac.empty(),
+              "una raiz sin javac no se completa con el javac de otra raiz");
+        CHECK(sinJavacPrimero.raiz == jdkB,
+              "la raiz elegida es la de la JVM, no la del compilador");
+
+        // Una raiz con javac pero sin JVM no es candidata: el .class lo tiene que
+        // ejecutar una JVM.
+        const ResolucionJdk::Herramientas soloJavac =
+            ResolucionJdk::desdeRaices({jdkC}, libjvmEn, javacEn);
+        CHECK(soloJavac.libjvm.empty() && soloJavac.javac.empty(),
+              "una raiz sin JVM no aporta nada");
+
+        CHECK(ResolucionJdk::desdeRaices({}, libjvmEn, javacEn).libjvm.empty(),
+              "sin raices no hay herramientas");
+        CHECK(ResolucionJdk::desdeRaices({"", "/opt/vacio"}, libjvmEn, javacEn)
+                      .libjvm.empty(),
+              "una raiz vacia o sin artefactos se ignora");
+
+        // Raiz deducida de la ruta de la biblioteca: sirve para el caso en que
+        // la biblioteca viene dada suelta (FUNSHI_LIBJVM, valor horneado) y hay
+        // que buscarle el javac al lado.
+        CHECK(ResolucionJdk::raizDesdeLibjvm("/opt/jdk/lib/server/libjvm.so") ==
+                  "/opt/jdk",
+              "libjvm.so POSIX: la raiz es dos niveles arriba");
+        CHECK(ResolucionJdk::raizDesdeLibjvm("C:/jdk/bin/server/jvm.dll") ==
+                  "C:/jdk",
+              "jvm.dll de Windows: la raiz sube de server y de bin");
+        CHECK(ResolucionJdk::raizDesdeLibjvm("C:/jdk/lib/jvm.lib") == "C:/jdk",
+              "el .lib de FindJNI cuelga de lib, no de bin/server");
+        CHECK(ResolucionJdk::raizDesdeLibjvm("/opt/jdk") == "/opt/jdk",
+              "una ruta que ya es de JDK se toma tal cual");
+        CHECK(ResolucionJdk::raizDesdeLibjvm("").empty(),
+              "sin ruta de biblioteca no hay raiz que deducir");
+    }
+
+    // Que se pueda ejecutar el javac que se paso a Proceso::ejecutar: un nombre
+    // suelto lo resuelve el PATH, una ruta tiene que existir. El fallo de "no se
+    // pudo ejecutar" no decia que lo que faltaba era un JDK.
+    {
+        TempPruebas::CarpetaPrueba carpetaJavac("funshi_scripts_javac");
+        const auto& raiz = carpetaJavac.ruta();
+        CHECK(ResolucionJdk::compiladorEjecutable("javac"),
+              "un nombre suelto lo resuelve el PATH");
+        CHECK(!ResolucionJdk::compiladorEjecutable(""),
+              "sin compilador no hay nada que ejecutar");
+        const auto javac = raiz / "javac";
+        std::ofstream(javac) << "#!/bin/sh\n";
+        CHECK(ResolucionJdk::compiladorEjecutable(javac.string()),
+              "una ruta que existe es ejecutable");
+        CHECK(!ResolucionJdk::compiladorEjecutable((raiz / "javac.exe").string()),
+              "una ruta que no existe no es ejecutable ni con extension de Windows");
+        CHECK(!ResolucionJdk::compiladorEjecutable(raiz.string()),
+              "una carpeta no es un compilador");
+    }
+
+    // Paridad instalador/motor al detectar un JDK: el .iss solo miraba
+    // bin\server\jvm.dll, asi que daba por bueno un JRE (que no trae javac) y el
+    // motor luego no podia compilar ningun .java. El predicado del instalador es
+    // Pascal Script y no se puede ejecutar fuera de Windows, asi que el contrato
+    // se comprueba sobre el propio .iss: cada deteccion de JDK pasa por el
+    // predicado que exige LAS DOS piezas, y no quedan comprobaciones sueltas de
+    // jvm.dll que puedan reintroducir el falso positivo.
+    {
+        const std::filesystem::path raizRepo =
+            std::filesystem::path(__FILE__).parent_path().parent_path();
+        const std::filesystem::path iss = raizRepo / "FunshiEngineGL" / "packaging" /
+                             "FunshiEngineGL_setup.iss";
+        std::ifstream f(iss);
+        CHECK(f.good(), "se encuentra FunshiEngineGL_setup.iss para auditarlo");
+        std::string texto((std::istreambuf_iterator<char>(f)),
+                          std::istreambuf_iterator<char>());
+
+        // Se cuentan LINEAS DE CODIGO, no texto: los comentarios del .iss
+        // mencionan jvm.dll y javac.exe al explicar el requisito.
+        int lineasJdk = 0;
+        int lineasJavac = 0;
+        int usosPredicado = 0;
+        std::istringstream flujo(texto);
+        std::string linea;
+        while (std::getline(flujo, linea)) {
+            if (linea.find("FileExists(") != std::string::npos &&
+                linea.find("jvm.dll") != std::string::npos)
+                ++lineasJdk;
+            if (linea.find("\\bin\\javac.exe") != std::string::npos)
+                ++lineasJavac;
+            if (linea.find("JdkCompletoEn(") != std::string::npos &&
+                linea.find("function") == std::string::npos)
+                ++usosPredicado;
+        }
+
+        CHECK(usosPredicado >= 4,
+              "el instalador detecta el JDK siempre por el mismo predicado "
+              "(carpetas comunes, JAVA_HOME del proceso, JAVA_HOME de la maquina "
+              "y jre embebido)");
+        CHECK(lineasJdk == 1 && lineasJavac == 1,
+              "una sola comprobacion de jvm.dll, y es la que exige tambien "
+              "bin\\javac.exe (si no, un JRE pasa por JDK y el motor no compila)");
+        CHECK(lineasJdk >= lineasJavac,
+              "el predicado del instalador no puede exigir javac y olvidar la JVM");
     }
 
     // vcvars64Ruta: el recorte por parent_path() tenia que terminar. En

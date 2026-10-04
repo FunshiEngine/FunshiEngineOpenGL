@@ -102,9 +102,20 @@ const
 var
   JdkAdvertencia: string;
 
-// Un JDK en <base>\<algo>\bin\server\jvm.dll. Se recorren las carpetas donde
-// los JDK se instalan de verdad en vez de consultar el registro, que en
-// Pascal Script exige enumerar subclaves a mano.
+{ Un JDK utilizable en <Raiz>: la biblioteca de la JVM Y el compilador. Comprobar
+  solo jvm.dll daba un falso positivo con un JRE: el instalador decia "JDK
+  detectado" y el motor no podia compilar ningun .java. El predicado es el mismo
+  que aplica el motor (libjvmEnRaiz + javacEnRaiz en BackendJava.cpp), con los
+  nombres de archivo de Windows. }
+function JdkCompletoEn(const Raiz: string): Boolean;
+begin
+  Result := FileExists(Raiz + '\bin\server\jvm.dll') and
+            FileExists(Raiz + '\bin\javac.exe');
+end;
+
+// JDK completo en <base>\<algo>\. Se recorren las carpetas donde los JDK se
+// instalan de verdad en vez de consultar el registro, que en Pascal Script exige
+// enumerar subclaves a mano.
 function HayJdkEn(const Carpeta: string): Boolean;
 var
   Buscador: TFindRec;
@@ -119,7 +130,7 @@ begin
         if (Buscador.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
         begin
           Sub := Buscador.Name;
-          if FileExists(Carpeta + '\' + Sub + '\bin\server\jvm.dll') then
+          if JdkCompletoEn(Carpeta + '\' + Sub) then
           begin
             Result := True;
             Exit;
@@ -150,20 +161,21 @@ function DetectarJdk(): Boolean;
 var
   Home: string;
 begin
-  { 1. JRE embebido junto al ejecutable }
-  if FileExists(ExpandConstant('{app}\jre\bin\server\jvm.dll')) then
+  { 1. JRE embebido junto al ejecutable: tiene que traer javac, igual que en
+     cualquier otra ruta (si solo trae la JVM, el motor no puede compilar) }
+  if JdkCompletoEn(ExpandConstant('{app}\jre')) then
   begin
     Result := True;
     Exit;
   end;
   { 2. JAVA_HOME, primero el del proceso y luego el de la maquina }
-  if FileExists(ExpandConstant('{env:JAVA_HOME}\bin\server\jvm.dll')) then
+  if JdkCompletoEn(ExpandConstant('{env:JAVA_HOME}')) then
   begin
     Result := True;
     Exit;
   end;
   Home := JavaHomeMaquina();
-  if (Home <> '') and FileExists(Home + '\bin\server\jvm.dll') then
+  if (Home <> '') and JdkCompletoEn(Home) then
   begin
     Result := True;
     Exit;

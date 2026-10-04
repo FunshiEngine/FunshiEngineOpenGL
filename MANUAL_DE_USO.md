@@ -948,14 +948,25 @@ busca solo, en este orden:
    `/usr/lib/jvm` en Linux.
 
 El `javac` se busca en la **misma** raíz que la JVM, así que el `.java` se
-compila siempre con el mismo JDK que después lo ejecuta. Se puede forzar con
-la variable `JAVAC`.
+compila siempre con el mismo JDK que después lo ejecuta; es importante porque
+un `javac` de otra versión genera un `.class` que su JVM rechaza. Si esa raíz
+no trae `javac` (es un JRE), el motor **no** busca otro: los `.class` ya
+compilados siguen cargando y al compilar avisa de que hace falta un JDK, no un
+JRE. Se puede forzar el compilador con la variable `JAVAC` (y la biblioteca de
+la JVM con `FUNSHI_LIBJVM`; si se dan las dos, la raíz de `FUNSHI_LIBJVM` es la
+que manda para el emparejamiento).
+
+Cuando una clase no carga, el mensaje dice **por qué**: la excepción que lanzó
+la JVM (`motivo:`), la carpeta de caché, dónde se buscaron las clases y con qué
+`javac` y `libjvm`. Con eso se distingue de un vistazo entre "el `.java` no
+compiló", "la clase no existe" y "el `.class` es de otra versión de Java".
 
 El instalador de Windows (`FunshiEngineGL_setup.iss`) comprueba si hay un JDK
-antes de instalar y, si no lo encuentra, ofrece descargar e instalar Temurin
-JDK 17. El paquete de Linux (Qt IFW) no puede encadenar instaladores, así que
-declara el requisito en la descripción: en la mayoría de distros el JDK ya
-viene instalado.
+antes de instalar —exige `bin\server\jvm.dll` **y** `bin\javac.exe`, los dos, que
+es lo mismo que necesita el motor— y, si no lo encuentra, ofrece descargar e
+instalar Temurin JDK 17. El paquete de Linux (Qt IFW) no puede encadenar
+instaladores, así que declara el requisito en la descripción: en la mayoría de
+distros el JDK ya viene instalado.
 
 ### 14.1 Plantilla generada por el editor
 
