@@ -27,6 +27,14 @@
 
 #include <string>
 
+// La eleccion de raiz de datos, aislada para poder probarla con rutas de
+// verdad (ver el .cpp): devuelve rutaOriginal si ahi se puede escribir, si no
+// rutaUsuario cuando esa si sirve, y si ninguna sirve vuelve a rutaOriginal.
+namespace ProjectPathsDetalle {
+std::string elegirRaizDeDatos(const std::string& rutaOriginal,
+                              const std::string& rutaUsuario);
+} // namespace ProjectPathsDetalle
+
 namespace ProjectPaths {
 
 // Directorio del ejecutable (ancla portable: config/proyectos junto al binario)

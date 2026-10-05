@@ -134,23 +134,36 @@ std::string baseOriginal() {
     return d.empty() ? std::string("MotorGrafico") : d + "MotorGrafico";
 }
 
+} // namespace
+
+// Elegir la raiz de datos, con las dos candidatas ya calculadas. Vive fuera del
+// namespace anonimo (y no cachea) para que las pruebas puedan ejercitar la
+// eleccion con rutas de verdad, sin depender de donde este el ejecutable ni de
+// los permisos del proceso: es el contrato que permite que el motor funcione
+// instalado sin privilegios, con los datos en la carpeta del usuario.
+namespace ProjectPathsDetalle {
+
+std::string elegirRaizDeDatos(const std::string& rutaOriginal,
+                              const std::string& rutaUsuario) {
+    if (esEscribible(rutaOriginal)) return rutaOriginal;
+    if (!rutaUsuario.empty() && esEscribible(rutaUsuario)) return rutaUsuario;
+    // Sin carpeta de usuario utilizable: se conserva la ruta historica para no
+    // dejar al motor sin rutas. Las escrituras fallaran y se reportan como
+    // error en vez de desaparecer en silencio.
+    return rutaOriginal;
+}
+
+} // namespace ProjectPathsDetalle
+
+namespace {
 // Raiz efectiva. Cacheada con un static de ambito de funcion: son las mismas
 // rutas para todo el proceso y la comprobacion de escritura implica tocar el
 // disco, asi que no puede repetirse en cada llamada.
 std::string baseResuelta() {
     static const std::string base = [] {
-        const std::string juntoAlExe = baseOriginal();
-        if (esEscribible(juntoAlExe)) return juntoAlExe;
-
         const std::string usuario = directorioDatosUsuario();
-        if (!usuario.empty()) {
-            const std::string destino = usuario + "/MotorGrafico";
-            if (esEscribible(destino)) return destino;
-        }
-        // Sin carpeta de usuario utilizable: se conserva la ruta historica para
-        // no dejar al motor sin rutas. Las escrituras fallaran y se reportan
-        // como error en vez de desaparecer en silencio.
-        return juntoAlExe;
+        return ProjectPathsDetalle::elegirRaizDeDatos(
+            baseOriginal(), usuario.empty() ? usuario : usuario + "/MotorGrafico");
     }();
     return base;
 }

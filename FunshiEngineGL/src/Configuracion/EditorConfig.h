@@ -66,10 +66,12 @@ public:
         Apariencia apariencia;
     };
 
-    // Ruta del archivo por plataforma, junto al binario del motor:
-    //   Linux y Windows: <directorioEjecutable>/MotorGrafico/Configuracion.json
+    // Ruta del archivo por plataforma. Vive bajo la raiz de datos, que el motor
+    // resuelve una vez al arrancar: junto al binario si ahi se puede escribir y
+    // si no en la carpeta de datos del usuario (ver ProjectPaths).
+    //   Linux y Windows: <raizDeDatos>/Configuraciones/Configuracion.json
     // Directorio base de MotorGrafico donde viven todos los proyectos:
-    //   Linux y Windows: <directorioEjecutable>/MotorGrafico
+    //   Linux y Windows: <raizDeDatos>  (raizDeDatos + "MotorGrafico")
     static std::string directorioBaseMotorGrafico();
 
     // Directorio raiz de un proyecto especifico: <directorioBase>/<nombreProyecto>

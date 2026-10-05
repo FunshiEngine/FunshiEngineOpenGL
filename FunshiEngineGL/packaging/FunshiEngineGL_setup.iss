@@ -43,9 +43,17 @@ OutputBaseFilename=FunshiEngineGL-{#MiVersion}-{#MiCanal}-setup
 ; x64 solamente: el proyecto usa Assimp/Bullet/GLFW de 64 bits (vcpkg x64-windows).
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; El editor guarda escena y configuracion en {app}\MotorGrafico (junto al exe).
-; Crear ese directorio y subcarpetas requiere permisos de administrador.
-PrivilegesRequired=admin
+; Instalacion POR USUARIO, sin UAC: el motor no necesita escribir junto al
+; ejecutable para funcionar. Toda escritura cuelga de la raiz que resuelve el
+; propio motor (ProjectPaths::directorioBase): {app}\MotorGrafico si ahi se
+; puede escribir y, si no, la carpeta del usuario. Con lowest, Inno mapea
+; {autopf} a la version de usuario (%LOCALAPPDATA%\Programs), de modo que la
+; carpeta de datos tambien queda en el perfil y nunca en Program Files.
+; Verificado con el ejecutable real: con su carpeta de solo lectura no escribe
+; nada ahi y todo cae en la carpeta de datos del usuario.
+; Lo unico que puede pedir elevacion es el MSI del JDK de la seccion [Code],
+; porque deja JAVA_HOME en el entorno de la maquina.
+PrivilegesRequired=lowest
 SetupLogging=yes
 
 [Languages]
@@ -261,7 +269,9 @@ begin
     Exit;
   end;
 
-  { El MSI deja JAVA_HOME en el entorno de la maquina, pero este proceso ya
+  { El MSI se instala por maquina, asi que ESTE es el paso que puede pedir
+    elevacion aunque el resto de la instalacion no la pida.
+    El MSI deja JAVA_HOME en el entorno de la maquina, pero este proceso ya
     estaba corriendo y no lo ve. No hace falta pasarselo a mano: el motor
     descubre el JDK por su cuenta en el registro y en Program Files, asi que
     lo encuentra igual aunque JAVA_HOME no sea visible todavia. }

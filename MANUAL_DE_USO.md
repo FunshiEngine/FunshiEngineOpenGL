@@ -80,10 +80,13 @@ Al crear un proyecto, el motor genera la estructura bajo
 `{app}/MotorGrafico/Proyects/<proyecto>/`:
 
 > **Dónde quedan los datos.** `{app}` es la carpeta del ejecutable cuando el
-> motor está en una carpeta donde puede escribir (build de desarrollo,
-> instalación portátil). Si no puede escribir —el caso normal cuando está
-> instalado en `C:\Program Files`, porque el proceso no corre elevado—, usa en su
-> lugar `%APPDATA%\FunshiEngineGL\MotorGrafico` (Windows) o
+> motor está en una carpeta donde puede escribir: el build de desarrollo y
+> también la instalación de Windows, que es por usuario
+> (`%LOCALAPPDATA%\Programs\FunshiEngineGL`, sin pedir permisos de
+> administrador). Si el motor está en una carpeta donde no puede escribir —una
+> copia en `Program Files`, una carpeta montada en solo lectura, el motor
+> lanzado como administrador—, usa en su lugar
+> `%APPDATA%\FunshiEngineGL\MotorGrafico` (Windows) o
 > `$XDG_DATA_HOME/FunshiEngineGL/MotorGrafico`, con respaldo en
 > `~/.local/share/FunshiEngineGL/MotorGrafico` (Linux y macOS). La ruta
 > efectiva se imprime por consola al arrancar y la migración de la carpeta
@@ -93,8 +96,8 @@ Al crear un proyecto, el motor genera la estructura bajo
 >
 > El log de arranque (`logs/FunshiEngineGL_<AAAAMMDD_HHMMSS>.log`, ver el árbol)
 > vive también en esa carpeta de datos, de modo que se escribe aunque el motor
-> esté instalado en `Program Files`. Si esa carpeta tampoco admite escritura, el
-> motor cae a la carpeta temporal del sistema
+> esté en una carpeta de la que no se pueda escribir. Si esa carpeta tampoco
+> admite escritura, el motor cae a la carpeta temporal del sistema
 > (`%TEMP%\FunshiEngineGL\logs` o `/tmp/FunshiEngineGL/logs`), y solo si las tres
 > opciones fallan se queda sin archivo de log y escribe en la consola.
 

@@ -151,17 +151,28 @@ donde el proceso **no puede escribir**.
 
 ### 6.3 Causa raíz
 
-Son tres hechos que por separado parecen inocuos y juntos cierran la puerta:
+Eran tres hechos que por separado parecían inocuos y juntos cerraban la puerta:
 
 | # | Hecho | Consecuencia |
 |---|-------|--------------|
-| 1 | `PrivilegesRequired=admin` en el `.iss` | El instalador corre como administrador. |
+| 1 | `PrivilegesRequired=admin` en el `.iss` | El instalador corre como administrador e instala en `Program Files`. |
 | 2 | El `.iss` crea `{app}\MotorGrafico` **sin directiva `Permissions:`** | La carpeta hereda los ACL de `Program Files`: `Users` tiene lectura y ejecución, **no** escritura. |
 | 3 | El `.exe` no lleva manifiesto `requestedExecutionLevel` | El motor corre como usuario normal, sin elevar, y por tanto sin esos permisos. |
 
 El agravante: **ningún llamador comprobaba el retorno de las escrituras**
 (`crearArchivo`, `guardarGeneral`, `saveScene`, … devolvían `bool` y se
 ignoraban). Por eso el fallo fue silencioso en vez de un error reportado.
+
+Hoy el instalador es **por usuario** (`PrivilegesRequired=lowest`, con lo que
+Inno Setup mapea `{autopf}` a `%LOCALAPPDATA%\Programs`), así que la carpeta
+del ejecutable está en el perfil y el problema ya no se reproduce en una
+instalación nueva. Los tres hechos siguen siendo posibles por otras vías (una
+copia del motor en `Program Files`, una carpeta de datos montada en solo
+lectura, un proceso elevada), así que el patrón de la sección siguiente se
+mantiene como red de seguridad y no como el camino normal. Además, como el motor
+resuelve la raíz probando la escritura de verdad, un cambio en el destino se
+detecta solo: si `{app}` deja de admitir escritura, los datos se van a la
+carpeta del usuario sin tocar nada.
 
 ### 6.4 Solución canónica (Patrón R8 — Resolver la ruta, probar la escritura)
 
@@ -200,6 +211,16 @@ Reglas complementarias:
 - **Comprobar los retornos de las escrituras** cuando la ruta destino no es
   fiable. La regla R7 sigue valiendo, pero no cubre el caso de "escribí y no
   pasó nada".
+- **Preferir que la ruta sea escribible antes de depender del plan B**: instalar
+  por usuario (`PrivilegesRequired=lowest`) hace que el destino sea del propio
+  usuario y elimina la UAC de paso. El patrón sigue siendo obligatorio porque
+  el destino puede cambiar sin que nadie lo decida (carpeta montada en solo
+  lectura, copia a otra ubicación, proceso que corre elevado).
+- **Poder probar la decisión sin el ejecutable**: la elección entre las dos
+  candidatas se aisló en `ProjectPathsDetalle::elegirRaizDeDatos`, sin caché y
+  con las rutas por parámetro, para que las pruebas la ejerciten con rutas
+  falsas. "No escribible" se simula con una ruta debajo de un archivo
+  regular: falla igual en Linux y en Windows y no depende de permisos.
 
 ### 6.5 Registro de instancias
 
@@ -209,6 +230,7 @@ Reglas complementarias:
 | 2 | `SettingsScript.cpp` (lectura de `SerializeField`) | Editar un campo del inspector | `std::variant` (efecto, no causa) | Índice acotado al menor de los dos cardinales | Ídem |
 | 3 | `Script::cargarSiNecesario()` | Cargar los valores guardados de un script | `std::variant` (efecto, no causa) | `ReflejoScripts::alinearValores()` empareja por nombre al compilar | Ídem |
 | 4 | `redirigirSalidaALog()` en `main.cpp` | Escribir el log de arranque | Windows / `Program Files` / ACL del instalador | Patrón R8 aplicado al log: lista ordenada de candidatas (`RutasLog::candidatas()`) —raíz de datos, carpeta del ejecutable y temporal del sistema— y se usa la **primera que acepte escribir**; con la carpeta del ejecutable sola no había log y toda la salida se iba a la consola | `fix(ventana): escribir el log de arranque en una carpeta escribible` |
+| 5 | Instalador de Windows (`.iss`) | Instalar sin UAC | UAC / ACL de `Program Files` | `PrivilegesRequired=lowest`: instalación por usuario, con `{autopf}` mapeado a `%LOCALAPPDATA%\Programs`. Verificado con el ejecutable real en una carpeta de solo lectura: no escribe ahí y todo cae en la carpeta de datos del usuario. La elección de raíz se aisló en `ProjectPathsDetalle::elegirRaizDeDatos` para poder probarla | `fix(paquete): instalar por usuario sin pedir privilegios de administrador` |
 
 > **Nota**: las instancias #2 y #3 no son la causa del crash sino el punto donde
 > se manifiesta. La causa es la instancia #1: sin ella no habría divergencia

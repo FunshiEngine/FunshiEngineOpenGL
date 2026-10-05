@@ -844,6 +844,35 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
                   raizDatos + "/Proyects/" + proyecto + "/Memory/imgui.ini",
               "el imgui.ini del proyecto cuelga de directorioBase");
 
+        // Eleccion de la raiz de datos con rutas de verdad. "No escribible" se
+        // simula con una ruta debajo de un archivo regular: ahi crear carpetas
+        // falla en cualquier sistema y sin depender de permisos, que en Windows
+        // no se pueden tocar desde el test.
+        const fs::path escribible = fs::path(base) / "carpeta_valida";
+        std::error_code ecEs;
+        fs::create_directories(escribible, ecEs);
+        CHECK(!ecEs, "la carpeta escribible del test se pudo crear");
+
+        const fs::path bloqueante = fs::path(base) / "bloque";
+        {
+            std::ofstream tapon(bloqueante);
+            tapon << "soy un archivo, no una carpeta";
+        }
+        const std::string noEscribible = (bloqueante / "dentro").string();
+        const std::string noEscribible2 = (bloqueante / "otro").string();
+
+        CHECK(ProjectPathsDetalle::elegirRaizDeDatos(escribible.string(), noEscribible)
+                  == escribible.string(),
+              "si la ruta original admite escritura se usa, aunque haya alternativa");
+        CHECK(ProjectPathsDetalle::elegirRaizDeDatos(noEscribible, escribible.string())
+                  == escribible.string(),
+              "si la ruta original no admite escritura se cae a la del usuario");
+        CHECK(ProjectPathsDetalle::elegirRaizDeDatos(noEscribible, "") == noEscribible,
+              "sin carpeta de usuario se conserva la ruta historica");
+        CHECK(ProjectPathsDetalle::elegirRaizDeDatos(noEscribible, noEscribible2)
+                  == noEscribible,
+              "si ninguna de las dos sirve se conserva la ruta historica");
+
         // Migracion: nunca debe pisar datos que ya estan en destino. Se siembra
         // un archivo marcador y se comprueba que sobrevive a la llamada.
         const fs::path sembrado = fs::path(raizDatos) / "marcador_migracion.txt";

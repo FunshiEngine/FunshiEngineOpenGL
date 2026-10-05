@@ -922,11 +922,15 @@ calcularla:
 2. Comprueba si puede **escribir** ahí. No basta con que el directorio exista y
    sea legible: se abre y se cierra un archivo de prueba, porque en
    `C:\Program Files` la carpeta es legible y aun así el proceso no puede crear
-   nada dentro (la creó el instalador, que corre como administrador, y heredó
-   los ACL de `Program Files`; el ejecutable no lleva manifiesto de elevación).
+   nada dentro (la creó el instalador con los ACL de `Program Files`; el
+   ejecutable no lleva manifiesto de elevación).
 3. Si no puede, cae a la carpeta de datos del usuario: `%APPDATA%\FunshiEngineGL`
    en Windows, `$XDG_DATA_HOME/FunshiEngineGL` o `~/.local/share/FunshiEngineGL`
-   en Linux y macOS.
+   en Linux y macOS. El instalador de Windows es por usuario
+   (`PrivilegesRequired=lowest`), así que en una instalación normal este punto
+   2 se cumple y la carpeta queda en `%LOCALAPPDATA%\Programs\FunshiEngineGL`:
+   el paso 3 es la red que cubre una copia en `Program Files`, una carpeta en
+   solo lectura o el motor lanzado como administrador.
 4. Si tampoco hay carpeta de usuario utilizable, conserva la ruta histórica: es
    preferible una ruta conocida que falle de forma visible a dejar al motor sin
    rutas válidas.
