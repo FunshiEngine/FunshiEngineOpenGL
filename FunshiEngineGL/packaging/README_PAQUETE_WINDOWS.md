@@ -44,7 +44,10 @@ Pasos que ejecuta:
    - runtime VC++ (`msvcp140.dll`, `vcruntime140*.dll`) si existe el redist
    - `Imagenes\` (iconos del editor, obligatorios)
 5. Si Inno Setup existe, compila
-   `instalador\FunshiEngineGL-<version>-<canal>-setup.exe`.
+   `dist\instalador\FunshiEngineGL-<version>-<canal>-setup.exe` (la carpeta de
+   salida la decide el `.iss`: `OutputDir` es relativo a `SourceDir`, que es
+   `dist`). Es la misma ruta que publica la CI, así que un instalador hecho a
+   mano se sube como artefacto sin mover nada.
 
 ## Que instala el setup.exe
 
