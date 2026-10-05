@@ -757,6 +757,11 @@ permisos.
 - [ ] El error que ve el usuario, ¿dice qué ruta se usó y por qué?
 - [ ] ¿Hay un sitio donde la ruta horneada aparece **sin** comprobar?
       `grep FUNSHI_ CMakeLists.txt` para listarlos.
+- [ ] Si el horneado es la ruta de un **archivo** y el resolutor espera una
+      **carpeta**, ¿se reconoce como lo que es? Pasarlo donde esperan raíces lo
+      descarta en silencio, también en la máquina donde se compiló.
+- [ ] ¿Qué **tipo** de cosa hornea la variable de CMake (archivo o carpeta) y lo
+      sabe quien la consume?
 
 ### 12.6 Registro de instancias
 
@@ -765,6 +770,7 @@ permisos.
 | 1 | `BackendCpp::compilador()` | Compilar un script C++ en el paquete instalado | CMake `CMAKE_CXX_COMPILER` / Visual Studio | Patrón R14: `FUNSHI_CXX` manda; el horneado solo si existe; si no `cl` del PATH con el toolset de la máquina o `g++`; aviso si el override no existe | `fix(scripts): resolver el compilador en la maquina y no solo en el build` |
 | 2 | `vcvars64Ruta()` | Derivar el entorno de MSVC del script | Visual Studio | Patrón R14: `vcvars64EnRaices` busca `vcvars64.bat` a dos niveles en las raíces de VS (cubre las Build Tools), con las raíces por parámetro | Ídem |
 | 3 | `RutaCabecerasScript::resolver` | Encontrar `include` en el paquete instalado | `include` relativo horneado | Instancia previa del mismo patrón (valor horneado como pista, se resuelve en runtime) | `fix(scripts): resolver las cabeceras del script en la maquina del usuario` |
+| 4 | `ResolucionJdk::conBibliotecaHorneada` | Encontrar la JVM cuando ninguna raíz del sistema trae `libjvm` | `JAVA_JVM_LIBRARY` horneado | El valor horneado es la ruta del **archivo**, no una raíz: en la lista de raíces se descartaba siempre. Se resuelve aparte, y solo si el archivo existe en esta máquina | `fix(scripts): usar la biblioteca horneada cuando existe en la maquina` |
 
 ---
 
@@ -773,6 +779,7 @@ permisos.
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
 | 2026-09-27 | Gianfranco Ivan Enrique | Creación del documento; registro de instancias #1–3; definición de plantilla y checklist para agentes. |
+| 2026-10-04 | Gianfranco Ivan Enrique | Instancia #4: la biblioteca horneada de la JVM se pasaba donde se esperaban raíces de JDK y se descartaba siempre. Checklist ampliada con el tipo de dato horneado. |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) con su registro de instancias, a raíz del crash al asignar un script en el binario instalado. |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el tercer concepto (Patrón R9, offsets engañosos de `tellg`/`seekg` en streams de texto con CRLF) con su instancia #1, a raíz del bug de los objetos fantasma "Scene" (H-17). |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el cuarto concepto (Patrón R10, `CREATE_UNICODE_ENVIRONMENT` obligatorio con bloques UTF-16 en `CreateProcessW`) con su instancia #1, a raíz del error 87 al pasar el entorno de vcvars/variable extra (H-3 nivel 2). |

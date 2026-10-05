@@ -668,7 +668,11 @@ solo como orquestador de arranque y bucle.
   `UnsupportedClassVersionError`, que el motor|reportaba como "clase no
   encontrada"). `FUNSHI_LIBJVM` y `JAVAC` siguen mandando por encima de la
   busqueda; si la raiz elegida no trae `javac` (es un JRE) no se busca otro
-  compilador. El texto que cruza la frontera JNI (`NewStringUTF`) se convierte a
+  compilador. La biblioteca que entrega `FindJNI` llega horneada como la ruta
+  del **archivo**, no como una raiz: se resuelve aparte y solo si ese archivo
+  existe en la maquina, porque pasada por la lista de raices se descartaba
+  siempre (buscaba `<archivo>/lib/server/libjvm.so`). El texto que cruza la
+  frontera JNI (`NewStringUTF`) se convierte a
   UTF-8 con `std::filesystem::path::u8string`, que en Windows convierte la
   codificacion ANSI nativa a UTF-8; las rutas que van a `JavaVMOption` y a
   `Proceso::ejecutar` se dejan estrechas a proposito, porque esas APIs usan la
@@ -757,13 +761,18 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   con espacios, con argumentos hostiles), exit codes, truncado del log, `cwd`,
   entorno extra, tabla de `citar()` y, en Windows, la receta cruda de `cmd.exe`
   del harvest de vcvars.
-- `configuracion-tests` (169): round-trip del JSON de `EditorConfig` (general y
+- `configuracion-tests` (174): round-trip del JSON de `EditorConfig` (general y
   por proyecto, con `ConfigPersistence`/`ProjectPaths`), carga tolerante ante
   archivos ausentes/corruptos/parciales, prioridad de las claves modernas sobre
   el `menu/*` legacy, `restablecer`, escritura atómica y guardado diferido, la
   política de proyecto inicial `ProyectoInicial::resolver`, los colores del cielo
   (se conservan tal como se guardaron —un cielo claro incluido— y solo se
-  acotan los componentes fuera de `[0, 1]`), y el cotejo de prefijos `rutaBajo` (en Windows `/` y `\` equivalen y se ignoran mayúsculas y minúsculas; en Linux se mantiene sensible al caso).
+  acotan los componentes fuera de `[0, 1]`), el cotejo de prefijos `rutaBajo` (en
+  Windows `/` y `\` equivalen y se ignoran mayúsculas y minúsculas; en Linux se
+  mantiene sensible al caso), y la elección de la raíz de datos
+  (`ProjectPathsDetalle::elegirRaizDeDatos`: junto al ejecutable si ahí se puede
+  escribir; si no, la carpeta de datos del usuario, migrando lo que ya hubiera
+  junto al ejecutable).
 - `eventbus-tests` (17): suscripción/publicación/unsubscribe del canal tipado de GUI.
 - `menu-tests` (40): lógica pura del menú (traducción, observer de cambios —sin
   notificar al reaplicar una apariencia idéntica— y reset).
@@ -791,7 +800,7 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   tema resueltos; y la identidad del cubemap del Skybox (`CacheCubemap`): la
   clave que decide cada cuanto volver a subirlo a GPU cambia solo si cambia una
   ruta o su fecha de modificación. Solo CPU, sin OpenGL.
-- `scripts-tests` (137): reflexión `SerializeField` (escalares, arrays, grupos
+- `scripts-tests` (142): reflexión `SerializeField` (escalares, arrays, grupos
   anidados) y su round-trip binario; el contrato de flags con el que
   `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
   ARGV armados sin shell ni redirección); la resolución de la carpeta de
@@ -808,7 +817,10 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   runner, sin `std::system`); el emparejamiento de `libjvm` y `javac` de una
   misma raíz de JDK (`ResolucionJdk`, con sus overrides por entorno y la
   dedución de la raíz desde la ruta de la biblioteca en los layouts de POSIX y
-  Windows, y que el compilador que se pasa al proceso sea ejecutable) y la paridad del requisito de JDK del instalador (que exige
+  Windows, que el compilador que se pasa al proceso sea ejecutable, y que la
+  biblioteca horneada por CMake —que es la ruta del archivo, no una raíz— solo
+  se use si ese archivo existe en la máquina, como último recurso) y la paridad
+  del requisito de JDK del instalador (que exige
   `jvm.dll` **y** `javac.exe`).
 - `scripts-runtime-tests`: compila un `.cpp` real con `BackendCpp`, lo carga con
   `dlopen`/`LoadLibrary` y ejecuta el ciclo + hot reload, comprueba que un

@@ -321,7 +321,6 @@ std::vector<fs::path> raicesJdk() {
 
     agregar(raizJreEmbebido());
     if (const char* home = std::getenv("JAVA_HOME")) agregar(home);
-    agregar(fs::path(FUNSHI_LIBJVM_DEFAULT));
 #if defined(_WIN32)
     for (const fs::path& raiz : raicesRegistroWindows()) agregar(raiz);
     for (const fs::path& raiz : raicesComunesWindows()) agregar(raiz);
@@ -372,6 +371,18 @@ const ResolucionJdk::Herramientas& herramientasJdk() {
         // cargando y el aviso se da al compilar, no aqui.
         if (resultado.javac.empty() && !resultado.raiz.empty())
             resultado.javac = javacEnRaiz(resultado.raiz).string();
+
+        // El valor horneado es la ruta del ARCHIVO de la biblioteca, no una raiz:
+        // como raiz se descartaba siempre. Se resuelve aparte y es el ultimo
+        // recurso, para cuando ninguna raiz del sistema trae la JVM.
+        {
+            const std::string horneada = FUNSHI_LIBJVM_DEFAULT;
+            std::error_code ec;
+            resultado = ResolucionJdk::conBibliotecaHorneada(
+                resultado, horneada,
+                !horneada.empty() && fs::exists(horneada, ec),
+                [](const std::string& raiz) { return javacEnRaiz(raiz).string(); });
+        }
 
         // JAVAC manda sobre lo deducido (permite cruzar a proposito un
         // compilador de otra raiz, que es justo lo que el emparejamiento

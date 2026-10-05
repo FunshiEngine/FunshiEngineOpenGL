@@ -718,6 +718,52 @@ CHECK(RutaCabecerasScript::resolver(relativaSoloJuntoAlExe, "",
               "sin ruta de biblioteca no hay raiz que deducir");
     }
 
+    // El valor horneado por CMake es la ruta del ARCHIVO de la biblioteca, no
+    // una raiz de JDK. Pasado por la lista de raices se descartaba siempre (buscaba
+    // "<archivo>/lib/server/libjvm.so"), de modo que ni en la maquina donde se
+    // construyo el motor aportaba nada. Se comprueba que, como ultimo recurso,
+    // solo cuenta si el archivo existe aqui, y que su raiz deduce el javac.
+    {
+        const std::string horneada = "/opt/jdkH/lib/server/libjvm.so";
+        const std::string jdkH = "/opt/jdkH";
+        auto javacEn = [&](const std::string& raiz) -> std::string {
+            return raiz == jdkH ? raiz + "/bin/javac" : std::string();
+        };
+
+        const ResolucionJdk::Herramientas conHorneada =
+            ResolucionJdk::conBibliotecaHorneada({}, horneada, true, javacEn);
+        CHECK(conHorneada.libjvm == horneada && conHorneada.raiz == jdkH &&
+                  conHorneada.javac == jdkH + "/bin/javac",
+              "el valor horneado se usa si el archivo existe en esta maquina");
+
+        const ResolucionJdk::Herramientas horneadaAusente =
+            ResolucionJdk::conBibliotecaHorneada({}, horneada, false, javacEn);
+        CHECK(horneadaAusente.libjvm.empty() &&
+                  horneadaAusente.javac.empty() && horneadaAusente.raiz.empty(),
+              "el valor horneado no aporta nada si su archivo no existe");
+
+        CHECK(ResolucionJdk::conBibliotecaHorneada({}, "", true, javacEn)
+                      .libjvm.empty(),
+              "sin valor horneado no hay nada que anadir");
+
+        // Lo que ya salio de una raiz del sistema manda: el horneado es el
+        // ultimo recurso, no el primero.
+        ResolucionJdk::Herramientas desdeSistema{
+            "/usr/lib/jvm/java-17/lib/server/libjvm.so", "/usr/lib/jvm/java-17/bin/javac",
+            "/usr/lib/jvm/java-17"};
+        const ResolucionJdk::Herramientas sinPisar =
+            ResolucionJdk::conBibliotecaHorneada(desdeSistema, horneada, true, javacEn);
+        CHECK(sinPisar.libjvm == desdeSistema.libjvm && sinPisar.raiz == desdeSistema.raiz,
+              "una raiz del sistema no se reemplaza por el valor horneado");
+
+        // Una raiz sin javac al lado sigue sin javac: el emparejamiento es lo que
+        // evita el bytecode que la JVM no entiende.
+        CHECK(ResolucionJdk::conBibliotecaHorneada({}, "/opt/jreH/lib/server/libjvm.so",
+                                                    true, javacEn)
+                      .javac.empty(),
+              "el valor horneado no inventa un javac que no tiene al lado");
+    }
+
     // Que se pueda ejecutar el javac que se paso a Proceso::ejecutar: un nombre
     // suelto lo resuelve el PATH, una ruta tiene que existir. El fallo de "no se
     // pudo ejecutar" no decia que lo que faltaba era un JDK.

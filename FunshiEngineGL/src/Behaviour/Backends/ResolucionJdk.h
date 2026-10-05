@@ -87,6 +87,26 @@ inline std::string raizDesdeLibjvm(const std::string& libjvm) {
     return dir.empty() ? std::string() : dir.string();
 }
 
+// El valor horneado por CMake es la ruta del ARCHIVO de la biblioteca (lo que
+// entrega FindJNI), no una raiz de JDK: meterlo en la lista de raices lo hacia
+// buscar "<archivo>/lib/server/libjvm.so", que no existe, y se descartaba siempre
+// (tampoco en la maquina donde se construyo). Se resuelve como lo que es,
+// igual que una ruta dada por entorno: si el archivo existe en ESTA maquina, su
+// raiz deduce el javac que tiene al lado; si no existe, no aporta nada y se sigue
+// con las raices del sistema. Las raices ya encontradas mandan sobre el valor
+// horneado, que es el ultimo recurso.
+template <typename ResJavac>
+inline Herramientas conBibliotecaHorneada(Herramientas actual,
+                                         const std::string& biblioteca,
+                                         bool existe,
+                                         ResJavac javacEn) {
+    if (!actual.libjvm.empty() || biblioteca.empty() || !existe) return actual;
+    actual.libjvm = biblioteca;
+    actual.raiz = raizDesdeLibjvm(biblioteca);
+    if (!actual.raiz.empty()) actual.javac = javacEn(actual.raiz);
+    return actual;
+}
+
 // Si el compilador se puede ejecutar desde donde se esta. Un nombre suelto
 // ("javac") lo resuelve el PATH de la maquina y no se puede comprobar sin
 // arrancarlo; una ruta absoluta o relativa con separadores, en cambio, tiene que
