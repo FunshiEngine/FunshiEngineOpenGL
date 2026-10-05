@@ -106,6 +106,7 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **R11 — La frescura del artefacto manda, no el estado del que pide** | Antes de reescribir una salida, decidir por los tiempos de **archivo** (existe y no es más viejo que su fuente); una `.dll` cargada en el proceso no se puede reescribir en Windows | `BackendCpp::compilarYCargar()` (ver §9.4) |
 | **R12 — El que dibuja posee su VAO** | En un contexto core todo `glDraw*` necesita un VAO ligado, incluso si la pasada no lee atributos (`gl_VertexID`); el VAO lo crea y lo liga el backend, no el llamador | `OpenGL3Backend::drawFullscreenTriangle()` (ver §10.4) |
 | **R13 — Toda carpeta del motor en la raíz de datos es un nombre reservado** | Una migración de compatibilidad que mueve "lo que haya en la raíz" se lleva también las carpetas del motor; hay que declararlas reservadas al crear la carpeta, no después | `ProjectPaths::esReservado()` (ver §11.4) |
+| **R14 — Un valor horneado es una pista, no una verdad** | Lo que CMake hornea (rutas de compilador, de cabeceras, de toolchain) es de la máquina que compiló: comprobar que existe antes de usarlo, dejar un override por entorno que gane, buscar la herramienta en la máquina y degradar a un nombre que resuelva el PATH | `BackendCpp::compilador()`, `vcvars64EnRaices()` (ver §12.4) |
 
 ---
 
@@ -682,7 +683,92 @@ Checklist antes de cerrar un cambio que cree una carpeta en la raíz de datos:
 
 ---
 
-## 12. Historial de Cambios
+## 12. Octavo concepto: **Un valor horneado del build vale en su máquina y en ninguna más**
+
+Distinto de §6: aquí la ruta es correcta en el equipo que compiló y no
+existe en el del usuario. No hay permisos ni latencia de por medio; el valor
+viaja con el binario y apunta a un sitio que solo existe en la máquina
+de origen.
+
+### 12.1 Descripción del problema
+
+CMake hornea en el binario valores de su propia máquina: la ruta del
+compilador (`FUNSHI_CXX_COMPILER = ${CMAKE_CXX_COMPILER}`), la carpeta de
+cabeceras (`FUNSHI_SRC_DIR`), el flag de runtime del CRT. El build de
+desarrollo los tiene todos a mano, así que en el editor nunca se nota.
+
+Al publicar, el `.exe`/`setup.exe` que se distribuye lleva dentro rutas como
+
+    C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\…\cl.exe
+
+que en el equipo del usuario no existen. El motor invocaba esa ruta tal cual.
+
+### 12.2 Síntomas
+
+- El script C++ no compila en el paquete instalado. El error es
+  "no se encuentra el archivo" con una ruta de Visual Studio que el usuario
+  nunca escribió: no dice nada de por qué ni de qué hacer.
+- Con Visual Studio instalado y correcto en el equipo, el fallo persiste: la
+  ruta horneada no existe, así que tampoco se derivaba su `vcvars64.bat`, y el
+  compilador además habría necesitado ese entorno.
+- Con MinGW/g++ instalado, tampoco: la ruta horneada (de MSVC) tiene prioridad
+  sobre lo que el PATH sí sabe resolver.
+- En el build de desarrollo todo funciona, porque ahí las rutas sí existen.
+
+### 12.3 Causa raíz
+
+El valor horneado se consumía sin comprobar nada. Se daba por hecho que la
+máquina que ejecuta el binario es la que lo compiló, y ninguna de las tres
+piezas tenía un plan B: la ruta se invocaba sin preguntar si existe, la
+carpeta de cabeceras sin preguntar, y el entorno de vcvars se derivaba
+subiendo desde una ruta ajena (que por eso nunca aparecía).
+
+### 12.4 Solución canónica (Patrón R14 — Resolver en runtime, con el valor horneado como último recurso)
+
+**Un valor horneado es una pista, no una verdad.** Al consumirlo:
+
+1. **Override del entorno primero**, y gana siempre: es una petición explícita.
+2. **Comprobar que el valor horneado existe** antes de usarlo. Si no existe, no
+   se invoca: se pasa al siguiente paso.
+3. **Buscar la herramienta en la máquina**, como ya se hace con el JDK
+   (`ResolucionJdk`) y con las cabeceras (`RutaCabecerasScript`).
+4. **Degradar a un nombre sin ruta** (`cl`, `g++`, `javac`): lo resuelve el
+   PATH, que es lo único que se puede afirmar sin conocer la máquina. Con el
+   entorno de vcvars en el PATH, `cl` a secas funciona y además evita atar el
+   motor a una versión instalada.
+5. **Avisar cuando un override del entorno no existe**, en vez de fallar en
+   silencio más abajo con un mensaje que no apunta a la causa.
+
+Y para que la decisión sea verificable donde no hay Windows, dejarla en
+**funciones puras con los datos por parámetro** (`elegirCompilador`,
+`vcvars64EnRaices`, `RutaCabecerasScript::resolver`, `ResolucionJdk`), que el
+test ejercita con rutas falsas. "No existe" se simula con una ruta **debajo de
+un archivo regular**: falla igual en Linux y en Windows y no depende de
+permisos.
+
+### 12.5 Checklist
+
+- [ ] El valor que hornea CMake, ¿existe en la máquina del usuario? Si no,
+      ¿hay un plan B y está escrito?
+- [ ] ¿Hay un override por entorno, y gana sobre lo horneado?
+- [ ] ¿La degradación final es un nombre que resuelve el PATH?
+- [ ] ¿La decisión está aislada en una función testeable, con el caso "no
+      existe" simulado sin depender del SO ni de permisos?
+- [ ] El error que ve el usuario, ¿dice qué ruta se usó y por qué?
+- [ ] ¿Hay un sitio donde la ruta horneada aparece **sin** comprobar?
+      `grep FUNSHI_ CMakeLists.txt` para listarlos.
+
+### 12.6 Registro de instancias
+
+| # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
+|---|-----------|-----------|----------------|--------------|--------|
+| 1 | `BackendCpp::compilador()` | Compilar un script C++ en el paquete instalado | CMake `CMAKE_CXX_COMPILER` / Visual Studio | Patrón R14: `FUNSHI_CXX` manda; el horneado solo si existe; si no `cl` del PATH con el toolset de la máquina o `g++`; aviso si el override no existe | `fix(scripts): resolver el compilador en la maquina y no solo en el build` |
+| 2 | `vcvars64Ruta()` | Derivar el entorno de MSVC del script | Visual Studio | Patrón R14: `vcvars64EnRaices` busca `vcvars64.bat` a dos niveles en las raíces de VS (cubre las Build Tools), con las raíces por parámetro | Ídem |
+| 3 | `RutaCabecerasScript::resolver` | Encontrar `include` en el paquete instalado | `include` relativo horneado | Instancia previa del mismo patrón (valor horneado como pista, se resuelve en runtime) | `fix(scripts): resolver las cabeceras del script en la maquina del usuario` |
+
+---
+
+## 13. Historial de Cambios
 
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
@@ -693,6 +779,7 @@ Checklist antes de cerrar un cambio que cree una carpeta en la raíz de datos:
 | 2026-09-28 | Gianfranco Ivan Enrique | Añadido el quinto concepto (Patrón R11, una imagen cargada bloquea su archivo en Windows) con su instancia #1, a raíz del `Permission denied` de `ld` al haber dos objetos sobre el mismo script (H-20). |
 | 2026-09-28 | Gianfranco Ivan Enrique | Añadida instancia #4 al primer concepto: drop entre paneles (ShowFolder → BrowseFile y ShowFolder → ShowFolder carpeta distinta) con invalidación explícita de cache grid en origen y destino. |
 | 2026-09-29 | Gianfranco Ivan Enrique | Añadido el sexto concepto (Patrón R12, un contexto Core Profile rechaza todo dibujo sin VAO ligado) con su instancia #1, a raíz del cielo degradado que no se dibujaba en un contexto 4.6 core. |
+| 2026-10-04 | Gianfranco Ivan Enrique | Añadido el octavo concepto (Patrón R14, un valor horneado del build vale en su máquina y en ninguna más) con sus instancias #1–#2, a raíz de los scripts C++ que no compilaban en el paquete instalado; registrada la instancia #5 del segundo concepto (instalación por usuario, sin UAC). |
 | 2026-10-03 | Gianfranco Ivan Enrique | Añadido el séptimo concepto (Patrón R13, una migración de compatibilidad se lleva las carpetas del motor) con su instancia #1, y registrada la instancia #4 del segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) a raíz del log de arranque que no se escribía instalado en `Program Files`. |
 
 ---

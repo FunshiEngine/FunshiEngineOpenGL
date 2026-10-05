@@ -37,6 +37,7 @@
 
 #include <cctype>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -231,6 +232,88 @@ inline std::string vcvars64Ruta(const std::string& compiladorRuta) {
         const std::filesystem::path arriba = dir.parent_path();
         if (arriba == dir) break; // llego a la raiz: no avanza mas
         dir = arriba;
+    }
+    return std::string();
+}
+
+// Que compilador invocar. Los parametros van sueltos para que las pruebas la
+// ejerciten: el override del entorno, el valor horneado por el build y si esta
+// el toolset de MSVC en la maquina (que averigua el llamador con
+// vcvars64EnRaices). El orden es el del comentario de compilador() en
+// BackendCpp.cpp y no cambia por plataforma:
+//   1. override del entorno, gana siempre: es una peticion explicita;
+//   2. el valor horneado, SOLO si existe en disco. La ruta que hornea el build
+//      es la del equipo que compilo, y en el del usuario no existe;
+//   3. "cl" a secas si hay toolset: con el entorno de vcvars en el PATH el
+//      nombre sin ruta basta, y asi el motor no queda atado a la version
+//      instalada;
+//   4. "g++": lo que resuelva el PATH, que es lo unico que se puede afirmar sin
+//      conocer la maquina.
+inline std::string elegirCompilador(const std::string& overrideEntorno,
+                                    const std::string& horneado,
+                                    bool hayToolsetEnMaquina) {
+    if (!overrideEntorno.empty()) return detalle::sinComillas(overrideEntorno);
+    if (!horneado.empty()) {
+        std::error_code ec;
+        if (std::filesystem::exists(horneado, ec))
+            return detalle::sinComillas(horneado);
+    }
+    return hayToolsetEnMaquina ? std::string("cl") : std::string("g++");
+}
+
+// --- Toolset MSVC de la maquina del usuario ---------------------------------
+//
+// vcvars64Ruta() solo sabe derivar el entorno de la ruta del COMPILADOR, y esa
+// ruta la hornea el build. En el paquete publicado es la del runner que compilo
+// (C:\Program Files\Microsoft Visual Studio\...\cl.exe): en el equipo del
+// usuario no existe, y subir desde ahi no encuentra ningun vcvars aunque tenga
+// Visual Studio instalado al lado. Por eso el toolset se busca tambien en las
+// carpetas donde se instala de verdad.
+//
+// El barrido recibe las raices candidatas por parametro (no las calcula dentro)
+// para que las pruebas lo ejerciten con un arbol falso, que es lo unico
+// verificable fuera de Windows: 'existe' no necesita un Windows.
+
+// Raices de Visual Studio de esta maquina, en orden de prioridad: lo primero es
+// lo que el propio motor ya respeta por entorno, despues las carpetas
+// estandar de instalacion (Program Files y Program Files (x86)).
+inline std::vector<std::string> raicesVisualStudio() {
+    std::vector<std::string> raices;
+    const char* vars[] = {"VSINSTALLDIR", "VCToolsInstallDir"};
+    for (const char* v : vars) {
+        const char* valor = std::getenv(v);
+        if (valor && *valor) raices.emplace_back(valor);
+    }
+#ifdef _WIN32
+    const char* bases[] = {"C:/Program Files/Microsoft Visual Studio",
+                           "C:/Program Files (x86)/Microsoft Visual Studio"};
+    for (const char* base : bases) raices.emplace_back(base);
+#endif
+    return raices;
+}
+
+// vcvars64.bat de la maquina, o vacio. Busca a dos niveles porque las Build
+// Tools cuelgan un nivel mas abajo que las ediciones completas
+// (<raiz>/2022/Community/VC/... y <raiz>/2022/BuildTools/VC/...), y no baja mas: la variante
+// Preview cuelga del mismo nivel que Community. La primera coincidencia gana, asi que el
+// orden de las raices es el orden de preferencia.
+inline std::string vcvars64EnRaices(const std::vector<std::string>& raices) {
+    std::error_code ec;
+    for (const std::string& raiz : raices) {
+        const std::filesystem::path base(raiz);
+        if (!std::filesystem::exists(base, ec)) continue;
+        // <raiz>/<anio>/<edicion>/VC/Auxiliary/Build/vcvars64.bat
+        for (const auto& anio : std::filesystem::directory_iterator(base, ec)) {
+            if (ec) break;
+            if (!anio.is_directory()) continue;
+            for (const auto& edicion : std::filesystem::directory_iterator(anio.path(), ec)) {
+                if (ec) break;
+                if (!edicion.is_directory()) continue;
+                const std::filesystem::path cand =
+                    edicion.path() / "VC" / "Auxiliary" / "Build" / "vcvars64.bat";
+                if (std::filesystem::exists(cand, ec)) return cand.string();
+            }
+        }
     }
     return std::string();
 }

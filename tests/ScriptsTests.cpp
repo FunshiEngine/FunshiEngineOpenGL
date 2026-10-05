@@ -43,6 +43,7 @@
 #include "../FunshiEngineGL/src/Behaviour/IScriptBehaviour.h"
 
 using namespace ReflejoScripts;
+namespace fs = std::filesystem;
 
 int total = 0;
 int fallos = 0;
@@ -795,6 +796,90 @@ CHECK(RutaCabecerasScript::resolver(relativaSoloJuntoAlExe, "",
           "(sin guarda el bucle era infinito)");
     CHECK(CompilacionCpp::vcvars64Ruta("g++").empty(),
           "vcvars: un compilador bare de familia GCC ni recorre el filesystem");
+
+    // Descubrimiento del toolset en la maquina del usuario: la ruta del
+    // compilador que hornea el build es la del runner que publico el paquete, y
+    // en el equipo del usuario no existe. El barrido se prueba con un arbol
+    // falso porque 'existe' no necesita Windows: se comprueba el contenido, no
+    // la plataforma.
+    {
+        TempPruebas::CarpetaPrueba carpetaVS("funshi_vcvars_maquina");
+        const fs::path raizVS = carpetaVS.ruta() / "VS";
+        const auto crearVcvars = [](const fs::path& visualStudio) {
+            const fs::path bat =
+                visualStudio / "VC" / "Auxiliary" / "Build" / "vcvars64.bat";
+            fs::create_directories(bat.parent_path());
+            std::ofstream(bat) << "rem falso";
+        };
+
+        CHECK(CompilacionCpp::vcvars64EnRaices(std::vector<std::string>{raizVS.string()}).empty(),
+              "vcvars: sin arbol de Visual Studio devuelve vacio (no inventa ruta)");
+
+        crearVcvars(raizVS / "2022" / "Community");
+        CHECK(CompilacionCpp::vcvars64EnRaices(std::vector<std::string>{raizVS.string()}) ==
+                  (raizVS / "2022" / "Community" / "VC" / "Auxiliary" / "Build" /
+                   "vcvars64.bat").string(),
+              "vcvars: encuentra la edicion completa bajo <raiz>/<anio>/<edicion>");
+
+        // Las Build Tools cuelgan un nivel mas abajo; si el barrido solo mirase
+        // dos niveles, el caso mas comun de toolset en una maquina de usuario
+        // no se encontraria.
+        fs::remove_all(raizVS);
+        crearVcvars(raizVS / "2022" / "BuildTools");
+        CHECK(CompilacionCpp::vcvars64EnRaices(std::vector<std::string>{raizVS.string()}) ==
+                  (raizVS / "2022" / "BuildTools" / "VC" / "Auxiliary" / "Build" /
+                   "vcvars64.bat").string(),
+              "vcvars: encuentra las Build Tools, que cuelgan igual de dos niveles");
+
+        // Con varias instalaciones gana la primera raiz: por eso el orden de
+        // raicesVisualStudio() (entorno, despues Program Files) es el orden de
+        // preferencia.
+        const fs::path raizA = fs::path(carpetaVS.ruta()) / "VS_A";
+        const fs::path raizB = fs::path(carpetaVS.ruta()) / "VS_B";
+        crearVcvars(raizB / "2022" / "Community");
+        crearVcvars(raizA / "2022" / "Enterprise");
+        CHECK(CompilacionCpp::vcvars64EnRaices(std::vector<std::string>{raizA.string(), raizB.string()}) ==
+                  (raizA / "2022" / "Enterprise" / "VC" / "Auxiliary" / "Build" /
+                   "vcvars64.bat").string(),
+              "vcvars: con varias instalaciones gana la primera raiz candidata");
+
+        CHECK(CompilacionCpp::vcvars64EnRaices(std::vector<std::string>{(fs::path(carpetaVS.ruta()) /
+                                                  "no_existe").string()})
+                  .empty(),
+              "vcvars: una raiz inexistente no lanza excepcion ni devuelve ruta");
+    }
+
+    // Que compilador se invoca. El caso que motiva esto es el paquete publicado:
+    // la ruta horneada es la del runner que compilo y no existe en el equipo del
+    // usuario, asi que invocarla era garantir un fallo. "No existe" se simula
+    // con una ruta debajo de un archivo regular (falla en cualquier SO).
+    {
+        TempPruebas::CarpetaPrueba carpetaComp("funshi_elegir_compilador");
+        const fs::path existente = carpetaComp.ruta() / "compilador_real.exe";
+        { std::ofstream(existente) << "x"; }
+        const fs::path tapon = carpetaComp.ruta() / "bloque";
+        { std::ofstream(tapon) << "x"; }
+        const std::string inexistente = (tapon / "dentro").string();
+
+        CHECK(CompilacionCpp::elegirCompilador("", existente.string(), false) ==
+                  existente.string(),
+              "compilador: con la ruta horneada presente se respeta (build de desarrollo)");
+        CHECK(CompilacionCpp::elegirCompilador("", existente.string(), true) ==
+                  existente.string(),
+              "compilador: la ruta horneada presente gana a descubrir el toolset");
+        CHECK(CompilacionCpp::elegirCompilador("", inexistente, true) == "cl",
+              "compilador: sin ruta horneada utilizable y con toolset, usa cl del PATH");
+        CHECK(CompilacionCpp::elegirCompilador("", inexistente, false) == "g++",
+              "compilador: sin ruta horneada utilizable ni toolset, g++ del PATH");
+        CHECK(CompilacionCpp::elegirCompilador("", "", false) == "g++",
+              "compilador: sin nada horneado se va al nombre standard");
+        CHECK(CompilacionCpp::elegirCompilador("C:/mio/cl.exe", existente.string(), true) ==
+                  "C:/mio/cl.exe",
+              "compilador: el override del entorno gana siempre, exista o no");
+        CHECK(CompilacionCpp::elegirCompilador("\"C:/mio/cl.exe\"", inexistente, false) ==
+                  "C:/mio/cl.exe",
+              "compilador: al override se le quitan las comillas del literal");
+    }
 
     // --- Harvest del entorno de vcvars (H-3 nivel 2) --------------------------
     // La receta es CRUDA para cmd.exe (sin citar: cmd no entiende el escape

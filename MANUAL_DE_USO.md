@@ -916,13 +916,26 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 - El cache de artefactos compilados y la ruta del compilador se muestran en
   la ventana Estado.
 - **Windows:** el motor invoca `cl.exe` a traves de `vcvars64.bat` del mismo
-  toolset MSVC (se busca subiendo desde la carpeta del compilador), porque
-  `cl.exe` resuelve los headers del CRT (incluido `<cstddef>`) y las librerias
-  por `INCLUDE`/`LIB`. Con esto el editor funciona igual si se lanza desde el
-  Explorador o desde Visual Studio. Si el compilador configurado es MinGW/g++
-  (`FUNSHI_CXX`, o el horneado por el build), se emiten los flags de GCC: ese
-  camino tambien funciona y no necesita `cl.exe` en el entorno. Los scripts Java
-  no tienen este requisito (javac se invoca por ruta absoluta).
+  toolset MSVC, porque `cl.exe` resuelve los headers del CRT (incluido
+  `<cstddef>`) y las librerias por `INCLUDE`/`LIB`. Con esto el editor funciona
+  igual si se lanza desde el Explorador o desde Visual Studio. El toolset se
+  busca en este orden: el que se deduce de la ruta del compilador (un build de
+  desarrollo, donde esa ruta es de este equipo) y, si no hay ninguno, el que
+  tenga instalado el usuario en sus carpetas de Visual Studio, con lo que el
+  paquete instalado compila scripts C++ sin tocar nada. Con Visual Studio
+  presente se usa `cl` a secas (el nombre lo resuelve el propio entorno), de
+  modo que el motor no queda atado a la versión instalada. Si el compilador
+  configurado es MinGW/g++ (`FUNSHI_CXX`, o el horneado por el build), se
+  emiten los flags de GCC: ese camino tambien funciona y no necesita `cl.exe`
+  en el entorno. Los scripts Java no tienen este requisito (javac se invoca por
+  ruta absoluta).
+- **Que compilador se usa:** primero la variable de entorno `FUNSHI_CXX` si
+  esta, que manda siempre; despues el compilador con el que se compilo este
+  motor, pero solo si esa ruta existe en este equipo (en el paquete instalado no
+  existe, porque es la del equipo que lo publico); y si no, `cl` en Windows con
+  Visual Studio instalado o `g++` en Linux, macOS y Windows con MinGW. La ruta
+  final se muestra en la ventana Estado. Si `FUNSHI_CXX` apunta a algo que no
+  existe, el motor lo avisa por log y lo usa tal cual.
 - **Export de la fabrica en Windows/MSVC:** la funcion
   `FUNSHI_CREAR_COMPORTAMIENTO` tiene que declararse con
   `FUNSHI_COMPORTAMIENTO_EXPORT` (asi la genera el editor). En MSVC un

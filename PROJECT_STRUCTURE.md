@@ -681,6 +681,19 @@ solo como orquestador de arranque y bucle.
   heaps y corrompe la memoria.
 - El editor (`SettingsScript`) dibuja los campos reflejados (escalares, arrays,
   grupos y referencias a `GameObject`) y dispara la recompilación.
+- Qué compilador se invoca lo decide `BackendCpp::compilador()` con el mismo
+  criterio que el resto: `FUNSHI_CXX` del entorno si está (manda siempre), el
+  valor que hornea CMake **solo si existe en disco** —la ruta horneada es la del
+  equipo que compiló, y en el del usuario no existe—, y si no `cl` del PATH
+  cuando hay un toolset MSVC en la máquina o `g++` en el resto de plataformas.
+  El entorno de MSVC sale de `vcvars64EnRaices`, que busca `vcvars64.bat` a dos
+  niveles bajo las raíces de Visual Studio (`<raiz>/<año>/<edición>` y también
+  las Build Tools, que cuelgan igual); con Visual Studio presente se invoca
+  `cl` a secas porque el propio entorno de vcvars lo pone en el PATH, así que el
+  motor no queda atado a la versión instalada. Las dos decisiones viven como
+  funciones puras en `ComandoCompilacionCpp.h` (`elegirCompilador` y
+  `vcvars64EnRaices`, esta con las raíces por parámetro) para poder probarlas
+  con rutas falsas, sin depender de un Windows.
 - Las cabeceras que el script incluye al compilarse (`Behaviour/IScriptBehaviour.h`
   y las tres que arrastra) se resuelven con `RutaCabecerasScript`: el motor recibe
   la carpeta de fuentes por `FUNSHI_SRC_DIR`, que el paquete deja como el nombre
@@ -778,13 +791,18 @@ registrados en CTest (`scripts-java-tests` solo se registra con
   tema resueltos; y la identidad del cubemap del Skybox (`CacheCubemap`): la
   clave que decide cada cuanto volver a subirlo a GPU cambia solo si cambia una
   ruta o su fecha de modificación. Solo CPU, sin OpenGL.
-- `scripts-tests` (125): reflexión `SerializeField` (escalares, arrays, grupos
+- `scripts-tests` (137): reflexión `SerializeField` (escalares, arrays, grupos
   anidados) y su round-trip binario; el contrato de flags con el que
   `BackendCpp` compila los scripts (CRT, `/EHsc`, familia de compilador, los
   ARGV armados sin shell ni redirección); la resolución de la carpeta de
   cabeceras del script (`RutaCabecerasScript`: absoluta del checkout o nombre
   relativo `include` resuelto contra la carpeta del ejecutable en la app
-  instalada); el harvest del entorno de vcvars
+  instalada); el descubrimiento del toolset MSVC de la máquina del usuario
+  (`vcvars64EnRaices`, con las raíces por parámetro para poder probarla con un
+  árbol falso: dos niveles, que es donde cuelgan las Build Tools, y primera
+  raíz por preferencia) y la decisión de qué compilador se invoca
+  (`elegirCompilador`: override del entorno, valor horneado solo si existe en
+  disco, `cl` del PATH si hay toolset o `g++`); el harvest del entorno de vcvars
   (receta cruda de `cmd`, parser UTF-16, bloque multi-sz); y el contrato del
   sondeo de toolchain (dispositivo nulo `NUL`/`/dev/null` abierto por el
   runner, sin `std::system`); el emparejamiento de `libjvm` y `javac` de una
