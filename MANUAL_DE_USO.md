@@ -416,8 +416,9 @@ Dos casos se rechazan a proposito, sin tocar disco:
 - **Destino ocupado:** si en la carpeta destino ya existe un elemento con ese
   nombre, el movimiento se cancela y el original queda intacto. No se pisa nada.
 - **Carpeta dentro de si misma:** soltar `Assets` sobre `Assets/Modelos` (o
-  sobre si misma) se cancela. Si se dejara, la recursion se cortaria a mitad
-  y dejaria el arbol a medias en disco.
+  sobre si misma) se cancela, tanto al mover como al copiar. Si se dejara, la
+  copia se encontraria a si misma mientras avanza y dejaria el arbol a medias en
+  disco.
 
 ### 6.2 Arrastrar un asset a un componente
 
