@@ -725,4 +725,13 @@ cosa recibe.
 
 **Validación:** Test headless que simule owner con Transform local y Transform padre no identidad; tras `leerDesdeTransform()` (lee global), simular navegación que fije `m_pos` a un valor mundo y llamar `escribirATransform()` → el local escrito debe ser `inv(padre)*mundo`. Rojo antes, verde después. A/B con escena visual (cámara hija, mover padre y luego mover cámara con WASD): sin fix deriva; con fix se mueve coherentemente.
 
-**Riesgo:** Cambio circunscrito a `CameraComponent` (único sitio donde se construye un pose mundo y se vuelca crudo a local). No toca Transform, GameObject ni comandos.
+**Riesgo:** Cambio circunscrito a `CameraComponent`. Efectos colaterales: (a) sin protección ante matriz singular (congelación silenciosa), (b) deriva de escala si el padre tiene escala ≠ 1, (c) rama `transformOrigin` poco coherente (poco probable). Ver hallazgos colaterales abajo.
+**Hallazgos colaterales tras fix B14 (con subagentes):**
+
+- Protecciones: `glm::inverse(parentGlobal)` (`CameraComponent.cpp:189`) no valida matriz singular/no finita. `Transform.cpp:169-172` aborta en silencio si `decomposeMatrixToTransform` recibe no-finitos → cámara deja de responder sin log. `GizmoController.cpp:314-319` sí protege el mismo cálculo.
+- Rama Entity+transformOrigin: inalcanzable (`GameObject` es única subclase) y semánticamente incorrecta si se alcanzara (usa `getOriginTransform()` del padre en lugar del global). Poco riesgo en práctica.
+- Deriva de escala: se toma `scaleLocal` (`:160`) y se escribe en `matMundo` (`:171`), luego `inv(P)*matMundo` modifica la escala local cada escritura con `P` escalado ≠1 (`leerDesdeTransform` no restaura escala). Con escala de padre unitaria (root por defecto) no ocurre. Requiere seguimiento.
+- Casos que aún escriben mundo→local sin compensar: `GameScene.cpp:393-397` (copiar pose de cámara activa a nueva cámara) y `GameScene.cpp:333-335` (sembrar CamaraPrincipal). Ambos con padre root (identidad) → no visible.
+- Tests: ningún test ejercita `CameraComponent`; el plan pedía test headless rojo→verde pero no se creó.
+
+**Recomendación:** añadir guardas finitas (igual patrón que Gizmo) antes de `glm::inverse` y considerar test headless mínimo para el caso padre identidad vs traslación. Validación visual requerida por usuario.
