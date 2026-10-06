@@ -29,3 +29,27 @@ Archivos clave ya leídos: AGENTS.md (guía). Faltan resto de docs y revisión d
 ## B14: fix aplicado (2026-10-05)
 
 Se corrigió CameraComponent::escribirATransform() para convertir el pose mundial (m_pos + yawX/yawY, construido con escala local) al Transform local compensando el padre: si owner tiene padre GameObject se usa parentObj->getGlobalTransform(); en otro caso se consulta parentEntity->getOriginTransform(). matLocal = inv(parentGlobal)*matMundo cuando existe padre. Sin padre, matLocal = matMundo. ctest 20/20. Validación visual pendiente: cámara hija + WASD/mouse/orbita sin deriva.
+
+
+## Sistema de tiempos y UI (requerimiento usuario 2026-10-06)
+
+El usuario solicitó:
+- Tres tiempos: **Edición** (inactivo), **Depuración** (activo/debug), **Juego** (tercer tiempo: quita elementos de depuración, funciona como exportado, controles solo si scripts lo programaron).
+- 5 botones: Depuración, Pausa (no reinicia), Reset, Play (tiempo de juego), Terminar. Lógica de visibilidad: al tocar Play o Depuración, ambos se ocultan y aparecen los otros 3 (Pausa, Reset, Terminar). No se pueden mostrar todos simultáneamente según estados.
+- Cámara principal y malla solo utilizables en Edición y Depuración; deben desaparecer en tiempo de Juego.
+- Árboles/filtrado por tiempo: evaluar recorrer árboles distintos o comparar objetos por "tiempo/visibilidad" según arquitectura actual (GameObject/Entity, jerarquía).
+
+Estado actual del código (búsqueda):
+- No existen enums/modos `ModoDebug`, `ModoJuego`, `TiempoEdicion/Depuracion/Juego` ni botones nuevos en SceneGUI. Solo aparece `modoPlay` en CanvasInterface.h (`setModoPlay`) y lógica de editor activo en GameScene (`toggleEditorInterfaces`, `isEditorActivo`). 
+- Imágenes añadidas (untracked): `debug-button-white.png`, `pause-button-white.png`, `play-button-triangle-white.png`, `restart-button-white.png`, `stop-button-white.png`.
+- No hay implementación UI para esos 5 botones ni lógica de estados de tiempo.
+
+Recomendaciones de diseño (basadas en arquitectura existente, sin modificar contratos innecesarios):
+1. **Modelo de estado**: añadir enum `enum class EstadoTiempo { Edicion, Depuracion, Juego }` (o similar). Mantener separación clara (no mezclar con `modoPlay` del Canvas). Estado global en GameScene/EditorController (o contexto UI).
+2. **Visibilidad de objetos por tiempo**: preferir **flag por objeto** (`visibleEnEdicion`, `visibleEnDepuracion`, `visibleEnJuego` o máscara). GameObject ya tiene `state` (bool) y jerarquía; filtrar en render (`SceneRenderer`) y en jerarquía (`SceneObjectTree`) según `EstadoTiempo` actual. Evitar duplicar árboles (complejidad de sincronización). Filtrado por comparación es simple y consistente con `state`.
+3. **Cámara principal/malla**: marcar esos GameObjects con visibilidad restringida (sólo Edición+Depuración). Componentes (Model/CameraComponent) no se destruyen, solo no se dibujan/renderizan ni aparecen en selección según filtro de tiempo.
+4. **Lógica de botones**: máquina de estados mínima. Transiciones: Edición→Depuración (activa debug), Edición→Juego (play tiempo juego), Depuración/Juego→Pausa/Reset/Terminar según flujo. Al entrar a Juego: ocultar UI de depuración (gizmos, jerarquía/settings/folders si procede), desactivar captura/input asociado a editor, activar lógica de scripts (Canvas `modoPlay` puede coexistir o integrarse). Al salir (Terminar/Reset) vuelve a estado anterior/Edición.
+5. **Arquitectura**: añadir estado en `GameScene` (única fuente de verdad de escena+modo), exponer getters/setters, propagar a `SceneMenuBarInterface` (barra superior) para dibujar botones con imágenes nuevas. Iconos cargados vía `IconosGUI` (ya tiene patrón de carga PNG desde rutas relativas al exe/cwd).
+6. **No romper contratos**: respetar separación Rendering/UI (SceneRenderer filtra por visibilidad/tiempo), no tocar serialización salvo flags opcionales si se quieren persistir (probablemente no necesario).
+
+Pendiente: implementar enum+estado, filtros por tiempo, UI de 5 botones con lógica de visibilidad por estado, y ocultar cámara/malla en Juego. Todo documentado aquí para no perderlo.
