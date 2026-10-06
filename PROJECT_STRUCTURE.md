@@ -80,7 +80,10 @@ FunshiEngineGL/                          ← raíz del repo
     │                                      de caché: la de project() y la del
     │                                      VERSIONINFO del .exe salen de ahí; el
     │                                      workflow la fija con -DFUNSHI_VERSION al
-    │                                      publicar por tag)
+    │                                      publicar por tag). Backend gráfico (IRenderBackend),
+    │                                      backend audio (IAudioBackend), backend físico
+    │                                      (IPhysicsBackend) y backends de scripts (C++/Java)
+    │                                      siguen patrón Strategy.
     ├── Imagenes/                        ← íconos del explorador (cpp, cubo, file, folder, hpp)
     ├── ImGuizmo/                        ← dependencia integrada (ImGuizmo.cpp/.h, etc.)
     ├── External/nlohmann/json.hpp       ← nlohmann/json vendoriado (EditorConfig)
@@ -160,17 +163,19 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── PhysicsEngine.h/.cpp     ← fachada PIMPL; el header no expone Bullet
         │   └── BulletPhysicsAdapter.h/.cpp ← adaptador concreto de Bullet (RAII)
         ├── FileManager/
-        │   ├── FileManager.h/.cpp       ← fachada del explorador: modelo + operaciones de dominio
-        │   │                              Y toda la E/S nativa (diálogos, abrir con la app del
-        │   │                              sistema, listado de directorio, plantillas de scripts)
+        │   ├── FileManager.h/.cpp       ← fachada del explorador (alto nivel): orquesta modelo,
+        │   │                              operaciones de dominio y toda la E/S nativa (diálogos,
+        │   │                              abrir con la app del sistema, listado de directorio,
+        │   │                              plantillas de scripts). Usa GestorDeArchivos internamente.
         │   ├── FileSelection.h          ← estado de navegación compartido entre vistas
         │   ├── FileSystemWatcher.h/.cpp ← vigilancia de cambios externos (inotify)
         │   └── Proceso.h/.cpp           ← runner de procesos SIN shell (argv propio:
         │                                  CreateProcessW / fork+execvp, log por handles/fd,
         │                                  cwd, entorno extra; única vía a `cmd.exe` es la
         │                                  receta cruda del harvest de vcvars)
-        ├── GestorDeArchivos/            ← Binario (streams binarios), File, Carpeta,
-        │                                  GestorDeArchivos (exploración del filesystem)
+        ├── GestorDeArchivos/            ← modelo/infra de bajo nivel: Binario (streams binarios),
+        │                                  File, Carpeta, GestorDeArchivos (exploración del filesystem).
+        │                                  FileManager lo consume como modelo del árbol.
         ├── GUI/
         │   ├── GeneralUserInterface.h/.cpp ← interfaz base de paneles ImGui
         │   ├── WindowNames.h
@@ -242,65 +247,29 @@ FunshiEngineGL/                          ← raíz del repo
         ├── Matematicas/
         │   └── StructVec3.h/.cpp         ← vec3 propio
         ├── Rendering/
-        │   ├── MeshGPU.h/.cpp            ← malla residente en GPU (buffers VBO/VAO)
-        │   ├── MeshRenderer.h/.cpp       ← dibuja MeshGPU con shader program
-        │   ├── DibujoModelo.h/.cpp       ← resuelve malla + matriz mundial de un
-        │   │                                GameObject con componente Model (CPU
-        │   │                                puro, sin OpenGL): toma la malla del
-        │   │                                AssetManager y la matriz del Transform
-        │   │                                GLOBAL, para respetar la jerarquía
-        │   ├── LineBuilder.h/.cpp        ← geometría CPU de líneas (cada segmento
-        │   │                                expandido a un quad; sin OpenGL)
-        │   ├── LineBatch.h/.cpp          ← batch de líneas en GPU (VAO+VBO, RAII)
-        │   ├── LineRenderer.h/.cpp       ← shader de líneas gruesas + batch; fija las
-        │   │                                matrices y el viewport de la pasada actual
-        │   │                                (líneas de la grilla, marcadores y gizmos)
-        │   ├── Difuminado.h/.cpp           ← difuminado radial del piso (CPU puro): a
-        │   │                                partir del radio que elige el usuario
-        │   │                                (Apariencia::radioDifuminado, acotado en
-        │   │                                el rango 20..600) deriva el inicio en
-        │   │                                proporción constante y expone la curva de
-        │   │                                opacidad; lo comparten la grilla y la
-        │   │                                guía de eje para que se desvanezcan en el
-        │   │                                mismo círculo-horizonte
-        │   ├── Cielo.h                   ← cielo degradado (CPU puro): a partir del
-        │   │                                perfil de apariencia devuelve los dos
-        │   │                                colores efectivos (superior/inferior)
-        │   │                                resolviendo B/N y tema; usado por el
-        │   │                                shader fullscreen triangle del cielo,
-        │   │                                que colorea cada pixel segun la
-        │   │                                DIRECCION de vista (des-proyecta el
-        │   │                                NDC con la inversa de projection*view y
-        │   │                                resta la posicion de camara) y no segun
-        │   │                                su posicion en pantalla
-        │   ├── CacheCubemap.h             ← identidad del cubemap del Skybox (CPU
-        │   │                                puro): clave de las 6 caras por ruta y
-        │   │                                fecha de modificacion, que decide cada
-        │   │                                cuando hay que volver a subirlo a GPU
-        │   ├── GrillaRenderer.h/.cpp        ← geometría de la grilla del suelo: plano
-        │   │                                infinito de densidad fija (secundarias cada
-        │   │                                kSeparacionMenor, una principal cada
-        │   │                                kMultiploMayor de ellas), recorte al
-        │   │                                círculo-horizonte de radio "dif.fin" y
-        │   │                                difuminado radial por vértice (Difuminado);
-        │   │                                un batch de líneas por ancho (1/2/3 px),
-        │   │                                rearmado solo cuando cambian cámara,
-        │   │                                radio o color (con el resto quieto se
-        │   │                                reusa el batch ya subido)
-        │   ├── GuiaEje.h/.cpp             ← geometría CPU de la guía de eje (X/Y/Z) del
-        │   │                                objeto seleccionado: origen + dirección
-        │   │                                unitaria, recorte analítico al horizonte,
-        │   │                                difuminado por vértice y el color del eje
-        │   │                                (convención X rojo, Y verde, Z azul, la
-        │   │                                misma de la grilla y el gizmo); solo CPU,
-        │   │                                sin OpenGL
-        │   ├── TextureGL.h/.cpp          ← textura OpenGL desde Image
-        │   ├── RenderTarget.h/.cpp       ← render a textura (FBO) para vistas previas de cámara
-        │   ├── GLFuncs.h                ← punteros de función OpenGL 3.3 core (glad-style)
-        │   ├── Backend/                  ← IRenderBackend + OpenGL3Backend (única capa con GL)
-        │   └── Shaders/
-        │       ├── ShaderProgram.h/.cpp  ← compilación/link de shaders + ShaderSources.h
-        │       └── ShaderException.h
+        │   ├── SceneRenderer.h/.cpp       ← renderizador de la escena: skybox, modelos,
+        │   │                                  iluminación, grilla, ejes, gizmos (pipeline de líneas)
+        │   ├── MeshRenderer.h/.cpp         ← dibujo de meshes por GameObject
+        │   ├── MeshGPU.h/.cpp              ← wrapper RAII de VBO/VAO/EBO
+        │   ├── DibujoModelo.h/.cpp         ← helpers de render por modelo
+        │   ├── LineBatch.h/.cpp            ← batch GPU de líneas expandidas
+        │   ├── LineBuilder.h/.cpp          ← expansión de segmentos a quads
+        │   ├── LineRenderer.h/.cpp         ← API de dibujo de líneas (grilla, ejes, gizmos)
+        │   ├── GrillaRenderer.h/.cpp       ← geometría/lógica de grilla infinita
+        │   ├── GuiaEje.h/.cpp              ← guía de eje con contraste
+        │   ├── TextureGL.h/.cpp            ← wrapper de textura 2D + cubemap
+        │   ├── RenderTarget.h/.cpp         ← FBO (viewport/vista previa)
+        │   ├── Cielo.h/.cpp                ← cielo degradado
+        │   ├── Difuminado.h/.cpp           ← cálculo de difuminado radial
+        │   ├── CacheCubemap.h             ← caché de caras del cubemap
+        │   ├── Backend/                    ← abstracción de backend gráfico (Strategy)
+        │   │   ├── IRenderBackend.h        ← contrato (handles opacos, MeshData, Image2D,
+        │   │   │                              DepthFunc, recursos GPU, estados, FBO)
+        │   │   ├── OpenGL3Backend.h/.cpp   ← implementación OpenGL 3.3 core
+        │   │   └── GLFuncs.h                ← carga perezosa de funciones GL
+        │   └── Shaders/                    ← ShaderProgram + fuentes inyectadas
+        │       ├── ShaderProgram.h/.cpp
+        │       └── ShaderSources.h/.cpp
         ├── Objetos/
         │   ├── GameObject.h/.cpp         ← id, nombre, estado, update, serialización binaria
         │   ├── GameObjectFactory.h/.cpp
