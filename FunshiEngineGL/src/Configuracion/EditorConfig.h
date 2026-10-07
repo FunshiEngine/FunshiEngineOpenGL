@@ -39,7 +39,11 @@ public:
     struct Datos {
         int version = 2;
         // Seccion "menu": MenuModel (vista Opciones).
-        std::string nombreProyecto = "Nuevo Proyecto";
+        // Vacio = no hay proyecto abierto todavia (primer arranque o config sin
+        // ultimoProyecto). Debe quedarse vacio hasta que el usuario elija o cree
+        // uno: si se materializara, guardarGeneral escribe "ultimoProyecto" y
+        // sus carpetas se crearian solas al reabrir.
+        std::string nombreProyecto = "";
         std::string idioma = "Espanol";
         float sensibilidadCamara = 0.15f;
         // Sensibilidad de movimiento (WASD) de la camara del editor. Es global
@@ -62,10 +66,12 @@ public:
         Apariencia apariencia;
     };
 
-    // Ruta del archivo por plataforma, junto al binario del motor:
-    //   Linux y Windows: <directorioEjecutable>/MotorGrafico/Configuracion.json
+    // Ruta del archivo por plataforma. Vive bajo la raiz de datos, que el motor
+    // resuelve una vez al arrancar: junto al binario si ahi se puede escribir y
+    // si no en la carpeta de datos del usuario (ver ProjectPaths).
+    //   Linux y Windows: <raizDeDatos>/Configuraciones/Configuracion.json
     // Directorio base de MotorGrafico donde viven todos los proyectos:
-    //   Linux y Windows: <directorioEjecutable>/MotorGrafico
+    //   Linux y Windows: <raizDeDatos>  (raizDeDatos + "MotorGrafico")
     static std::string directorioBaseMotorGrafico();
 
     // Directorio raiz de un proyecto especifico: <directorioBase>/<nombreProyecto>
@@ -114,6 +120,11 @@ public:
     // <directorioProyecto>/src<nombreProyecto>/Sonidos
     static std::string directorioSonidos(const std::string& nombreProyecto = "Nuevo Proyecto");
 
+    // Carpeta con los fuentes de script del proyecto (los que el usuario
+    // compila para su juego, junto a los demas assets del explorador):
+    // <directorioProyecto>/src<nombreProyecto>/Scripts
+    static std::string directorioScripts(const std::string& nombreProyecto = "Nuevo Proyecto");
+
     // Carpeta de interfaces de usuario creadas (assets JSON del creador de
     // interfaces): <directorioMemory>/Interfaces
     static std::string directorioInterfaces(const std::string& nombreProyecto = "Nuevo Proyecto");
@@ -139,10 +150,11 @@ public:
     // a la nueva estructura MotorGrafico/Proyects/
     static void asegurarEstructuraProyecto(const std::string& nombreProyecto = "Nuevo Proyecto");
 
-    // Crea el proyecto por defecto "NuevoProyecto" si no hay ningun proyecto
-    // en MotorGrafico/Proyects/. Devuelve true si se creo, false si ya habia
-    // proyectos o si fallo la creacion.
-    static bool crearProyectoPorDefecto();
+    // Asegura la estructura base de datos del motor (Proyects/,
+    // Configuraciones/, Exportaciones/) y ejecuta las migraciones de estructura
+    // antigua. Idempotente y SIN crear ningun proyecto: se llama al arrancar
+    // para que el motor tenga donde trabajar, y el proyecto lo elige el usuario.
+    static void asegurarEstructuraBase();
 
     // Renombra un proyecto en disco: <base>/<viejo> -> <base>/<nuevo> y su raiz
     // src dentro (<nuevo>/src<viejo> -> <nuevo>/src<nuevo>). Devuelve false sin

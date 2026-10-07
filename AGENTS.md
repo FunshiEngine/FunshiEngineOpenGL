@@ -212,21 +212,29 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
 
 ## Memoria de trabajo: documentos locales ignorados por git
 
-Dos documentos de trabajo viven en la raíz del repo y están en `.gitignore` a
-propósito: no son documentación del proyecto ni se versionan, pero son la
-memoria con la que un agente retoma el trabajo sin re-investigarlo desde cero:
+Todo el estado local que un agente necesita para retomar el trabajo sin
+re-investigarlo desde cero vive bajo **una única carpeta ignorada por git**,
+`.agentes/`, en la raíz del repo. No es documentación del proyecto ni se
+versiona; es la memoria de trabajo del agente.
 
-| Archivo | Para qué sirve |
+| Ruta | Para qué sirve |
 |---|---|
-| `PLAN GENERAL DE FIX.md` | Lote de correcciones: cada hallazgo con su cadena `síntoma → evidencia → causa → fix → test`, la tabla de avance con los commits que cierran cada ítem y lo que queda por validar. |
-| `MemoryaAgente` | Memoria de contexto entre sesiones: estado del trabajo en curso, sistemas del código ya analizados (con punteros a archivos y líneas), supuestos abiertos, comandos de build/test que funcionan en el entorno y archivos que no se deben tocar. |
+| `.agentes/MEMORIA.md` | Memoria de contexto entre sesiones: estado del trabajo en curso, sistemas del código ya analizados (con punteros a archivos y líneas), supuestos abiertos, hallazgos pendientes, comandos de build/test que funcionan en el entorno y archivos que no se deben tocar. |
+| `.agentes/PLAN GENERAL DE FIX.md` | Lote de correcciones: cada hallazgo con su cadena `síntoma → evidencia → causa → fix → test`, la tabla de avance con los commits que cierran cada ítem y lo que queda por validar. |
+| `.agentes/auditorias/` | Informes de auditoría por área, uno por archivo: qué se revisó, qué se encontró, con evidencia `archivo:línea`, y si es regresión de un commit reciente o deuda preexistente. |
 
 Reglas:
 
-- **Si falta uno de los dos, recrearlo**: reconstruir su contenido desde el
-  estado real (git log, código fuente, esta guía) y tratarlo desde ese momento
-  como la fuente de contexto de la tarea — no empezar de cero sin comprobar
-  antes qué ya sabía el documento.
+- **Crear lo que haga falta, manteniendo la raíz ordenada**: `.agentes/` es
+  extensible. Un informe nuevo de una revisión puntual es un archivo nuevo en
+  `.agentes/auditorias/`; un tema que ya no tiene archivo propio (por ejemplo
+  un informe de depuración grande) se agrupa en un `.md` con nombre claro en
+  `.agentes/`. No crear archivos sueltos en la raíz del repo: la raíz es del
+  proyecto, `.agentes/` es del agente.
+- **Si falta un archivo, recrearlo**: reconstruir su contenido desde el estado
+  real (git log, código fuente, esta guía) y tratarlo desde ese momento como
+  la fuente de contexto de la tarea — no empezar de cero sin comprobar antes
+  qué ya sabía el documento.
 - **Leerlos al arrancar** una tarea que toque temas que cubren, y **escribir
   en ellos** lo nuevo relevante (decisiones, evidencia, estado verificado) de
   forma incremental durante el trabajo: así la siguiente sesión no repaga el
@@ -236,10 +244,10 @@ Reglas:
   ahí.
 - Lo que se vuelva regla estable del proyecto **se promueve** a los `.md` del
   repo (`MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md`, esta guía) en el commit
-  que lo justifica; mientras tanto vive solo en el documento local.
-- Al commitear, **nunca** incluir estos archivos: están ignorados a propósito
-  y un `git add <ruta>` explícito de los archivos propios de la tarea es la
-  única forma correcta de agregar cambios.
+  que lo justifica; mientras tanto vive solo en `.agentes/`.
+- Al commitear, **nunca** incluir esta carpeta: está ignorada a propósito y un
+  `git add <ruta>` explícito de los archivos propios de la tarea es la única
+  forma correcta de agregar cambios.
 
 ## Flujo de trabajo
 

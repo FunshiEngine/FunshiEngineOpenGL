@@ -44,53 +44,85 @@ Pasos que ejecuta:
    - runtime VC++ (`msvcp140.dll`, `vcruntime140*.dll`) si existe el redist
    - `Imagenes\` (iconos del editor, obligatorios)
 5. Si Inno Setup existe, compila
-   `instalador\FunshiEngineGL-<version>-<canal>-setup.exe`.
+   `dist\instalador\FunshiEngineGL-<version>-<canal>-setup.exe` (la carpeta de
+   salida la decide el `.iss`: `OutputDir` es relativo a `SourceDir`, que es
+   `dist`). Es la misma ruta que publica la CI, así que un instalador hecho a
+   mano se sube como artefacto sin mover nada.
 
 ## Que instala el setup.exe
 
-- Programas y archivos en `C:\Program Files\FunshiEngineGL\`.
-- Iconos de menu inicio y escritorio (inicia en la carpeta de la app, para que
-  `IconosGUI` y el FileManager resuelvan sus rutas relativas).
-- Crea la raiz vacia `{app}\MotorGrafico\`: ahi solo viven los proyectos que
-  el usuario crea (`<nombre>\Memory\Binarios\Scene`, `<nombre>\src<nombre>`)
-  y la configuracion (`Configuracion.json`, `imgui.ini`). No se instalan
-  carpetas fijas de `Modelos\Texturas\Imagenes`.
+- Programa, DLL y carpetas en
+  `%LOCALAPPDATA%\Programs\FunshiEngineGL\` (la carpeta de programas del
+  usuario).
+- Iconos de menú inicio y escritorio, que inician en la carpeta de la app para
+  que `IconosGUI` encuentre sus imágenes y los scripts en C++ sus cabeceras.
+- Crea la raíz vacía `{app}\MotorGrafico\`: ahí viven los proyectos que el
+  usuario crea (`<nombre>\Memory\Binarios\Scene`, `<nombre>\src<nombre>`) y
+  la configuración (`Configuracion.json`, `imgui.ini`). No se instalan carpetas
+  fijas de `Modelos\Texturas\Imagenes`.
 
-> Requiere permisos de administrador (necesario para instalar en
-> `C:\Program Files`).
+La instalación es **por usuario y sin UAC** (`PrivilegesRequired=lowest`). No
+pide contraseña de administrador ni escribe nada en `Program Files`.
+
+> Única excepción: si aceptás la descarga del JDK de la se siguiente, el MSI de
+> Temurin se instala a nivel de máquina y ese paso sí puede pedir elevación,
+> porque deja `JAVA_HOME` en el entorno del equipo.
+
+### Actualizar desde una versión instalada con permisos de administrador
+
+Las instalaciones antiguas con `PrivilegesRequired=admin` quedaron en
+`C:\Program Files\FunshiEngineGL` y registradas en HKLM. La nueva se registra
+por usuario (HKCU), así que Inno no las ve como la misma aplicación: **desinstalá
+la versión anterior antes de instalar la nueva**, o te van a coexistir dos
+copias. Tus proyectos no se pierden: están en la carpeta `MotorGrafico` de la
+instalación vieja y el motor copia solo lo que falta cuando encuentra la
+carpeta original sin escribir (migración de `ProjectPaths`).
 
 ### Dónde guarda el motor los datos del usuario
 
-El `.iss` crea `{app}\MotorGrafico\` durante la instalación, pero el ejecutable
-**no corre elevado**: no lleva manifiesto `requestedExecutionLevel`. Como la
-carpeta la crea el instalador (que sí es administrador) heredando los ACL de
-`Program Files`, el proceso no puede escribir dentro de ella.
+Toda escritura cuelga de una sola raíz, la que resuelve
+`ProjectPaths::directorioBase()`: `{app}\MotorGrafico` (junto al ejecutable) si
+ahí se puede escribir, y si no la carpeta de datos del usuario
+(`%APPDATA%\FunshiEngineGL\MotorGrafico`). El motor elige la raíz probando de
+verdad si puede escribir, no suponiendo dónde está.
 
-Por eso `ProjectPaths::directorioBase()` resuelve la raíz de datos: prueba si
-puede escribir junto al binario y, si no, usa `%APPDATA%\FunshiEngineGL\MotorGrafico`.
-En la instalación de Windows eso es siempre el segundo caso, así que la carpeta
-que crea el instalador queda sin uso para el usuario normal. Si ejecutás el
-motor como administrador, entonces sí se usa `{app}\MotorGrafico`.
+Con la instalación por usuario lo normal es el primer caso, porque
+`{app}` está en tu perfil. El segundo aparece cuando el motor corre elevado
+sobre una instalación en `Program Files`, o si la carpeta del ejecutable está
+en solo lectura.
 
-Esto no es hipotético: sin el fallback, las escrituras fallaban en silencio
-porque ningún llamador comprobaba el retorno, y el motor leía bien pero no
-podía guardar ni la configuración ni las escenas.
+El log va a `logs\` dentro de esa misma raíz, así que siempre se escribe
+(`FunshiEngineGL_<AAAAMMDD_HHMMSS>.log`, hora UTC).
 
-> Si preferís que el motor instalado use `{app}\MotorGrafico` también sin
-> elevación, la alternativa es cambiar `DefaultDirName` a una carpeta por
-> usuario (`{localappdata}\Programs\FunshiEngineGL`) o granting de escritura
-> sobre `{app}\MotorGrafico` con una directiva `Permissions:`. Se descartó la
-> segunda porque un directorio escribible dentro de `Program Files` va contra la
-> convención de Windows y lo marcan los analizadores de seguridad.
+Comprobado con el ejecutable real: con su carpeta en solo lectura no escribe
+nada allí y todo el árbol (`Configuraciones`, `Proyects`, `Exportaciones`,
+`logs`) aparece en la carpeta de datos del usuario. Esto no es hipotético: sin
+el fallback las escrituras fallaban en silencio —ningún llamador comprobaba el
+retorno— y el motor leía bien pero no podía guardar ni la configuración ni las
+escenas.
 
 ## Versionar para demo/alpha/beta
 
-Edita arriba del `.iss`:
+La versión del producto tiene una sola fuente: `FUNSHI_VERSION` en
+`FunshiEngineGL/CMakeLists.txt`. De ahí salen la versión del proyecto y el
+recurso `VERSIONINFO` del `.exe`. Se puede cambiar sin tocar el archivo:
+
+```bash
+cmake -B build -S FunshiEngineGL -DFUNSHI_VERSION=0.6.0
+```
+
+El `.iss` lleva su propio `MiVersion` para el nombre del instalador y el canal:
 
 ```iss
 #define MiVersion "0.5.0"
 #define MiCanal "alpha"   ; demo | alpha | beta | rc
 ```
+
+Tiene que coincidir con la del `.exe` que se está empaquetando; si no, el
+instalador anuncia una versión y dentro viaja otra. Al publicar desde GitHub
+Actions eso no hay que controlarlo: el workflow pasa el número del tag a
+`-DFUNSHI_VERSION` y reescribe el `MiVersion` del `.iss` con el mismo valor.
+Compilando a mano, cambia los dos sitios.
 
 Cada combinacion genera su propio archivo de salida, así no se mezclan builds
 (por ejemplo `FunshiEngineGL-0.5.0-beta-setup.exe`).
@@ -103,9 +135,9 @@ Cada combinacion genera su propio archivo de salida, así no se mezclan builds
   `{app}\MotorGrafico\<nombre>\` (`Memory\Binarios\Scene` + `src<nombre>`).
   Arrastra meshes desde el árbol de archivos (raiz `src<nombre>`) al
   viewport para armar tu escena demo.
-- Las rutas de assets se guardan **relativas al cwd** en Windows
-  (`.\MotorGrafico\...`) porque el FileManager usa la carpeta de trabajo; por
-  eso todos los accesos directos inician con `Carpeta de trabajo = {app}`.
+- Las rutas de assets se guardan **relativas a la raíz del proyecto**
+  (`src<nombre>`), así que sobreviven a que la carpeta del proyecto se mueva de
+  sitio.
 
 ## GitHub Actions (instalador automatico)
 
@@ -120,11 +152,10 @@ después queda cacheada y es mucho mas rapida.
 
 ## Limitaciones conocidas (a corregir rumbo a 1.0)
 
-1. **Rutas del proyecto**: `EditorConfig` usa el directorio del ejecutable
-   (`{app}\MotorGrafico`, exe-relativo) y el FileManager resuelve `.\MotorGrafico`
-   relativo al cwd. Coinciden porque los accesos directos fuerzan `WorkingDir={app}`,
-   pero siguen siendo dos mecanismos que convendría unificar en 1.0 (ver
-   `EditorConfig::directorioProyectoPorDefecto` + `GUIManager::GUIManager`).
+1. **Rutas absolutas del proyecto**: las rutas de assets se guardan relativas a
+   la raíz del proyecto abierto (`src<nombre>`), no a la carpeta del ejecutable.
+   Se puede mover la carpeta del proyecto y siguen valiendo. Lo que no se
+   resuelve todavía es una ruta guardada que venga de otro equipo.
 2. **Escenas con rutas Linux**: los `.db` guardan las rutas absolutas que se
    cargaron. Una escena hecha en Linux (`/home/.../MotorGrafico/...`) no
    resolverá sus assets en Windows tal cual; hay que reimportar los modelos

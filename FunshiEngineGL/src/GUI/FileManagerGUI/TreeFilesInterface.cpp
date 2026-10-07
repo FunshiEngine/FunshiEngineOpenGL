@@ -29,6 +29,7 @@
 #include "../../GestorDeArchivos/Carpeta.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
 #include "SoltarEnCarpeta.h"
+#include "CrearCarpeta.h"
 #include <imgui.h>
 
 namespace {
@@ -46,7 +47,7 @@ std::string rutaDeElemento(File* elemento) {
 // sus File*): limpia el estado de colapso por ruta, libera cada elemento y
 // desvincula los nodos. Sin esto, deleteNodeInternalNode() promovia el primer
 // hijo al lugar del padre y quedaban "carpetas fantasma" inexistentes en disco
-// (B3).
+// .
 void limpiarYLiberarSubarbol(ArbolEnlazado<File*>* arbol,
                              Position<File*>* p,
                              std::set<std::string>& openPaths) {
@@ -214,7 +215,7 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
         const bool esRaiz = (arbolDeArchivos && !arbolDeArchivos->isEmpty() &&
                              folderRoot == arbolDeArchivos->rootOfTree()->getElement());
         if (!esRaiz && ImGui::MenuItem("Renombrar Carpeta")) {
-            // R6: el modal compartido con el grid se encarga del disco y del
+            // El modal compartido con el grid se encarga del disco y del
             // aviso a la escena; aca se registra la RUTA (no el puntero: un
             // rescaneo reconstruye el arbol y deja punteros colgando) y el
             // rescaneo se pide al confirmar.
@@ -222,7 +223,7 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
                                      folderRoot->getPathName());
         }
         if (ImGui::MenuItem("Nueva Carpeta")) {
-            creandoCarpeta = true;
+            errorNuevaCarpeta.clear();
             abrirPopupNombre = true;
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             rutaPadreNuevaCarpeta = rutaDe(folderRoot);
@@ -279,35 +280,44 @@ void TreeFilesInterface::initGUI() {
     if (abrirPopupNombre) {
         ImGui::OpenPopup("Ingresar nombre");
         abrirPopupNombre = false;
+        errorNuevaCarpeta.clear();
     }
     if (ImGui::BeginPopupModal("Ingresar nombre", nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
         ImGui::Text("Escribe el nombre de la carpeta:");
-        ImGui::InputText("##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo));
-        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) ||
-                                (ImGui::IsItemFocused() &&
-                                 ImGui::IsKeyPressed(ImGuiKey_Enter));
-        if (confirmado && nombreNuevo[0] != '\0') {
-            const std::string rutaNueva =
-                rutaPadreNuevaCarpeta + PATH_SEP + nombreNuevo;
-            if (fileManager->crearCarpeta(rutaNueva)) {
-                FileSelection* sel = fileManager->getSelection();
-                sel->contadorCambios++;
+        const bool enter = ImGui::InputText(
+            "##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo),
+            ImGuiInputTextFlags_EnterReturnsTrue);
+        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) || enter;
+        if (confirmado) {
+            // El modal se cierra SOLO si la carpeta quedo creada: con un nombre
+            // repetido o invalido sigue abierto, con el motivo a la vista y el
+            // texto en el campo para corregirlo.
+            const CrearCarpeta::Resultado resultado =
+                CrearCarpeta::crear(fileManager, rutaPadreNuevaCarpeta,
+                                    nombreNuevo);
+            if (resultado.creada) {
+                memset(nombreNuevo, 0, sizeof(nombreNuevo));
+                ImGui::CloseCurrentPopup();
+            } else {
+                errorNuevaCarpeta = resultado.error;
             }
-            creandoCarpeta = false;
-            memset(nombreNuevo, 0, sizeof(nombreNuevo));
-            ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
-            creandoCarpeta = false;
+        const bool cancelar = ImGui::Button("Cancelar", ImVec2(120, 0)) ||
+                              ImGui::IsKeyPressed(ImGuiKey_Escape);
+        if (cancelar) {
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             ImGui::CloseCurrentPopup();
         }
+        if (!errorNuevaCarpeta.empty())
+            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s",
+                               errorNuevaCarpeta.c_str());
         ImGui::EndPopup();
     }
 
-    // R6: renombre de una carpeta del arbol. Modal compartido con el grid
+    // Renombre de una carpeta del arbol. Modal compartido con el grid
     // (RenombrarElemento.h): el campo se enfoca al abrirse y Enter confirma.
     // El aviso a la escena (ArchivosReubicados) lo publica el helper; aca queda
     // la navegacion, que es por RUTA: la carpeta visible y la expansion de la
@@ -336,14 +346,14 @@ void TreeFilesInterface::initGUI() {
 void TreeFilesInterface::refrescarArbol() {
     fileManager->refrescar();
     arbolDeArchivos = fileManager->getArbol();
-    // R4: openPaths se indexa por RUTA y sobrevive a la reconstruccion del
+    // openPaths se indexa por RUTA y sobrevive a la reconstruccion del
     // arbol; ya no se limpia aqui (las ramas borradas quedan como entradas
     // hueso que nunca se dibujan, inofensivas).
     carpetaAEliminar.clear();
     ultimoContadorVisto = fileManager->getSelection()->contadorCambios;
-    // navegacionPendiente NO se limpia: es una ruta y debe aplicarse (FASE 2)
+    // navegacionPendiente NO se limpia: es una ruta y debe aplicarse
     // contra el arbol recien reconstruido; limpiarla aqui perderia el doble
-    // clic que coincidio con un rescaneo (B6).
+    // clic que coincidio con un rescaneo.
 }
 
 void TreeFilesInterface::aplicarNavegacionPendiente() {
@@ -372,7 +382,7 @@ void TreeFilesInterface::contentGUI() {
     FileSelection* sel = fileManager->getSelection();
 
     // Refresco programado (actualizar), por cambio de FS detectado (el panel
-    // de contenido creo/copio una carpeta y subio el contador, R3) o por
+    // de contenido creo/copio una carpeta y subio el contador) o por
     // cambios hechos FUERA del editor (FileSystemWatcher).
     if (!arbolDeArchivos || actualizar ||
         sel->contadorCambios != ultimoContadorVisto ||
@@ -381,8 +391,8 @@ void TreeFilesInterface::contentGUI() {
         actualizar = false;
     }
 
-    // FASE 2 se aplica DESPUÉS de cualquier refresco y contra el arbol
-    // vigente: asi el doble clic sobrevive a un rescaneo programado (B6).
+    // La navegacion pendiente se aplica DESPUÉS de cualquier refresco y contra el arbol
+    // vigente: asi el doble clic sobrevive a un rescaneo programado.
     aplicarNavegacionPendiente();
 
     if (!arbolDeArchivos->isEmpty()) {
@@ -397,7 +407,7 @@ void TreeFilesInterface::contentGUI() {
             true);
     }
 
-    // Borrado diferido (fuera del recorrido del arbol, B4). La ruta se resuelve
+    // Borrado diferido (fuera del recorrido del arbol). La ruta se resuelve
     // contra el arbol VIGENTE del frame: si un rescaneo reconstruyo el arbol
     // entre la confirmacion y aca, el puntero guardado habria quedado colgando.
     if (!carpetaAEliminar.empty()) {

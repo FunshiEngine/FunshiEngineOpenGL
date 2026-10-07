@@ -19,6 +19,7 @@
 #include "GameExporter.h"
 
 #include "../FileManager/Proceso.h"
+#include "RutasExportacion.h"
 
 #include <thread>
 #include <fstream>
@@ -31,7 +32,16 @@
 
 namespace fs = std::filesystem;
 
-GameExporter::GameExporter(const Config& cfg) : cfg_(cfg) {}
+GameExporter::GameExporter(const Config& cfg) : cfg_(cfg) {
+    // La disposicion del proyecto se resuelve por NOMBRE (RutasExportacion se
+    // apoya en ProjectPaths). Si quien arma la configuracion solo paso la ruta,
+    // el nombre es el de su carpeta; si no paso ruta pero si nombre, la ruta se
+    // deduce de el. Asi ninguna de las dos se deja obligatoria.
+    if (cfg_.nombreProyecto.empty() && !cfg_.proyectoOrigen.empty())
+        cfg_.nombreProyecto = nombreProyectoDesdeRuta(cfg_.proyectoOrigen);
+    if (cfg_.proyectoOrigen.empty())
+        cfg_.proyectoOrigen = EditorConfig::directorioProyecto(cfg_.nombreProyecto);
+}
 
 GameExporter::~GameExporter() {
     if (hiloExportacion_.joinable()) hiloExportacion_.join();
@@ -152,7 +162,7 @@ set(CMAKE_FIND_LIBRARY_CUSTOM_PATH_SUFFIXES "/x86_64-w64-mingw32")
     cmakeFile.close();
 
     // Generar CMakeLists.txt para scripts de usuario
-    std::string scriptsDir = cfg_.proyectoOrigen + "/scripts";
+    std::string scriptsDir = directorioScriptsProyecto(cfg_.nombreProyecto);
     if (fs::exists(scriptsDir)) {
         std::string scriptsCMake = "cmake_minimum_required(VERSION 3.15)\n";
         scriptsCMake += "project(UserScripts LANGUAGES CXX)\n";
@@ -207,12 +217,10 @@ bool GameExporter::compilarJuego(const std::string& buildDir) {
 }
 
 bool GameExporter::copiarAssetsYDependencias(const std::string& buildDir) {
-    // Copiar Memory/, Sonidos/, ConfiguracionProyecto.json
-    std::vector<std::pair<std::string, std::string>> copiar = {
-        {cfg_.proyectoOrigen + "/Memory", cfg_.directorioSalida + "/Data/Memory"},
-        {cfg_.proyectoOrigen + "/Sonidos", cfg_.directorioSalida + "/Data/Sonidos"},
-        {cfg_.proyectoOrigen + "/ConfiguracionProyecto.json", cfg_.directorioSalida + "/Data/ConfiguracionProyecto.json"}
-    };
+    // Copiar Memory/, Sonidos/ y ConfiguracionProyecto.json desde donde viven
+    // de verdad en el proyecto (la tabla sale de ProjectPaths).
+    std::vector<std::pair<std::string, std::string>> copiar =
+        rutasDatosProyecto(cfg_.nombreProyecto, cfg_.directorioSalida);
 
     for (auto& [src, dst] : copiar) {
         if (fs::exists(src)) {

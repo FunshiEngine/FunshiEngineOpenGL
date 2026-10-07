@@ -36,6 +36,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/GUI/CreadorUI/UserInterfaceCustom.h"
+#include "../FunshiEngineGL/src/GUI/Estado/BarraProgresoTexto.h"
 
 namespace fs = std::filesystem;
 
@@ -202,6 +203,28 @@ void probarToleranciaAJsonParcial() {
     CHECK(ui2.widgets.empty(), "json no-objeto no agrega widgets");
 }
 
+void probarBarraProgreso() {
+    using namespace BarraProgresoTexto;
+
+    // Caso sano: 1 de 2 llena la mitad.
+    CHECK(porcentaje(1, 2) == 50, "porcentaje 1/2");
+    CHECK(formatear(1, 2) == "#####     ", "barra 1/2 = 5 llenos");
+
+    // Productor desincronizado: hecha > total se acota (antes: length_error por
+    // una longitud negativa convertida a size_t).
+    CHECK(porcentaje(2, 1) == 100, "porcentaje 2/1 acotado a 100");
+    CHECK(formatear(2, 1) == "##########", "barra 2/1 acotada");
+    CHECK(formatear(5, 3) == "##########", "barra 5/3 acotada");
+
+    // Sin total no hay proporcion: cero y cadena vacia (antes: division por 0
+    // diferida al dibujar la lista).
+    CHECK(porcentaje(0, 0) == 0, "porcentaje 0/0 = 0");
+    CHECK(formatear(0, 0).empty(), "barra 0/0 vacia");
+
+    // Total valido con hecha 0: barra de solo espacios.
+    CHECK(formatear(0, 3) == "          ", "barra 0/3 todo espacios");
+}
+
 }  // namespace
 
 int main() {
@@ -209,6 +232,7 @@ int main() {
     probarRoundTripJson();
     probarPersistencia();
     probarToleranciaAJsonParcial();
+    probarBarraProgreso();
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;
     if (fallos == 0) std::cout << "USER INTERFACE TESTS OK" << std::endl;
     return fallos == 0 ? 0 : 1;

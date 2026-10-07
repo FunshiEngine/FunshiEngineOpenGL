@@ -27,6 +27,7 @@
 #endif
 
 #include "BackendJava.h"
+#include "ResolucionJdk.h"
 
 #include <jni.h>
 
@@ -320,7 +321,6 @@ std::vector<fs::path> raicesJdk() {
 
     agregar(raizJreEmbebido());
     if (const char* home = std::getenv("JAVA_HOME")) agregar(home);
-    agregar(fs::path(FUNSHI_LIBJVM_DEFAULT));
 #if defined(_WIN32)
     for (const fs::path& raiz : raicesRegistroWindows()) agregar(raiz);
     for (const fs::path& raiz : raicesComunesWindows()) agregar(raiz);
@@ -338,15 +338,64 @@ const std::vector<fs::path>& raicesJdkCache() {
     return cache;
 }
 
-std::string rutaLibjvm() {
-    const char* explicito = std::getenv("FUNSHI_LIBJVM");
-    if (explicito && *explicito) return explicito;
+// Herramientas del toolchain Java, resueltas UNA vez y en pareja: la biblioteca
+// de la JVM y el compilador salen de la misma raiz de JDK. Recorrer la lista dos
+// veces por separado dejaba que cada una cogiera el primer acierto, y esa mezcla
+// (javac de una version, JVM de otra) se manifiesta como "no se encontro la
+// clase", que es el mismo mensaje que da un .class que no existe.
+const ResolucionJdk::Herramientas& herramientasJdk() {
+    static const ResolucionJdk::Herramientas h = [] {
+        ResolucionJdk::Herramientas resultado;
 
-    for (const fs::path& raiz : raicesJdkCache()) {
-        if (const fs::path p = libjvmEnRaiz(raiz); !p.empty()) return p.string();
-    }
-    return "";
+        // Biblioteca dada a mano: manda sobre la lista de raices, y su raiz se
+        // deduce del propio archivo para buscarle el javac al lado.
+        const char* explicito = std::getenv("FUNSHI_LIBJVM");
+        if (explicito && *explicito) {
+            resultado.libjvm = explicito;
+            resultado.raiz = ResolucionJdk::raizDesdeLibjvm(explicito);
+        } else {
+            std::vector<std::string> raices;
+            raices.reserve(raicesJdkCache().size());
+            for (const fs::path& raiz : raicesJdkCache())
+                raices.push_back(raiz.string());
+            resultado = ResolucionJdk::desdeRaices(
+                raices, [](const std::string& raiz) {
+                    return libjvmEnRaiz(raiz).string();
+                },
+                [](const std::string& raiz) {
+                    return javacEnRaiz(raiz).string();
+                });
+        }
+
+        // La raiz elegida sin javac es un JRE: los .class ya compilados siguen
+        // cargando y el aviso se da al compilar, no aqui.
+        if (resultado.javac.empty() && !resultado.raiz.empty())
+            resultado.javac = javacEnRaiz(resultado.raiz).string();
+
+        // El valor horneado es la ruta del ARCHIVO de la biblioteca, no una raiz:
+        // como raiz se descartaba siempre. Se resuelve aparte y es el ultimo
+        // recurso, para cuando ninguna raiz del sistema trae la JVM.
+        {
+            const std::string horneada = FUNSHI_LIBJVM_DEFAULT;
+            std::error_code ec;
+            resultado = ResolucionJdk::conBibliotecaHorneada(
+                resultado, horneada,
+                !horneada.empty() && fs::exists(horneada, ec),
+                [](const std::string& raiz) { return javacEnRaiz(raiz).string(); });
+        }
+
+        // JAVAC manda sobre lo deducido (permite cruzar a proposito un
+        // compilador de otra raiz, que es justo lo que el emparejamiento
+        // anterior hacia sin querer).
+        if (const char* javac = std::getenv("JAVAC"))
+            if (*javac) resultado.javac = javac;
+
+        return resultado;
+    }();
+    return h;
 }
+
+std::string rutaLibjvm() { return herramientasJdk().libjvm; }
 
 bool arrancarJvm(const std::string& classesDir, std::string& error) {
     if (jvm().jvm) {
@@ -412,15 +461,94 @@ bool arrancarJvm(const std::string& classesDir, std::string& error) {
 JNIEnv* entorno() { return jvm().env; }
 
 std::string javacExe() {
-    const char* env = std::getenv("JAVAC");
-    if (env && *env) return env;
-    // Se busca en las mismas raices que rutaLibjvm() para que el .java se
-    // compile con el mismo JDK que despues lo ejecuta. Sin esto, el javac
-    // caeria en el path del build (la maquina de CI) y fallaria en destino.
-    for (const fs::path& raiz : raicesJdkCache()) {
-        if (const fs::path p = javacEnRaiz(raiz); !p.empty()) return p.string();
+    const ResolucionJdk::Herramientas& h = herramientasJdk();
+    // Sin javac en la raiz de la JVM se devuelve el valor horneado (el del build,
+    // que no existe en destino) y no una cadena vacia: quien compila decide si
+    // eso es un fallo o un .class que ya estaba al dia.
+    return h.javac.empty() ? std::string(FUNSHI_JAVAC_DEFAULT) : h.javac;
+}
+
+// Texto de una cadena estrecha del motor (`getenv("TEMP")`, nombres de objeto,
+// valores de campo) al formato que exige la frontera JNI. NewStringUTF NO
+// acepta la codificacion ANSI de Windows: un byte suelto de un "%TEMP%" acentuado
+// no es UTF-8 valido y HotSpot lo sustituye por U+FFFD, de modo que la clase
+// recibe una ruta que no corresponde a ningun directorio. En POSIX no hay nada
+// que hacer porque la codificacion nativa ya es UTF-8.
+//
+// La conversion va SOLO aqui. `optionString` y `Proceso::ejecutar` siguen
+// recibiendo la forma estrecha: es la que entiende el sistema de ficheros de
+// Windows, y OptionString no la lleva por UTF-8 sino por la codificacion
+// nativa.
+inline std::string nuevoNombreUTF8(const std::string& estrecho) {
+    return fs::path(estrecho).u8string();
+}
+
+// Texto de la excepcion JNI pendiente, vacio si la respuesta es util. Sin esto
+// ExceptionClear() se lleva por delante la causa: "no se encontro la clase"
+// no distingue entre "javac no produjo nada", "la clase es de otra version de
+// Java" (UnsupportedClassVersionError, el fallo tipico de emparejar un javac
+// con otra JVM) y "la classpath no apunta a nada".
+std::string detalleExcepcion(JNIEnv* env) {
+    jthrowable pendiente = env->ExceptionOccurred();
+    if (!pendiente) return {};
+
+    std::string detalle;
+    if (jclass clase = env->GetObjectClass(pendiente)) {
+        if (jmethodID mensaje =
+                env->GetMethodID(clase, "getMessage", "()Ljava/lang/String;")) {
+            if (jstring texto =
+                    static_cast<jstring>(env->CallObjectMethod(pendiente, mensaje))) {
+                const char* utf = env->GetStringUTFChars(texto, nullptr);
+                if (utf) {
+                    detalle = utf;
+                    env->ReleaseStringUTFChars(texto, utf);
+                }
+                env->DeleteLocalRef(texto);
+            }
+        }
+        env->DeleteLocalRef(clase);
     }
-    return FUNSHI_JAVAC_DEFAULT;
+    env->ExceptionClear();
+
+    // Sin mensaje, al menos el tipo de la excepcion, que ya dice bastante
+    // (ClassNotFoundException, NoClassDefFoundError, UnsupportedClassVersionError).
+    if (detalle.empty())
+        if (jclass clase = env->FindClass("java/lang/Throwable")) {
+            if (jmethodID nombre =
+                    env->GetMethodID(clase, "getClass", "()Ljava/lang/Class;")) {
+                if (jobject claseDelError =
+                        env->CallObjectMethod(pendiente, nombre)) {
+                    if (jmethodID simple =
+                            env->GetMethodID(static_cast<jclass>(claseDelError), "getSimpleName",
+                                             "()Ljava/lang/String;")) {
+                        if (jstring texto = static_cast<jstring>(
+                                env->CallObjectMethod(claseDelError, simple))) {
+                            const char* utf = env->GetStringUTFChars(texto, nullptr);
+                            if (utf) {
+                                if (!detalle.empty()) detalle += " ";
+                                detalle += utf;
+                                env->ReleaseStringUTFChars(texto, utf);
+                            }
+                            env->DeleteLocalRef(texto);
+                        }
+                    }
+                    env->DeleteLocalRef(claseDelError);
+                }
+            }
+            env->DeleteLocalRef(clase);
+        }
+    return detalle;
+}
+
+// Contexto del toolchain en los errores de carga: sin el, el mensaje dice que
+// falta la clase pero no donde se busco ni con que compilador, que es lo que
+// hace falta para arreglarlo.
+std::string contextoHerramientas(const std::string& classesDir) {
+    const ResolucionJdk::Herramientas& h = herramientasJdk();
+    return "\n  cache:   " + directorioCache() + "\n  clases:  " + classesDir +
+           "\n  javac:   " + (h.javac.empty() ? std::string("(ninguno)") : h.javac) +
+           "\n  libjvm:  " + (h.libjvm.empty() ? std::string("(ninguna)") : h.libjvm) +
+           "\n  jdk:     " + (h.raiz.empty() ? std::string("(ninguna)") : h.raiz);
 }
 
 std::string firmarCaracter(const std::string& tipo) {
@@ -473,7 +601,7 @@ jlong comoHandle(jlong objeto) { return objeto; }
 jstring nativoNombre(JNIEnv* env, jclass, jlong objeto) {
     const char* n = MotorScript::tablaApi()->nombre(
         reinterpret_cast<void*>(comoHandle(objeto)));
-    return env->NewStringUTF(n ? n : "");
+    return env->NewStringUTF(nuevoNombreUTF8(n ? n : "").c_str());
 }
 jfloat nativoPosicionX(JNIEnv*, jclass, jlong o) {
     return MotorScript::tablaApi()->posicionX(reinterpret_cast<void*>(o));
@@ -504,12 +632,13 @@ void nativoImprimir(JNIEnv* env, jclass, jstring texto) {
     }
 }
 
-bool registrarNativos(std::string& error) {
+bool registrarNativos(const std::string& clasesDir, std::string& error) {
     JNIEnv* env = entorno();
     jclass nativo = env->FindClass("Nativo");
     if (!nativo) {
-        env->ExceptionClear();
-        error = "No se encontro la clase Nativo en la classpath.";
+        error = "No se encontro la clase Nativo en la classpath." +
+                contextoHerramientas(clasesDir) +
+                "\n  motivo:  " + detalleExcepcion(env);
         return false;
     }
     JNINativeMethod metodos[] = {
@@ -612,6 +741,16 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
     const bool recompilar = !claseVigente();
     if (recompilar) {
         const std::string javac = javacExe();
+        // Un nombre suelto ("javac") lo resuelve el PATH de la maquina; una ruta
+        // absoluta que no existe no hay forma de ejecutarla, y el error de javac
+        // seria un "no se pudo ejecutar" sin decir que falta un JDK.
+        if (!ResolucionJdk::compiladorEjecutable(javac)) {
+            error = "No se encontro javac para compilar el script Java: " + javac +
+                    "\n  hace falta un JDK (no un JRE) con bin/javac, o define "
+                    "JAVAC con la ruta del compilador." +
+                    contextoHerramientas(clasesDir);
+            return false;
+        }
         const std::string sdkComportamiento =
             (fs::path(sdkDir) / "Comportamiento.java").string();
         const std::string sdkNativo = (fs::path(sdkDir) / "Nativo.java").string();
@@ -632,7 +771,7 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
     }
 
     if (!arrancarJvm(clasesDir, error)) return false;
-    if (!registrarNativos(error)) return false;
+    if (!registrarNativos(clasesDir, error)) return false;
 
     JNIEnv* env = entorno();
 
@@ -643,8 +782,9 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
     // recien compilado -> editar un .java aplica sin reiniciar el motor.
     jclass claseCargador = env->FindClass("Cargador");
     if (!claseCargador) {
-        env->ExceptionClear();
-        error = "No se encontro el SDK 'Cargador' (classloader de hot reload).";
+        error = "No se encontro el SDK 'Cargador' (classloader de hot reload)." +
+                contextoHerramientas(clasesDir) +
+                "\n  motivo:  " + detalleExcepcion(env);
         return false;
     }
     jmethodID ctorCargador =
@@ -663,12 +803,13 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
         return false;
     }
 
-    jstring jBase = env->NewStringUTF(clasesDir.c_str());
+    jstring jBase = env->NewStringUTF(nuevoNombreUTF8(clasesDir).c_str());
     jobject cargadorObj = env->NewObject(claseCargador, ctorCargador, jBase);
     env->DeleteLocalRef(jBase);
     if (!cargadorObj) {
-        env->ExceptionClear();
-        error = "No se pudo crear el classloader hijo para '" + nombreClase + "'.";
+        error = "No se pudo crear el classloader hijo para '" + nombreClase +
+                "'." + contextoHerramientas(clasesDir) +
+                "\n  motivo:  " + detalleExcepcion(env);
         return false;
     }
 
@@ -677,9 +818,13 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
         env->CallObjectMethod(cargadorObj, cargarDeCargador, jNombre));
     env->DeleteLocalRef(jNombre);
     if (!clase) {
-        env->ExceptionClear();
+        // Aqui es donde aparece el UnsupportedClassVersionError cuando el .class
+        // lo produjo un javac de otra version que la JVM que lo ejecuta: sin el
+        // motivo, el mensaje es indistinguible del de un .class que no existe.
         error = "No se encontro la clase Java '" + nombreClase +
-                "' (¿el nombre de la clase coincide con el archivo?).";
+                "' (¿el nombre de la clase coincide con el archivo?)." +
+                contextoHerramientas(clasesDir) +
+                "\n  motivo:  " + detalleExcepcion(env);
         return false;
     }
     jmethodID constructor = env->GetMethodID(clase, "<init>", "()V");
@@ -864,7 +1009,8 @@ void BackendJava::inyectar(
             env->SetBooleanField(objeto, id, valor->como<bool>());
             break;
         case TagTipo::Texto: {
-            jstring s = env->NewStringUTF(valor->como<std::string>().c_str());
+            jstring s =
+                env->NewStringUTF(nuevoNombreUTF8(valor->como<std::string>()).c_str());
             env->SetObjectField(objeto, id, s);
             break;
         }

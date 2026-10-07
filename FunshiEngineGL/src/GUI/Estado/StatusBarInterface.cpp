@@ -18,6 +18,7 @@
 */
 #include "StatusBarInterface.h"
 
+#include "BarraProgresoTexto.h"
 #include "../WindowNames.h"
 #include "../../Events/EditorEventBus.h"
 #include "../../Objetos/GameObject.h"
@@ -45,17 +46,18 @@ void StatusBarInterface::setEstadoCompilacion(
     std::size_t total,
     const std::vector<ScriptRuntime::ResultadoCarga>& resultados,
     bool /*overlayProgreso*/, bool /*overlayResultado*/) {
-    // Convertir a log simple: "cargando scripts: #######42%"
+    // Convertir a log simple: "cargando scripts: #######42%". El formato acota
+    // hecha a total, asi que un productor desincronizado no puede construir una
+    // longitud negativa (length_error).
     if (enCurso && total > 0) {
-        int pct = static_cast<int>((static_cast<float>(hecha) / total) * 100.0f);
-        int bars = pct / 10;
-        std::string bar(bars, '#');
-        bar.append(10 - bars, ' ');
-        mensajeTemporal_ = "cargando scripts: " + bar + std::to_string(pct) + "%";
+        const std::string barra = BarraProgresoTexto::formatear(hecha, total);
+        const int pct = BarraProgresoTexto::porcentaje(hecha, total);
+        mensajeTemporal_ = "cargando scripts: " + barra + std::to_string(pct) + "%";
         temporizadorMensaje_ = 0.5f; // visible medio segundo por frame
     }
-    // Guardar estado para mostrar en contentGUI
-    compilando_ = enCurso;
+    // Guardar estado para mostrar en contentGUI. Con total 0 no hay progreso
+    // valido: se apaga el indicador para que la lista no divida por cero.
+    compilando_ = enCurso && total > 0;
     actual_ = actual;
     hecha_ = hecha;
     total_ = total;
@@ -120,7 +122,10 @@ void StatusBarInterface::contentGUI() {
                     std::string fuente = s->rutaFuente();
                     std::string estado;
                     if (compilando_ && fuente == actual_)
-                        estado = "cargando " + std::to_string(static_cast<int>((static_cast<float>(hecha_) / total_) * 100.0f)) + "%";
+                        estado = "cargando " +
+                                 std::to_string(BarraProgresoTexto::porcentaje(
+                                     hecha_, total_)) +
+                                 "%";
                     else if (s->estaCargado())
                         estado = "cargado";
                     else if (!s->ultimoError().empty())

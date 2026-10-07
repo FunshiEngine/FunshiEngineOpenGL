@@ -233,6 +233,29 @@ int main() {
         ScriptRuntime::descargar(recargado);
     }
 
+    // Diagnostico del fallo de carga: pedir una clase que no esta en el .class
+    // obliga a la JVM a lanzar, y el mensaje tiene que traer el motivo real
+    // (ClassNotFoundException) y donde se busco. Con ExceptionClear() a secas el
+    // texto era "no se encontro la clase", indistinguible del caso en que el
+    // .class es de otra version de Java (UnsupportedClassVersionError), que es
+    // justo lo que pasa cuando javac y la JVM salen de raices distintas.
+    {
+        ComportamientoCargado ausente;
+        std::string errorAusente;
+        const bool okAusente = ScriptRuntime::compilarYCargar(
+            fuente, "ClaseQueNoExiste", ausente, errorAusente);
+        CHECK(!okAusente, "una clase inexistente no carga");
+        CHECK(!ausente.valido(), "no queda un comportamiento a medias");
+        CHECK(errorAusente.find("motivo:") != std::string::npos,
+              "el error de carga incluye el motivo de la excepcion");
+        CHECK(errorAusente.find("ClaseQueNoExiste") != std::string::npos,
+              "el error de carga nombra la clase que no se encontro");
+        CHECK(errorAusente.find("libjvm:") != std::string::npos &&
+                  errorAusente.find("javac:") != std::string::npos,
+              "el error de carga dice con que compilador y con que JVM se busco");
+        std::cout << "  Error informado: " << errorAusente << std::endl;
+    }
+
     fs::remove_all(dir, ec);
     std::cout << "ScriptsJava: " << total << " verificaciones, " << fallos
               << " fallos" << std::endl;

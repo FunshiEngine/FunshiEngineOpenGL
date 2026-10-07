@@ -105,15 +105,11 @@ void SettingsObjectInterface::setEventBus(EventBus* bus) {
                 }
             } else if (event.type == SceneEventType::SceneCleared) {
                 desvincular();
-            } else if (event.type == SceneEventType::ComponentChanged) {
+            } else if (event.type == SceneEventType::ComponentStructureChanged) {
                 if (event.object == object && !iterandoComponentes) {
-                    // Recargar lista de componentes tras add/remove (solo si NO estamos iterando)
-                    while (!listaDESettingsComponent->isEmpty()) {
-                        Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
-                        delete pos->getElement();
-                        listaDESettingsComponent->remove(pos);
-                    }
-                    loadComponents();
+                    // Solo el alta/baja de un componente invalida paneles. Un
+                    // cambio de propiedad no llega por este evento.
+                    reconciliarComponentes();
                 }
                 // Si estamos iterando, el caller (contentGUI) se encarga del reload diferido
             }
@@ -121,80 +117,161 @@ void SettingsObjectInterface::setEventBus(EventBus* bus) {
     }
 }
 
+bool SettingsObjectInterface::tieneSettingsPara(Component* componente) {
+	if (!componente || listaDESettingsComponent->isEmpty()) return false;
+	Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+	while (pos != nullptr) {
+		SettingsComponent* s = pos->getElement();
+		if (s != nullptr && s->getComponent() == componente) return true;
+		pos = (pos != listaDESettingsComponent->last())
+		          ? listaDESettingsComponent->next(pos)
+		          : nullptr;
+	}
+	return false;
+}
+
+// Borra los Settings cuyo componente ya no pertenece al objeto inspeccionado.
+// Al liberar el componente, getComponent() deja de encontrarlo y el panel queda
+// huerfano (dibujaria memoria liberada si sobreviviera).
+void SettingsObjectInterface::purgarSettingsHuerfanos() {
+	if (!object || listaDESettingsComponent->isEmpty()) return;
+	ListaDE<Component*>* componentes = object->getComponents();
+	Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+	while (pos != nullptr) {
+		Position<SettingsComponent*>* siguiente =
+		    (pos != listaDESettingsComponent->last())
+		        ? listaDESettingsComponent->next(pos)
+		        : nullptr;
+		SettingsComponent* s = pos->getElement();
+		Component* c = s ? s->getComponent() : nullptr;
+		bool vigente = false;
+		if (c != nullptr && componentes != nullptr && !componentes->isEmpty()) {
+			Position<Component*>* pc = componentes->first();
+			while (pc != nullptr) {
+				if (pc->getElement() == c) {
+					vigente = true;
+					break;
+				}
+				pc = (pc != componentes->last())
+				         ? componentes->next(pc)
+				         : nullptr;
+			}
+		}
+		if (!vigente) {
+			listaDESettingsComponent->remove(pos);
+			delete s;
+		}
+		pos = siguiente;
+	}
+}
+
+// Reconciliacion completa: reutiliza los paneles vigentes, borra los huerfanos
+// y crea los que falten. Unico punto que incrementa el contador de
+// reconstrucciones (un cambio estructural por vez).
+void SettingsObjectInterface::reconciliarComponentes() {
+	if (!object) return;
+	++reconciliaciones;
+	purgarSettingsHuerfanos();
+	crearSettingsFaltantes();
+}
+
 void SettingsObjectInterface::loadComponents() {
+	if (!object) return;
+	purgarSettingsHuerfanos();
+	crearSettingsFaltantes();
+}
+
+void SettingsObjectInterface::crearSettingsFaltantes() {
+	const int creadosAntes = listaDESettingsComponent->tam();
 	Transform* transformComponent = object->getComponent<Transform>();
-	if (transformComponent != nullptr) {
+	if (transformComponent != nullptr && !tieneSettingsPara(transformComponent)) {
 		listaDESettingsComponent->addLast(
 		    new SettingsTransform(transformComponent, object));
 	}
 	Color* colorComponent = object->getComponent<Color>();
-	if (colorComponent != nullptr) {
+	if (colorComponent != nullptr && !tieneSettingsPara(colorComponent)) {
 		listaDESettingsComponent->addLast(new SettingsColor(object));
 	}
 	Material* materialComponent = object->getComponent<Material>();
-	if (materialComponent != nullptr) {
+	if (materialComponent != nullptr && !tieneSettingsPara(materialComponent)) {
 		listaDESettingsComponent->addLast(new SettingsMaterial(object));
 	}
 	Light* lightComponent = object->getComponent<Light>();
-	if (lightComponent != nullptr) {
+	if (lightComponent != nullptr && !tieneSettingsPara(lightComponent)) {
 		listaDESettingsComponent->addLast(new SettingsLight(object));
 	}
 	CameraComponent* cameraComponent = object->getComponent<CameraComponent>();
-	if (cameraComponent != nullptr) {
+	if (cameraComponent != nullptr && !tieneSettingsPara(cameraComponent)) {
 		listaDESettingsComponent->addLast(new SettingsCamera(object));
 	}
 	// SOPORTE PARA AMBOS COLLIDER
 	Collider* collider = object->getComponent<EsfereCollider>();
-	if (collider != nullptr) {
+	if (collider != nullptr && !tieneSettingsPara(collider)) {
 		SettingsColliderEsfera* s = new SettingsColliderEsfera(object);
 		s->setEditor(editor);
 		listaDESettingsComponent->addLast(s);
 	}
 	collider = object->getComponent<CubeCollider>();
-	if (collider != nullptr) {
+	if (collider != nullptr && !tieneSettingsPara(collider)) {
 		SettingsColliderCubo* s = new SettingsColliderCubo(object);
 		s->setEditor(editor);
 		listaDESettingsComponent->addLast(s);
 	}
 	collider = object->getComponent<MallaCollider>();
-	if (collider != nullptr) {
+	if (collider != nullptr && !tieneSettingsPara(collider)) {
 		SettingsColliderMalla* s = new SettingsColliderMalla(object);
 		s->setEditor(editor);
 		listaDESettingsComponent->addLast(s);
 	}
 	RigidBody* rigidBody = object->getComponent<RigidBody>();
-	if (rigidBody != nullptr) {
+	if (rigidBody != nullptr && !tieneSettingsPara(rigidBody)) {
 		listaDESettingsComponent->addLast(new SettingsRigidBody(object));
 	}
 	Script* script = object->getComponent<Script>();
-	if (script != nullptr) {
+	if (script != nullptr && !tieneSettingsPara(script)) {
 		listaDESettingsComponent->addLast(new SettingsScript(object));
 	}
 	Model* model = object->getComponent<Model>();
-	if (model != nullptr) {
+	if (model != nullptr && !tieneSettingsPara(model)) {
 		listaDESettingsComponent->addLast(new SettingsModel(object));
 	}
 	Grid* grid = object->getComponent<Grid>();
-	if (grid != nullptr) {
+	if (grid != nullptr && !tieneSettingsPara(grid)) {
 		listaDESettingsComponent->addLast(new SettingsGrid(object));
 	}
 	Skybox* skybox = object->getComponent<Skybox>();
-	if (skybox != nullptr) {
+	if (skybox != nullptr && !tieneSettingsPara(skybox)) {
 		listaDESettingsComponent->addLast(new SettingsSkybox(object));
 	}
 	AudioSource* audioSource = object->getComponent<AudioSource>();
-	if (audioSource != nullptr) {
+	if (audioSource != nullptr && !tieneSettingsPara(audioSource)) {
 		SettingsAudioSource* settingsAudioSource = new SettingsAudioSource(object);
 		settingsAudioSource->setAudioEngine(audioMotor);
 		listaDESettingsComponent->addLast(settingsAudioSource);
 	}
 	InterfaceComponent* interfaceComp = object->getComponent<InterfaceComponent>();
-	if (interfaceComp != nullptr) {
+	if (interfaceComp != nullptr && !tieneSettingsPara(interfaceComp)) {
 		listaDESettingsComponent->addLast(new SettingsInterface(object));
 	}
+	creacionesSettings += static_cast<size_t>(
+	    listaDESettingsComponent->tam() - creadosAntes);
 }
 
 GameObject* SettingsObjectInterface::getObjectInInspector() { return object; }
+
+SettingsComponent* SettingsObjectInterface::settingsEnIndice(size_t indice) {
+	if (listaDESettingsComponent->isEmpty()) return nullptr;
+	size_t i = 0;
+	Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+	while (pos != nullptr) {
+		if (i == indice) return pos->getElement();
+		++i;
+		pos = (pos != listaDESettingsComponent->last())
+		          ? listaDESettingsComponent->next(pos)
+		          : nullptr;
+	}
+	return nullptr;
+}
 
 void SettingsObjectInterface::setTargetObject(GameObject* newObject) {
     if (object == newObject || newObject == nullptr) return;
@@ -277,6 +354,8 @@ void SettingsObjectInterface::contentGUI() {
 			}
 
 			if (open) {
+				comp->setMostrarVisualesDepuracion(
+				    mostrarVisualesDepuracion_);
 				comp->showDataComponent();
 			}
 
@@ -291,19 +370,10 @@ void SettingsObjectInterface::contentGUI() {
 
 	// Procesar borrado diferido fuera de la iteracion
 	if (componenteABorrar) {
-		listaDESettingsComponent->remove(
-		    listaDESettingsComponent->whatElementPosition(componenteABorrar));
-		delete componenteABorrar;
+		// El componente ya se libero: reconciliar purga el panel huerfano y
+		// crea los que falten, sin descartar el estado del resto de paneles.
 		componenteABorrar = nullptr;
-		// Recargar lista completa tras el borrado (el evento ComponentChanged
-		// ya se publico, pero como iterandoComponentes=true no recargo;
-		// lo hacemos aqui explicitamente)
-		while (!listaDESettingsComponent->isEmpty()) {
-			Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
-			delete pos->getElement();
-			listaDESettingsComponent->remove(pos);
-		}
-		loadComponents();
+		reconciliarComponentes();
 	}
 
 	// Menu contextual en area vacia del inspector: agregar componente

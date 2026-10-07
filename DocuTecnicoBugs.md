@@ -105,6 +105,8 @@ recorrer(destFolder); // Ahora SÍ re-lee porque cache inválido
 | **R10 — La bandera de encoding viaja junto al dato** | Si una API acepta un bloque/cadena cuyo encoding depende de una bandera (`CREATE_UNICODE_ENVIRONMENT`), la bandera se decide **dentro** de la función que recibe el dato, nunca en el llamador | `Proceso::lanzar()` (ver §8.4) |
 | **R11 — La frescura del artefacto manda, no el estado del que pide** | Antes de reescribir una salida, decidir por los tiempos de **archivo** (existe y no es más viejo que su fuente); una `.dll` cargada en el proceso no se puede reescribir en Windows | `BackendCpp::compilarYCargar()` (ver §9.4) |
 | **R12 — El que dibuja posee su VAO** | En un contexto core todo `glDraw*` necesita un VAO ligado, incluso si la pasada no lee atributos (`gl_VertexID`); el VAO lo crea y lo liga el backend, no el llamador | `OpenGL3Backend::drawFullscreenTriangle()` (ver §10.4) |
+| **R13 — Toda carpeta del motor en la raíz de datos es un nombre reservado** | Una migración de compatibilidad que mueve "lo que haya en la raíz" se lleva también las carpetas del motor; hay que declararlas reservadas al crear la carpeta, no después | `ProjectPaths::esReservado()` (ver §11.4) |
+| **R14 — Un valor horneado es una pista, no una verdad** | Lo que CMake hornea (rutas de compilador, de cabeceras, de toolchain) es de la máquina que compiló: comprobar que existe antes de usarlo, dejar un override por entorno que gane, buscar la herramienta en la máquina y degradar a un nombre que resuelva el PATH | `BackendCpp::compilador()`, `vcvars64EnRaices()` (ver §12.4) |
 
 ---
 
@@ -150,17 +152,28 @@ donde el proceso **no puede escribir**.
 
 ### 6.3 Causa raíz
 
-Son tres hechos que por separado parecen inocuos y juntos cierran la puerta:
+Eran tres hechos que por separado parecían inocuos y juntos cerraban la puerta:
 
 | # | Hecho | Consecuencia |
 |---|-------|--------------|
-| 1 | `PrivilegesRequired=admin` en el `.iss` | El instalador corre como administrador. |
+| 1 | `PrivilegesRequired=admin` en el `.iss` | El instalador corre como administrador e instala en `Program Files`. |
 | 2 | El `.iss` crea `{app}\MotorGrafico` **sin directiva `Permissions:`** | La carpeta hereda los ACL de `Program Files`: `Users` tiene lectura y ejecución, **no** escritura. |
 | 3 | El `.exe` no lleva manifiesto `requestedExecutionLevel` | El motor corre como usuario normal, sin elevar, y por tanto sin esos permisos. |
 
 El agravante: **ningún llamador comprobaba el retorno de las escrituras**
 (`crearArchivo`, `guardarGeneral`, `saveScene`, … devolvían `bool` y se
 ignoraban). Por eso el fallo fue silencioso en vez de un error reportado.
+
+Hoy el instalador es **por usuario** (`PrivilegesRequired=lowest`, con lo que
+Inno Setup mapea `{autopf}` a `%LOCALAPPDATA%\Programs`), así que la carpeta
+del ejecutable está en el perfil y el problema ya no se reproduce en una
+instalación nueva. Los tres hechos siguen siendo posibles por otras vías (una
+copia del motor en `Program Files`, una carpeta de datos montada en solo
+lectura, un proceso elevada), así que el patrón de la sección siguiente se
+mantiene como red de seguridad y no como el camino normal. Además, como el motor
+resuelve la raíz probando la escritura de verdad, un cambio en el destino se
+detecta solo: si `{app}` deja de admitir escritura, los datos se van a la
+carpeta del usuario sin tocar nada.
 
 ### 6.4 Solución canónica (Patrón R8 — Resolver la ruta, probar la escritura)
 
@@ -199,6 +212,16 @@ Reglas complementarias:
 - **Comprobar los retornos de las escrituras** cuando la ruta destino no es
   fiable. La regla R7 sigue valiendo, pero no cubre el caso de "escribí y no
   pasó nada".
+- **Preferir que la ruta sea escribible antes de depender del plan B**: instalar
+  por usuario (`PrivilegesRequired=lowest`) hace que el destino sea del propio
+  usuario y elimina la UAC de paso. El patrón sigue siendo obligatorio porque
+  el destino puede cambiar sin que nadie lo decida (carpeta montada en solo
+  lectura, copia a otra ubicación, proceso que corre elevado).
+- **Poder probar la decisión sin el ejecutable**: la elección entre las dos
+  candidatas se aisló en `ProjectPathsDetalle::elegirRaizDeDatos`, sin caché y
+  con las rutas por parámetro, para que las pruebas la ejerciten con rutas
+  falsas. "No escribible" se simula con una ruta debajo de un archivo
+  regular: falla igual en Linux y en Windows y no depende de permisos.
 
 ### 6.5 Registro de instancias
 
@@ -207,6 +230,8 @@ Reglas complementarias:
 | 1 | `ProjectPaths::directorioBase()` | Guardar proyecto, escena, config e `imgui.ini` | Windows / `Program Files` / ACL del instalador | Patrón R8: prueba de escritura + caída a `%APPDATA%` / `$XDG_DATA_HOME`, decisión cacheada, migración sin sobrescribir | `fix(configuracion): resolver la raiz de datos cuando no se puede escribir` |
 | 2 | `SettingsScript.cpp` (lectura de `SerializeField`) | Editar un campo del inspector | `std::variant` (efecto, no causa) | Índice acotado al menor de los dos cardinales | Ídem |
 | 3 | `Script::cargarSiNecesario()` | Cargar los valores guardados de un script | `std::variant` (efecto, no causa) | `ReflejoScripts::alinearValores()` empareja por nombre al compilar | Ídem |
+| 4 | `redirigirSalidaALog()` en `main.cpp` | Escribir el log de arranque | Windows / `Program Files` / ACL del instalador | Patrón R8 aplicado al log: lista ordenada de candidatas (`RutasLog::candidatas()`) —raíz de datos, carpeta del ejecutable y temporal del sistema— y se usa la **primera que acepte escribir**; con la carpeta del ejecutable sola no había log y toda la salida se iba a la consola | `fix(ventana): escribir el log de arranque en una carpeta escribible` |
+| 5 | Instalador de Windows (`.iss`) | Instalar sin UAC | UAC / ACL de `Program Files` | `PrivilegesRequired=lowest`: instalación por usuario, con `{autopf}` mapeado a `%LOCALAPPDATA%\Programs`. Verificado con el ejecutable real en una carpeta de solo lectura: no escribe ahí y todo cae en la carpeta de datos del usuario. La elección de raíz se aisló en `ProjectPathsDetalle::elegirRaizDeDatos` para poder probarla | `fix(paquete): instalar por usuario sin pedir privilegios de administrador` |
 
 > **Nota**: las instancias #2 y #3 no son la causa del crash sino el punto donde
 > se manifiesta. La causa es la instancia #1: sin ella no habría divergencia
@@ -214,6 +239,11 @@ Reglas complementarias:
 > arreglaron las tres porque el acceso fuera de rango es un defecto real por sí
 > mismo: la escena guardada y la reflexión actual pueden discrepar siempre, no
 > solo cuando falla la escritura.
+>
+> La instancia #4 tiene además un remate que no es de permisos: al escribir el log
+> en la raíz de datos, la carpeta `logs/`$resultó ser una carpeta más de la raíz
+> y `migrarProyectosAntiguos()` la arrastró dentro de `Proyects/`. Se documenta
+> aparte en §11 (Patrón R13).
 
 ---
 
@@ -570,17 +600,194 @@ Checklist de mitigación:
 ---
 
 
-## 11. Historial de Cambios
+## 11. Séptimo concepto: **Una migración de compatibilidad se lleva las carpetas del motor**
+
+Distinto de §6: aquí la escritura **sí funciona**. El daño lo produce, unos
+segundos más tarde, código del propio motor que reorganiza la carpeta de datos.
+
+### 11.1 Descripción del problema
+
+La raíz de datos (`MotorGrafico/`) comparte sitio con dos cosas a la vez: los
+proyectos del usuario y las carpetas del motor (`Proyects`, `Configuraciones`,
+`Exportaciones`, `logs`). Para migrar los proyectos de una estructura antigua,
+`migrarProyectosAntiguos()` recorre **todo** lo que hay en la raíz y mueve a
+`Proyects/` cada carpeta cuyo nombre sea válido como proyecto:
+
+```cpp
+for (const auto& entry : std::filesystem::directory_iterator(base, ec)) {
+    if (!entry.is_directory(ec)) continue;
+    const std::string nombre = entry.path().filename().string();
+    if (ProjectPaths::esNombreValido(nombre) && !existeDir(proyectsDir + "/" + nombre)) {
+        std::filesystem::rename(entry.path(), proyectsDir + "/" + nombre, ec);
+    }
+}
+```
+
+`esNombreValido()` es la **única** barrera: una carpeta del motor cuyo nombre no
+esté en la lista de reservados se comporta como un proyecto legacy.
+
+### 11.2 Síntomas
+
+- La carpeta se crea y el archivo se escribe en ella **correctamente**.
+- En el mismo arranque, la carpeta desaparece de su sitio y aparece anidada
+  dentro de `Proyects/`, con su contenido dentro.
+- El motor anuncia una ruta que ya no es la real: el log dice
+  `Log en: <raiz>/logs/…` y el archivo está en `<raiz>/Proyects/logs/…`.
+- En el arranque siguiente se crea una carpeta nueva y vacía, así que el
+  síntoma se renueva solo y parece intermitente.
+- No hay ningún error: `rename()` dentro del mismo volumen funciona.
+
+### 11.3 Causa raíz
+
+La lista de nombres reservados y la migración se escribieron en momentos
+distintos, y la lista no se revisó al añadir una carpeta nueva a la raíz. El
+defecto no está en la migración (que hace lo que debe para lo que conoce), sino
+en que **el conocimiento de "esto es mío" no tiene una fuente única**: vive en
+una lista de cadenas que se olvida actualizar.
+
+### 11.4 Solución canónica (Patrón R13 — declarar la reserva al crear la carpeta)
+
+**Toda carpeta que el motor cree dentro de la raíz de datos se declara reservada
+en el mismo cambio que la crea.** Si el nombre está reservado, la migración la
+ignora y el usuario tampoco puede elegirlo como nombre de proyecto, que es justo
+lo que tiene que pasar.
+
+```cpp
+// La lista es la frontera entre "carpeta del motor" y "proyecto del usuario".
+// Si añades una carpeta aquí abajo, añádela también a esReservado().
+static const char* reservados[] = {
+    "Proyects", "Configuraciones", "Exportaciones",
+    "Binarios", "Memory", "Interfaces", "Sonidos",
+    "Configuracion.json", "imgui.ini", "logs"
+};
+```
+
+Regla operativa: **la prueba de que una carpeta del motor no se mueve es que su
+nombre no es válido como proyecto.** No hace falta una lista paralela en el
+lugar donde se crea la carpeta.
+
+Checklist antes de cerrar un cambio que cree una carpeta en la raíz de datos:
+
+- [ ] El nombre está en `esReservado()` (o cumple el patrón `src*`).
+- [ ] Hay un test que fija `!esNombreValido(<nombre>)` para ese nombre.
+- [ ] El arranque completo del motor deja la carpeta donde se creó: se comprueba
+      en disco **después** de la inicialización, no justo después de crearla.
+- [ ] Si la carpeta puede convivir con proyectos, el nombre en pantalla y la
+      documentación la nombra en el árbol de la raíz.
+
+### 11.5 Registro de instancias
+
+| # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
+|---|-----------|-----------|----------------|--------------|--------|
+| 1 | `ProjectPaths::esReservado()` | Crear `logs/` en la raíz de datos al escribir el log de arranque | `std::filesystem` / cualquier SO | Patrón R13: `logs` pasa a ser nombre reservado, así `migrarProyectosAntiguos()` no la mueve a `Proyects/` y ningún proyecto puede usar ese nombre | `fix(ventana): escribir el log de arranque en una carpeta escribible` |
+
+---
+
+## 12. Octavo concepto: **Un valor horneado del build vale en su máquina y en ninguna más**
+
+Distinto de §6: aquí la ruta es correcta en el equipo que compiló y no
+existe en el del usuario. No hay permisos ni latencia de por medio; el valor
+viaja con el binario y apunta a un sitio que solo existe en la máquina
+de origen.
+
+### 12.1 Descripción del problema
+
+CMake hornea en el binario valores de su propia máquina: la ruta del
+compilador (`FUNSHI_CXX_COMPILER = ${CMAKE_CXX_COMPILER}`), la carpeta de
+cabeceras (`FUNSHI_SRC_DIR`), el flag de runtime del CRT. El build de
+desarrollo los tiene todos a mano, así que en el editor nunca se nota.
+
+Al publicar, el `.exe`/`setup.exe` que se distribuye lleva dentro rutas como
+
+    C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\…\cl.exe
+
+que en el equipo del usuario no existen. El motor invocaba esa ruta tal cual.
+
+### 12.2 Síntomas
+
+- El script C++ no compila en el paquete instalado. El error es
+  "no se encuentra el archivo" con una ruta de Visual Studio que el usuario
+  nunca escribió: no dice nada de por qué ni de qué hacer.
+- Con Visual Studio instalado y correcto en el equipo, el fallo persiste: la
+  ruta horneada no existe, así que tampoco se derivaba su `vcvars64.bat`, y el
+  compilador además habría necesitado ese entorno.
+- Con MinGW/g++ instalado, tampoco: la ruta horneada (de MSVC) tiene prioridad
+  sobre lo que el PATH sí sabe resolver.
+- En el build de desarrollo todo funciona, porque ahí las rutas sí existen.
+
+### 12.3 Causa raíz
+
+El valor horneado se consumía sin comprobar nada. Se daba por hecho que la
+máquina que ejecuta el binario es la que lo compiló, y ninguna de las tres
+piezas tenía un plan B: la ruta se invocaba sin preguntar si existe, la
+carpeta de cabeceras sin preguntar, y el entorno de vcvars se derivaba
+subiendo desde una ruta ajena (que por eso nunca aparecía).
+
+### 12.4 Solución canónica (Patrón R14 — Resolver en runtime, con el valor horneado como último recurso)
+
+**Un valor horneado es una pista, no una verdad.** Al consumirlo:
+
+1. **Override del entorno primero**, y gana siempre: es una petición explícita.
+2. **Comprobar que el valor horneado existe** antes de usarlo. Si no existe, no
+   se invoca: se pasa al siguiente paso.
+3. **Buscar la herramienta en la máquina**, como ya se hace con el JDK
+   (`ResolucionJdk`) y con las cabeceras (`RutaCabecerasScript`).
+4. **Degradar a un nombre sin ruta** (`cl`, `g++`, `javac`): lo resuelve el
+   PATH, que es lo único que se puede afirmar sin conocer la máquina. Con el
+   entorno de vcvars en el PATH, `cl` a secas funciona y además evita atar el
+   motor a una versión instalada.
+5. **Avisar cuando un override del entorno no existe**, en vez de fallar en
+   silencio más abajo con un mensaje que no apunta a la causa.
+
+Y para que la decisión sea verificable donde no hay Windows, dejarla en
+**funciones puras con los datos por parámetro** (`elegirCompilador`,
+`vcvars64EnRaices`, `RutaCabecerasScript::resolver`, `ResolucionJdk`), que el
+test ejercita con rutas falsas. "No existe" se simula con una ruta **debajo de
+un archivo regular**: falla igual en Linux y en Windows y no depende de
+permisos.
+
+### 12.5 Checklist
+
+- [ ] El valor que hornea CMake, ¿existe en la máquina del usuario? Si no,
+      ¿hay un plan B y está escrito?
+- [ ] ¿Hay un override por entorno, y gana sobre lo horneado?
+- [ ] ¿La degradación final es un nombre que resuelve el PATH?
+- [ ] ¿La decisión está aislada en una función testeable, con el caso "no
+      existe" simulado sin depender del SO ni de permisos?
+- [ ] El error que ve el usuario, ¿dice qué ruta se usó y por qué?
+- [ ] ¿Hay un sitio donde la ruta horneada aparece **sin** comprobar?
+      `grep FUNSHI_ CMakeLists.txt` para listarlos.
+- [ ] Si el horneado es la ruta de un **archivo** y el resolutor espera una
+      **carpeta**, ¿se reconoce como lo que es? Pasarlo donde esperan raíces lo
+      descarta en silencio, también en la máquina donde se compiló.
+- [ ] ¿Qué **tipo** de cosa hornea la variable de CMake (archivo o carpeta) y lo
+      sabe quien la consume?
+
+### 12.6 Registro de instancias
+
+| # | Ubicación | Operación | Herramienta/SO | Fix Aplicado | Commit |
+|---|-----------|-----------|----------------|--------------|--------|
+| 1 | `BackendCpp::compilador()` | Compilar un script C++ en el paquete instalado | CMake `CMAKE_CXX_COMPILER` / Visual Studio | Patrón R14: `FUNSHI_CXX` manda; el horneado solo si existe; si no `cl` del PATH con el toolset de la máquina o `g++`; aviso si el override no existe | `fix(scripts): resolver el compilador en la maquina y no solo en el build` |
+| 2 | `vcvars64Ruta()` | Derivar el entorno de MSVC del script | Visual Studio | Patrón R14: `vcvars64EnRaices` busca `vcvars64.bat` a dos niveles en las raíces de VS (cubre las Build Tools), con las raíces por parámetro | Ídem |
+| 3 | `RutaCabecerasScript::resolver` | Encontrar `include` en el paquete instalado | `include` relativo horneado | Instancia previa del mismo patrón (valor horneado como pista, se resuelve en runtime) | `fix(scripts): resolver las cabeceras del script en la maquina del usuario` |
+| 4 | `ResolucionJdk::conBibliotecaHorneada` | Encontrar la JVM cuando ninguna raíz del sistema trae `libjvm` | `JAVA_JVM_LIBRARY` horneado | El valor horneado es la ruta del **archivo**, no una raíz: en la lista de raíces se descartaba siempre. Se resuelve aparte, y solo si el archivo existe en esta máquina | `fix(scripts): usar la biblioteca horneada cuando existe en la maquina` |
+
+---
+
+## 13. Historial de Cambios
 
 | Fecha | Autor | Cambio |
 |-------|-------|--------|
 | 2026-09-27 | Gianfranco Ivan Enrique | Creación del documento; registro de instancias #1–3; definición de plantilla y checklist para agentes. |
+| 2026-10-04 | Gianfranco Ivan Enrique | Instancia #4: la biblioteca horneada de la JVM se pasaba donde se esperaban raíces de JDK y se descartaba siempre. Checklist ampliada con el tipo de dato horneado. |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) con su registro de instancias, a raíz del crash al asignar un script en el binario instalado. |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el tercer concepto (Patrón R9, offsets engañosos de `tellg`/`seekg` en streams de texto con CRLF) con su instancia #1, a raíz del bug de los objetos fantasma "Scene" (H-17). |
 | 2026-09-27 | Gianfranco Ivan Enrique | Añadido el cuarto concepto (Patrón R10, `CREATE_UNICODE_ENVIRONMENT` obligatorio con bloques UTF-16 en `CreateProcessW`) con su instancia #1, a raíz del error 87 al pasar el entorno de vcvars/variable extra (H-3 nivel 2). |
 | 2026-09-28 | Gianfranco Ivan Enrique | Añadido el quinto concepto (Patrón R11, una imagen cargada bloquea su archivo en Windows) con su instancia #1, a raíz del `Permission denied` de `ld` al haber dos objetos sobre el mismo script (H-20). |
 | 2026-09-28 | Gianfranco Ivan Enrique | Añadida instancia #4 al primer concepto: drop entre paneles (ShowFolder → BrowseFile y ShowFolder → ShowFolder carpeta distinta) con invalidación explícita de cache grid en origen y destino. |
 | 2026-09-29 | Gianfranco Ivan Enrique | Añadido el sexto concepto (Patrón R12, un contexto Core Profile rechaza todo dibujo sin VAO ligado) con su instancia #1, a raíz del cielo degradado que no se dibujaba en un contexto 4.6 core. |
+| 2026-10-04 | Gianfranco Ivan Enrique | Añadido el octavo concepto (Patrón R14, un valor horneado del build vale en su máquina y en ninguna más) con sus instancias #1–#2, a raíz de los scripts C++ que no compilaban en el paquete instalado; registrada la instancia #5 del segundo concepto (instalación por usuario, sin UAC). |
+| 2026-10-03 | Gianfranco Ivan Enrique | Añadido el séptimo concepto (Patrón R13, una migración de compatibilidad se lleva las carpetas del motor) con su instancia #1, y registrada la instancia #4 del segundo concepto (Patrón R8, escritura rechazada en el directorio de instalación) a raíz del log de arranque que no se escribía instalado en `Program Files`. |
 
 ---
 

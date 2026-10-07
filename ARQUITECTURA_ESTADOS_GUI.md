@@ -17,13 +17,15 @@ del menú); la Fase 4 queda como plan. Cada fase aterriza en su propia revisión
 ## 1. Estado actual (lo que el código ya resuelve)
 
 - `ApplicationStateMachine` (`src/States/ApplicationStateMachine.{h,cpp}`) ya
-  existe como fuente de verdad del alto nivel: `MainMenu`, `Editing`, `Playing`,
-  `Exiting`. Su uso hoy es un simple `transitionTo` + consulta `is`, sin
-  submáquina, sin eventos de transición.
+  existe como fuente de verdad del alto nivel: `MainMenu`, `Editing`,
+  `Debugging`, `Playing`, `Exiting`. `Debugging` conserva la simulación editable;
+  `Playing` representa Juego, que bloquea la edición. Su uso es un simple
+  `transitionTo` + consulta `is`, sin submáquina ni eventos de transición.
 - `main.cpp` es quien **decide qué se dibuja** a mano: si el estado es
   `MainMenu` dibuja la fachada del paquete `MenusGUI` (menú MVP, `MenuModel`/
-  `MenuView`/`MenuGUI`), y si es `Editing` dibuja la fachada interna
-  (`GUIManager` + `DockSpaceGUI`). Ese empalme vive en `main`, no en la máquina.
+  `MenuView`/`MenuGUI`), y durante `Editing`, `Debugging` o `Playing` conserva
+  viva la fachada interna (`GUIManager` + `DockSpaceGUI`). E oculta los paneles,
+  pero no suprime las ventanas ni el DockSpace.
 - La persistencias de ventanas internas ya está resuelta y centralizada:
   `EditorConfig` (`estadoVentanas`) con `obtenerEstadosVentanas` /
   `restaurarEstadosVentanas`, más apariencia, cámara activa, gizmo, idioma y
@@ -81,8 +83,9 @@ de referencia)
 ## 4. Propuesta: una máquina de estados GUI + un canal de eventos
 
 ### 4.1 Modelo (qué NO cambia)
-- `MainMenu` y `Editing` (y `Playing`/`Exiting`) siguen siendo los estados de
-  aplicación. NO se crean estados por ventana.
+- `MainMenu`, `Editing`, `Debugging`, `Playing` y `Exiting` son estados de
+  aplicación. La visibilidad de ventanas sigue siendo configuración de GUI,
+  independiente del modo de simulación.
 
 ### 4.2 Dos piezas nuevas (pequeñas, coherentes con lo existente)
 

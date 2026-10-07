@@ -433,6 +433,8 @@ void    ImGui_ImplOpenGL3_NewFrame()
 {
     ImGui_ImplOpenGL3_Data* bd = ImGui_ImplOpenGL3_GetBackendData();
     IM_ASSERT(bd != nullptr && "Context or backend not initialized! Did you call ImGui_ImplOpenGL3_Init()?");
+    if (bd == nullptr)
+        return; // Init() fallo (p.ej. el loader): en Release el assert no existe y desreferenciar bd provocaria SIGSEGV.
 
     ImGui_ImplOpenGL3_InitLoader(); // Lazily init loader if not already done for e.g. DLL boundaries.
 

@@ -31,13 +31,18 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
+#include "../FunshiEngineGL/src/Exportador/RutasExportacion.h"
+#include "../FunshiEngineGL/src/Configuracion/ProyectoInicial.h"
 #include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
+#include "../FunshiEngineGL/src/Configuracion/RutasLog.h"
 
 namespace fs = std::filesystem;
 
@@ -69,7 +74,8 @@ int main() {
         EditorConfig cfg;
         cfg.cargarGeneral(rutaGeneral);
         cfg.cargarProyecto(proyNombreTest, rutaProyecto);
-        CHECK(cfg.datos().nombreProyecto == "Nuevo Proyecto", "default nombreProyecto");
+        CHECK(cfg.datos().nombreProyecto.empty(),
+              "default nombreProyecto (sin proyecto abierto)");
         CHECK(cfg.datos().idioma == "Espanol", "default idioma");
         CHECK(cfg.datos().sensibilidadCamara == 0.15f, "default sensibilidad");
         CHECK(cfg.datos().sensibilidadMovimientoCamara == 1.0f,
@@ -96,7 +102,56 @@ int main() {
               "default fondoInferior = 0.1, 0.1, 0.1");
     }
 
-    // 1b. Colores del cielo: se guardan y se leen tal cual quedaron, incluidos
+    // 1b. Persistencia del proyecto activo: sin "ultimoProyecto" no se abre
+    //     ningun proyecto y el nombre queda vacio; asi guardarGeneral no
+    //     materializa un proyecto fantasma ("Nuevo Proyecto").
+    {
+        // JSON general existente pero sin ultimoProyecto: el proyecto resuelto
+        // es ninguno (vacio), no el default del struct.
+        {
+            std::ofstream f(rutaGeneral, std::ios::trunc);
+            f << R"({"version": 2, "idioma": "Espanol"})";
+        }
+        EditorConfig cfg;
+        cfg.cargarGeneral(rutaGeneral);
+        CHECK(cfg.datos().nombreProyecto.empty(),
+              "config sin ultimoProyecto -> sin proyecto abierto");
+
+        // Con el nombre vacio, guardarGeneral no debe escribir la clave.
+        cfg.guardarGeneral(rutaGeneral);
+        std::ifstream entrada(rutaGeneral);
+        const std::string contenido((std::istreambuf_iterator<char>(entrada)),
+                                    std::istreambuf_iterator<char>());
+        CHECK(contenido.find("ultimoProyecto") == std::string::npos,
+              "nombre vacio: guardarGeneral no escribe ultimoProyecto");
+    }
+
+    // 1c. ProyectoInicial::resolver: politica de arranque sin disco ni UI.
+    {
+        using ProyectoInicial::resolver;
+        const auto conConfig = resolver("MiEscena", "", true);
+        CHECK(conConfig.nombre == "MiEscena", "resolver: retoma el persistido");
+        CHECK(!conConfig.primerArranque,
+              "resolver: con config no es primer arranque");
+
+        const auto sinUltimo = resolver("", "", true);
+        CHECK(sinUltimo.nombre.empty(),
+              "resolver: config sin ultimoProyecto -> sin proyecto");
+        CHECK(!sinUltimo.primerArranque,
+              "resolver: la config existe aunque falte el nombre");
+
+        const auto primer = resolver("", "", false);
+        CHECK(primer.nombre.empty(), "resolver: primer arranque sin proyecto");
+        CHECK(primer.primerArranque, "resolver: sin config es primer arranque");
+
+        const auto conCLI = resolver("", "ProyectoCLI", false);
+        CHECK(conCLI.nombre == "ProyectoCLI",
+              "resolver: --proyecto tiene prioridad");
+        CHECK(!conCLI.primerArranque,
+              "resolver: --proyecto entra directo al editor");
+    }
+
+    // 1d. Colores del cielo: se guardan y se leen tal cual quedaron, incluidos
     // los claros (un cielo de tonos altos es una eleccion valida del usuario).
     // Solo se acotan los valores que no pueden salir del selector y romperian
     // el degradado: componentes fuera de [0, 1].
@@ -218,7 +273,7 @@ int main() {
         }
         EditorConfig cfg;
         cfg.cargarGeneral(rutaGeneral);
-        CHECK(cfg.datos().nombreProyecto == "Nuevo Proyecto", "corrupto -> defaults");
+        CHECK(cfg.datos().nombreProyecto.empty(), "corrupto -> defaults");
         CHECK(cfg.datos().idioma == "Espanol", "corrupto -> defaults idioma");
     }
 
@@ -236,8 +291,8 @@ int main() {
               "parcial: campo presente se aplica");
         CHECK(cfg.datos().sensibilidadCamara == 0.15f,
               "parcial: campo ausente conserva default");
-        CHECK(cfg.datos().nombreProyecto == "Nuevo Proyecto",
-              "parcial: sin seccion general -> default");
+        CHECK(cfg.datos().nombreProyecto.empty(),
+              "parcial: sin seccion general -> proyecto no abierto");
     }
 
     // 4b. Radio de difuminado: un archivo sin el campo conserva el default (no
@@ -381,6 +436,36 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(EditorConfig::rutaConfiguracionProyecto(proyNombre) ==
               memDir + "/ConfiguracionProyecto.json",
               "rutaConfiguracionProyecto dentro de Memory");
+
+    // 5b. Rutas que el exportador copia al Data/ del juego standalone. Salen de
+    // la disposicion real del proyecto: los sonidos y los fuentes de script
+    // viven bajo src<nombre>/ y la configuracion del proyecto dentro de Memory.
+    {
+        const std::string nombre = "JuegoExport";
+        const std::string salida = EditorConfig::directorioExportacion("JuegoExportado");
+        const std::vector<std::pair<std::string, std::string>> rutas =
+            rutasDatosProyecto(nombre, salida);
+
+        auto origenDe = [&rutas, &salida](const std::string& destinoEnData) {
+            for (const auto& par : rutas)
+                if (par.second == salida + destinoEnData) return par.first;
+            return std::string();
+        };
+
+        CHECK(origenDe("/Data/Memory") == EditorConfig::directorioMemory(nombre),
+              "el exportador copia Memory desde la ruta real");
+        CHECK(origenDe("/Data/Sonidos") == EditorConfig::directorioSonidos(nombre),
+              "los sonidos se copian desde src<nombre>/Sonidos");
+        CHECK(origenDe("/Data/ConfiguracionProyecto.json") ==
+                  EditorConfig::rutaConfiguracionProyecto(nombre),
+              "la configuracion del proyecto se copia desde Memory/");
+        CHECK(directorioScriptsProyecto(nombre) ==
+                  EditorConfig::directorioSrc(nombre) + "/Scripts",
+              "los fuentes de script se compilan desde src<nombre>/Scripts");
+        CHECK(nombreProyectoDesdeRuta(EditorConfig::directorioProyecto(nombre)) ==
+                  nombre,
+              "el nombre del proyecto es el de su carpeta");
+    }
 
         CHECK(EditorConfig::rutaSceneBBDD(proyNombre) ==
               memDir + "/Binarios/SceneBBDDObjetos.txt",
@@ -593,6 +678,29 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
                   .empty(),
               "en Linux '\\' es un caracter normal de nombre");
 #endif
+        // Mayusculas y minusculas: el sistema de archivos de Windows no las
+        // distingue, asi que "assets/scripts" y "Assets/Scripts" son la misma
+        // carpeta y el cotejo tiene que reconocerlo (si no, al mover o
+        // renombrar con distinta capitalizacion la referencia de la escena se
+        // queda con la ruta vieja). En Linux SI se distinguen: "X" y "x" pueden
+        // ser dos archivos distintos, asi que ahi el cotejo es sensible.
+#ifdef _WIN32
+        CHECK(EditorConfig::reemplazarPrefijoRuta(
+                  raiz + "/assets/scripts/cpp.cpp", raiz + "/Assets/Scripts",
+                  raiz + "/Assets/Cpp")
+                  == raiz + "/Assets/Cpp/cpp.cpp",
+              "en Windows el prefijo se coteja sin distinguir mayusculas");
+        CHECK(EditorConfig::relativizarRuta("c:\proyecto\ASSETS\scripts\a.dll") ==
+                  "scripts/a.dll",
+              "en Windows relativizar no depende de como este escrita la raiz");
+#else
+        CHECK(EditorConfig::reemplazarPrefijoRuta(
+                  raiz + "/assets/scripts/cpp.cpp", raiz + "/Assets/Scripts",
+                  raiz + "/Assets/Cpp")
+                  .empty(),
+              "en Linux el prefijo se coteja distinguiendo mayusculas");
+#endif
+
         // Sin falsos positivos en ninguna plataforma: el prefijo tiene que
         // cerrar en un separador (mismo contrato que 6a).
         CHECK(EditorConfig::reemplazarPrefijoRuta(
@@ -638,8 +746,8 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "restablecer vuelve el gizmo a LOCAL");
         CHECK(cfg.datos().camaraActivaId == -1,
               "restablecer vuelve la camara a automatica");
-        CHECK(cfg.datos().nombreProyecto == "Nuevo Proyecto",
-              "restablecer vuelve el nombre por defecto (main lo conserva luego)");
+        CHECK(cfg.datos().nombreProyecto.empty(),
+              "restablecer deja el proyecto sin abrir (main conserva el actual)");
         CHECK(cfg.datos().estadoVentanas.empty(),
               "restablecer limpia el estado de ventanas");
     }
@@ -736,6 +844,35 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
                   raizDatos + "/Proyects/" + proyecto + "/Memory/imgui.ini",
               "el imgui.ini del proyecto cuelga de directorioBase");
 
+        // Eleccion de la raiz de datos con rutas de verdad. "No escribible" se
+        // simula con una ruta debajo de un archivo regular: ahi crear carpetas
+        // falla en cualquier sistema y sin depender de permisos, que en Windows
+        // no se pueden tocar desde el test.
+        const fs::path escribible = fs::path(base) / "carpeta_valida";
+        std::error_code ecEs;
+        fs::create_directories(escribible, ecEs);
+        CHECK(!ecEs, "la carpeta escribible del test se pudo crear");
+
+        const fs::path bloqueante = fs::path(base) / "bloque";
+        {
+            std::ofstream tapon(bloqueante);
+            tapon << "soy un archivo, no una carpeta";
+        }
+        const std::string noEscribible = (bloqueante / "dentro").string();
+        const std::string noEscribible2 = (bloqueante / "otro").string();
+
+        CHECK(ProjectPathsDetalle::elegirRaizDeDatos(escribible.string(), noEscribible)
+                  == escribible.string(),
+              "si la ruta original admite escritura se usa, aunque haya alternativa");
+        CHECK(ProjectPathsDetalle::elegirRaizDeDatos(noEscribible, escribible.string())
+                  == escribible.string(),
+              "si la ruta original no admite escritura se cae a la del usuario");
+        CHECK(ProjectPathsDetalle::elegirRaizDeDatos(noEscribible, "") == noEscribible,
+              "sin carpeta de usuario se conserva la ruta historica");
+        CHECK(ProjectPathsDetalle::elegirRaizDeDatos(noEscribible, noEscribible2)
+                  == noEscribible,
+              "si ninguna de las dos sirve se conserva la ruta historica");
+
         // Migracion: nunca debe pisar datos que ya estan en destino. Se siembra
         // un archivo marcador y se comprueba que sobrevive a la llamada.
         const fs::path sembrado = fs::path(raizDatos) / "marcador_migracion.txt";
@@ -813,6 +950,53 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
             (raizCopia / "destino3").string(), error3);
         CHECK(!copio3, "falla si el origen no es un directorio");
         CHECK(!error3.empty(), "deja el motivo en error");
+    }
+
+    // 9. Carpetas candidatas del log: la de la raiz de datos va primero (ya cae
+    //    a la carpeta del usuario cuando el ejecutable no admite escritura), y
+    //    la temporal del sistema es el ultimo recurso. Sin esto, instalado en
+    //    Program Files el motor se queda sin log ni consola que lo muestre.
+    {
+        const std::string exe = "/opt/FunshiEngineGL";
+        const std::string datosUsuario = "/home/usuario/.local/share/FunshiEngineGL/MotorGrafico";
+        const std::string temp = "/tmp";
+
+        const std::vector<std::string> rutas = RutasLog::candidatas(
+            datosUsuario, exe, temp);
+        CHECK(rutas.size() == 3, "tres candidatas: raiz de datos, ejecutable y temporal");
+        CHECK(rutas[0] == datosUsuario + "/logs",
+              "la primera candidata es la raiz de datos");
+        CHECK(rutas[1] == exe + "/logs", "la segunda, la carpeta del ejecutable");
+        CHECK(rutas[2] == temp + "/FunshiEngineGL/logs",
+              "la tercera, la temporal del motor");
+
+        // Sin raiz de datos no se pierde la carpeta del ejecutable.
+        const std::vector<std::string> sinDatos = RutasLog::candidatas("", exe, temp);
+        CHECK(sinDatos.size() == 2 && sinDatos[0] == exe + "/logs",
+              "sin raiz de datos arranca por la carpeta del ejecutable");
+
+        // Todo vacio: no hay candidatas, el arranque lo reporta como log vacio.
+        CHECK(RutasLog::candidatas("", "", "").empty(),
+              "sin ninguna ruta no hay candidatas");
+
+        // Candidatas repetidas (raiz de datos y ejecutable iguales) se unifican:
+        // el motor prueba la primera que acepte escritura, no la ultima.
+        const std::vector<std::string> repetidas =
+            RutasLog::candidatas(exe, exe, temp);
+        CHECK(repetidas.size() == 2 && repetidas[0] == exe + "/logs" &&
+                  repetidas[1] == temp + "/FunshiEngineGL/logs",
+              "una ruta repetida no se prueba dos veces");
+    }
+
+    // 10. La carpeta "logs" es de la raiz de datos, no un proyecto legacy: si
+    //     no estuviera reservada, la migracion de proyectos antiguos la
+    //     arrastraba dentro de Proyects/ y el log se escribia a otro sitio del
+    //     que el motor anuncia.
+    {
+        CHECK(!ProjectPaths::esNombreValido("logs"),
+              "'logs' no es un proyecto: queda reservada en la raiz de datos");
+        CHECK(ProjectPaths::esNombreValido("Loges del Pueblo"),
+              "un nombre de proyecto corriente sigue siendo valido");
     }
 
     fs::remove_all(base);

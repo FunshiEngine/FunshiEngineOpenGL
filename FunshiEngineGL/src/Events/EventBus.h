@@ -30,7 +30,8 @@ enum class SceneEventType {
     ObjectReparented,
     ComponentChanged,
     SceneCleared,
-    ObjectSelected
+    ObjectSelected,
+    ComponentStructureChanged
 };
 
 struct SceneEvent {

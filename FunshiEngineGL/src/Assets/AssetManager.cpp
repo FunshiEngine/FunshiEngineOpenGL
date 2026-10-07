@@ -18,6 +18,8 @@
 */
 #include "AssetManager.h"
 
+#include <exception>
+
 #include "AssetException.h"
 #include "AssetPath.h"
 
@@ -29,12 +31,27 @@ std::shared_ptr<const Mesh> AssetManager::getMesh(const std::string& path) {
     const auto it = meshes_.find(key);
     if (it != meshes_.end()) return it->second;
 
+    const auto fallo = fallos_.find(key);
+    if (fallo != fallos_.end())
+        throw AssetLoadException(key, fallo->second);
+
     if (!loader_)
         throw AssetNotFoundException(key);
 
-    std::shared_ptr<Mesh> mesh = loader_->load(key); // puede lanzar
-    if (!mesh || mesh->isEmpty())
-        throw AssetLoadException(key, "el loader devolvio una malla vacia");
+    std::shared_ptr<Mesh> mesh;
+    try {
+        mesh = loader_->load(key); // puede lanzar
+    } catch (const std::exception& e) {
+        // Se recuerda el motivo para no repetir la E/S en cada frame: el render
+        // pide la malla por objeto y por frame, y sin esto una ruta ausente
+        // relanza y registra el mismo error sin parar.
+        fallos_[key] = e.what();
+        throw;
+    }
+    if (!mesh || mesh->isEmpty()) {
+        fallos_[key] = "el loader devolvio una malla vacia";
+        throw AssetLoadException(key, fallos_[key]);
+    }
 
     return meshes_.emplace(key, std::move(mesh)).first->second;
 }
@@ -42,7 +59,9 @@ std::shared_ptr<const Mesh> AssetManager::getMesh(const std::string& path) {
 void AssetManager::putMesh(const std::string& path, std::shared_ptr<Mesh> mesh) {
     if (!mesh || mesh->isEmpty())
         throw AssetLoadException(path, "no se puede registrar una malla vacia");
-    meshes_[AssetPath::normalize(path)] = std::move(mesh);
+    const std::string key = AssetPath::normalize(path);
+    fallos_.erase(key);
+    meshes_[key] = std::move(mesh);
 }
 
 bool AssetManager::containsMesh(const std::string& path) const {
@@ -52,7 +71,9 @@ bool AssetManager::containsMesh(const std::string& path) const {
 size_t AssetManager::meshCount() const { return meshes_.size(); }
 
 void AssetManager::removeMesh(const std::string& path) {
-    meshes_.erase(AssetPath::normalize(path));
+    const std::string key = AssetPath::normalize(path);
+    meshes_.erase(key);
+    fallos_.erase(key);
 }
 
 void AssetManager::clearUnusedMeshes() {
@@ -66,8 +87,17 @@ void AssetManager::clearUnusedMeshes() {
     }
 }
 
+void AssetManager::clearFailedMeshes() { fallos_.clear(); }
+
+bool AssetManager::hasFailedMesh(const std::string& path) const {
+    return fallos_.find(AssetPath::normalize(path)) != fallos_.end();
+}
+
+size_t AssetManager::failedMeshCount() const { return fallos_.size(); }
+
 void AssetManager::reloadMesh(const std::string& path) {
     const std::string key = AssetPath::normalize(path);
+    fallos_.erase(key);
     const auto it = meshes_.find(key);
     if (it == meshes_.end()) {
         getMesh(key); // carga inicial si no existia
@@ -84,4 +114,6 @@ void AssetManager::reloadMesh(const std::string& path) {
 
 void AssetManager::setLoader(std::unique_ptr<IMeshLoader> loader) {
     loader_ = std::move(loader);
+    // Con un loader nuevo la ruta puede volver a intentarse.
+    fallos_.clear();
 }

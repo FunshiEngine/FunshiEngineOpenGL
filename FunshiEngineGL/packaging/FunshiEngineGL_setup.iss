@@ -2,7 +2,10 @@
 ;  FunshiEngineGL - Instalador Windows (Inno Setup 6)
 ; ============================================================================
 ;  PARA PUBLICAR UNA BETA / ALPHA / DEMO:
-;    1. Edita MiVersion y MiCanal abajo.
+;    1. Edita MiVersion y MiCanal abajo. MiVersion tiene que coincidir con
+;       FUNSHI_VERSION de FunshiEngineGL/CMakeLists.txt (la del .exe que se
+;       empaqueta): al publicar desde GitHub Actions el numero sale del tag y
+;       este archivo se reescribe solo, asi que ahi no hay que tocar nada.
 ;    2. Ejecuta HacerInstalador.bat (monta packaging/dist/ y compila este
 ;       script con ISCC). Alternativa manual: ISCC.exe FunshiEngineGL_setup.iss
 ;    3. El instalador queda en packaging/instalador/.
@@ -40,9 +43,17 @@ OutputBaseFilename=FunshiEngineGL-{#MiVersion}-{#MiCanal}-setup
 ; x64 solamente: el proyecto usa Assimp/Bullet/GLFW de 64 bits (vcpkg x64-windows).
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; El editor guarda escena y configuracion en {app}\MotorGrafico (junto al exe).
-; Crear ese directorio y subcarpetas requiere permisos de administrador.
-PrivilegesRequired=admin
+; Instalacion POR USUARIO, sin UAC: el motor no necesita escribir junto al
+; ejecutable para funcionar. Toda escritura cuelga de la raiz que resuelve el
+; propio motor (ProjectPaths::directorioBase): {app}\MotorGrafico si ahi se
+; puede escribir y, si no, la carpeta del usuario. Con lowest, Inno mapea
+; {autopf} a la version de usuario (%LOCALAPPDATA%\Programs), de modo que la
+; carpeta de datos tambien queda en el perfil y nunca en Program Files.
+; Verificado con el ejecutable real: con su carpeta de solo lectura no escribe
+; nada ahi y todo cae en la carpeta de datos del usuario.
+; Lo unico que puede pedir elevacion es el MSI del JDK de la seccion [Code],
+; porque deja JAVA_HOME en el entorno de la maquina.
+PrivilegesRequired=lowest
 SetupLogging=yes
 
 [Languages]
@@ -56,6 +67,7 @@ Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; Group
 Source: "{#MiExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Imagenes\*"; DestDir: "{app}\Imagenes"; Flags: ignoreversion recursesubdirs
+Source: "include\*"; DestDir: "{app}\include"; Flags: ignoreversion recursesubdirs
 Source: "..\..\..\LICENSE"; DestDir: "{app}\licencia"; Flags: ignoreversion
 Source: "..\..\..\NOTICE"; DestDir: "{app}\licencia"; Flags: ignoreversion
 Source: "..\..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\licencia"; Flags: ignoreversion
@@ -101,9 +113,20 @@ const
 var
   JdkAdvertencia: string;
 
-// Un JDK en <base>\<algo>\bin\server\jvm.dll. Se recorren las carpetas donde
-// los JDK se instalan de verdad en vez de consultar el registro, que en
-// Pascal Script exige enumerar subclaves a mano.
+{ Un JDK utilizable en <Raiz>: la biblioteca de la JVM Y el compilador. Comprobar
+  solo jvm.dll daba un falso positivo con un JRE: el instalador decia "JDK
+  detectado" y el motor no podia compilar ningun .java. El predicado es el mismo
+  que aplica el motor (libjvmEnRaiz + javacEnRaiz en BackendJava.cpp), con los
+  nombres de archivo de Windows. }
+function JdkCompletoEn(const Raiz: string): Boolean;
+begin
+  Result := FileExists(Raiz + '\bin\server\jvm.dll') and
+            FileExists(Raiz + '\bin\javac.exe');
+end;
+
+// JDK completo en <base>\<algo>\. Se recorren las carpetas donde los JDK se
+// instalan de verdad en vez de consultar el registro, que en Pascal Script exige
+// enumerar subclaves a mano.
 function HayJdkEn(const Carpeta: string): Boolean;
 var
   Buscador: TFindRec;
@@ -118,7 +141,7 @@ begin
         if (Buscador.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
         begin
           Sub := Buscador.Name;
-          if FileExists(Carpeta + '\' + Sub + '\bin\server\jvm.dll') then
+          if JdkCompletoEn(Carpeta + '\' + Sub) then
           begin
             Result := True;
             Exit;
@@ -149,20 +172,21 @@ function DetectarJdk(): Boolean;
 var
   Home: string;
 begin
-  { 1. JRE embebido junto al ejecutable }
-  if FileExists(ExpandConstant('{app}\jre\bin\server\jvm.dll')) then
+  { 1. JRE embebido junto al ejecutable: tiene que traer javac, igual que en
+     cualquier otra ruta (si solo trae la JVM, el motor no puede compilar) }
+  if JdkCompletoEn(ExpandConstant('{app}\jre')) then
   begin
     Result := True;
     Exit;
   end;
   { 2. JAVA_HOME, primero el del proceso y luego el de la maquina }
-  if FileExists(ExpandConstant('{env:JAVA_HOME}\bin\server\jvm.dll')) then
+  if JdkCompletoEn(ExpandConstant('{env:JAVA_HOME}')) then
   begin
     Result := True;
     Exit;
   end;
   Home := JavaHomeMaquina();
-  if (Home <> '') and FileExists(Home + '\bin\server\jvm.dll') then
+  if (Home <> '') and JdkCompletoEn(Home) then
   begin
     Result := True;
     Exit;
@@ -245,7 +269,9 @@ begin
     Exit;
   end;
 
-  { El MSI deja JAVA_HOME en el entorno de la maquina, pero este proceso ya
+  { El MSI se instala por maquina, asi que ESTE es el paso que puede pedir
+    elevacion aunque el resto de la instalacion no la pida.
+    El MSI deja JAVA_HOME en el entorno de la maquina, pero este proceso ya
     estaba corriendo y no lo ve. No hace falta pasarselo a mano: el motor
     descubre el JDK por su cuenta en el registro y en Program Files, asi que
     lo encuentra igual aunque JAVA_HOME no sea visible todavia. }

@@ -30,17 +30,34 @@
 // headless pueden ejercitarla en cualquier plataforma.
 namespace AssetPath {
 
-// Unifica separadores ('' -> '/'), colapsa '//' y quita el '/' final (salvo
-// la raiz de unidad estilo "C:/" en Windows). Las claves de AssetManager se
-// normalizan con esto: pedir "Meshes//cubo.obj" o "Meshes\cubo.obj" debe
+// Unifica separadores ('\' -> '/'), colapsa '/' repetidos y quita el '/' final
+// (salvo la raiz de unidad estilo "C:/" en Windows). Las claves de AssetManager
+// se normalizan con esto: pedir "Meshes//cubo.obj" o "Meshes\cubo.obj" debe
 // devolver el MISMO recurso cacheados.
+//
+// Los prefijos de red y de Windows largo se tratan aparte, porque perderlos
+// convierte la ruta en otra cosa: "\\servidor\recurso\a.obj" es una ruta de red
+// absoluta y, si las barras iniciales se colapsan, queda "/servidor/recurso/a.obj",
+// que el motor busca en el disco local y nunca encuentra. Con "\\?\" (longitud
+// extendida) y "\\.\" (dispositivo) la ruta se entrega al sistema tal cual, sin
+// traducir separadores: con ese prefijo Windows no convierte '/' en '\'.
 inline std::string normalize(std::string path) {
+    const bool prefijoLargo = path.rfind("\\\\?\\", 0) == 0 ||
+                              path.rfind("\\\\.\\", 0) == 0;
+    if (prefijoLargo) return path;
+
     std::replace(path.begin(), path.end(), '\\', '/');
 
+    // El colapso de barras conserva el par inicial: es el prefijo UNC, no un
+    // separador repetido.
+    const bool esUnc = path.rfind("//", 0) == 0;
     std::string result;
     result.reserve(path.size());
     for (size_t i = 0; i < path.size(); ++i) {
-        if (path[i] == '/' && !result.empty() && result.back() == '/') continue;
+        if (path[i] == '/' && !result.empty() && result.back() == '/') {
+            if (esUnc && result.size() == 1) result.push_back('/');
+            continue;
+        }
         result.push_back(path[i]);
     }
 

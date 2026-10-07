@@ -61,7 +61,7 @@ inline bool ctrlOCmd() {
 // Si `origenCarpetaOut` no es nullptr, se escribe ahi la carpeta que contenia
 // al elemento movido/copiado (padre de `origen`). Esto permite al llamador
 // invalidar el cache del grid tanto en la carpeta origen como en la destino
-// (R7: invalidacion explicita, no depender del mtime).
+// (invalidacion explicita, no depender del mtime).
 //
 // Devuelve true si la operacion se completo. Quien la llama decide que invalidar
 // de su cache: el grid relee el listado de la carpeta visible, el arbol solo
@@ -75,7 +75,10 @@ inline bool soltarEnCarpeta(FileManager* fileManager,
     if (fileManager == nullptr || origen.empty() || destFolder.empty())
         return false;
 
-    const std::string::size_type sep = origen.find_last_of("/\\");
+    // El ultimo separador que SEPARA: en Linux la barra invertida es un
+    // caracter mas del nombre, y tomarla por separador renombraba el archivo
+    // arrastrado y reportaba como padre una carpeta que no existe.
+    const std::string::size_type sep = indiceSeparadorFinal(origen);
     const std::string nombre =
         (sep != std::string::npos) ? origen.substr(sep + 1) : origen;
     const std::string finalDest = destFolder + PATH_SEP + nombre;
@@ -109,7 +112,7 @@ inline bool soltarEnCarpeta(FileManager* fileManager,
     // incrementamos contadorCambios en cualquier operacion exitosa.
     fileManager->getSelection()->contadorCambios++;
 
-    // Devolver carpeta origen para invalidacion explicita del grid (R7)
+    // Devolver carpeta origen para invalidacion explicita del grid
     if (origenCarpetaOut != nullptr) *origenCarpetaOut = origenCarpeta;
 
     return true;

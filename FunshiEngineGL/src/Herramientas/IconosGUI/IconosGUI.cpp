@@ -71,7 +71,8 @@ IconosGUI::~IconosGUI() {
     // en vez de repetir el bloque destroyTexture2D para cada miembro.
     Rendering::Backend::Handle* iconos[] = {
         &iconoCarpeta, &iconoArchivo, &iconoCpp, &iconoHpp, &iconoJava,
-        &iconoGameObject, &iconoLogo, &iconoBlend, &iconoCsv, &iconoExr,
+        &iconoGameObject, &iconoDepuracion, &iconoPlay, &iconoPausa,
+        &iconoReset, &iconoStop, &iconoLogo, &iconoBlend, &iconoCsv, &iconoExr,
         &iconoFbx, &iconoHdr, &iconoJpeg, &iconoJpg, &iconoJson, &iconoMax,
         &iconoMaya, &iconoMp3, &iconoObj, &iconoOgg, &iconoOtf, &iconoPng,
         &iconoPsd, &iconoRs, &iconoTga, &iconoTtf, &iconoWav, &iconoXml,
@@ -93,6 +94,11 @@ void IconosGUI::init() {
     iconoHpp = cargarPNG("hpp.png");
     iconoJava = cargarPNG("java.png");
     iconoGameObject = cargarPNG("cubo.png");
+    iconoDepuracion = cargarPNG("debug-button-white.png");
+    iconoPlay = cargarPNG("play-button-triangle-white.png");
+    iconoPausa = cargarPNG("pause-button-white.png");
+    iconoReset = cargarPNG("restart-button-white.png");
+    iconoStop = cargarPNG("stop-button-white.png");
     // El logo guarda sus dimensiones para que los consumidores respeten la
     // proporcion del asset a cualquier alto de pantalla.
     iconoLogo = cargarPNG("FunshiEngineGL_Isotipo_Blanco.png", &anchoLogo,

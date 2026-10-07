@@ -41,10 +41,6 @@ public:
     // Idempotente: seguro llamar al arrancar.
     static void asegurarEstructuraBase();
 
-    // Crea proyecto "NuevoProyecto" si Proyects/ está vacío.
-    // Devuelve true si se creó, false si ya había proyectos o fallo.
-    static bool crearProyectoPorDefecto();
-
     // Lista proyectos descubiertos en Proyects/ (solo directorios válidos).
     static std::vector<Proyecto> descubrirProyectos();
 

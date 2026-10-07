@@ -128,23 +128,6 @@ void ProjectManager::asegurarEstructuraBase() {
     migrarConfiguracionGlobal();
 }
 
-bool ProjectManager::crearProyectoPorDefecto() {
-    const std::string proyectsDir = ProjectPaths::directorioProyects();
-    std::error_code ec;
-    std::filesystem::create_directories(proyectsDir, ec);
-
-    bool hayProyectos = false;
-    for (const auto& entry : std::filesystem::directory_iterator(proyectsDir, ec)) {
-        if (entry.is_directory(ec)) {
-            hayProyectos = true;
-            break;
-        }
-    }
-    if (hayProyectos) return false;
-
-    return crearProyecto("NuevoProyecto");
-}
-
 std::vector<ProjectManager::Proyecto> ProjectManager::descubrirProyectos() {
     std::vector<Proyecto> lista;
     const std::string proyectsDir = ProjectPaths::directorioProyects();

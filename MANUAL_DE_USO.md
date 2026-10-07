@@ -69,8 +69,8 @@ cmake --build FunshiEngineGL/build -j$(nproc)
    eliminabas el proyecto abierto, el motor vuelve al estado "sin proyecto".
    "Iniciar Estudio" crea el proyecto y sus carpetas automaticamente.
 2. Navega la escena con `W`/`A`/`S`/`D`, `Espacio`/`Shift` y el mouse (nav FPS).
-   `E` oculta la UI; `Escape` vuelve al menu (y durante el play, detiene la
-   simulacion y deja el editor).
+   `E` oculta los paneles; `Escape` vuelve al menu desde edicion y termina la
+   simulacion desde Depuración o Juego.
 
 ---
 
@@ -80,19 +80,31 @@ Al crear un proyecto, el motor genera la estructura bajo
 `{app}/MotorGrafico/Proyects/<proyecto>/`:
 
 > **Dónde quedan los datos.** `{app}` es la carpeta del ejecutable cuando el
-> motor está en una carpeta donde puede escribir (build de desarrollo,
-> instalación portátil). Si no puede escribir —el caso normal cuando está
-> instalado en `C:\Program Files`, porque el proceso no corre elevado—, usa en su
-> lugar `%APPDATA%\FunshiEngineGL\MotorGrafico` (Windows) o
+> motor está en una carpeta donde puede escribir: el build de desarrollo y
+> también la instalación de Windows, que es por usuario
+> (`%LOCALAPPDATA%\Programs\FunshiEngineGL`, sin pedir permisos de
+> administrador). Si el motor está en una carpeta donde no puede escribir —una
+> copia en `Program Files`, una carpeta montada en solo lectura, el motor
+> lanzado como administrador—, usa en su lugar
+> `%APPDATA%\FunshiEngineGL\MotorGrafico` (Windows) o
 > `$XDG_DATA_HOME/FunshiEngineGL/MotorGrafico`, con respaldo en
 > `~/.local/share/FunshiEngineGL/MotorGrafico` (Linux y macOS). La ruta
 > efectiva se imprime por consola al arrancar y la migración de la carpeta
 > anterior, si había algo, se avisa en la barra de estado. Los proyectos que
 > migran siguen funcionando: las rutas de assets se guardan relativas al
 > proyecto, no absolutas.
+>
+> El log de arranque (`logs/FunshiEngineGL_<AAAAMMDD_HHMMSS>.log`, ver el árbol)
+> vive también en esa carpeta de datos, de modo que se escribe aunque el motor
+> esté en una carpeta de la que no se pueda escribir. Si esa carpeta tampoco
+> admite escritura, el motor cae a la carpeta temporal del sistema
+> (`%TEMP%\FunshiEngineGL\logs` o `/tmp/FunshiEngineGL/logs`), y solo si las tres
+> opciones fallan se queda sin archivo de log y escribe en la consola.
 
 ```
 MotorGrafico/
+├── logs/
+│   └── FunshiEngineGL_<AAAAMMDD_HHMMSS>.log   ← log de arranque (UTC), uno por ejecucion
 ├── Proyects/
 │   └── <proyecto>/
 │       ├── Memory/
@@ -118,9 +130,10 @@ MotorGrafico/
         └── lib/                      ← dependencias runtime (Bullet, miniaudio, GLFW, etc.)
 ```
 
-La convencion de assets por nombre usa carpetas `Sonidos/` y `Interfaces/` (el usuario las crea al agregar el primer asset) con
-mayuscula inicial. El arbol de archivos del editor lista la **raiz del
-proyecto** (`src<nombre>`).
+En el arbol, las carpetas marcadas con `#` las crea el motor al crear el proyecto
+(no hace falta hacerlas a mano). La convencion de assets por nombre usa las carpetas
+`src<proyecto>/Sonidos/` y `Memory/Interfaces/`, con mayuscula inicial. El arbol de
+archivos del editor lista la **raiz del proyecto** (`src<nombre>`).
 
 > **Nota de packaging:** en el instalador Windows el explorador apunta a la
 > raiz del proyecto; en builds de desarrollo antiguas (Linux) podia apuntar a
@@ -149,7 +162,7 @@ una **copia** (arrastre con `Ctrl`) no se rastrea, porque no cambia ninguna de
 las dos rutas; los cambios hechos **fuera** del motor (explorador de Windows,
 una terminal, un `mv`) solo sirven para refrescar el arbol de archivos, no
 reescriben nada, asi que ahi si hay que volver a arrastrar el asset en su
-inspector; y los sonidos de `Sonidos/` e interfaces de `Interfaces/` se
+inspector; y los sonidos de `src<proyecto>/Sonidos/` e interfaces de `Memory/Interfaces/` se
 referencian por **nombre**: un move con el mismo nombre conserva la referencia
 y un rename la rompe (vuelve a seleccionar el clip/interfaz en su dropdown).
 Si una referencia quedo apuntando a un archivo que ya no existe, al **abrir la
@@ -183,17 +196,18 @@ de estado avisa en vez de ignorar el atajo.
 
 | Tecla / accion | Funcion |
 |---|---|
-| `W` `A` `S` `D` | Mover la camara activa (diagonales normalizadas). Solo con las interfaces del editor ocultas (`E`) o con el clic derecho sostenido sobre el viewport. Funciona en edicion y tambien durante el play |
+| `W` `A` `S` `D` | Mover la camara libre del editor (diagonales normalizadas). Solo en Edicion o Depuracion, con las interfaces ocultas (`E`) o el clic derecho sostenido sobre el viewport |
 | `Espacio` / `Shift izq.` | Subir / bajar la camara (misma condicion que `WASD`) |
-| Mouse / clic der. | Nav FPS; el clic derecho sostenido sobre el viewport navega **sin** esconder las interfaces (sensibilidad en Opciones) |
-| `E` | Mostrar/ocultar interfaces del editor (en edicion y durante el play; no en el menu de inicio) |
-| `F5` | Simular (Play): arranca la simulacion de la escena (fisica, scripts y audio) desde el editor |
-| `F6` | Pausar/reanudar la simulacion (solo durante el play; congela fisica y scripts sin salir) |
-| `F7` | Detener la simulacion y volver al modo edicion |
+| Mouse / clic der. | El mouse solo mueve la camara con cursor oculto (`C`) o mientras se sostiene clic derecho; el clic derecho navega **sin** esconder las interfaces y con cursor visible no activa la orbita (sensibilidad en Opciones) |
+| `E` | Mostrar/ocultar solo los paneles GUI; al ocultarlos el cursor queda visible y no rota la camara; no cambia gizmos, guias ni marcadores visuales |
+| `C` | Con la GUI oculta, alterna ocultar/mostrar el cursor. Con cursor oculto el mouse puede mirar libremente y el clic derecho activa orbita |
+| `F5` | Iniciar Depuracion: simula fisica, scripts y audio, y permite editar la escena |
+| `F6` | Pausar/reanudar la simulacion activa sin reiniciarla (Depuracion o Juego) |
+| `F7` | Terminar la simulacion y restaurar la escena al estado previo al inicio |
 | `Ctrl+S` | Guardar el proyecto en caliente (escena + manifiesto + config) |
 | `Ctrl+Z` | Deshacer ultima accion del editor (undo) |
 | `Ctrl+Y` | Rehacer accion deshecha (redo) |
-| `Escape` | Durante el play: detener la simulacion y volver al modo edicion (igual que `F7`). En edicion: volver al menu de inicio. En el menu: no hace nada |
+| `Escape` | Durante Depuracion o Juego: terminar y restaurar la escena al estado previo al inicio. En edicion: volver al menu; en el menu: no hace nada |
 | `1` / `T` | Gizmo: traslacion (apaga la guia de eje) |
 | `2` / `R` | Gizmo: rotacion (apaga la guia de eje) |
 | `3` / `U` | Gizmo: escala (la `Y` suelta la tomo la guia de eje; apaga la guia) |
@@ -201,17 +215,30 @@ de estado avisa en vez de ignorar el atajo.
 | `G` | Gizmo local / mundo (gizmo y guia de eje) |
 | Clic en objeto | Seleccionar en viewport |
 
-El modo Play/Stop tambien se controla con el boton **Activar/Detener** de la
-barra de menu de la escena, que hace exactamente lo mismo que `F5` y `F7`; la
-fisica y los scripts solo se ejecutan en Play. Clic en un objeto del arbol o del
-viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
+Fuera de una simulacion, la barra de la escena ofrece **Depuración** y
+**Juego**. Durante cualquiera de los dos modos, esos botones se reemplazan por
+**Pausa/Reanudar**, **Reset** y **Terminar**. Depuración conserva el modo
+editable existente: la física y los scripts avanzan, y los cambios hechos
+durante la simulacion se descartan al terminar y la escena vuelve al estado
+previo al inicio, igual que en Juego. Los controles se muestran como iconos y
+su nombre aparece al pasar el cursor. Juego ejecuta la escena sin
+permitir operaciones de edicion y oculta la grilla, gizmos, guias y marcadores
+auxiliares; los objetos y componentes de la escena siguen dibujandose. **Reset** restaura
+el estado completo guardado al iniciar la simulacion, sin salir de ella.
+
+Clic en un objeto del arbol o del viewport lo selecciona; el Inspector muestra
+sus componentes a la derecha.
 
 ---
 
 ## 4. Objetos y componentes
 
 - **Crear objetos:** "New GameObject" (crea un objeto simple en la escena que posee únicamente el componente `Transform`).
-- **Menú contextual en la jerarquía:** clic derecho sobre un objeto despliega "Renombrar" y "Eliminar"; clic derecho en espacio vacío del panel despliega "New GameObject".
+- **Menú contextual en la jerarquía:** clic derecho sobre un objeto despliega cuatro
+  opciones: **Cambiar ID**, **Renombrar**, **Desanudar a raíz** y **Eliminar**. "Desanudar
+  a raíz" solo aparece cuando el objeto cuelga de un padre intermedio: un hijo directo de
+  la raíz ya está al nivel superior, así que no hay nada que desenanidar. Clic derecho en
+  espacio vacío del panel despliega "New GameObject".
 - **Componentes:** `Transform`, `Color`, `Model`, `Material`, `Light`,
   `CameraComponent`, `Grid`, `Skybox`, colliders (esfera / cubo / malla),
   `RigidBody`, `AudioSource`, `InterfaceComponent` y `Script`.
@@ -229,8 +256,9 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 ### Grilla del suelo
 
 La escena trae un objeto llamado **"Grilla"** con el componente `Grid`: es el
-piso del editor y se dibuja siempre que el componente este visible. Su panel en
-el Inspector tiene solo dos controles:
+piso del editor y se dibuja siempre que el componente este visible, excepto
+durante Juego, cuando se oculta junto con las demas ayudas visuales del editor.
+Su panel en el Inspector tiene solo dos controles:
 
 - **Visible**: enciende o apaga la grilla.
 - **Color**: el color de las lineas. El que trae de fabrica es un blanco hielo
@@ -402,8 +430,9 @@ Dos casos se rechazan a proposito, sin tocar disco:
 - **Destino ocupado:** si en la carpeta destino ya existe un elemento con ese
   nombre, el movimiento se cancela y el original queda intacto. No se pisa nada.
 - **Carpeta dentro de si misma:** soltar `Assets` sobre `Assets/Modelos` (o
-  sobre si misma) se cancela. Si se dejara, la recursion se cortaria a mitad
-  y dejaria el arbol a medias en disco.
+  sobre si misma) se cancela, tanto al mover como al copiar. Si se dejara, la
+  copia se encontraria a si misma mientras avanza y dejaria el arbol a medias en
+  disco.
 
 ### 6.2 Arrastrar un asset a un componente
 
@@ -435,9 +464,10 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 ## 7. Física
 
 - Colliders de esfera, cubo o malla; con `RigidBody` participan de la
-  simulacion Bullet. Solo simula en modo **Play**: en edicion el gizmo mueve
-  el objeto y el motor sincroniza collider/cuerpo/objeto con la matriz global
-  compuesta del dueño, para que mover un collider no desincronice el cuerpo.
+  simulacion Bullet. Solo simula en **Depuración** o **Juego**: en edicion el
+  gizmo mueve el objeto y el motor sincroniza collider/cuerpo/objeto con la
+  matriz global compuesta del dueño, para que mover un collider no
+  desincronice el cuerpo.
 - Mientras se manipula el gizmo, `stepSimulation` se pausa (la gravedad podria
   "eyectar" el objeto); al soltar, la simulacion sigue.
 - Gizmo dedicado de fisica para el collider activo.
@@ -449,8 +479,9 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 - Crea la carpeta `Sonidos/` (si no existe) y coloca los clips en `Sonidos/` (wav/mp3/etc.). `AudioClipsManager` los
   descubre y los registra **por nombre** en el `AudioEngine` al escanear.
 - Agrega `AudioSource` a un objeto; en su panel elige el clip del dropdown
-  (o arrastralo desde `Sonidos/` tras crearla), ajusta volumen, loop y "reproduccion
-  automatica". En Play, el AudioEngine reproduce en su hilo de audio.
+  (o arrastralo desde `Sonidos/` tras crearla), ajusta volumen, loop y
+  "reproduccion automatica". En Depuración y Juego, el AudioEngine reproduce
+  en su hilo de audio.
 - Cambiar de proyecto re-escanea y limpia el registro de clips.
 
 ---
@@ -458,10 +489,10 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 ## 9. Interfaces de juego (HUD)
 
 - Crea el asset de interfaz con el **CreadorDeInterfaces** (genera un JSON en
-  `Interfaces/<nombre>.json`).
+  `Memory/Interfaces/<nombre>.json`).
 - Agrega `InterfaceComponent` a un GameObject; su inspector muestra el nombre
-  del asset (dropdown + drop desde `Interfaces/`).
-- Al entrar en **Play**, la escena muestra esa interfaz a pantalla completa
+  del asset (dropdown + drop desde `Memory/Interfaces/`).
+- Durante **Depuración** o **Juego**, la escena muestra esa interfaz a pantalla completa
   delante de la camara principal (HUD del juego).
 
 ---
@@ -626,7 +657,7 @@ azul clasico.
 
 Los comportamientos del juego se escriben como **scripts dinamicos**: archivos
 `.cpp` o `.java` dentro del proyecto que el editor compila en caliente y
-ejecuta en modo Play.
+ejecuta durante Depuración y Juego.
 
 - Se crean desde el explorador: clic derecho sobre la carpeta actual > "New
   Script" y, en el dialogo que se abre, elegir **C++ (`.cpp`)** o **Java
@@ -635,18 +666,19 @@ ejecuta en modo Play.
   archivo). El backend compila la clase como `FUNSHI_<ClassName>` mediante
   `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
 - Ciclo de vida en C++ (`IScriptBehaviour`): `onStart(owner)` al entrar en
-  Play, `onUpdate(owner, deltaTime)` cada frame en Play, y `onStop(owner)`
-  opcional al salir de Play.
+  Depuración o Juego, `onUpdate(owner, deltaTime)` cada frame de simulación, y
+  `onStop(owner)` opcional al terminar.
 - **SerializeField:** los campos declarados con macros `REFLECT_*` aparecen
   editables en el inspector, se guardan con la escena y sobreviven al hot
   reload (se reinyectan por nombre de campo).
-- Hot reload por mtime del fuente: en Play, guardar el `.cpp`/`.java`
+- Hot reload por mtime del fuente: durante la simulación, guardar el `.cpp`/`.java`
   recompila y recarga el comportamiento conservando los valores.
 - La ventana **Estado** muestra el toolchain (compilador C++, javac, libjvm,
   cache) y el resultado de compilacion/carga de cada script de la escena.
 - Los errores de carga/compilacion se informan en la ventana **Estado** y en el
-  log del motor (`logs/FunshiEngineGL_*.log`); el panel del componente no los
-  repite: queda con el fuente asignado y sus SerializeField.
+  log del motor (`logs/FunshiEngineGL_*.log` en la carpeta de datos, seccion 2);
+  el panel del componente no los repite: queda con el fuente asignado y sus
+  SerializeField.
 
 ---
 
@@ -816,8 +848,8 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 
 Ademas de `api`, `IScriptBehaviour` expone `this->servicios`: acceso a los
 servicios del motor que **no son del objeto** sino de la escena (audio,
-busqueda de objetos y teclado). GameScene la inyecta al entrar en Play, antes
-del primer `onStart`, y la desconecta al salir (fuera de Play las funciones
+busqueda de objetos y teclado). GameScene la inyecta al iniciar la simulacion,
+antes del primer `onStart`, y la desconecta al terminar (fuera de simulacion las funciones
 son no-ops tolerantes: devuelven `false`/`nullptr`/`-1`, sin bloquear).
 Misma convencion APPEND-ONLY con `servicios->version` al final.
 
@@ -897,13 +929,26 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 - El cache de artefactos compilados y la ruta del compilador se muestran en
   la ventana Estado.
 - **Windows:** el motor invoca `cl.exe` a traves de `vcvars64.bat` del mismo
-  toolset MSVC (se busca subiendo desde la carpeta del compilador), porque
-  `cl.exe` resuelve los headers del CRT (incluido `<cstddef>`) y las librerias
-  por `INCLUDE`/`LIB`. Con esto el editor funciona igual si se lanza desde el
-  Explorador o desde Visual Studio. Si el compilador configurado es MinGW/g++
-  (`FUNSHI_CXX`, o el horneado por el build), se emiten los flags de GCC: ese
-  camino tambien funciona y no necesita `cl.exe` en el entorno. Los scripts Java
-  no tienen este requisito (javac se invoca por ruta absoluta).
+  toolset MSVC, porque `cl.exe` resuelve los headers del CRT (incluido
+  `<cstddef>`) y las librerias por `INCLUDE`/`LIB`. Con esto el editor funciona
+  igual si se lanza desde el Explorador o desde Visual Studio. El toolset se
+  busca en este orden: el que se deduce de la ruta del compilador (un build de
+  desarrollo, donde esa ruta es de este equipo) y, si no hay ninguno, el que
+  tenga instalado el usuario en sus carpetas de Visual Studio, con lo que el
+  paquete instalado compila scripts C++ sin tocar nada. Con Visual Studio
+  presente se usa `cl` a secas (el nombre lo resuelve el propio entorno), de
+  modo que el motor no queda atado a la versión instalada. Si el compilador
+  configurado es MinGW/g++ (`FUNSHI_CXX`, o el horneado por el build), se
+  emiten los flags de GCC: ese camino tambien funciona y no necesita `cl.exe`
+  en el entorno. Los scripts Java no tienen este requisito (javac se invoca por
+  ruta absoluta).
+- **Que compilador se usa:** primero la variable de entorno `FUNSHI_CXX` si
+  esta, que manda siempre; despues el compilador con el que se compilo este
+  motor, pero solo si esa ruta existe en este equipo (en el paquete instalado no
+  existe, porque es la del equipo que lo publico); y si no, `cl` en Windows con
+  Visual Studio instalado o `g++` en Linux, macOS y Windows con MinGW. La ruta
+  final se muestra en la ventana Estado. Si `FUNSHI_CXX` apunta a algo que no
+  existe, el motor lo avisa por log y lo usa tal cual.
 - **Export de la fabrica en Windows/MSVC:** la funcion
   `FUNSHI_CREAR_COMPORTAMIENTO` tiene que declararse con
   `FUNSHI_COMPORTAMIENTO_EXPORT` (asi la genera el editor). En MSVC un
@@ -938,14 +983,25 @@ busca solo, en este orden:
    `/usr/lib/jvm` en Linux.
 
 El `javac` se busca en la **misma** raíz que la JVM, así que el `.java` se
-compila siempre con el mismo JDK que después lo ejecuta. Se puede forzar con
-la variable `JAVAC`.
+compila siempre con el mismo JDK que después lo ejecuta; es importante porque
+un `javac` de otra versión genera un `.class` que su JVM rechaza. Si esa raíz
+no trae `javac` (es un JRE), el motor **no** busca otro: los `.class` ya
+compilados siguen cargando y al compilar avisa de que hace falta un JDK, no un
+JRE. Se puede forzar el compilador con la variable `JAVAC` (y la biblioteca de
+la JVM con `FUNSHI_LIBJVM`; si se dan las dos, la raíz de `FUNSHI_LIBJVM` es la
+que manda para el emparejamiento).
+
+Cuando una clase no carga, el mensaje dice **por qué**: la excepción que lanzó
+la JVM (`motivo:`), la carpeta de caché, dónde se buscaron las clases y con qué
+`javac` y `libjvm`. Con eso se distingue de un vistazo entre "el `.java` no
+compiló", "la clase no existe" y "el `.class` es de otra versión de Java".
 
 El instalador de Windows (`FunshiEngineGL_setup.iss`) comprueba si hay un JDK
-antes de instalar y, si no lo encuentra, ofrece descargar e instalar Temurin
-JDK 17. El paquete de Linux (Qt IFW) no puede encadenar instaladores, así que
-declara el requisito en la descripción: en la mayoría de distros el JDK ya
-viene instalado.
+antes de instalar —exige `bin\server\jvm.dll` **y** `bin\javac.exe`, los dos, que
+es lo mismo que necesita el motor— y, si no lo encuentra, ofrece descargar e
+instalar Temurin JDK 17. El paquete de Linux (Qt IFW) no puede encadenar
+instaladores, así que declara el requisito en la descripción: en la mayoría de
+distros el JDK ya viene instalado.
 
 ### 14.1 Plantilla generada por el editor
 
@@ -981,7 +1037,7 @@ public class MiScript implements Comportamiento {
 
 ## 16. Hot reload y depuración
 
-- **C++:** guardar el `.cpp` en Play recompila; el editor compara el mtime del
+- **C++:** guardar el `.cpp` durante la simulacion recompila; el editor compara el mtime del
   fuente con el del artefacto cargado. Los valores SerializeField se extraen
   antes de descargar y se reinyectan por nombre de campo al terminar, de modo
   que reordenar campos en el fuente no pierde valores.
@@ -994,9 +1050,9 @@ public class MiScript implements Comportamiento {
 - **Ventana Estado:** para cada script muestra nombre, ok/error y mensaje
   (errores de compilacion incluidos), ademas del toolchain detectado.
 - **Errores de carga/compilacion C++** aparecen en la ventana Estado y en el log
-  del motor (`logs/FunshiEngineGL_*.log` junto al ejecutable), no en el panel del
-  componente; corregi el fuente y guardalo de nuevo (no hace falta salir de
-  Play).
+  del motor (`logs/FunshiEngineGL_*.log` en la carpeta de datos, seccion 2), no
+  en el panel del componente; corregi el fuente y guardalo de nuevo (no hace
+  no hace falta terminar la simulacion).
 - Al cerrar la aplicacion los comportamientos se descargan sin disparar
   `onStop`; los backends (incluida la JVM) se apagan despues.
 

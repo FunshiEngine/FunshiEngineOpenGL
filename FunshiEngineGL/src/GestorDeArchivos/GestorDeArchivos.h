@@ -26,7 +26,7 @@
 
 // Infraestructura de acceso al Filesystem del explorador de archivos:
 // construye el arbol de carpetas de un proyecto y ejecuta las operaciones de
-// dominio (crear/eliminar/copiar). R2: todo el acceso a disco usa
+// dominio (crear/eliminar/copiar). Todo el acceso a disco usa
 // std::filesystem (ambas plataformas) en lugar de APIS por #ifdef
 // (dirent.h / WinAPI) y de system("rm -rf ...").
 //

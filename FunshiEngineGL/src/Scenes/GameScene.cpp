@@ -17,11 +17,13 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "GameScene.h"
+#include "CameraFrameSafety.h"
 
 #include "../GUIManager/GUIManager.h"
 #include "../Events/EditorEventBus.h"
 #include "../GUI/SceneGUI/SceneMenuBarInterface.h"
 #include "../GUI/SceneGUI/SceneSelectedInterface.h"
+#include "../GUI/WindowNames.h"
 #include "../Objetos/Componentes/CameraComponent.h"
 #include "../Fisicas/PhysicsEngine.h"
 #include "../Iluminacion/LightSystem.h"
@@ -58,6 +60,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
+#include <chrono>
 
 // Duracion minima del overlay de carga de scripts: aunque la compilacion venga
 // de cache (instantanea) la barra se ve un instante, y al terminar deja un
@@ -94,6 +98,10 @@ GameScene::GameScene(GUIManager* manager)
     managerGUI->setAudioEngine(audioEngine.get());
     asegurarGrilla();
     menuBarGUI = managerGUI->getMenuBarGUI(&start);
+    if (menuBarGUI) {
+        menuBarGUI->setPausa(&simulacionPausada);
+        menuBarGUI->setModoJuego(&modoJuego);
+    }
     // El menu del editor alterna LOCAL/GLOBAL del gizmo editando este mismo
     // bool (mismo patron que el boton play/stop con toggleBool).
     if (menuBarGUI) menuBarGUI->setGizmoGlobal(gizmoController_->direccionGizmoGlobal());
@@ -103,6 +111,7 @@ GameScene::GameScene(GUIManager* manager)
 }
 
 GameScene::~GameScene() {
+    eliminarSnapshotSimulacion();
     // Libera las geometrias cacheadas del SceneRenderer (meshes SUV + grilla)
     // si se llegaron a compilar. En el flujo normal main() crea GameScene con
     // new y no la destruye antes de glfwTerminate, asi que esto es higiene
@@ -217,10 +226,154 @@ void GameScene::saveScene(const std::string& filename) {
 
 bool GameScene::isStart() { return start; }
 
-// La maquina de estados (orquestador) es la fuente de verdad de la simulacion:
-// EditorInput la refleja aca en el path de F5/F7 (F5 -> true, F7 -> false),
-// comparte flag con el boton Activar/Detener del menu de escena.
+// La maquina de estados (orquestador) es la fuente de verdad de la simulacion;
+// main refleja su decision aca al inicio de cada frame.
 void GameScene::setStart(bool activo) noexcept { start = activo; }
+
+void GameScene::setModoJuego(bool juego) noexcept { modoJuego = juego; }
+
+void GameScene::solicitarResetSimulacion() noexcept {
+    if (start) resetSimulacionPendiente = true;
+}
+
+void GameScene::cerrarSimulacionAntesDeGuardar() {
+    resetSimulacionPendiente = false;
+    if (!previousStart) {
+        start = false;
+        eliminarSnapshotSimulacion();
+        return;
+    }
+    start = false;
+    simulacionPausada = false;
+    update(0.0f);
+}
+
+bool GameScene::isModoJuego() const noexcept { return modoJuego; }
+
+bool GameScene::isEditorGUIVisible() const noexcept { return menuActivo; }
+
+bool GameScene::guardarSnapshotSimulacion() {
+    eliminarSnapshotSimulacion();
+    if (!sceneSerializer || directorioEscena_.empty()) return false;
+
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const auto marca = std::chrono::steady_clock::now().time_since_epoch().count();
+    const fs::path base = fs::path(directorioEscena_).parent_path();
+    for (unsigned int intento = 0; intento < 32; ++intento) {
+        const fs::path candidato =
+            base / (".funshi-simulation-" + std::to_string(marca) + "-" +
+                    std::to_string(intento));
+        ec.clear();
+        if (!fs::create_directory(candidato, ec)) {
+            if (ec) return false;
+            continue;
+        }
+        ec.clear();
+        if (!fs::create_directory(candidato / "Scene", ec) || ec) {
+            fs::remove_all(candidato, ec);
+            return false;
+        }
+        directorioSnapshot_ = candidato.string();
+        indiceSnapshot_ = (candidato / "SceneBBDDObjetos.txt").string();
+        break;
+    }
+    if (directorioSnapshot_.empty()) return false;
+
+    camaraActivaAlIniciar = getActiveCameraId();
+    sceneSerializer->save((fs::path(directorioSnapshot_) / "Scene").string());
+    if (!snapshotSimulacionDisponible()) {
+        std::cerr << "[escena] no se pudo crear el estado inicial de la "
+                     "simulacion; Reset y la restauracion al terminar no "
+                     "estaran disponibles\n";
+        eliminarSnapshotSimulacion();
+        return false;
+    }
+    return true;
+}
+
+bool GameScene::snapshotSimulacionDisponible() const {
+    if (indiceSnapshot_.empty() || directorioSnapshot_.empty()) return false;
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path indicePath(indiceSnapshot_);
+    if (!fs::is_regular_file(indicePath, ec) || ec ||
+        fs::file_size(indicePath, ec) == 0 || ec)
+        return false;
+
+    const fs::path raizBinaria =
+        fs::path(directorioSnapshot_) / "Scene" / "ObjectN0.db";
+    ec.clear();
+    if (!fs::is_regular_file(raizBinaria, ec) || ec ||
+        fs::file_size(raizBinaria, ec) == 0 || ec)
+        return false;
+
+    std::ifstream indice(indiceSnapshot_, std::ios::binary);
+    if (!indice.is_open()) return false;
+    std::string nombreObjeto;
+    while (std::getline(indice, nombreObjeto)) {
+        if (!nombreObjeto.empty() && nombreObjeto.back() == '\r')
+            nombreObjeto.pop_back();
+        if (nombreObjeto.empty() || nombreObjeto == "=>" ||
+            nombreObjeto == "<=")
+            continue;
+        const fs::path binario =
+            fs::path(directorioSnapshot_) / "Scene" / nombreObjeto;
+        ec.clear();
+        if (!fs::is_regular_file(binario, ec) || ec ||
+            fs::file_size(binario, ec) == 0 || ec)
+            return false;
+    }
+    return !indice.bad() && indice.eof();
+}
+
+bool GameScene::restaurarSnapshotSimulacion() {
+    if (!sceneSerializer || !snapshotSimulacionDisponible()) return false;
+
+    sceneSerializer->load(indiceSnapshot_,
+                          (std::filesystem::path(directorioSnapshot_) / "Scene")
+                              .string());
+    if (editorController) editorController->registerSceneRigidBodies();
+    if (selecteableGUI) {
+        selecteableGUI->bindScene(sceneRegistry.get(), editorController.get(),
+                                   &events);
+        selecteableGUI->setReturnableEntity(nullptr);
+    }
+    if (managerGUI) managerGUI->removeSettingsGUI();
+    requestedActiveCamera = nullptr;
+    activeCameraObject = nullptr;
+    activeCamera = nullptr;
+    contadorCamaras = 0;
+    setActiveCameraById(camaraActivaAlIniciar);
+    getGameObjectsScene();
+    return true;
+}
+
+void GameScene::eliminarSnapshotSimulacion() noexcept {
+    if (directorioSnapshot_.empty()) return;
+    std::error_code ec;
+    std::filesystem::remove_all(directorioSnapshot_, ec);
+    if (ec) {
+        std::cerr << "[escena] no se pudo retirar el estado temporal de la "
+                     "simulacion: " << ec.message() << '\n';
+    }
+    directorioSnapshot_.clear();
+    indiceSnapshot_.clear();
+}
+
+void GameScene::limpiarRuntimeSimulacion() {
+    limpiarColaCompilacion();
+    MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
+    sincronizarAudioPlay(false);
+    auto* gameObjects = getGameObjectsScene();
+    if (!gameObjects || gameObjects->isEmpty()) return;
+    Position<GameObject*>* pos = gameObjects->first();
+    while (pos && pos->getElement()) {
+        if (Script* script = pos->getElement()->getComponent<Script>())
+            script->detener(pos->getElement());
+        pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
+    }
+}
 
 bool GameScene::isSimulacionPausada() const noexcept { return simulacionPausada; }
 
@@ -231,6 +384,7 @@ void GameScene::setSimulacionPausada(bool pausada) noexcept {
 }
 
 void GameScene::loadScene(const std::string& pathTxt, const std::string& semiPath) {
+    directorioEscena_ = semiPath;
     if (sceneSerializer) {
         sceneSerializer->load(pathTxt, semiPath);
         // Los RigidBody deserializados nunca pasan por EditorController: la
@@ -437,56 +591,73 @@ GameObject* GameScene::agregarCamaraEnVistaActiva() {
 
 void GameScene::GUI() {
     auto* gameObjects = getGameObjectsScene();
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, menuActivo ? 1.0f : 0.0f);
+    ImGui::BeginDisabled(!menuActivo);
+    ImGui::BeginDisabled(modoJuego);
     selecteableGUI->printGUI();
     if (gameObjects->isElement(selecteableGUI->getReturnableEntity())) {
-        managerGUI->getSettingGUI(selecteableGUI->getReturnableEntity())->printGUI();
+        SettingsObjectInterface* settings =
+            managerGUI->getSettingGUI(selecteableGUI->getReturnableEntity());
+        if (settings) {
+            settings->setMostrarVisualesDepuracion(!modoJuego);
+            settings->printGUI();
+        }
     }
     pintarViewportsGUI();
-    menuBarGUI->printGUI();
     pintarVentanaCamaras();
     if (managerGUI) managerGUI->getStatusBarGUI()->printGUI();
-    if (menuBarGUI->getCargarScripts()) {
-        menuBarGUI->setCargarScripts(false);
-    }
-
+    ImGui::EndDisabled();
+    menuBarGUI->printGUI();
     // Sistema de audio + creador de interfaces: el catalogo de clips se
     // refresca por frame (tolerante y barato), el canvas refleja la interfaz
     // activa y cambia su presentacion segun el modo play.
+    CreadorDeInterfaces* creador = nullptr;
+    CanvasInterface* canvas = nullptr;
     if (managerGUI) {
-        CreadorDeInterfaces* creador = managerGUI->getCreadorInterfacesGUI();
-        CanvasInterface* canvas = managerGUI->getCanvasGUI();
+        creador = managerGUI->getCreadorInterfacesGUI();
+        canvas = managerGUI->getCanvasGUI();
+        ImGui::BeginDisabled(modoJuego);
         if (creador) {
             creador->setClipNames(audioEngine->nombresClips());
             creador->printGUI();
         }
-        if (canvas) {
-            canvas->setAudioEngine(audioEngine.get());
-            canvas->setModoPlay(start);
-            UserInterfaceCustom* uiParaCanvas = nullptr;
-            if (start && creador) {
-                // En modo play: buscar objeto con InterfaceComponent y activar
-                // su interfaz a pantalla completa (HUD del juego).
-                auto* objs = getGameObjectsScene();
-                if (objs && !objs->isEmpty()) {
-                    Position<GameObject*>* pos = objs->first();
-                    while (pos && pos->getElement()) {
-                        if (auto* ic =
-                                pos->getElement()->getComponent<InterfaceComponent>()) {
-                            const std::string& nombre = ic->getInterfaz();
-                            if (!nombre.empty())
-                                uiParaCanvas = creador->activarInterfaz(nombre);
-                            break; // la primera gana
-                        }
-                        pos = (pos != objs->last()) ? objs->next(pos) : nullptr;
+        ImGui::EndDisabled();
+    }
+    ImGui::EndDisabled();
+    ImGui::PopStyleVar();
+
+    if (canvas) {
+        canvas->setAudioEngine(audioEngine.get());
+        canvas->setModoPlay(start);
+        UserInterfaceCustom* uiParaCanvas = nullptr;
+        if (start && creador) {
+            // En simulacion: buscar objeto con InterfaceComponent y activar
+            // su interfaz a pantalla completa (HUD del juego).
+            auto* objs = getGameObjectsScene();
+            if (objs && !objs->isEmpty()) {
+                Position<GameObject*>* pos = objs->first();
+                while (pos && pos->getElement()) {
+                    if (auto* ic =
+                            pos->getElement()->getComponent<InterfaceComponent>()) {
+                        const std::string& nombre = ic->getInterfaz();
+                        if (!nombre.empty())
+                            uiParaCanvas = creador->activarInterfaz(nombre);
+                        break;
                     }
+                    pos = (pos != objs->last()) ? objs->next(pos) : nullptr;
                 }
-            } else if (creador) {
-                // En editor: usar la interfaz activa del creador (prueba manual).
-                uiParaCanvas = creador->getInterfazActiva();
             }
-            canvas->setUI(uiParaCanvas);
-            canvas->printGUI();
+        } else if (creador) {
+            // En editor: usar la interfaz activa del creador (prueba manual).
+            uiParaCanvas = creador->getInterfazActiva();
         }
+        canvas->setUI(uiParaCanvas);
+        ImGui::PushStyleVar(
+            ImGuiStyleVar_Alpha, (start || menuActivo) ? 1.0f : 0.0f);
+        ImGui::BeginDisabled(!start && !menuActivo);
+        canvas->printGUI();
+        ImGui::EndDisabled();
+        ImGui::PopStyleVar();
     }
 }
 
@@ -536,7 +707,7 @@ void GameScene::pintarViewportsGUI() {
 // eliminar. Ventana de inicio de la Fase 2: con "Agregar camara" aparece
 // automaticamente la vista previa de cada camara.
 void GameScene::pintarVentanaCamaras() {
-    if (!ImGui::Begin("Camaras", &ventanaCamarasAbierta)) {
+    if (!ImGui::Begin(WindowNames::CameraList, &ventanaCamarasAbierta)) {
         ImGui::End();
         return;
     }
@@ -607,6 +778,23 @@ void GameScene::pintarVentanaCamaras() {
 
 void GameScene::update(float value) {
     deltaTime = value;
+    if (resetSimulacionPendiente && start) {
+        resetSimulacionPendiente = false;
+        if (!snapshotSimulacionDisponible()) {
+            std::cerr << "[escena] no se pudo restaurar el estado inicial de "
+                         "la simulacion; la ejecucion continua sin cambios\n";
+            return;
+        }
+        limpiarRuntimeSimulacion();
+        if (restaurarSnapshotSimulacion()) {
+            previousStart = false;
+            std::cout << "[escena] simulacion restaurada al estado inicial\n";
+        } else {
+            std::cerr << "[escena] no se pudo restaurar el estado inicial de "
+                         "la simulacion\n";
+        }
+        return;
+    }
     // Mientras se manipula el gizmo NO se avanza la simulacion: de lo
     // contrario la gravedad/contactos eyectan el cuerpo y la sync de vuelta
     // arrastra al objeto (efecto 'sale disparado'). Al soltar, la sim sigue.
@@ -614,13 +802,14 @@ void GameScene::update(float value) {
     // stepSimulation no tiene consumidor (syncPhysicsToGameObject no escribe),
     // y solo causa explosiones por penetracion con el suelo (plano y=-1).
 
-    // Transicion editor->play: el cuerpo fue creado en una pose PASADA (al
+    // Transicion editor->simulacion: el cuerpo fue creado en una pose PASADA (al
     // agregar el RigidBody o al ultimo sync). Mientras estuvo en pausa el
     // usuario pudo mover el objeto o el offset del collider; si el primer
     // stepSimulation corre con el body viejo, la sync de vuelta escribe la
     // pose del collider desde una posicion descartada. Se empuja el body a
     // la pose VISUAL actual antes de arrancar.
     if (start && !previousStart) {
+        if (directorioSnapshot_.empty()) guardarSnapshotSimulacion();
         // Feedback visual inmediato: aunque no haya nada que recompilar, se ve
         // que "Activar" disparo la carga/verificacion de scripts.
         overlayProgresoVisible_ = true;
@@ -673,26 +862,15 @@ void GameScene::update(float value) {
                   << std::endl;
     }
 
-    // Transicion play->editor: avisar a los scripts para que hagan limpieza
-    // (onStop) y conservar los valores editados en play mode para la GUI.
+    // Al terminar: avisar a los scripts para que hagan limpieza (onStop) y
+    // restaurar el estado previo a cualquiera de los modos de simulacion.
     if (previousStart && !start) {
-        limpiarColaCompilacion();
-        // Scripts: desconectar los servicios (los comportamientos deben
-        // tolerar servicios == nullptr / tablas inoperativas al salir).
-        MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
-        // Audio: detener los AudioSource (no dejar sonando en el editor).
-        sincronizarAudioPlay(false);
-        auto* gameObjects = getGameObjectsScene();
-        if (!gameObjects->isEmpty()) {
-            Position<GameObject*>* pos = gameObjects->first();
-            while (pos && pos->getElement()) {
-                if (Script* script =
-                        pos->getElement()->getComponent<Script>())
-                    script->detener(pos->getElement());
-                pos = (pos != gameObjects->last()) ? gameObjects->next(pos)
-                                                   : nullptr;
-            }
+        limpiarRuntimeSimulacion();
+        if (!restaurarSnapshotSimulacion()) {
+            std::cerr << "[escena] no se pudo restaurar el estado inicial "
+                         "al terminar la simulacion\n";
         }
+        eliminarSnapshotSimulacion();
 
         std::cout << "[escena] simulacion detenida: audio cortado, servicios "
                      "desconectados y scripts avisados con onStop"
@@ -900,7 +1078,7 @@ void GameScene::gameScene() {
     ctx.gameObjects = getGameObjectsScene();
     ctx.apariencia = &apariencia;
     ctx.deltaTime = deltaTime;
-    ctx.editorActivo = isEditorActivo();
+    ctx.mostrarVisualesDepuracion = !modoJuego;
     ctx.selectedObject =
         editorController ? editorController->getSelectedObject() : nullptr;
     ctx.lights = luces;
@@ -909,11 +1087,10 @@ void GameScene::gameScene() {
     ctx.framebufferWidth = fbW;
     ctx.framebufferHeight = fbH;
     // Guia de eje: el estado vive en EditorController y la recta se dibuja con
-    // el mismo sistema de referencia que el gizmo (G alterna GLOBAL/LOCAL). Es
-    // parte del toolkit del editor, asi que se apaga junto con el (E): sin las
-    // interfaces tampoco se ve la guia, y no queda prendida sin forma de
-    // apagarla.
-    ctx.guiaEje = isEditorActivo() ? getGuiaEje() : GuiaEje::kSinGuia;
+    // el mismo sistema de referencia que el gizmo. Depuracion conserva el
+    // overlay aunque E oculte los paneles; Juego lo omite junto con los demas
+    // visuales auxiliares.
+    ctx.guiaEje = !modoJuego ? getGuiaEje() : GuiaEje::kSinGuia;
     ctx.guiaCoordenadasGlobales = isGizmoGlobal();
     ctx.assetManager = assetManager.get();
 
@@ -921,23 +1098,34 @@ void GameScene::gameScene() {
     // capa de Rendering.
     sceneRenderer->render(ctx, activeCameraObject, camara);
 
-    // Seleccion por clic + gizmo en su modulo: la fase de seleccion corre
-    // siempre (encender/apagar las interfaces); el dibujado del gizmo solo con
-    // el editor activo (ver el guard debajo).
-    gizmoController_->procesarSeleccion(io, camara, getGameObjectsScene());
+    // La seleccion y el gizmo son herramientas de Depuracion, independientes
+    // de la visibilidad de los paneles y ausentes en Juego.
+    if (!modoJuego)
+        gizmoController_->procesarSeleccion(io, camara, getGameObjectsScene());
 
     /*
      * Navegación libre (sin E y sin objeto seleccionado): el sistema de
      * ventanas y el gizmo no se dibujan, solo la escena 3D.
      */
-    if (!isEditorActivo()) {
+    if (modoJuego) {
         gizmoController_->apagar();
-        return;
     }
 
     GUI();
 
-    gizmoController_->dibujarYRastrear(io, camara);
+    if (!CameraFrameSafety::validarCamara(sceneRegistry.get(),
+                                          activeCameraObject, camara)) {
+        activeCamera = nullptr;
+        activeCameraObject = nullptr;
+        camara = getActiveCamera();
+    }
+    if (!camara) {
+        gizmoController_->apagar();
+        return;
+    }
+
+    if (!modoJuego)
+        gizmoController_->dibujarYRastrear(io, camara);
 }
 
 void GameScene::mostrarMensaje(const std::string& mensaje) {
@@ -995,21 +1183,7 @@ void GameScene::clearGuiaEje() {
 }
 
 void GameScene::toggleEditorInterfaces() {
-    // E siempre apaga TODO de un toque (todas las pestanas, el gizmo y el
-    // bloqueo de la camara) cuando hay algo activo; si no hay nada activo,
-    // enciende el modo editor. La logica antigua (menuActivo = !menuActivo)
-    // no limpiaba la seleccion: con un objeto seleccionado, isEditorActivo()
-    // segui a true tras E y la camara parecia no desbloquearse nunca.
-    const bool hayAlgoActivo =
-        menuActivo ||
-        (selecteableGUI &&
-         selecteableGUI->getReturnableEntity() != nullptr);
-    if (hayAlgoActivo) {
-        menuActivo = false;
-        clearSelection();
-    } else {
-        menuActivo = true;
-    }
+    menuActivo = !menuActivo;
 }
 
 float GameScene::getSensibilidadCamara() const noexcept {
@@ -1047,11 +1221,9 @@ void GameScene::setVentanaCamarasAbierta(bool abierta) noexcept {
 void GameScene::setMenuActivo(bool activo) noexcept { menuActivo = activo; }
 
 bool GameScene::isEditorActivo() const {
-    return menuActivo ||
-           (selecteableGUI && selecteableGUI->getReturnableEntity() != nullptr);
+    return menuActivo;
 }
 
 void GameScene::clearSelection() {
     if (selecteableGUI) selecteableGUI->setReturnableEntity(nullptr);
 }
-

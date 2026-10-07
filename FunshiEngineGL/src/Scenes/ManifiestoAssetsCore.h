@@ -26,7 +26,7 @@
 // Nucleo puro y HEADLESS del manifiesto de assets de la escena
 // (Memory/Binarios/SceneAssets.json). No conoce GameObject ni la escena:
 // trabaja sobre «EntradaAssets», la foto de los paths de asset de un objeto
-// (malla + 4 texturas + dll de script).
+// (malla + 4 texturas + dll de script + las 6 caras del cubemap del Skybox).
 //
 // El manifiesto es un add-on de la serializacion binaria: NO reemplaza al
 // .db, sino que centraliza las rutas de asset para (1) gestionar los renames
@@ -65,8 +65,8 @@ public:
 
     // Lee el archivo JSON. Devuelve false si no existe o esta corrupto (nunca
     // lanza); en ese caso `entradas` queda sin tocar. La lectura es tolerante:
-    // un objeto sin `malla`/`texturas`/`script` solo aporta los campos que
-    // trae, y una entrada sin id numerico se descarta.
+    // un objeto sin `malla`/`texturas`/`script` ni caras solo aporta los campos
+    // que trae, y una entrada sin id numerico se descarta.
     static bool leerArchivo(const std::string& ruta,
                             std::map<int, EntradaAssets>& entradas);
 

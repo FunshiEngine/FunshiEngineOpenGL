@@ -31,7 +31,8 @@ class Carpeta;
 //    puntero cuando el arbol se reconstruye por un rescaneo (los punteros al
 //    arbol viejo quedarian colgando).
 //  - navegacionPendiente: ruta a abrir (doble clic en el contenido). El arbol
-//    la consume al inicio de su frame (aplicacion diferida, FASE 1 -> FASE 2)
+//    la consume al inicio de su frame (aplicacion diferida: se registra
+//    durante el frame y se aplica contra el arbol del frame siguiente)
 //    y la borra tras resolverla contra el arbol vigente.
 //  - contadorCambios: sube solo cuando una operacion de Filesystem puede
 //    modificar el arbol (crear/copiar/eliminar CARPETAS). El arbol lo compara

@@ -30,6 +30,25 @@ namespace {
 // El campo es solo informativo; la lectura no exige una version exacta.
 constexpr int VERSION_MANIFIESTO = 1;
 
+// Las seis caras del cubemap del Skybox, con la clave de cada una. Se agrupan en
+// un array para que escribir, leer y transformar rutas no puedan quedar por debajo
+// de las texturas: el manifiesto declara que su contenido tiene precedencia sobre
+// los paths del .db, y sin esto las caras solo vivian en el .db (que se escribe al
+// salir, no con Ctrl+S) y se perdian en un guardado intermediano.
+constexpr std::array<const char*, 6> CARAS_CUBEMAP = {
+    "caraMasX", "caraMenosX", "caraMasY",
+    "caraMenosY", "caraMasZ", "caraMenosZ"};
+
+std::array<std::string*, 6> carasCubemap(EntradaAssets& entrada) {
+    return {&entrada.caraMasX,  &entrada.caraMenosX, &entrada.caraMasY,
+            &entrada.caraMenosY, &entrada.caraMasZ,  &entrada.caraMenosZ};
+}
+
+std::array<const std::string*, 6> carasCubemap(const EntradaAssets& entrada) {
+    return {&entrada.caraMasX,  &entrada.caraMenosX, &entrada.caraMasY,
+            &entrada.caraMenosY, &entrada.caraMasZ,  &entrada.caraMenosZ};
+}
+
 nlohmann::json entradaAJson(const EntradaAssets& entrada) {
     nlohmann::json objeto = nlohmann::json::object();
     if (!entrada.malla.empty())
@@ -40,6 +59,10 @@ nlohmann::json entradaAJson(const EntradaAssets& entrada) {
     objeto["texturas"] = std::move(texturas);
     if (!entrada.script.empty())
         objeto["script"] = entrada.script;
+    const std::array<const std::string*, 6> caras = carasCubemap(entrada);
+    for (std::size_t i = 0; i < caras.size(); ++i)
+        if (!caras[i]->empty())
+            objeto[CARAS_CUBEMAP[i]] = *caras[i];
     return objeto;
 }
 
@@ -58,6 +81,11 @@ bool jsonAEntrada(const nlohmann::json& objeto, EntradaAssets& entrada) {
             if (objeto["texturas"][i].is_string())
                 entrada.texturas[i] = objeto["texturas"][i].get<std::string>();
     }
+    const std::array<std::string*, 6> caras = carasCubemap(entrada);
+    for (std::size_t i = 0; i < caras.size(); ++i)
+        if (objeto.contains(CARAS_CUBEMAP[i]) &&
+            objeto[CARAS_CUBEMAP[i]].is_string())
+            *caras[i] = objeto[CARAS_CUBEMAP[i]].get<std::string>();
     return true;
 }
 
@@ -116,6 +144,8 @@ void ManifiestoAssetsCore::relativizarEntrada(EntradaAssets& entrada) {
     for (std::string& textura : entrada.texturas)
         textura = EditorConfig::relativizarRuta(textura);
     entrada.script = EditorConfig::relativizarRuta(entrada.script);
+    for (std::string* cara : carasCubemap(entrada))
+        *cara = EditorConfig::relativizarRuta(*cara);
 }
 
 void ManifiestoAssetsCore::absolutizarEntrada(EntradaAssets& entrada) {
@@ -123,6 +153,8 @@ void ManifiestoAssetsCore::absolutizarEntrada(EntradaAssets& entrada) {
     for (std::string& textura : entrada.texturas)
         textura = EditorConfig::absolutizarRuta(textura);
     entrada.script = EditorConfig::absolutizarRuta(entrada.script);
+    for (std::string* cara : carasCubemap(entrada))
+        *cara = EditorConfig::absolutizarRuta(*cara);
 }
 
 std::string ManifiestoAssetsCore::resolverRuta(
@@ -131,7 +163,11 @@ std::string ManifiestoAssetsCore::resolverRuta(
 }
 
 bool ManifiestoAssetsCore::entradaVacia(const EntradaAssets& entrada) {
-    return entrada.malla.empty() && entrada.script.empty() &&
-           entrada.texturas[0].empty() && entrada.texturas[1].empty() &&
-           entrada.texturas[2].empty() && entrada.texturas[3].empty();
+    if (!entrada.malla.empty() || !entrada.script.empty())
+        return false;
+    for (const std::string& textura : entrada.texturas)
+        if (!textura.empty()) return false;
+    for (const std::string* cara : carasCubemap(entrada))
+        if (!cara->empty()) return false;
+    return true;
 }

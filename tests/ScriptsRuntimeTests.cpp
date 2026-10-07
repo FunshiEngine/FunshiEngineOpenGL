@@ -152,6 +152,19 @@ static void tocarFuente(const std::string& ruta) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
+// Fija o quita una variable de entorno de forma portable: POSIX usa setenv /
+// unsetenv y Windows _putenv_s. El valor nullptr borra la variable.
+static void fijarVariable(const char* nombre, const char* valor) {
+#if defined(_WIN32)
+    _putenv_s(nombre, valor ? valor : "");
+#else
+    if (valor)
+        setenv(nombre, valor, 1);
+    else
+        unsetenv(nombre);
+#endif
+}
+
 int main() {
     // El skip es por FAMILIA de toolchain, no por SO (H-14): con MSVC el
     // compilador necesita el entorno de Visual Studio (vcvars: INCLUDE, LIB,
@@ -319,7 +332,28 @@ int main() {
         }
     }
 
-    // 7. Limpieza.
+    // 7. Cabeceras del motor ausentes: el backend avisa con su propio mensaje
+    //    en vez de lanzar el compilador contra un -I a una ruta inexistente
+    //    (que solo daria el "No such file or directory" del toolchain).
+    {
+        const std::string fuenteSinCabeceras =
+            (dir / "SinCabeceras.cpp").string();
+        escribirFuente(fuenteSinCabeceras, fuenteScript("SinCabeceras"));
+        const std::string rutaMuerta = (dir / "no_existe").string();
+        fijarVariable("FUNSHI_SRC_DIR", rutaMuerta.c_str());
+        ComportamientoCargado sinCabeceras;
+        std::string errorCabeceras;
+        const bool okSin = ScriptRuntime::compilarYCargar(
+            fuenteSinCabeceras, "SinCabeceras", sinCabeceras, errorCabeceras);
+        fijarVariable("FUNSHI_SRC_DIR", nullptr);
+        CHECK(!okSin, "sin cabeceras del motor no se compila el script");
+        CHECK(!sinCabeceras.valido(), "no queda comportamiento cargado");
+        CHECK(errorCabeceras.find("cabeceras") != std::string::npos,
+              "el aviso es del motor (habla de las cabeceras), no del "
+              "compilador");
+    }
+
+    // 8. Limpieza.
     fs::remove_all(dir, ec);
 
     std::cout << "ScriptsRuntime: " << total << " verificaciones, " << fallos

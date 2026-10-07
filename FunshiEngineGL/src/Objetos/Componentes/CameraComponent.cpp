@@ -161,20 +161,63 @@ void CameraComponent::escribirATransform() {
     const float axisY[3] = {0.f, 1.f, 0.f};
     const float axisX[3] = {1.f, 0.f, 0.f};
 
-    glm::mat4 mat(1.0f);
-    mat = glm::translate(mat, glm::vec3(m_pos[0], m_pos[1], m_pos[2]));
-    // R = RY(-yawX) * RX(-yawY), misma convencion que la dir FPS:
-    // dir = (+sin yawX cos yawY, -sin yawY, -cos yawX cos yawY).
-    // yawX/yawY se conservan en grados; glm::rotate espera radianes.
-    mat = glm::rotate(mat, -yawX * kGradosARadianes,
-                      glm::vec3(axisY[0], axisY[1], axisY[2]));
-    mat = glm::rotate(mat, -yawY * kGradosARadianes,
-                      glm::vec3(axisX[0], axisX[1], axisX[2]));
-    mat = glm::scale(mat, glm::vec3(scale[0], scale[1], scale[2]));
+    // Construir matriz mundo: T(m_pos) * RY(-yawX) * RX(-yawY) * S(scaleLocal)
+    glm::mat4 matMundo(1.0f);
+    matMundo = glm::translate(matMundo, glm::vec3(m_pos[0], m_pos[1], m_pos[2]));
+    matMundo = glm::rotate(matMundo, -yawX * kGradosARadianes,
+                           glm::vec3(axisY[0], axisY[1], axisY[2]));
+    matMundo = glm::rotate(matMundo, -yawY * kGradosARadianes,
+                           glm::vec3(axisX[0], axisX[1], axisX[2]));
+    matMundo = glm::scale(matMundo, glm::vec3(scale[0], scale[1], scale[2]));
 
-    const float* ptr = glm::value_ptr(mat);
+    glm::mat4 matLocal = matMundo;
+    if (owner) {
+        Transform* parentGlobal = nullptr;
+        GameObject* parentObj = dynamic_cast<GameObject*>(owner->getParentEntity());
+        if (parentObj) {
+            parentGlobal = parentObj->getGlobalTransform();
+        } else {
+            Entity* pe = owner->getParentEntity();
+            if (pe && pe->getOriginTransform()) {
+                parentGlobal = pe->getOriginTransform();
+            }
+        }
+        if (parentGlobal) {
+            float parentMatArr[16];
+            buildMatrixFromTransform(parentGlobal, parentMatArr);
+            bool parentFinito = true;
+            for (int i = 0; i < 16; ++i) {
+                if (!std::isfinite(parentMatArr[i])) { parentFinito = false; break; }
+            }
+            if (parentFinito) {
+                glm::mat4 mParent = glm::make_mat4(parentMatArr);
+                // Skip compensation if parent is effectively identity
+                bool isIdentity = true;
+                for (int i = 0; i < 4 && isIdentity; ++i) {
+                    for (int j = 0; j < 4 && isIdentity; ++j) {
+                        float v = parentMatArr[i*4+j];
+                        float expect = (i==j) ? 1.0f : 0.0f;
+                        if (std::fabs(v - expect) > 1e-5f) isIdentity = false;
+                    }
+                }
+                if (!isIdentity) {
+                    glm::mat4 invParent = glm::inverse(mParent);
+                    const float* invp = glm::value_ptr(invParent);
+                    bool invFinito = true;
+                    for (int i = 0; i < 16; ++i) {
+                        if (!std::isfinite(invp[i])) { invFinito = false; break; }
+                    }
+                    if (invFinito) {
+                        matLocal = invParent * matMundo;
+                    }
+                }
+            }
+        }
+    }
+
     float arr[16];
-    std::memcpy(arr, ptr, sizeof(float) * 16);
+    const float* ptrLocal = glm::value_ptr(matLocal);
+    std::memcpy(arr, ptrLocal, sizeof(float) * 16);
     decomposeMatrixToTransform(arr, transform);
 }
 

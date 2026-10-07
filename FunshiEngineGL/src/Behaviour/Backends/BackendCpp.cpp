@@ -46,6 +46,8 @@
 
 #include "BackendCpp.h"
 #include "ComandoCompilacionCpp.h"
+#include "RutaCabecerasScript.h"
+#include "../../Configuracion/ProjectPaths.h"
 #include "../../FileManager/Proceso.h"
 
 #include <cstdio>
@@ -70,27 +72,53 @@
 namespace {
 const char* nombreFabrica() { return FUNSHI_SYM_CREAR; }
 
-// Ruta del compilador a invocar: FUNSHI_CXX si esta definida, si no la
-// horneada por CMake en el build. El valor puede quedar con comillas externas
-// en algunos generadores (Ninja/MinGW): se normalizan aca y el comando las
-// repone explicitamente, porque una ruta sin comillas se parte en el primer
-// espacio (cmd.exe intenta ejecutar "C:/Program" y no lo reconoce).
+// Ruta del compilador a invocar, en este orden:
+//   1. FUNSHI_CXX del entorno: override explicito del usuario, gana siempre.
+//   2. La horneada por CMake, SOLO si existe en disco. Sin esta comprobacion el
+//      paquete publicado invoca el compilador del runner que lo compilo
+//      (C:\Program Files\Microsoft Visual Studio\...\cl.exe), una ruta que en
+//      el equipo del usuario no existe: el fallo era un "no se encuentra" con
+//      una ruta de otra maquina, sin pista de cual era el problema.
+//   3. "cl" a secas si esta el toolset de MSVC en la maquina. Con el entorno de
+//      vcvars en el PATH (ver mas abajo) el nombre sin ruta basta, y asi el
+//      motor no queda atado a la version instalada.
+//   4. "g++" como nombre standard: lo resuelve el PATH, que es lo unico que se
+//      puede afirmar sin conocer la maquina.
+// El valor puede quedar con comillas externas en algunos generadores
+// (Ninja/MinGW): se normalizan aca y el comando las repone explicitamente,
+// porque una ruta sin comillas se parte en el primer espacio (cmd.exe intenta
+// ejecutar "C:/Program" y no lo reconoce).
 std::string compilador() {
     const char* env = std::getenv("FUNSHI_CXX");
-    std::string c = (env && *env) ? env : FUNSHI_CXX_COMPILER;
-    if (c.size() >= 2 && c.front() == '"' && c.back() == '"')
-        c = c.substr(1, c.size() - 2);
-    return c;
+    const std::string overrideEntorno = (env && *env) ? env : std::string();
+    if (!overrideEntorno.empty()) {
+        std::error_code ec;
+        if (!std::filesystem::exists(overrideEntorno, ec))
+            std::cerr << "[scripts] FUNSHI_CXX apunta a '" << overrideEntorno
+                      << "', que no existe en este equipo; se usara tal cual "
+                         "y la compilacion fallara\n";
+    }
+    return CompilacionCpp::elegirCompilador(
+        overrideEntorno, FUNSHI_CXX_COMPILER,
+        !CompilacionCpp::vcvars64EnRaices(
+             CompilacionCpp::raicesVisualStudio()).empty());
 }
 
 // Directorio con las cabeceras del motor para que el script pueda incluir
-// ScriptGameObject.h. Prioridad: variable de entorno FUNSHI_SRC_DIR; si no,
-// la ruta horneada en el build (el repo en un build dev, o la carpeta de
-// instalacion en un build de CI/instalador). Vacia si no hay cabeceras.
+// ScriptGameObject.h. Prioridad: variable de entorno FUNSHI_SRC_DIR; si no, el
+// valor horneado en el build. El valor puede ser absoluto (checkout de
+// desarrollo o tests) o un nombre relativo a la carpeta del ejecutable (paquete
+// instalado, donde vale "include"). Vacio si no hay cabeceras utilizables, para
+// que el backend avise en vez de pasar un -I a una ruta inexistente.
 std::string directorioSrcMotor() {
     const char* env = std::getenv("FUNSHI_SRC_DIR");
-    if (env && *env) return env;
-    return FUNSHI_SRC_DIR;
+    const std::string configurado = (env && *env) ? env : FUNSHI_SRC_DIR;
+    const auto existe = [](const std::string& ruta) {
+        std::error_code ec;
+        return std::filesystem::exists(ruta, ec);
+    };
+    return RutaCabecerasScript::resolver(
+        configurado, ProjectPaths::directorioEjecutable(), existe);
 }
 
 std::string directorioCache() {
@@ -199,14 +227,36 @@ bool BackendCpp::compilarYCargar(const std::string& fuente,
         datos.compilador = compilador();
         datos.nombreClase = nombreClase;
         datos.fuente = fuente;
+        // Sin cabeceras del motor el script no puede incluir IScriptBehaviour.h.
+        // Se avisa antes de invocar al compilador: un -I a una ruta inexistente
+        // solo produce el "No such file or directory" del toolchain, que no
+        // explica al usuario que falta el paquete de cabeceras.
         datos.dirSrc = directorioSrcMotor();
+        if (datos.dirSrc.empty()) {
+            error =
+                "No se encontraron las cabeceras del motor para compilar el "
+                "script C++ (se esperaba la carpeta 'include' junto al "
+                "ejecutable, o la ruta de la variable FUNSHI_SRC_DIR).";
+            return false;
+        }
         datos.dirObjetos = directorioCache();
         datos.artefacto = artefactoPath;
         const std::vector<std::string> argv =
             CompilacionCpp::argumentosCompilacion(datos);
 
         int rc = -1;
-        const std::string vcvars = CompilacionCpp::vcvars64Ruta(compilador());
+        // Entorno de MSVC: primero el que se deduce de la ruta del compilador
+        // ya resuelto (build de desarrollo, donde la ruta es de esta maquina) y,
+        // si no hay ninguno, el que tenga instalado el usuario. Sin este segundo
+        // paso el paquete publicado no podia compilar un script C++ ni en un
+        // equipo con Visual Studio al lado, porque la ruta horneada no existe
+        // ahi. Se reutiliza datos.compilador y no se vuelve a resolver: la
+        // eleccion se hace una vez para que flags y binario no puedan
+        // discrepar.
+        std::string vcvars = CompilacionCpp::vcvars64Ruta(datos.compilador);
+        if (vcvars.empty())
+            vcvars = CompilacionCpp::vcvars64EnRaices(
+                CompilacionCpp::raicesVisualStudio());
 #if defined(_WIN32)
         if (!vcvars.empty()) {
             // MSVC: cl.exe necesita el entorno del toolset (INCLUDE/LIB/

@@ -54,7 +54,7 @@ private:
 	// Use unique_ptr for owned resources
 	// menuGUI es la fachada del paquete MenuGUI (GUI de inicio del motor):
 	// GUIManager y main solo conversan con ella, no con las clases internas.
-	// fileManager es la fachada del explorador de archivos (R1): posee el
+	// fileManager es la fachada del explorador de archivos: posee el
 	// modelo y la seleccion compartida que ambos paneles leen cada frame.
 	std::unique_ptr<FileManager> fileManager;
 	std::unique_ptr<MenuGUI> menuGUI;
@@ -105,6 +105,7 @@ public:
 	SceneSelectedInterface* getSelecteableGUI();
 	ContentFolderInterface* getContentFolderGUI();
 	DockSpaceInterface* getDockSpaceGUI();
+	IconosGUI* getIconosGUI() noexcept { return iconosGUI.get(); }
 	StatusBarInterface* getStatusBarGUI();
 
 	// Acceso a las ventanas del sistema de audio + creador de interfaces.

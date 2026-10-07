@@ -22,6 +22,7 @@
 enum class ApplicationState {
     MainMenu,
     Editing,
+    Debugging,
     Playing,
     Exiting
 };

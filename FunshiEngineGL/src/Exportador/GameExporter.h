@@ -35,6 +35,8 @@ public:
 
     struct Config {
         std::string proyectoOrigen;       // ruta al proyecto en MotorGrafico/Proyects/
+        std::string nombreProyecto;       // nombre de la carpeta del proyecto; si
+                                          // viene vacio se deduce de proyectoOrigen
         std::string nombreEjecutable;     // nombre del .exe / binario (sin extensión)
         std::string nombreProyectoExportado; // nombre de la carpeta de exportación
         Plataforma plataforma = Plataforma::Linux;

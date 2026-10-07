@@ -85,7 +85,11 @@ if exist "%ISCC_PATH%" set "ISCC=%ISCC_PATH%"
 if not defined ISCC if exist "C:\Program Files\Inno Setup 6\ISCC.exe" set "ISCC=C:\Program Files\Inno Setup 6\ISCC.exe"
 if defined ISCC (
     echo [OK] Compilando instalador con Inno Setup...
-    "%ISCC%" /O"%PKG_DIR%instalador" "%PKG_DIR%FunshiEngineGL_setup.iss"
+    REM Sin /O a proposito: el destino lo decide el propio .iss (OutputDir,
+    REM relativo a SourceDir). Con /O el compilador lo sobreescribia y el
+    REM instalador acababa en packaging\instalador\, distinto de donde lo publica
+    REM la CI (packaging\dist\instalador\) y de donde lo anuncia este script.
+    "%ISCC%" "%PKG_DIR%FunshiEngineGL_setup.iss"
 ) else (
     echo [AVISO] Inno Setup no esta instalado: no se genero el instalador.
     echo          Descargalo de https://jrsoftware.org/isinfo.php y reintenta,
@@ -96,6 +100,6 @@ echo.
 echo ===========================================================================
 echo  Listo! Revisa:
 echo   - packaging\dist\            (contenido que se instalara)
-echo   - packaging\instalador\      (setup.exe o aviso de Inno Setup)
+echo   - packaging\dist\instalador\  (setup.exe o aviso de Inno Setup)
 echo ===========================================================================
 endlocal

@@ -24,6 +24,7 @@
 
 class GameObject;
 class SettingsComponent;
+class Component;
 class EditorController;
 class AudioEngine;
 class EventBus;
@@ -36,9 +37,16 @@ private:
 	AudioEngine* audioMotor = nullptr;
 	EventBus* events = nullptr;
 	size_t eventSubscription = 0;
+	bool mostrarVisualesDepuracion_ = true;
+	// Cuenta los cambios estructurales (alta/baja de componente) que
+	// reconciliaron la lista de paneles. La carga inicial no cuenta.
+	size_t reconciliaciones = 0;
+	// Paneles Settings* creados en total (monotono). Reutilizar un panel no
+	// crea ninguno; reconstruir de cero si. Sirve para distinguir ambos casos.
+	size_t creacionesSettings = 0;
 
-	// Para evitar reentrencia durante iteracion: si ComponentChanged llega
-	// mientras iteramos en contentGUI, no recargamos ya; lo hace el caller.
+	// Para evitar reentrencia durante iteracion: si ComponentStructureChanged
+	// llega mientras iteramos en contentGUI, no reconciliamos ya; lo hace el caller.
 	bool iterandoComponentes = false;
 
 	// Borrado diferido: el componente a eliminar se encola y se borra
@@ -46,12 +54,21 @@ private:
 	SettingsComponent* componenteABorrar = nullptr;
 
 	void desvincular();
+	// Reconciliacion ante un cambio estructural: reutiliza los Settings cuyo
+	// componente sigue vigente, borra los huerfanos y crea los que faltan.
+	void reconciliarComponentes();
+	void purgarSettingsHuerfanos();
+	void crearSettingsFaltantes();
+	bool tieneSettingsPara(Component* componente);
 
 public:
 	SettingsObjectInterface(GameObject* object, bool stateGUI);
 	~SettingsObjectInterface();
 
 	void setEditor(EditorController* editor);
+	void setMostrarVisualesDepuracion(bool mostrar) noexcept {
+		mostrarVisualesDepuracion_ = mostrar;
+	}
 	// El motor de audio se inyecta desde la escena para que los inspectores de
 	// AudioSource puedan probar la reproduccion. Puede ser nullptr.
 	void setAudioEngine(AudioEngine* motor) { audioMotor = motor; }
@@ -59,6 +76,15 @@ public:
 	// cuando el objeto inspeccionado se borra o se limpia la escena.
 	void setEventBus(EventBus* bus);
 	void loadComponents();
+
+	// Numero de reconciliaciones disparadas por cambios estructurales (alta o
+	// baja de componente). La carga inicial y el cambio de objeto no cuentan.
+	size_t reconstruccionesSettings() const { return reconciliaciones; }
+	// Total de paneles creados (monotono). Si sube ante un cambio, hubo
+	// recreacion; si no, los paneles vigentes se reutilizaron.
+	size_t settingsCreados() const { return creacionesSettings; }
+	// Settings en la posicion indicada (0..n-1), o nullptr si esta fuera.
+	SettingsComponent* settingsEnIndice(size_t indice);
 
 	// Cambia el objeto inspeccionado sin recrear la ventana: limpia y recarga
 	// solo el contenido (mismo patron que ContentFolderInterface).

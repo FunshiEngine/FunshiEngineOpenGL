@@ -19,6 +19,7 @@
 #ifndef PATHUTILS_H
 #define PATHUTILS_H
 
+#include <cctype>
 #include <string>
 
 // Separador de rutas dependiente de la plataforma, compartido por los
@@ -52,10 +53,32 @@ inline bool esSeparadorPath(char c) {
 #endif
 }
 
-// Dos bytes de ruta equivalen: iguales, o los dos separadores (en Windows).
+// Dos bytes de ruta equivalen: iguales, los dos separadores (en Windows) o los
+// mismos caracteres sin distinguir el caso (solo en Windows, donde el sistema de
+// archivos no distingue "Assets" de "assets"). Con esa equivalencia, mover o
+// renombrar reescribe la referencia de la escena tambien cuando la ruta guardada
+// trae otra capitalizacion; en Linux "X" y "x" son dos archivos distintos y el
+// cotejo se queda sensible al caso.
 inline bool bytesRutaEquivalentes(char a, char b) {
     if (a == b) return true;
+#ifdef _WIN32
+    if (std::tolower(static_cast<unsigned char>(a)) ==
+        std::tolower(static_cast<unsigned char>(b)))
+        return true;
+#endif
     return esSeparadorPath(a) && esSeparadorPath(b);
+}
+
+// Indice del ULTIMO separador de la ruta, o std::string::npos si no tiene
+// ninguno: sirve para partir "carpeta/archivo" en sus dos partes sin inventarse
+// un directorio. Al revisar los bytes con esSeparadorPath, la barra invertida
+// solo cuenta donde el sistema de archivos la trata como separador; en Linux es
+// un caracter mas del nombre ("con\barra.txt" es un archivo de una carpeta, no
+// una ruta anidada).
+inline std::string::size_type indiceSeparadorFinal(const std::string& ruta) {
+    for (std::string::size_type i = ruta.size(); i-- > 0;)
+        if (esSeparadorPath(ruta[i])) return i;
+    return std::string::npos;
 }
 
 // Dice si `ruta` cae exactamente bajo `prefijo` (igual o seguida de un

@@ -72,7 +72,7 @@ class AssetManager;
         const Apariencia* apariencia = nullptr;
         ::AssetManager* assetManager = nullptr;
         float deltaTime = 0.0f;
-        bool editorActivo = false;
+        bool mostrarVisualesDepuracion = true;
         GameObject* selectedObject = nullptr;
         // Luces ya recogidas (LightSystem::collectLights) con el modelo global.
         const LightData* lights = nullptr;

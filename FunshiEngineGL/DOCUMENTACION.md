@@ -121,9 +121,11 @@ barra superior del editor, y se persiste por proyecto.
   (`gizmoGlobal`) se guardan por proyecto (seccion `editor` de
   ConfiguracionProyecto.json).
 - **Apariencia** (`apariencia` de Configuracion.json, general): tema claro/oscuro
-  (oscuro por defecto), modo blanco y negro, color de acento (RGB) y color de
-  fondo de la escena. El tema alcanza toda la paleta de ImGui (`TemaEditor`) y
-  el fondo y el color efectivo de la grilla (`AparienciaUtil`).
+  (oscuro por defecto), modo blanco y negro, color de acento (RGB) y los colores
+  del cielo, que son dos: `fondoSuperior` (cenit) y `fondoInferior` (suelo), con
+  `radioDifuminado` como media anchura de la transicion alrededor del horizonte.
+  El tema alcanza toda la paleta de ImGui (`TemaEditor`) y el fondo y el color
+  efectivo de la grilla (`AparienciaUtil`).
 
 ## 4b. Grilla, ejes y guia de eje (viewport del editor)
 
@@ -160,9 +162,13 @@ barra superior del editor, y se persiste por proyecto.
   alcanzar el minimo de 0.35 de diferencia de luminancia.
 
 - **Cielo degradado**: se dibuja como primera pasada (antes que la grilla y los
-  objetos) mediante un fullscreen triangle y un shader que interpola
-  verticalmente entre `fondoSuperior` (top del viewport) y `fondoInferior`
-  (bottom). Los colores se resuelven con `Cielo::coloresEfectivos`, que aplica
+  objetos) mediante un fullscreen triangle y un shader que interpola entre
+  `fondoSuperior` (cenit) y `fondoInferior` (suelo) segun la **direccion de
+  vista**, no segun la posicion del pixel: el fragment shader des-proyecta el NDC
+  al plano lejano, resta la camara y normaliza, de modo que el cielo va con la
+  camara (al mirar hacia arriba, el color superior ocupa mas pantalla aunque el
+  pixel este en la parte baja). Los colores se resuelven con
+  `Cielo::coloresEfectivos`, que aplica
   la logica B/N (ambos blanco/negro segun tema) y modo normal (respeta los
   colores elegidos). El pase usa depth test ON + depth mask OFF para que el
   cielo quede "detras" de toda la geometria sin escribir profundidad. El
