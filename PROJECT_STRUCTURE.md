@@ -279,6 +279,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── GameObject.h/.cpp         ← id, nombre, tag, estado, update y serialización binaria
         │   ├── TagRegistry.h             ← registro dinámico de tags para el Inspector
         │   ├── GameObjectFactory.h/.cpp
+        │   ├── ClonadorObjetos.h/.cpp   ← copia profunda por roundtrip de serializacion (scripts + Ctrl+C/V)
         │   ├── SimpleObject.h            ← GameObject sin geometría (Transform/Grid/Light...)
         │   ├── Modelos3D.h/.cpp          ← carga Assimp y datos de la malla (el dibujado
         │   │                                es de SceneRenderer, vía MeshRenderer)
@@ -296,7 +297,7 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── Color.h / Model.h / Script.h ← varios scripts por objeto,
         │       │                                    nombre editable y metadatos reflejados
         │       │                                    serializados para el inspector
-        │       ├── RigidBody/RigidBody.h/.cpp ← cuerpo Bullet sincronizado, habilitable, con detección de apoyo (RAII)
+        │       ├── RigidBody/RigidBody.h/.cpp ← cuerpo Bullet sincronizado, habilitable, con detección de apoyo (RAII); masa, gravedad por cuerpo (uso+escala), friccion y freeze por ejes via setGravity/setFriction/setLinearFactor/setAngularFactor, serial v2 con lectura v1
         │       └── Colliders/
         │           ├── Collider.h/.cpp   ← base abstracta; radio; visibilidad persistente y gizmo
         │           │                        con wireframe por el batch de líneas
@@ -312,6 +313,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── GestorComandos.h/.cpp   ← pilas undo/redo (máx 50), ejecuta/deshace/rehace
         │   ├── CrearObjetoComando.h/.cpp
         │   ├── BorrarObjetoComando.h/.cpp
+        │   ├── DuplicarObjetoComando.h/.cpp ← Ctrl+C/V por la puerta del editor
         │   ├── ReparentarComando.h/.cpp
         │   ├── TransformComando.h/.cpp
         │   ├── AgregarComponenteComando.h/.cpp
@@ -442,10 +444,25 @@ solo como orquestador de arranque y bucle.
 - `EditorController` posee un `GestorComandos` que envuelve cada mutación
   (crear/borrar/reparentar, cambios de transform, agregar/quitar componentes,
   limpiar escena) en un `IComando`. Las operaciones de la GUI van por el
-  gestor, nunca directamente al `SceneRegistry`, de modo que Ctrl+Z/Ctrl+Y
-  funcionan de forma transversal. La pila mantiene un máximo de 50 comandos;
-  cada nueva acción invalida la pila de redo. La raíz de la escena (id=0)
-  está excluida de delete/clear por diseño.
+   gestor, nunca directamente al `SceneRegistry`, de modo que Ctrl+Z/Ctrl+Y
+   funcionan de forma transversal. La pila mantiene un máximo de 50 comandos;
+   cada nueva acción invalida la pila de redo. La raíz de la escena (id=0)
+   está excluida de delete/clear por diseño.
+- Equivalencia GUI ↔ CLI (contrato): toda operación de la GUI de edición debe
+  pasar por un `IComando` con parámetros explícitos (los que ya existen:
+  crear/borrar/reparentar, transform, agregar/quitar componentes, limpiar
+  escena), de modo que cada acción del editor tenga un equivalente invocable
+  sin GUI. Esto habilita un editor por línea de comandos que manipula la
+  creación del videojuego con los mismos comandos, sin interactuar con la
+  GUI. Regla: ninguna mutación de escena desde la GUI salta el gestor; un
+  comando nuevo se agrega con su clase en `Comandos/` y su caso en
+  `tests/ComandosTests.cpp`.
+- Settings manipulables por código: los datos públicos que muestran los
+  paneles de componentes (`Settings*`) deben tener su contraparte escribible
+  por código: setters del componente y/o entradas en las tablas de scripts
+  (`ApiScriptGameObject`/`ScriptServices`, append-only). Así lo que se ajusta
+  con sliders/checkboxes en el inspector también se genera y manipula desde
+  scripts, y la creación de objetos por código no depende de la GUI.
 
 ### Entidades, objetos y componentes
 
@@ -637,9 +654,14 @@ solo como orquestador de arranque y bucle.
   iniciados por scripts y luego desconecta el contexto, sin afectar la propiedad
   de audio de los componentes. `InputScripts` expone los edges del teclado y el
   delta del mouse en pixeles durante el frame actual.
-- `BehaviourReflection` implementa la reflexión por macros (`REFLECT_INICIO`,
+-   `BehaviourReflection` implementa la reflexión por macros (`REFLECT_INICIO`,
   `CAMPO`, `ARRAY`, `GRUPO`, `GRUPOS`, `FIN`), la conversión de valores tipados y la
   serialización binaria autodescriptiva de los campos.
+- La API cubre propiedades fisicas (masa, gravedad por cuerpo, friccion,
+  freeze), gravedad global y gestion de objetos (crear/clonar/destruir,
+  agregar collider y cuerpo) con cola diferida a fin de frame; `ClonadorObjetos`
+  (copia profunda por roundtrip de serializacion) lo comparten los scripts y
+  el Ctrl+C/V del editor (`EditorController::duplicarObjeto`).
 - `BackendCpp` compila el `.cpp` a `.so`/`.dll` con el compilador configurado y lo
   carga con `dlopen`/`LoadLibrary`; `BackendJava` (opcional, `-DFUNSHI_JAVA=ON`)
   compila con `javac` y ejecuta sobre un JVM cargado dinámicamente vía JNI.
@@ -1082,11 +1104,13 @@ GameScene → coordina todos los subsistemas del frame
   los roles de primer plano (el alpha del perfil no participa del tema), que
   aplicar el mismo perfil dos veces sea idempotente y que el modo blanco y negro
   deje la paleta monocroma.
-- `tests/ComandosTests.cpp`: los 7 comandos del editor (`CrearObjetoComando`,
+- `tests/ComandosTests.cpp`: los 8 comandos del editor (`CrearObjetoComando`,
   `BorrarObjetoComando`, `ReparentarComando`, `TransformComando`,
-  `AgregarComponenteComando`, `QuitarComponenteComando`, `LimpiarEscenaComando`)
-  con deshacer/rehacer, la cadena de redo múltiple, el límite del historial y la
-  descripción que el historial devuelve para avisar en la barra de estado.
+  `AgregarComponenteComando`, `QuitarComponenteComando`, `LimpiarEscenaComando`,
+  `DuplicarObjetoComando`)
+  con deshacer/rehacer, la cadena de redo múltiple, el límite del historial, la
+  descripción que el historial devuelve para avisar en la barra de estado y el
+  registro de cuerpos en fisica al borrar/duplicar/agregar/quitar.
 - Los veinte targets compilan en cualquier plataforma y se ejecutan con `ctest`.
 - `.github/workflows/ci.yml` compila el engine completo en Ubuntu (Release, sin
   ASan) y ejecuta las pruebas; además ejecuta las headless en

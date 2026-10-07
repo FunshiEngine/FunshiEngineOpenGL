@@ -36,7 +36,7 @@ namespace MotorScript {
 // versionar la tabla; no promete compatibilidad binaria entre versiones del
 // motor. Incrementar esta version cuando cambie el contrato/API/runtime: el
 // cache la incorpora y recompila los scripts con el motor actualizado.
-constexpr int versionRuntimeScript = 8;
+constexpr int versionRuntimeScript = 9;
 struct ApiScriptGameObject {
     // --- v1 (original) ---
     const char* (*nombre)(const void* objeto);
@@ -73,6 +73,26 @@ struct ApiScriptGameObject {
     bool (*tieneEtiqueta)(const void* objeto, const char* etiqueta);
     void* (*objetoDeCollider)(const void* collider);
 
+    // --- v5: propiedades fisicas del RigidBody (si no hay cuerpo, los
+    // getters devuelven 0/false y los setters devuelven false) ---
+    // Masa (0 = estatico).
+    float (*masa)(const void* objeto);
+    bool (*fijarMasa)(void* objeto, float masa);
+    // Gravedad por cuerpo: sin ella el cuerpo no cae; la escala multiplica
+    // la gravedad global del mundo (1 = igual, 0 = flota).
+    bool (*usaGravedad)(const void* objeto);
+    bool (*fijarUsoGravedad)(void* objeto, bool usar);
+    float (*escalaGravedad)(const void* objeto);
+    bool (*fijarEscalaGravedad)(void* objeto, float escala);
+    // Friccion de contacto (0 = desliza).
+    float (*friccion)(const void* objeto);
+    bool (*fijarFriccion)(void* objeto, float friccion);
+    // Freeze por ejes (eje: 0 = X, 1 = Y, 2 = Z).
+    bool (*posicionCongelada)(const void* objeto, int eje);
+    bool (*fijarFreezePosicion)(void* objeto, bool x, bool y, bool z);
+    bool (*rotacionCongelada)(const void* objeto, int eje);
+    bool (*fijarFreezeRotacion)(void* objeto, bool x, bool y, bool z);
+
     // Version de la tabla (siempre al final).
     int version;
 };
@@ -89,6 +109,8 @@ const ApiScriptGameObject* tablaApi();
 class AudioEngine;
 class SceneRegistry;
 class InputScripts;
+class PhysicsEngine;
+class EditorController;
 
 namespace MotorScript {
 
@@ -130,6 +152,30 @@ struct ScriptServices {
     float (*deltaMouseX)();
     float (*deltaMouseY)();
 
+    // --- v4: gravedad global y gestion de objetos ---
+    // Gravedad del mundo fisico (la que escalan los cuerpos que la usan).
+    void (*fijarGravedadGlobal)(float x, float y, float z);
+    float (*gravedadGlobalX)();
+    float (*gravedadGlobalY)();
+    float (*gravedadGlobalZ)();
+    // Crea un objeto vacio con ese nombre (o uno por defecto si es nulo/vacio)
+    // como hijo de `padre` (raiz si es nulo). Devuelve el puntero de inmediato
+    // para configurarlo, pero entra a la escena al final del frame: el
+    // puntero es valido mientras el objeto viva. La fisica del frame en curso
+    // no lo ve; la del siguiente, si.
+    void* (*crearObjeto)(const char* nombre, void* padre);
+    // Marca para borrar al final del frame (seguro incluso sobre si mismo).
+    bool (*destruirObjeto)(void* objeto);
+    // Copia profunda (componentes incluidos) como hija de `padre` (raiz si es
+    // nulo). Misma validez diferida que crearObjeto. Los scripts copiados
+    // compilan a demanda en su primera actualizacion.
+    void* (*clonarObjeto)(const void* original, void* padre);
+    // Agrega collider (falla si ya tiene uno) y cuerpo (falla si no hay
+    // collider o ya tiene cuerpo). Entran en vigor al final del frame.
+    bool (*agregarColliderEsfera)(void* objeto, float radio);
+    bool (*agregarColliderCubo)(void* objeto, float radio);
+    bool (*agregarRigidBody)(void* objeto, float masa);
+
     // Version de la tabla (siempre al final).
     int version;
 };
@@ -140,9 +186,17 @@ const ScriptServices* tablaServicios();
 // Cablea el contexto real de la escena. GameScene la llama al entrar en
 // simulacion y, despues de onStop, con todos los punteros nulos para
 // desconectar; al desconectar tambien se detienen los handles de audio creados
-// por scripts. ScriptGameObject no depende de las cabeceras de Audio/Scenes/Input.
+// por scripts y se descartan las peticiones de objetos sin aplicar.
+// ScriptGameObject no depende de las cabeceras de Audio/Scenes/Input.
 void inyectarServiciosScript(AudioEngine* audio, SceneRegistry* escena,
-                             InputScripts* input);
+                             InputScripts* input,
+                             PhysicsEngine* fisica = nullptr,
+                             EditorController* editor = nullptr);
+
+// Aplica las peticiones de crear/clonar/destruir/agregar acumuladas por los
+// scripts durante el frame. La llama GameScene al terminar de actualizar los
+// objetos (mutar la escena a mitad del recorrido invalidaria el iterador).
+void procesarPeticionesObjetos();
 
 } // namespace MotorScript
 

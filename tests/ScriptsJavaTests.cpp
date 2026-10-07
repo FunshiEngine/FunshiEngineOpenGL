@@ -58,6 +58,15 @@ float escala[3] = {1.5f, 2.5f, 3.5f};
 float rotacion[4] = {0.25f, 0.0f, 1.0f, 0.0f};
 int handleSonidoDetenido = -1;
 std::string textoImpreso;
+float masaCuerpo = 2.0f;
+bool usaGrav = true;
+float escalaGrav = 1.0f;
+float friccionCuerpo = 0.5f;
+bool freezeP[3] = {false, false, false};
+bool freezeR[3] = {false, false, false};
+float gravMundo[3] = {0.0f, -1.0f, 0.0f};
+void* objetoCreado = reinterpret_cast<void*>(static_cast<intptr_t>(0x4000));
+void* objetoClonado = reinterpret_cast<void*>(static_cast<intptr_t>(0x5000));
 }
 
 const ApiScriptGameObject* tablaApi() {
@@ -113,13 +122,51 @@ const ApiScriptGameObject* tablaApi() {
         },
         [](const void* collider) {
             return collider ==
-                           reinterpret_cast<void*>(
-                               static_cast<intptr_t>(0xBEEF))
-                       ? reinterpret_cast<void*>(
-                             static_cast<intptr_t>(0x1234))
-                       : nullptr;
+                            reinterpret_cast<void*>(
+                                static_cast<intptr_t>(0xBEEF))
+                        ? reinterpret_cast<void*>(
+                              static_cast<intptr_t>(0x1234))
+                        : nullptr;
         },
-        4,
+        [](const void*) { return masaCuerpo; },
+        [](void*, float m) {
+            masaCuerpo = m;
+            return true;
+        },
+        [](const void*) { return usaGrav; },
+        [](void*, bool u) {
+            usaGrav = u;
+            return true;
+        },
+        [](const void*) { return escalaGrav; },
+        [](void*, float e) {
+            escalaGrav = e;
+            return true;
+        },
+        [](const void*) { return friccionCuerpo; },
+        [](void*, float f) {
+            friccionCuerpo = f;
+            return true;
+        },
+        [](const void*, int eje) {
+            return eje >= 0 && eje < 3 && freezeP[eje];
+        },
+        [](void*, bool x, bool y, bool z) {
+            freezeP[0] = x;
+            freezeP[1] = y;
+            freezeP[2] = z;
+            return true;
+        },
+        [](const void*, int eje) {
+            return eje >= 0 && eje < 3 && freezeR[eje];
+        },
+        [](void*, bool x, bool y, bool z) {
+            freezeR[0] = x;
+            freezeR[1] = y;
+            freezeR[2] = z;
+            return true;
+        },
+        5,
     };
     return &tabla;
 }
@@ -153,7 +200,21 @@ const ScriptServices* tablaServicios() {
         [](const char* tecla) { return tecla && std::string(tecla) == "D0"; },
         []() { return 12.5f; },
         []() { return -4.0f; },
-        3,
+        [](float x, float y, float z) {
+            gravMundo[0] = x;
+            gravMundo[1] = y;
+            gravMundo[2] = z;
+        },
+        []() { return gravMundo[0]; },
+        []() { return gravMundo[1]; },
+        []() { return gravMundo[2]; },
+        [](const char*, void*) { return objetoCreado; },
+        [](void* o) { return o == objetoCreado || o == objetoClonado; },
+        [](const void*, void*) { return objetoClonado; },
+        [](void*, float) { return true; },
+        [](void*, float) { return true; },
+        [](void*, float) { return true; },
+        4,
     };
     return &servicios;
 }
@@ -178,6 +239,9 @@ static const char* FUENTE_JAVA =
     "    public long camara;\n"
     "    public boolean porIdOk, porTagOk;\n"
     "    public float mouseX, mouseY;\n"
+    "    public float masaLeida, escalaGravLeida, friccionLeida, gravLeidaY;\n"
+    "    public boolean masaOk, gravOk, friccionOk, freezeOk;\n"
+    "    public boolean crearOk, destruirOk, clonarOk, agregarOk;\n"
     "    @Override public void iniciar(long o) {\n"
     "        vidas = 100;\n"
     "        nombreObjeto = Nativo.nombre(o);\n"
@@ -203,6 +267,16 @@ static const char* FUENTE_JAVA =
     "        camara = Nativo.objetoPorNombre(\"Meta\");\n"
     "        porIdOk = Nativo.objetoPorId(7) == meta;\n"
     "        porTagOk = Nativo.objetoPorEtiqueta(\"suelo\") == meta;\n"
+    "        masaLeida = Nativo.masa(o); masaOk = Nativo.fijarMasa(o, 3.0f);\n"
+    "        gravOk = Nativo.usaGravedad(o) && Nativo.fijarUsoGravedad(o, true);\n"
+    "        escalaGravLeida = Nativo.escalaGravedad(o); Nativo.fijarEscalaGravedad(o, 2.0f);\n"
+    "        friccionLeida = Nativo.friccion(o); friccionOk = Nativo.fijarFriccion(o, 0.1f);\n"
+    "        freezeOk = Nativo.fijarFreezePosicion(o, true, false, true) && Nativo.posicionCongelada(o, 0) && !Nativo.posicionCongelada(o, 1) && Nativo.fijarFreezeRotacion(o, false, true, false) && Nativo.rotacionCongelada(o, 1);\n"
+    "        Nativo.fijarGravedadGlobal(0, -2, 0); gravLeidaY = Nativo.gravedadGlobalY();\n"
+    "        long nuevo = Nativo.crearObjeto(\"Enemigo\", 0); crearOk = nuevo != 0;\n"
+    "        destruirOk = Nativo.destruirObjeto(nuevo);\n"
+    "        clonarOk = Nativo.clonarObjeto(o, 0) != 0;\n"
+    "        agregarOk = Nativo.agregarColliderEsfera(o, 1.0f) && Nativo.agregarColliderCubo(o, 1.0f) && Nativo.agregarRigidBody(o, 1.0f);\n"
     "        Nativo.detenerSonido(sonido);\n"
     "    }\n"
     "    @Override public void actualizar(long o, double dt) {\n"
@@ -269,7 +343,7 @@ int main() {
 
     CHECK(comportamiento.valido(), "objeto Java creado");
     CHECK(comportamiento.lenguaje == "java", "lenguaje = java");
-    CHECK(comportamiento.campos.size() == 35,
+    CHECK(comportamiento.campos.size() == 47,
           "campos publicos Java soportados reflejados (con long como objeto)");
 
     // Inyectar SerializeField y verificar por lectura.
@@ -369,6 +443,41 @@ int main() {
           "un long Java guarda el handle y se lee como nombre del objeto");
     CHECK(porId && porId->como<bool>() && porTag && porTag->como<bool>(),
           "Java resuelve objetos por id y por etiqueta");
+    const ValorCampo* masaLeida = buscar(valores, "masaLeida");
+    const ValorCampo* masaOk = buscar(valores, "masaOk");
+    const ValorCampo* gravOk = buscar(valores, "gravOk");
+    const ValorCampo* escalaGravLeida = buscar(valores, "escalaGravLeida");
+    const ValorCampo* friccionLeida = buscar(valores, "friccionLeida");
+    const ValorCampo* friccionOk = buscar(valores, "friccionOk");
+    const ValorCampo* freezeOk = buscar(valores, "freezeOk");
+    const ValorCampo* gravLeidaY = buscar(valores, "gravLeidaY");
+    const ValorCampo* crearOk = buscar(valores, "crearOk");
+    const ValorCampo* destruirOk = buscar(valores, "destruirOk");
+    const ValorCampo* clonarOk = buscar(valores, "clonarOk");
+    const ValorCampo* agregarOk = buscar(valores, "agregarOk");
+    CHECK(masaLeida && masaLeida->como<float>() == 2.0f && masaOk &&
+              masaOk->como<bool>() && MotorScript::masaCuerpo == 3.0f,
+          "Java lee y fija la masa del cuerpo");
+    CHECK(gravOk && gravOk->como<bool>() && escalaGravLeida &&
+              escalaGravLeida->como<float>() == 1.0f &&
+              MotorScript::escalaGrav == 2.0f,
+          "Java lee uso y escala de gravedad por cuerpo");
+    CHECK(friccionLeida && friccionLeida->como<float>() == 0.5f && friccionOk &&
+              friccionOk->como<bool>() && MotorScript::friccionCuerpo == 0.1f,
+          "Java lee y fija la friccion del cuerpo");
+    CHECK(freezeOk && freezeOk->como<bool>() &&
+              MotorScript::freezeP[0] && !MotorScript::freezeP[1] &&
+              MotorScript::freezeP[2] && !MotorScript::freezeR[0] &&
+              MotorScript::freezeR[1] && !MotorScript::freezeR[2],
+          "Java congela posicion y rotacion por ejes");
+    CHECK(gravLeidaY && gravLeidaY->como<float>() == -2.0f &&
+              MotorScript::gravMundo[1] == -2.0f,
+          "Java fija y lee la gravedad global");
+    CHECK(crearOk && crearOk->como<bool>() && destruirOk &&
+              destruirOk->como<bool>() && clonarOk &&
+              clonarOk->como<bool>() && agregarOk &&
+              agregarOk->como<bool>(),
+          "Java crea, destruye, clona y agrega componentes");
 
     ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
                                   TipoContacto::Inicio);

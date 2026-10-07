@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "ReparentarComando.h"
+#include "Scenes/EditorController.h"
 #include "Scenes/SceneRegistry.h"
 #include "Objetos/GameObject.h"
 #include <sstream>
@@ -37,23 +38,29 @@ ReparentarComando::ReparentarComando(EditorController* ec, GameObject* obj,
 }
 
 void ReparentarComando::ejecutar() {
-    if (!sceneRegistry || objectId <= 0 || newParentId < 0) return;
+    if (!sceneRegistry || !editorController || objectId <= 0 ||
+        newParentId < 0)
+        return;
 
     GameObject* obj = sceneRegistry->getObjectByID(objectId);
     GameObject* newParent = sceneRegistry->getObjectByID(newParentId);
     if (!obj || !newParent) return;
 
-    sceneRegistry->reparent(obj, newParent);
+    // Por la puerta del editor: refresca el cuerpo fisico con la pose
+    // preservada (sin esto, el undo teletransporta el cuerpo).
+    editorController->reparentGameObject(obj, newParent);
 }
 
 void ReparentarComando::deshacer() {
-    if (!sceneRegistry || objectId <= 0 || oldParentId < 0) return;
+    if (!sceneRegistry || !editorController || objectId <= 0 ||
+        oldParentId < 0)
+        return;
 
     GameObject* obj = sceneRegistry->getObjectByID(objectId);
     GameObject* oldParent = sceneRegistry->getObjectByID(oldParentId);
     if (!obj || !oldParent) return;
 
-    sceneRegistry->reparent(obj, oldParent);
+    editorController->reparentGameObject(obj, oldParent);
 }
 
 std::string ReparentarComando::descripcion() const {

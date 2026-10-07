@@ -78,7 +78,23 @@ const ApiScriptGameObject* tablaApi() {
         /* .etiqueta = */ [](const void*) { return ""; },
         /* .tieneEtiqueta = */ [](const void*, const char*) { return false; },
         /* .objetoDeCollider = */ [](const void*) -> void* { return nullptr; },
-        /* .version = */ 4,
+        /* .masa = */ [](const void*) { return 0.0f; },
+        /* .fijarMasa = */ [](void*, float) { return false; },
+        /* .usaGravedad = */ [](const void*) { return false; },
+        /* .fijarUsoGravedad = */ [](void*, bool) { return false; },
+        /* .escalaGravedad = */ [](const void*) { return 0.0f; },
+        /* .fijarEscalaGravedad = */ [](void*, float) { return false; },
+        /* .friccion = */ [](const void*) { return 0.0f; },
+        /* .fijarFriccion = */ [](void*, float) { return false; },
+        /* .posicionCongelada = */ [](const void*, int) { return false; },
+        /* .fijarFreezePosicion = */ [](void*, bool, bool, bool) {
+            return false;
+        },
+        /* .rotacionCongelada = */ [](const void*, int) { return false; },
+        /* .fijarFreezeRotacion = */ [](void*, bool, bool, bool) {
+            return false;
+        },
+        /* .version = */ 5,
     };
     return &tabla;
 }

@@ -16,8 +16,8 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#ifndef CREAR_OBJETO_COMANDO_H
-#define CREAR_OBJETO_COMANDO_H
+#ifndef DUPLICAR_OBJETO_COMANDO_H
+#define DUPLICAR_OBJETO_COMANDO_H
 
 #include "IComando.h"
 #include <memory>
@@ -27,22 +27,24 @@
 class EditorController;
 class SceneRegistry;
 class GameObject;
-class Modelos3D;
 
-class CrearObjetoComando : public IComando {
+// Duplica un objeto y su subarbol (Ctrl+C/V de la jerarquia) por la puerta
+// del editor: registra los cuerpos clonados y publica los eventos. Todo por
+// ids (nunca se retienen punteros): deshacer borra las copias por id y
+// rehacer vuelve a duplicar el original.
+class DuplicarObjetoComando : public IComando {
 private:
     EditorController* editorController;
     SceneRegistry* sceneRegistry;
-    std::unique_ptr<Modelos3D> modelo;
-    std::vector<std::unique_ptr<GameObject>> guardados;
-    GameObject* parent;
-    int createdId = -1;
+    int originalId = -1;
+    int parentId = -1;
+    std::vector<int> creadosIds;
     std::string nombreObjeto;
 
 public:
-    CrearObjetoComando(EditorController* ec, SceneRegistry* sr,
-                       std::unique_ptr<Modelos3D> m, GameObject* p = nullptr);
-    ~CrearObjetoComando() override = default;
+    DuplicarObjetoComando(EditorController* ec, GameObject* obj,
+                          GameObject* padre, SceneRegistry* sr);
+    ~DuplicarObjetoComando() override = default;
 
     void ejecutar() override;
     void deshacer() override;

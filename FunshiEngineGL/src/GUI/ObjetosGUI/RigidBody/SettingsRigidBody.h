@@ -21,13 +21,16 @@
 #include "../SettingsComponent.h"
 class GameObject;
 class RigidBody;
+class EditorController;
 
 class SettingsRigidBody : public SettingsComponent {
 protected:
 	RigidBody* myCollider;
+	EditorController* editor = nullptr;
 public:
 	SettingsRigidBody(GameObject* objeto);
 
+	void setEditor(EditorController* editor);
 	void showDataComponent() override;
 	Component* getComponent() override;
 };

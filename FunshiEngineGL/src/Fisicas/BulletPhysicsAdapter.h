@@ -47,6 +47,8 @@ public:
     void addRigidBody(RigidBody* body) override;
     void removeRigidBody(RigidBody* body) override;
     std::vector<EventoContacto> tomarEventosContacto() override;
+    void fijarGravedad(float x, float y, float z) override;
+    void gravedad(float& x, float& y, float& z) const override;
 
 private:
     static ParColliders ordenarPar(Collider* a, Collider* b);

@@ -28,7 +28,7 @@
 
 namespace {
 constexpr std::uint32_t kRigidBodyMagic = 0x32444252;
-constexpr std::uint32_t kRigidBodyVersion = 1;
+constexpr std::uint32_t kRigidBodyVersion = 2;
 }
 
 RigidBody::RigidBody(Collider* collider, float mass)
@@ -100,6 +100,25 @@ void RigidBody::createRigidBody() {
                                                     shape, localInertia);
     rigidBody = std::make_unique<btRigidBody>(rbInfo);
     if (!activo) rigidBody->forceActivationState(DISABLE_SIMULATION);
+    aplicarPropiedades();
+}
+
+void RigidBody::aplicarPropiedades() {
+    if (!rigidBody) return;
+    rigidBody->setFriction(friccionCuerpo);
+    rigidBody->setLinearFactor(btVector3(freezePos[0] ? 0.0f : 1.0f,
+                                         freezePos[1] ? 0.0f : 1.0f,
+                                         freezePos[2] ? 0.0f : 1.0f));
+    rigidBody->setAngularFactor(btVector3(freezeRot[0] ? 0.0f : 1.0f,
+                                          freezeRot[1] ? 0.0f : 1.0f,
+                                          freezeRot[2] ? 0.0f : 1.0f));
+    if (!usarGravedad) {
+        rigidBody->setGravity(btVector3(0.0f, 0.0f, 0.0f));
+        return;
+    }
+    rigidBody->setGravity(btVector3(gravedadMundo[0] * escalaGrav,
+                                    gravedadMundo[1] * escalaGrav,
+                                    gravedadMundo[2] * escalaGrav));
 }
 
 void RigidBody::detachCollider() {
@@ -266,6 +285,71 @@ void RigidBody::setActivo(bool nuevoEstado) {
     }
 }
 
+bool RigidBody::fijarMasa(float masa) {
+    if (!std::isfinite(masa)) return false;
+    if (masa < 0.0f) masa = 0.0f;
+    mass = masa;
+    if (rigidBody && collider) {
+        btVector3 inercia(0, 0, 0);
+        if (btCollisionShape* shape = collider->getCollisionShape()) {
+            if (mass != 0.0f) shape->calculateLocalInertia(mass, inercia);
+            rigidBody->setMassProps(mass, inercia);
+            if (activo) rigidBody->activate();
+        }
+    }
+    return true;
+}
+
+void RigidBody::fijarUsoGravedad(bool usar) {
+    usarGravedad = usar;
+    aplicarPropiedades();
+}
+
+bool RigidBody::fijarEscalaGravedad(float escala) {
+    if (!std::isfinite(escala)) return false;
+    escalaGrav = escala;
+    aplicarPropiedades();
+    return true;
+}
+
+bool RigidBody::fijarFriccion(float friccion) {
+    if (!std::isfinite(friccion)) return false;
+    friccionCuerpo = friccion < 0.0f ? 0.0f : friccion;
+    aplicarPropiedades();
+    return true;
+}
+
+bool RigidBody::posicionCongelada(int eje) const {
+    if (eje < 0 || eje > 2) return false;
+    return freezePos[eje];
+}
+
+void RigidBody::fijarFreezePosicion(bool x, bool y, bool z) {
+    freezePos[0] = x;
+    freezePos[1] = y;
+    freezePos[2] = z;
+    aplicarPropiedades();
+}
+
+bool RigidBody::rotacionCongelada(int eje) const {
+    if (eje < 0 || eje > 2) return false;
+    return freezeRot[eje];
+}
+
+void RigidBody::fijarFreezeRotacion(bool x, bool y, bool z) {
+    freezeRot[0] = x;
+    freezeRot[1] = y;
+    freezeRot[2] = z;
+    aplicarPropiedades();
+}
+
+void RigidBody::aplicarGravedadMundo(float x, float y, float z) {
+    if (std::isfinite(x)) gravedadMundo[0] = x;
+    if (std::isfinite(y)) gravedadMundo[1] = y;
+    if (std::isfinite(z)) gravedadMundo[2] = z;
+    aplicarPropiedades();
+}
+
 void RigidBody::saveComponent(std::ofstream* fileNamePathContentObject) {
     serializeComponent(fileNamePathContentObject);
 }
@@ -294,6 +378,17 @@ void RigidBody::serializeComponent(std::ofstream* fileNamePathContentObject) {
                                      sizeof(float) * 3);
     fileNamePathContentObject->write(reinterpret_cast<const char*>(rot),
                                      sizeof(float) * 4);
+    // v2: respuesta a la gravedad, friccion y freeze por ejes.
+    fileNamePathContentObject->write(reinterpret_cast<const char*>(&usarGravedad),
+                                     sizeof(usarGravedad));
+    fileNamePathContentObject->write(reinterpret_cast<const char*>(&escalaGrav),
+                                     sizeof(float));
+    fileNamePathContentObject->write(reinterpret_cast<const char*>(&friccionCuerpo),
+                                     sizeof(float));
+    fileNamePathContentObject->write(reinterpret_cast<const char*>(freezePos),
+                                     sizeof(bool) * 3);
+    fileNamePathContentObject->write(reinterpret_cast<const char*>(freezeRot),
+                                     sizeof(bool) * 3);
     // Tambien deberia guardar el tipo de collider para reconstruirlo al cargar
 }
 
@@ -308,15 +403,43 @@ void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
                                         sizeof(version));
         fileNamePathContentObject->read(reinterpret_cast<char*>(&activo),
                                         sizeof(activo));
-        if (version != kRigidBodyVersion) {
+        if (version != 1 && version != kRigidBodyVersion) {
             fileNamePathContentObject->setstate(std::ios::failbit);
             return;
         }
-    } else {
-        fileNamePathContentObject->clear();
-        fileNamePathContentObject->seekg(inicio);
-        activo = true;
+        // Leer masa
+        fileNamePathContentObject->read(reinterpret_cast<char*>(&mass),
+                                        sizeof(float));
+        // Leer posicion y rotacion
+        fileNamePathContentObject->read(reinterpret_cast<char*>(pos),
+                                        sizeof(float) * 3);
+        fileNamePathContentObject->read(reinterpret_cast<char*>(rot),
+                                        sizeof(float) * 4);
+        if (version == 1) {
+            // Escenas previas sin estos campos: conservan el estado activo y
+            // toman los valores por defecto (cae con el mundo, friccion 0.5).
+            usarGravedad = true;
+            escalaGrav = 1.0f;
+            friccionCuerpo = 0.5f;
+            freezePos[0] = freezePos[1] = freezePos[2] = false;
+            freezeRot[0] = freezeRot[1] = freezeRot[2] = false;
+            return;
+        }
+        fileNamePathContentObject->read(reinterpret_cast<char*>(&usarGravedad),
+                                        sizeof(usarGravedad));
+        fileNamePathContentObject->read(reinterpret_cast<char*>(&escalaGrav),
+                                        sizeof(float));
+        fileNamePathContentObject->read(reinterpret_cast<char*>(&friccionCuerpo),
+                                        sizeof(float));
+        fileNamePathContentObject->read(reinterpret_cast<char*>(freezePos),
+                                        sizeof(bool) * 3);
+        fileNamePathContentObject->read(reinterpret_cast<char*>(freezeRot),
+                                        sizeof(bool) * 3);
+        return;
     }
+    fileNamePathContentObject->clear();
+    fileNamePathContentObject->seekg(inicio);
+    activo = true;
     // Leer masa
     fileNamePathContentObject->read(reinterpret_cast<char*>(&mass),
                                     sizeof(float));
@@ -325,4 +448,9 @@ void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
                                     sizeof(float) * 3);
     fileNamePathContentObject->read(reinterpret_cast<char*>(rot),
                                     sizeof(float) * 4);
+    usarGravedad = true;
+    escalaGrav = 1.0f;
+    friccionCuerpo = 0.5f;
+    freezePos[0] = freezePos[1] = freezePos[2] = false;
+    freezeRot[0] = freezeRot[1] = freezeRot[2] = false;
 }

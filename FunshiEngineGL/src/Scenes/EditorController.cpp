@@ -20,7 +20,9 @@
 
 #include "SceneRegistry.h"
 #include "../Fisicas/PhysicsEngine.h"
+#include "../Objetos/ClonadorObjetos.h"
 #include "../Objetos/GameObject.h"
+#include "../Objetos/NombreUnico.h"
 #include "../Objetos/Modelos3D.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../Events/EventBus.h"
@@ -116,6 +118,89 @@ bool EditorController::reparentGameObject(GameObject* object, GameObject* parent
             events->publish({SceneEventType::ObjectReparented, object, parent});
     }
     return changed;
+}
+
+GameObject* EditorController::duplicarObjeto(GameObject* original,
+                                             GameObject* parent) {
+    if (!scene || !original || !scene->contains(original)) return nullptr;
+    if (original == scene->getRoot()) return nullptr;
+    if (parent && !scene->contains(parent)) parent = nullptr;
+    auto nodos = ClonadorObjetos::clonar(
+        original, parent, NombresUnicos::enUso(scene->getRoot()));
+    GameObject* cima = nullptr;
+    for (auto& nodo : nodos) {
+        GameObject* destino =
+            (nodo.second && scene->contains(nodo.second)) ? nodo.second
+                                                         : nullptr;
+        GameObject* insertado =
+            createGameObject(std::move(nodo.first), destino);
+        if (!cima) cima = insertado;
+        // createGameObject no registra cuerpos (solo addComponent lo hace).
+        if (insertado && insertado->getComponent<RigidBody>())
+            refreshRigidBody(insertado);
+    }
+    return cima;
+}
+
+namespace {
+void cuerposDeSubarbol(GameObject* raiz, std::vector<RigidBody*>& salida) {
+    if (!raiz) return;
+    if (RigidBody* body = raiz->getComponent<RigidBody>()) salida.push_back(body);
+    for (Entity* hijo : raiz->getChildEntities()) {
+        if (GameObject* hijoObjeto = dynamic_cast<GameObject*>(hijo))
+            cuerposDeSubarbol(hijoObjeto, salida);
+    }
+}
+
+bool estaDentro(GameObject* nodo, GameObject* ancestro) {
+    for (Entity* p = nodo ? nodo->getParentEntity() : nullptr; p;
+         p = p->getParentEntity()) {
+        if (p == ancestro) return true;
+    }
+    return false;
+}
+} // namespace
+
+std::vector<std::unique_ptr<GameObject>> EditorController::extraerSubarbol(
+    GameObject* object) {
+    if (!scene || !object || !scene->contains(object)) return {};
+    if (object == scene->getRoot()) return {};
+    if (physics) {
+        std::vector<RigidBody*> cuerpos;
+        cuerposDeSubarbol(object, cuerpos);
+        for (RigidBody* body : cuerpos) physics->removeRigidBody(body);
+    }
+    // La seleccion no debe apuntar adentro de lo extraido (puntero colgante
+    // al restaurar en otro lado); el gizmo tampoco.
+    if (selected && (selected == object || estaDentro(selected, object))) {
+        selected = nullptr;
+        if (events)
+            events->publish({SceneEventType::ObjectSelected, nullptr, nullptr});
+    }
+    if (gizmoTarget.owner &&
+        (gizmoTarget.owner == object ||
+         estaDentro(gizmoTarget.owner, object)))
+        clearGizmoTarget();
+    if (events)
+        events->publish({SceneEventType::ObjectDeleted, object, nullptr});
+    auto nodos = scene->takeSubtree(object);
+    return nodos;
+}
+
+GameObject* EditorController::restaurarSubarbol(
+    std::vector<std::unique_ptr<GameObject>> nodos, GameObject* parent) {
+    if (!scene || nodos.empty()) return nullptr;
+    if (!parent || !scene->contains(parent)) parent = scene->getRoot();
+    GameObject* cima = scene->restoreSubtree(std::move(nodos), parent);
+    if (!cima) return nullptr;
+    if (physics) {
+        std::vector<RigidBody*> cuerpos;
+        cuerposDeSubarbol(cima, cuerpos);
+        for (RigidBody* body : cuerpos) {
+            if (body->getRigidBody()) physics->addRigidBody(body);
+        }
+    }
+    return cima;
 }
 
 void EditorController::clearScene() {
@@ -230,7 +315,12 @@ bool EditorController::addComponent(GameObject* object,
 }
 
 bool EditorController::removeComponent(GameObject* object, Component* component) {
-    if (!scene || !scene->contains(object) || !component) return false;
+    return extraerComponente(object, component) != nullptr;
+}
+
+std::unique_ptr<Component> EditorController::extraerComponente(
+    GameObject* object, Component* component) {
+    if (!scene || !scene->contains(object) || !component) return nullptr;
     // El gizmo puede estar editando el transform local (myTransform) del
     // collider que se va a borrar: desarmarlo ANTES de liberar el componente.
     // Hacer dynamic_cast despues de deleteComponent() es use-after-free (el
@@ -242,7 +332,7 @@ bool EditorController::removeComponent(GameObject* object, Component* component)
         // update/sync (syncPhysicsToGameObject): si se libera el collider sin
         // desacoplarlo, queda un puntero colgante (heap-use-after-free).
         // Des-registrar el cuerpo del mundo y dejarlo inerte (collider=null)
-        // ANTES de deleteComponent.
+        // ANTES de extraerlo.
         if (RigidBody* body = object->getComponent<RigidBody>()) {
             if (physics) physics->removeRigidBody(body);
             body->detachCollider();
@@ -252,10 +342,10 @@ bool EditorController::removeComponent(GameObject* object, Component* component)
         if (auto* body = dynamic_cast<RigidBody*>(component))
             physics->removeRigidBody(body);
     }
-    object->deleteComponent(component);
-    if (events)
+    std::unique_ptr<Component> extraido = object->extractComponent(component);
+    if (extraido && events)
         events->publish({SceneEventType::ComponentStructureChanged, object, nullptr});
-    return true;
+    return extraido;
 }
 
 std::string EditorController::deshacer() {

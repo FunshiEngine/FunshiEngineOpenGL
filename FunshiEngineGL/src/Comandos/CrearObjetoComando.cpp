@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "CrearObjetoComando.h"
+#include "Scenes/EditorController.h"
 #include "Scenes/SceneRegistry.h"
 #include "Objetos/Modelos3D.h"
 #include "Objetos/GameObject.h"
@@ -38,18 +39,19 @@ CrearObjetoComando::CrearObjetoComando(EditorController* ec, SceneRegistry* sr,
 }
 
 void CrearObjetoComando::ejecutar() {
-    if (!sceneRegistry) return;
+    if (!sceneRegistry || !editorController) return;
 
     if (modelo) {
         std::unique_ptr<GameObject> objPtr(modelo.release());
-        GameObject* obj = sceneRegistry->createObject(std::move(objPtr), parent);
+        GameObject* obj =
+            editorController->createGameObject(std::move(objPtr), parent);
         if (obj) {
             createdId = obj->getId();
         }
-    } else if (restaurado) {
-        std::vector<std::unique_ptr<GameObject>> objs;
-        objs.push_back(std::move(restaurado));
-        GameObject* obj = sceneRegistry->restoreSubtree(std::move(objs), parent);
+    } else if (!guardados.empty()) {
+        GameObject* obj = editorController->restaurarSubarbol(
+            std::move(guardados), parent);
+        guardados.clear();
         if (obj) {
             createdId = obj->getId();
         }
@@ -57,10 +59,10 @@ void CrearObjetoComando::ejecutar() {
 }
 
 void CrearObjetoComando::deshacer() {
-    if (!sceneRegistry || createdId <= 0) return;
+    if (!sceneRegistry || !editorController || createdId <= 0) return;
     GameObject* obj = sceneRegistry->getObjectByID(createdId);
     if (obj) {
-        restaurado = sceneRegistry->takeObject(obj);
+        guardados = editorController->extraerSubarbol(obj);
     }
     createdId = -1;
 }

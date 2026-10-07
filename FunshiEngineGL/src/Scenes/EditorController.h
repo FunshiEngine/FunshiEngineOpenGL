@@ -20,6 +20,7 @@
 #define EDITOR_CONTROLLER_H
 
 #include <memory>
+#include <vector>
 
 #include "Comandos/GestorComandos.h"
 
@@ -83,6 +84,7 @@ public:
                      AssetManager* assetsManager = nullptr);
 
     void setScene(SceneRegistry* scene) noexcept;
+    SceneRegistry* getScene() const noexcept { return scene; }
     void setPhysics(PhysicsEngine* physics) noexcept;
     void setEventBus(EventBus* events) noexcept;
     void setAssetManager(AssetManager* assetsManager) noexcept;
@@ -93,9 +95,26 @@ public:
     bool deleteGameObject(GameObject* object);
     bool deleteObjectByID(int id);
     bool reparentGameObject(GameObject* object, GameObject* parent);
+    // Copia profunda del objeto y su subarbol como hijo de `parent` (raiz si
+    // es nulo). Inserta cada copia con createGameObject y registra sus
+    // cuerpos. Comparte el clonador con la gestion de objetos desde scripts.
+    GameObject* duplicarObjeto(GameObject* original, GameObject* parent);
+    // Extrae el subarbol sin destruirlo (para undo de borrar): desregistra sus
+    // cuerpos, limpia seleccion/gizmo si apuntan adentro y lo saca del
+    // registro. La raiz no se extrae (vacio).
+    std::vector<std::unique_ptr<GameObject>> extraerSubarbol(
+        GameObject* object);
+    // Restaura un subarbol extraido bajo `parent` (raiz si nulo o ausente) y
+    // re-registra sus cuerpos. Devuelve la cima restaurada.
+    GameObject* restaurarSubarbol(
+        std::vector<std::unique_ptr<GameObject>> nodos, GameObject* parent);
     void clearScene();
     bool addComponent(GameObject* object, std::unique_ptr<Component> component);
     bool removeComponent(GameObject* object, Component* component);
+    // Extraccion sin destruir (para undo): espeja removeComponent pero devuelve
+    // el componente vivo en vez de liberarlo. Null si no estaba.
+    std::unique_ptr<Component> extraerComponente(GameObject* object,
+                                                 Component* component);
 
     // Registra los RigidBody de TODA la escena en el mundo de fisica. Al
     // deserializar una escena, los componentes se crean con GameObject::

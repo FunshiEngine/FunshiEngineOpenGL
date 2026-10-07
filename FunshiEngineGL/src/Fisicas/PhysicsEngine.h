@@ -44,6 +44,8 @@ public:
     void addRigidBody(RigidBody* body);
     void removeRigidBody(RigidBody* body);
     std::vector<EventoContacto> tomarEventosContacto();
+    void fijarGravedad(float x, float y, float z);
+    void gravedad(float& x, float& y, float& z) const;
 
 private:
     std::unique_ptr<IPhysicsBackend> backend_;

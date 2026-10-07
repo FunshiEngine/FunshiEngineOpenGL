@@ -19,16 +19,24 @@
 // Pruebas headless del sistema undo/redo basado en el patron Command.
 // Cubren: CrearObjetoComando, BorrarObjetoComando, ReparentarComando,
 // TransformComando, AgregarComponenteComando, QuitarComponenteComando,
-// LimpiarEscenaComando y la cadena de redo multiple del GestorComandos.
+// LimpiarEscenaComando, DuplicarObjetoComando y la cadena de redo multiple
+// del GestorComandos.
 //
 // Cada test crea una SceneRegistry + EditorController frescos, ejecuta un
 // comando via GestorComandos, verifica el estado, deshace y verifica, luego
-// rehace y verifica. No se requiere pila grafica, fisica ni AudioManager.
+// rehace y verifica. No se requiere pila grafica ni AudioManager (la fisica
+// Bullet si se usa en los casos con cuerpo, que es headless).
+//
+// Los comandos mutan por la puerta del editor (EditorController): desregistran
+// y re-registran los cuerpos en fisica y limpian la seleccion, asi que el
+// undo nunca deja cuerpos fantasma en el mundo.
 
 #include <cstdio>
 #include <iostream>
 #include <memory>
 #include <string>
+
+#include <btBulletDynamicsCommon.h>
 
 #include "Scenes/SceneRegistry.h"
 #include "Scenes/EditorController.h"
@@ -39,13 +47,17 @@
 #include "Comandos/AgregarComponenteComando.h"
 #include "Comandos/QuitarComponenteComando.h"
 #include "Comandos/LimpiarEscenaComando.h"
+#include "Comandos/DuplicarObjetoComando.h"
 #include "Comandos/GestorComandos.h"
+#include "Fisicas/PhysicsEngine.h"
 
 #include "Objetos/Modelos3D.h"
 #include "Objetos/SimpleObject.h"
 #include "Objetos/GameObject.h"
 #include "Objetos/Componentes/Transform.h"
 #include "Objetos/Componentes/Color.h"
+#include "Objetos/Componentes/Colliders/EsfereCollider.h"
+#include "Objetos/Componentes/RigidBody/RigidBody.h"
 
 namespace {
 int total = 0;
@@ -364,6 +376,153 @@ void probarRedoCadena() {
     CHECK(!editor.puedeRehacer(), "RedoCadena: no puede rehacer mas");
 }
 
+// Arma un objeto con collider + cuerpo registrado en fisica real (headless).
+GameObject* crearConCuerpo(SceneRegistry* scene, EditorController* editor,
+                           const char* nombre, float masa = 1.0f) {
+    auto obj = std::make_unique<SimpleObject>();
+    std::snprintf(obj->inputName, sizeof(obj->inputName), "%s", nombre);
+    GameObject* crudo = obj.get();
+    Transform* transform = crudo->getComponent<Transform>();
+    auto collider =
+        std::make_unique<EsfereCollider>(1.0f, transform, crudo);
+    Collider* colliderPtr = collider.get();
+    crudo->addComponent(std::move(collider));
+    crudo->addComponent(std::make_unique<RigidBody>(colliderPtr, masa));
+    scene->createObject(std::move(obj));
+    if (RigidBody* body = crudo->getComponent<RigidBody>())
+        editor->refreshRigidBody(crudo);
+    return crudo;
+}
+
+// --- Caso 9: borrar con fisica real ---
+void probarBorrarConFisica() {
+    SceneRegistry scene;
+    PhysicsEngine fisica;
+    EditorController editor(&scene, &fisica);
+    GestorComandos* cmds = editor.getGestorComandos();
+
+    GameObject* obj = crearConCuerpo(&scene, &editor, "Fisico");
+    const int id = obj->getId();
+    RigidBody* body = obj->getComponent<RigidBody>();
+    CHECK(body && body->getRigidBody()->isInWorld(),
+          "BorrarFisica: el cuerpo esta en el mundo antes de borrar");
+
+    cmds->ejecutar(std::make_unique<BorrarObjetoComando>(&editor, obj, &scene));
+    CHECK(scene.getObjectByID(id) == nullptr,
+          "BorrarFisica: objeto fuera de la escena tras borrar");
+    CHECK(!body->getRigidBody()->isInWorld(),
+          "BorrarFisica: el cuerpo sale del mundo sin fantasma");
+
+    editor.deshacer();
+    GameObject* restaurado = scene.getObjectByID(id);
+    CHECK(restaurado != nullptr, "BorrarFisica: objeto restaurado tras undo");
+    RigidBody* cuerpoRestaurado = restaurado->getComponent<RigidBody>();
+    CHECK(cuerpoRestaurado && cuerpoRestaurado->getRigidBody()->isInWorld(),
+          "BorrarFisica: el cuerpo vuelve al mundo tras undo");
+
+    editor.rehacer();
+    CHECK(scene.getObjectByID(id) == nullptr,
+          "BorrarFisica: objeto fuera tras redo");
+    CHECK(!body->getRigidBody()->isInWorld(),
+          "BorrarFisica: el cuerpo sale del mundo tras redo");
+}
+
+// --- Caso 10: duplicar con undo/redo ---
+void probarDuplicar() {
+    SceneRegistry scene;
+    PhysicsEngine fisica;
+    EditorController editor(&scene, &fisica);
+    GestorComandos* cmds = editor.getGestorComandos();
+
+    GameObject* obj = crearConCuerpo(&scene, &editor, "Original");
+    const int idOriginal = obj->getId();
+
+    cmds->ejecutar(std::make_unique<DuplicarObjetoComando>(&editor, obj,
+                                                           nullptr, &scene));
+    CHECK(contarObjetos(&scene) == 2, "Duplicar: 2 objetos tras duplicar");
+    GameObject* clon = nullptr;
+    {
+        scene.refreshGameObjectView();
+        for (auto* nodo = scene.getGameObjects()->first(); nodo;
+             nodo = (nodo != scene.getGameObjects()->last())
+                        ? scene.getGameObjects()->next(nodo)
+                        : nullptr) {
+            GameObject* candidato = nodo->getElement();
+            if (candidato && candidato != obj) clon = candidato;
+        }
+    }
+    CHECK(clon != nullptr, "Duplicar: el clon esta en la escena");
+    if (!clon) return;
+    CHECK(clon->getId() != idOriginal, "Duplicar: el clon tiene id propio");
+    CHECK(std::string(clon->inputName) != "Original",
+          "Duplicar: el nombre del clon se uniciza");
+    RigidBody* cuerpoClon = clon->getComponent<RigidBody>();
+    CHECK(cuerpoClon && cuerpoClon->getRigidBody()->isInWorld(),
+          "Duplicar: el cuerpo clonado entra al mundo");
+    const int idClon = clon->getId();
+
+    editor.deshacer();
+    CHECK(scene.getObjectByID(idClon) == nullptr,
+          "Duplicar: el clon sale tras undo");
+    CHECK(scene.getObjectByID(idOriginal) != nullptr,
+          "Duplicar: el original sigue tras undo");
+    CHECK(contarObjetos(&scene) == 1, "Duplicar: 1 objeto tras undo");
+
+    editor.rehacer();
+    CHECK(contarObjetos(&scene) == 2, "Duplicar: 2 objetos tras redo");
+}
+
+// --- Caso 11: agregar/quitar componente con fisica ---
+void probarComponentesConFisica() {
+    SceneRegistry scene;
+    PhysicsEngine fisica;
+    EditorController editor(&scene, &fisica);
+    GestorComandos* cmds = editor.getGestorComandos();
+
+    GameObject* obj = crearSimpleObject(&scene, "CompFisico");
+    const int id = obj->getId();
+    Transform* transform = obj->getComponent<Transform>();
+    cmds->ejecutar(std::make_unique<AgregarComponenteComando>(
+        &editor, obj,
+        std::make_unique<EsfereCollider>(1.0f, transform, obj), &scene));
+    CHECK(obj->getComponent<Collider>() != nullptr,
+          "CompFisica: collider agregado via comando");
+
+    cmds->ejecutar(std::make_unique<AgregarComponenteComando>(
+        &editor, obj, std::make_unique<RigidBody>(
+                          obj->getComponent<Collider>(), 2.0f),
+        &scene));
+    RigidBody* body = obj->getComponent<RigidBody>();
+    CHECK(body != nullptr, "CompFisica: cuerpo agregado via comando");
+    if (!body) return;
+    CHECK(body->getRigidBody()->isInWorld(),
+          "CompFisica: agregar registra el cuerpo en el mundo");
+
+    editor.deshacer();
+    CHECK(obj->getComponent<RigidBody>() == nullptr,
+          "CompFisica: undo quita el cuerpo del objeto");
+    CHECK(!body->getRigidBody()->isInWorld(),
+          "CompFisica: undo saca el cuerpo del mundo");
+
+    editor.rehacer();
+    RigidBody* cuerpoRehecho = obj->getComponent<RigidBody>();
+    CHECK(cuerpoRehecho && cuerpoRehecho->getRigidBody()->isInWorld(),
+          "CompFisica: redo registra el cuerpo de nuevo");
+
+    cmds->ejecutar(std::make_unique<QuitarComponenteComando>(
+        &editor, obj, "RigidBody", &scene));
+    CHECK(obj->getComponent<RigidBody>() == nullptr,
+          "CompFisica: quitar saca el cuerpo del objeto");
+    CHECK(!body->getRigidBody()->isInWorld(),
+          "CompFisica: quitar saca el cuerpo del mundo");
+
+    editor.deshacer();
+    RigidBody* cuerpoDevuelto = obj->getComponent<RigidBody>();
+    CHECK(cuerpoDevuelto && cuerpoDevuelto->getRigidBody()->isInWorld(),
+          "CompFisica: undo de quitar devuelve el cuerpo al mundo");
+    (void)id;
+}
+
 } // namespace
 
 int main() {
@@ -376,6 +535,9 @@ int main() {
     probarQuitarComponente();
     probarLimpiarEscena();
     probarRedoCadena();
+    probarBorrarConFisica();
+    probarDuplicar();
+    probarComponentesConFisica();
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;
     if (fallos == 0) std::cout << "COMANDOS TESTS OK" << std::endl;
     return fallos == 0 ? 0 : 1;

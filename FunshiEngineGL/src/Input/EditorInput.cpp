@@ -28,11 +28,14 @@
 #include <imgui_internal.h>
 
 #include "../Scenes/GameScene.h"
+#include "../Objetos/GameObject.h"
 #include "../Objetos/Componentes/CameraComponent.h"
 #include "../States/ApplicationStateMachine.h"
 #include "../States/OrquestadorEstadoGUI.h"
 #include "ImGuizmo.h"
 #include "../Scenes/EditorController.h"
+#include "../Scenes/SceneRegistry.h"
+#include "../Comandos/BorrarObjetoComando.h"
 #include "AtajosEditor.h"
 
 // Trazas de captura de teclado del editor.
@@ -350,6 +353,33 @@ void EditorInput::onKey(GLFWwindow* window, int key, int scancode, int action,
                 scene->mostrarMensaje(descripcion.empty()
                                           ? "Nada que rehacer"
                                           : "Rehacer: " + descripcion);
+            }
+        }
+        return;
+    }
+
+    // Ctrl+D: borrado rapido del seleccionado, sin dialogo de confirmacion.
+    // Va por el gestor (BorrarObjetoComando): Ctrl+Z lo recupera. Como
+    // Ctrl+Z/Y, cede ante un campo de texto (ahi la tecla es del campo) y no
+    // corre en Juego. La raiz no se borra por diseno.
+    if (key == GLFW_KEY_D && (mods & GLFW_MOD_CONTROL) &&
+        action == GLFW_PRESS) {
+        if (scene && (!orquestador || !orquestador->enModoJuego()) &&
+            !AtajosEditor::cedeAlCampoDeTexto(ImGui::GetIO().WantCaptureKeyboard)) {
+            if (auto* ec = scene->getEditorController()) {
+                GameObject* seleccionado = ec->getSelectedObject();
+                SceneRegistry* registro = ec->getScene();
+                if (seleccionado && registro &&
+                    seleccionado != registro->getRoot()) {
+                    const std::string nombre = seleccionado->inputName;
+                    ec->getGestorComandos()->ejecutar(
+                        std::make_unique<BorrarObjetoComando>(
+                            ec, seleccionado, registro));
+                    scene->mostrarMensaje("Eliminar: " + nombre +
+                                          " (Ctrl+Z para deshacer)");
+                } else {
+                    scene->mostrarMensaje("Nada que borrar");
+                }
             }
         }
         return;

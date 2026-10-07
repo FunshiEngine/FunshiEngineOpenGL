@@ -207,6 +207,8 @@ de estado avisa en vez de ignorar el atajo.
 | `Ctrl+S` | Guardar el proyecto en caliente (escena + manifiesto + config) |
 | `Ctrl+Z` | Deshacer ultima accion del editor (undo) |
 | `Ctrl+Y` | Rehacer accion deshecha (redo) |
+| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | Copiar / cortar / pegar el objeto seleccionado de la jerarquia (ver seccion 4) |
+| `Ctrl+D` | Borrar el objeto seleccionado sin dialogo de confirmacion (se recupera con `Ctrl+Z`) |
 | `Escape` | Durante Depuracion o Juego: terminar y restaurar la escena al estado previo al inicio. En edicion: volver al menu; en el menu: no hace nada |
 | `1` / `T` | Gizmo: traslacion (apaga la guia de eje) |
 | `2` / `R` | Gizmo: rotacion (apaga la guia de eje) |
@@ -230,6 +232,8 @@ Clic en un objeto del arbol o del viewport lo selecciona; el Inspector muestra
 sus componentes a la derecha. En el arbol, la seleccion se confirma al soltar
 el boton: si el puntero se desplaza al menos 6 px mientras esta presionado,
 se interpreta como arrastre y se conserva el objeto que ya muestra el Inspector.
+Clic en el vacio de la ventana deselecciona (para pegar a la raiz o soltar la
+seleccion).
 
 ---
 
@@ -249,6 +253,13 @@ se interpreta como arrastre y se conserva el objeto que ya muestra el Inspector.
 - **Jerarquia:** arrastra un objeto sobre otro en el arbol para reparentar; el
   motor rechaza ciclos y la raiz. "Childs Freeze" congela la transformacion de
   los hijos durante la edicion del padre.
+- **Copiar/pegar en la jerarquia:** `Ctrl+C` copia y `Ctrl+X` corta el objeto
+  seleccionado (la raiz no se copia). `Ctrl+V` pega una copia profunda
+  (componentes incluidos, con id nuevo): si hay un objeto seleccionado entra
+  como su hijo, si no hay seleccion entra a la raiz. El portapapeles se conserva
+  para pegar varias veces; cortar lo vacia al pegar (es mover). Pegar sobre el
+  propio objeto o sobre uno de sus descendientes entra a la raiz (evita colgar
+  el duplicado de su propio subarbol).
 - **Gizmos** (ImGuizmo): traslacion/rotacion/escala con `1`/`2`/`3` o
   `T`/`R`/`U`, local/mundo con `G`; la fisica tiene su gizmo propio para el
   collider activo. El checkbox **"Gizmo activo"** del panel `Transform` apaga
@@ -378,6 +389,7 @@ entradas; cada nueva accion invalida la pila de redo.
 |---|---|
 | Crear objeto | `CrearObjetoComando` |
 | Borrar objeto | `BorrarObjetoComando` |
+| Duplicar objeto (pegar) | `DuplicarObjetoComando` |
 | Reparentar (arrastrar en jerarquia) | `ReparentarComando` |
 | Modificar transform (posicion/rotacion/escala) | `TransformComando` |
 | Agregar componente | `AgregarComponenteComando` |
@@ -388,6 +400,10 @@ entradas; cada nueva accion invalida la pila de redo.
 (posicion del padre, id del objeto, transform anterior, componentes) y lo
 almacena por valor para poder restaurarlo exactamente. La raiz de la escena
 (id=0) esta excluida de delete/clear por diseno.
+Los comandos mutan por la puerta del editor (`EditorController`): desregistran
+y re-registran los cuerpos en fisica y limpian la seleccion, asi que el undo
+nunca deja cuerpos fantasma en el mundo. Al entrar o salir de una simulacion
+el historial se limpia (los ids guardados caducan con la restauracion).
 
 **Mover un objeto con el gizmo tambien se deshace:** al iniciar un arrastre se
 toma una foto del transform y, al soltarlo, se registra **un solo**
@@ -480,6 +496,13 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 - **Activo** en `RigidBody` habilita o pausa la participacion de ese cuerpo en
   Bullet. El estado se guarda con la escena; las escenas anteriores cargan los
   cuerpos como activos.
+- Panel `RigidBody`: **Masa** (`0` = estatico), **Usa gravedad** + **Escala
+  gravedad** (multiplica la gravedad global: `1` = igual, `0` = flota),
+  **Friccion** de contacto (`0` = desliza) y **Freeze posicion/rotacion** por
+  ejes X/Y/Z. Todo se guarda con la escena; las escenas anteriores toman los
+  valores por defecto (cae normal, friccion `0.5`, sin freeze).
+- La **gravedad global** del mundo es manipulable (tambien desde scripts) y se
+  re-aplica a cada cuerpo segun su escala al cambiar.
 - Mientras se manipula el gizmo, `stepSimulation` se pausa (la gravedad podria
   "eyectar" el objeto); al soltar, la simulacion sigue.
 - Gizmo dedicado de fisica para el collider activo.
@@ -857,6 +880,18 @@ contra la version actual.
 | `api->etiqueta(owner)` | 4 | `const char* (const void*)` | devuelve el tag del objeto |
 | `api->tieneEtiqueta(owner,tag)` | 4 | `bool (const void*, const char*)` | compara el tag del objeto |
 | `api->objetoDeCollider(collider)` | 4 | `void* (const void*)` | devuelve el GameObject dueño del collider; `nullptr` si no tiene dueño |
+| `api->masa(owner)` | 5 | `float (const void*)` | masa del `RigidBody`; `0` si no hay cuerpo |
+| `api->fijarMasa(owner,masa)` | 5 | `bool (void*, float)` | fija la masa (`0` = estatico); `false` si no hay cuerpo |
+| `api->usaGravedad(owner)` | 5 | `bool (const void*)` | si el cuerpo responde a la gravedad |
+| `api->fijarUsoGravedad(owner,usar)` | 5 | `bool (void*, bool)` | activa o apaga la gravedad por cuerpo; `false` si no hay cuerpo |
+| `api->escalaGravedad(owner)` | 5 | `float (const void*)` | factor sobre la gravedad global; `0` si no hay cuerpo |
+| `api->fijarEscalaGravedad(owner,escala)` | 5 | `bool (void*, float)` | fija el factor (`1` = igual, `0` = flota); `false` si no hay cuerpo o no es finito |
+| `api->friccion(owner)` | 5 | `float (const void*)` | friccion de contacto; `0` si no hay cuerpo |
+| `api->fijarFriccion(owner,friccion)` | 5 | `bool (void*, float)` | fija la friccion (`0` = desliza); `false` si no hay cuerpo o es negativa |
+| `api->posicionCongelada(owner,eje)` | 5 | `bool (const void*, int)` | freeze de posicion en el eje (`0` = X, `1` = Y, `2` = Z) |
+| `api->fijarFreezePosicion(owner,x,y,z)` | 5 | `bool (void*, bool, bool, bool)` | congela la posicion por ejes; `false` si no hay cuerpo |
+| `api->rotacionCongelada(owner,eje)` | 5 | `bool (const void*, int)` | freeze de rotacion en el eje |
+| `api->fijarFreezeRotacion(owner,x,y,z)` | 5 | `bool (void*, bool, bool, bool)` | congela la rotacion por ejes; `false` si no hay cuerpo |
 
 Los tags son cadenas dinámicas, no un `enum`: se pueden asignar desde el
 Inspector y el motor registra los valores usados para ofrecerlos en los demás
@@ -902,7 +937,7 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 }
 ```
 
-### 13.4 Servicios de escena: tabla `servicios` (v2)
+### 13.4 Servicios de escena: tabla `servicios` (v4)
 
 Ademas de `api`, `IScriptBehaviour` expone `this->servicios`: acceso a los
 servicios del motor que **no son del objeto** sino de la escena (audio,
@@ -918,7 +953,7 @@ Misma convencion APPEND-ONLY con `servicios->version` al final.
 |---|---|---|
 | `servicios->reproducirSonido(clip, vol, loop)` | `int (const char*, float, bool)` | reproduce un clip de `Sonidos/` (la carpeta debe existir) por **nombre**; devuelve handle >= 0, o -1 si el clip no existe |
 | `servicios->detenerSonido(handle)` | `void (int)` | detiene la reproduccion del handle |
-| `servicios->objetoPorNombre("Enemigo")` | `void* (const char*)` | busca un GameObject por nombre en la escena; `nullptr` si no existe. El puntero vale mientras el objeto viva (todavia no se crean/destruyen objetos desde scripts) |
+| `servicios->objetoPorNombre("Enemigo")` | `void* (const char*)` | busca un GameObject por nombre en la escena; `nullptr` si no existe. El puntero vale mientras el objeto viva |
 | `servicios->objetoPorId(7)` (v3) | `void* (int)` | busca un GameObject por id de escena; `nullptr` si no existe |
 | `servicios->objetoPorEtiqueta("suelo")` (v3) | `void* (const char*)` | busca el primer GameObject con ese tag; `nullptr` si ninguno lo tiene. Util para referencias opcionales (ej. la camara de un controlador) |
 | `servicios->teclaSostiene("W")` | `bool (const char*)` | tecla mantenida apretada |
@@ -926,6 +961,14 @@ Misma convencion APPEND-ONLY con `servicios->version` al final.
 | `servicios->teclaSoltada("F")` | `bool (const char*)` | tecla soltada este frame (edge release) |
 | `servicios->deltaMouseX()` | `float ()` | movimiento horizontal del mouse en pixeles en el frame actual |
 | `servicios->deltaMouseY()` | `float ()` | movimiento vertical del mouse en pixeles en el frame actual |
+| `servicios->fijarGravedadGlobal(x,y,z)` (v4) | `void (float, float, float)` | fija la gravedad del mundo fisico; cada cuerpo la recibe por su escala |
+| `servicios->gravedadGlobalX/Y/Z()` (v4) | `float ()` | gravedad global por eje |
+| `servicios->crearObjeto("Enemigo",padre)` (v4) | `void* (const char*, void*)` | crea un objeto vacio como hijo de `padre` (`nullptr` = raiz). Devuelve el puntero de inmediato para configurarlo, pero entra a la escena al final del frame; vale mientras el objeto viva |
+| `servicios->destruirObjeto(obj)` (v4) | `bool (void*)` | marca para borrar al final del frame (seguro incluso sobre si mismo); `false` si no existe |
+| `servicios->clonarObjeto(orig,padre)` (v4) | `void* (const void*, void*)` | copia profunda (componentes incluidos) como hija de `padre`; misma validez diferida que crear. Los scripts copiados compilan a demanda |
+| `servicios->agregarColliderEsfera(obj,radio)` (v4) | `bool (void*, float)` | agrega collider esfera; `false` si ya tiene uno o el radio no es valido |
+| `servicios->agregarColliderCubo(obj,radio)` (v4) | `bool (void*, float)` | agrega collider cubo; mismas condiciones |
+| `servicios->agregarRigidBody(obj,masa)` (v4) | `bool (void*, float)` | agrega cuerpo con masa; `false` si no hay collider o ya tiene cuerpo |
 
 Los deltas del mouse se acumulan durante el frame y se reinician al avanzar al
 siguiente. Se capturan en Juego y cuando el cursor esta bloqueado durante
@@ -1106,11 +1149,14 @@ Las posiciones consultadas o fijadas por `Nativo.posicionX/Y/Z` y
 | Nombre y transform local | `Nativo.nombre`, `posicionX/Y/Z`, `fijarPosicion`, `fijarEscala`, `fijarRotacion` |
 | Getters de rotacion y escala | `Nativo.rotacionAngulo`, `rotacionEjeX/Y/Z`, `escalaX/Y/Z` |
 | Movimiento con fisica | `Nativo.fijarVelocidadHorizontal`, `Nativo.saltar` |
+| Propiedades fisicas | `Nativo.masa`, `fijarMasa`, `usaGravedad`, `fijarUsoGravedad`, `escalaGravedad`, `fijarEscalaGravedad`, `friccion`, `fijarFriccion`, `posicionCongelada`, `fijarFreezePosicion`, `rotacionCongelada`, `fijarFreezeRotacion` |
 | Tags y colliders | `Nativo.etiqueta`, `tieneEtiqueta`, `objetoDeCollider` |
 | Contactos | `colisionInicio`, `colisionPersistencia`, `colisionFin` |
 | Consola | `Nativo.imprimir` |
 | Audio de script | `Nativo.reproducirSonido(clip, volumen, bucle)`, `Nativo.detenerSonido(handle)` |
 | Busqueda de objetos | `Nativo.objetoPorNombre(nombre)`, `Nativo.objetoPorId(id)`, `Nativo.objetoPorEtiqueta(etiqueta)`; devuelven `0` si no existe |
+| Gravedad global | `Nativo.fijarGravedadGlobal(x, y, z)`, `Nativo.gravedadGlobalX/Y/Z` |
+| Gestion de objetos | `Nativo.crearObjeto(nombre, padre)`, `Nativo.destruirObjeto(objeto)`, `Nativo.clonarObjeto(original, padre)`, `Nativo.agregarColliderEsfera/cubo(objeto, radio)`, `Nativo.agregarRigidBody(objeto, masa)` |
 | Teclado | `Nativo.teclaSostiene`, `teclaPresionada`, `teclaSoltada` |
 | Mouse | `Nativo.deltaMouseX`, `Nativo.deltaMouseY` (pixeles por frame) |
 

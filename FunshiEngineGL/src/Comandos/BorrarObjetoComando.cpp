@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "BorrarObjetoComando.h"
+#include "Scenes/EditorController.h"
 #include "Scenes/SceneRegistry.h"
 #include "Objetos/GameObject.h"
 #include <sstream>
@@ -35,30 +36,26 @@ BorrarObjetoComando::BorrarObjetoComando(EditorController* ec, GameObject* obj,
 }
 
 void BorrarObjetoComando::ejecutar() {
-    if (!sceneRegistry || objectId <= 0) return;
+    if (!sceneRegistry || !editorController || objectId <= 0) return;
 
     GameObject* obj = sceneRegistry->getObjectByID(objectId);
     if (!obj) return;
-
-    if (obj == sceneRegistry->getRoot()) {
-        objetoEliminado = sceneRegistry->takeObject(obj);
-        return;
+    if (obj->getParentEntity()) {
+        parentId =
+            static_cast<GameObject*>(obj->getParentEntity())->getId();
     }
-
-    objetoEliminado = sceneRegistry->takeObject(obj);
+    // Por la puerta del editor: desregistra cuerpos, limpia seleccion/gizmo
+    // y extrae el subarbol vivo (para deshacer) en vez de destruirlo.
+    objetosEliminados = editorController->extraerSubarbol(obj);
 }
 
 void BorrarObjetoComando::deshacer() {
-    if (!sceneRegistry || !objetoEliminado) return;
+    if (!sceneRegistry || !editorController || objetosEliminados.empty())
+        return;
 
     GameObject* parent = sceneRegistry->getObjectByID(parentId);
-    if (!parent) parent = sceneRegistry->getRoot();
-    if (!parent) return;
-
-    std::vector<std::unique_ptr<GameObject>> objs;
-    objs.push_back(std::move(objetoEliminado));
-    sceneRegistry->restoreSubtree(std::move(objs), parent);
-    objetoEliminado = nullptr;
+    editorController->restaurarSubarbol(std::move(objetosEliminados), parent);
+    objetosEliminados.clear();
 }
 
 std::string BorrarObjetoComando::descripcion() const {

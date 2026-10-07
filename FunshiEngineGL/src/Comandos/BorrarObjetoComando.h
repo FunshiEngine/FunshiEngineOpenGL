@@ -22,6 +22,7 @@
 #include "IComando.h"
 #include <memory>
 #include <string>
+#include <vector>
 
 class EditorController;
 class SceneRegistry;
@@ -33,7 +34,7 @@ private:
     SceneRegistry* sceneRegistry;
     int objectId = -1;
     int parentId = -1;
-    std::unique_ptr<GameObject> objetoEliminado;
+    std::vector<std::unique_ptr<GameObject>> objetosEliminados;
     std::string nombreObjeto;
 
 public:
