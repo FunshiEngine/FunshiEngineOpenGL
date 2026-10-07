@@ -19,6 +19,7 @@
 #ifndef COLLIDER_H
 #define COLLIDER_H
 #include <memory>
+#include <vector>
 #include "../Component.h"
 #include "../Transform.h"
 
@@ -43,6 +44,7 @@ protected:
 	std::unique_ptr<Transform> myTransform;
 	std::unique_ptr<btCollisionShape> collisionShape;
 	GameObject* owner = nullptr;
+	bool visibleInScene = false;
 
 	// Batch de GPU con el wireframe del collider. Vive en la base para que los
 	// tres tipos reutilicen el mismo recurso: la geometria casi no cambia (solo
@@ -82,6 +84,12 @@ public:
 
 	// GameObject dueño (escena). No duenio: vive en la lista de GameObject.
 	GameObject* getOwner() const { return owner; }
+	bool estaVisibleEnEscena() const { return visibleInScene; }
+	void setVisibleEnEscena(bool visible) { visibleInScene = visible; }
+	void registrarContacto(Collider* otro);
+	void limpiarContactos() { contactos_.clear(); }
+	std::size_t cantidadContactos() const { return contactos_.size(); }
+	Collider* contactoEnIndice(std::size_t indice) const;
 
 	// Transform global POR VALOR. Composicion real con matrices si owner:
 	// global = owner->getGlobalTransform() x myTransform. Sin owner = fallback
@@ -101,5 +109,8 @@ public:
 	// seria ideal crear un metodo que recorra todos los objetos
 	// obtenga sus collider y verifique si se chocan con el mio
 	virtual bool isCollision(Collider* other);
+
+private:
+	std::vector<Collider*> contactos_;
 };
 #endif

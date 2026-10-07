@@ -242,6 +242,12 @@ void Script::detener(GameObject* owner) {
     extraerValores(); // que la GUI conserve los ultimos valores editados
 }
 
+void Script::notificarContacto(GameObject* owner, Collider* propio,
+                               Collider* otro, TipoContacto tipo) {
+    if (!arrancado_ || !comportamiento_.valido()) return;
+    ScriptRuntime::llamarContacto(comportamiento_, owner, propio, otro, tipo);
+}
+
 void Script::liberarComportamiento() {
     if (!comportamiento_.cargado) return;
     camposInspector_ = metadatosCampos(comportamiento_.campos);

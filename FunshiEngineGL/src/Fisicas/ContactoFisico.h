@@ -16,19 +16,21 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#ifndef SETTINGSRIGIDBODY_H
-#define SETTINGSRIGIDBODY_H
-#include "../SettingsComponent.h"
-class GameObject;
-class RigidBody;
+#ifndef CONTACTOFISICO_H
+#define CONTACTOFISICO_H
 
-class SettingsRigidBody : public SettingsComponent {
-protected:
-	RigidBody* myCollider;
-public:
-	SettingsRigidBody(GameObject* objeto);
+class Collider;
 
-	void showDataComponent() override;
-	Component* getComponent() override;
+enum class TipoContacto {
+    Inicio,
+    Persistencia,
+    Fin
 };
+
+struct EventoContacto {
+    Collider* colliderA = nullptr;
+    Collider* colliderB = nullptr;
+    TipoContacto tipo = TipoContacto::Inicio;
+};
+
 #endif

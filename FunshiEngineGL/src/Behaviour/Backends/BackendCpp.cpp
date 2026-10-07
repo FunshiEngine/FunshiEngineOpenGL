@@ -383,3 +383,22 @@ void BackendCpp::llamarDetener(ComportamientoCargado& comportamiento,
     if (!comportamiento.valido()) return;
     reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)->onStop(owner);
 }
+
+void BackendCpp::llamarContacto(ComportamientoCargado& comportamiento,
+                                GameObject* owner, Collider* propio,
+                                Collider* otro, TipoContacto tipo) {
+    if (!comportamiento.valido()) return;
+    IScriptBehaviour* script =
+        reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia);
+    switch (tipo) {
+        case TipoContacto::Inicio:
+            script->onCollisionEnter(owner, propio, otro);
+            break;
+        case TipoContacto::Persistencia:
+            script->onCollisionStay(owner, propio, otro);
+            break;
+        case TipoContacto::Fin:
+            script->onCollisionExit(owner, propio, otro);
+            break;
+    }
+}

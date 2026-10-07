@@ -71,7 +71,14 @@ const ApiScriptGameObject* tablaApi() {
         /* .escalaX = */ [](const void*) { return 1.0f; },
         /* .escalaY = */ [](const void*) { return 1.0f; },
         /* .escalaZ = */ [](const void*) { return 1.0f; },
-        /* .version = */ 2,
+        /* .fijarVelocidadHorizontal = */ [](void*, float, float) {
+            return false;
+        },
+        /* .saltar = */ [](void*, float) { return false; },
+        /* .etiqueta = */ [](const void*) { return ""; },
+        /* .tieneEtiqueta = */ [](const void*, const char*) { return false; },
+        /* .objetoDeCollider = */ [](const void*) -> void* { return nullptr; },
+        /* .version = */ 4,
     };
     return &tabla;
 }
@@ -118,6 +125,15 @@ static std::string fuenteScript(const std::string& clase) {
         "        (void)owner; (void)deltaTime;\n"
         "        pasos += 1;\n"
         "        if (api) api->imprimirConsola(\"hola\");\n"
+        "    }\n"
+        "    void onCollisionEnter(GameObject*, Collider*, Collider*) override {\n"
+        "        pasos += 10;\n"
+        "    }\n"
+        "    void onCollisionStay(GameObject*, Collider*, Collider*) override {\n"
+        "        pasos += 20;\n"
+        "    }\n"
+        "    void onCollisionExit(GameObject*, Collider*, Collider*) override {\n"
+        "        pasos += 30;\n"
         "    }\n"
         "    void onStop(GameObject* owner) override { (void)owner; vidas = -1; }\n"
         "\n"
@@ -247,6 +263,22 @@ int main() {
             if (v.nombre == "pasos")
                 CHECK(v.como<int>() == 102, "onStart(100)+2x onUpdate(+1) = pasos 102");
         }
+        ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
+                                      TipoContacto::Inicio);
+        valores = extraerCampos(comportamiento);
+        for (const auto& v : valores)
+            if (v.nombre == "pasos")
+                CHECK(v.como<int>() == 112,
+                      "el callback de inicio de contacto llega al script C++");
+        ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
+                                      TipoContacto::Persistencia);
+        ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
+                                      TipoContacto::Fin);
+        valores = extraerCampos(comportamiento);
+        for (const auto& v : valores)
+            if (v.nombre == "pasos")
+                CHECK(v.como<int>() == 162,
+                      "los callbacks de persistencia y fin llegan al script C++");
         ScriptRuntime::llamarDetener(comportamiento, nullptr);
         valores = extraerCampos(comportamiento);
         for (const auto& v : valores) {

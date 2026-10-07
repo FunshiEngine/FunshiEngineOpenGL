@@ -26,6 +26,7 @@
 #include "../GUI/WindowNames.h"
 #include "../Objetos/Componentes/CameraComponent.h"
 #include "../Fisicas/PhysicsEngine.h"
+#include "../Fisicas/ContactoFisico.h"
 #include "../Iluminacion/LightSystem.h"
 #include "../Objetos/Componentes/Script.h"
 #include "../Objetos/Componentes/Transform.h"
@@ -33,6 +34,7 @@
 #include "../Objetos/Modelos3D.h"
 #include "../Objetos/SimpleObject.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
+#include "../Objetos/Componentes/Colliders/Collider.h"
 #include "EditorController.h"
 #include "ManifiestoAssets.h"
 #include "RutasReescritura.h"
@@ -900,8 +902,31 @@ void GameScene::update(float value) {
     // La fisica y los scripts SOLO avanzan en modo play (start==true) y sin
     // pausa (F6): con simulacionPausada congelada se congela el motor pero la
     // GUI/editor sigue, para reanudar desde el mismo frame.
-    if (phisics && start && !gizmoInUse() && !simulacionPausada)
+    if (phisics && start && !gizmoInUse() && !simulacionPausada) {
         phisics->stepSimulation(value);
+        const auto notificar = [](Collider* propio, Collider* otro,
+                                  TipoContacto tipo) {
+            if (!propio || !otro) return;
+            GameObject* owner = propio->getOwner();
+            ListaDE<Component*>* componentes =
+                owner ? owner->getComponents() : nullptr;
+            if (!componentes || componentes->isEmpty()) return;
+            Position<Component*>* componente = componentes->first();
+            while (componente) {
+                if (Script* script =
+                        dynamic_cast<Script*>(componente->getElement()))
+                    script->notificarContacto(owner, propio, otro, tipo);
+                componente =
+                    componente != componentes->last()
+                        ? componentes->next(componente)
+                        : nullptr;
+            }
+        };
+        for (const EventoContacto& evento : phisics->tomarEventosContacto()) {
+            notificar(evento.colliderA, evento.colliderB, evento.tipo);
+            notificar(evento.colliderB, evento.colliderA, evento.tipo);
+        }
+    }
 
     // Sincronizar la fisica de vuelta a los GameObjects del mundo
     // (GameObject::update escribe en los Transforms via RigidBody).

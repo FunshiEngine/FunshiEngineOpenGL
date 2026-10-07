@@ -22,6 +22,7 @@
 #include <string>
 
 #include "ComportamientoCargado.h"
+#include "../Fisicas/ContactoFisico.h"
 
 class BackendScript;
 
@@ -44,6 +45,9 @@ public:
     static void llamarActualizar(ComportamientoCargado& c, GameObject* owner,
                                  float deltaTime);
     static void llamarDetener(ComportamientoCargado& c, GameObject* owner);
+    static void llamarContacto(ComportamientoCargado& c, GameObject* owner,
+                               Collider* propio, Collider* otro,
+                               TipoContacto tipo);
 
     // SerializeField: despacha al backend del lenguaje.
     static void inyectar(ComportamientoCargado& c,

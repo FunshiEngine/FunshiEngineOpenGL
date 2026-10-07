@@ -19,6 +19,7 @@
 #include "Collider.h"
 
 #include <cmath>
+#include <cstdint>
 #include <btBulletDynamicsCommon.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -26,7 +27,19 @@
 #include "../../../Objetos/GameObject.h"
 #include "../../../Rendering/LineBatch.h"
 
+namespace {
+constexpr std::uint32_t kColliderMagic = 0x324C4F43;
+constexpr std::uint32_t kColliderVersion = 1;
+}
+
 void Collider::serializeComponent(std::ofstream* fileNamePathContentObject) {
+    fileNamePathContentObject->write(
+        reinterpret_cast<const char*>(&kColliderMagic), sizeof(kColliderMagic));
+    fileNamePathContentObject->write(
+        reinterpret_cast<const char*>(&kColliderVersion),
+        sizeof(kColliderVersion));
+    fileNamePathContentObject->write(
+        reinterpret_cast<const char*>(&visibleInScene), sizeof(visibleInScene));
     fileNamePathContentObject->write(reinterpret_cast<const char*>(&radio),
                                      sizeof(float));
     transformOfDadObject->saveComponent(fileNamePathContentObject);
@@ -34,6 +47,25 @@ void Collider::serializeComponent(std::ofstream* fileNamePathContentObject) {
 }
 
 void Collider::deserializeComponent(std::ifstream* fileNamePathContentObject) {
+    const std::streampos inicio = fileNamePathContentObject->tellg();
+    std::uint32_t magic = 0;
+    fileNamePathContentObject->read(reinterpret_cast<char*>(&magic),
+                                    sizeof(magic));
+    if (magic == kColliderMagic) {
+        std::uint32_t version = 0;
+        fileNamePathContentObject->read(reinterpret_cast<char*>(&version),
+                                        sizeof(version));
+        fileNamePathContentObject->read(
+            reinterpret_cast<char*>(&visibleInScene), sizeof(visibleInScene));
+        if (version != kColliderVersion) {
+            fileNamePathContentObject->setstate(std::ios::failbit);
+            return;
+        }
+    } else {
+        fileNamePathContentObject->clear();
+        fileNamePathContentObject->seekg(inicio);
+        visibleInScene = false;
+    }
     fileNamePathContentObject->read(reinterpret_cast<char*>(&radio),
                                     sizeof(float));
     transformOfDadObject->loadComponent(fileNamePathContentObject);
@@ -174,4 +206,15 @@ bool Collider::isCollision(Collider* other) {
         (dzmyTransform - dzotherTransform) * (dzmyTransform - dzotherTransform);
     float distancia = sqrt(distanciaSinProcesar);
     return distancia < getRadio() + other->getRadio();
+}
+
+void Collider::registrarContacto(Collider* otro) {
+    if (!otro || otro == this) return;
+    for (Collider* contacto : contactos_)
+        if (contacto == otro) return;
+    contactos_.push_back(otro);
+}
+
+Collider* Collider::contactoEnIndice(std::size_t indice) const {
+    return indice < contactos_.size() ? contactos_[indice] : nullptr;
 }

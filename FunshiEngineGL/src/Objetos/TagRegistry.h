@@ -16,19 +16,28 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#ifndef SETTINGSRIGIDBODY_H
-#define SETTINGSRIGIDBODY_H
-#include "../SettingsComponent.h"
-class GameObject;
-class RigidBody;
+#ifndef TAGREGISTRY_H
+#define TAGREGISTRY_H
 
-class SettingsRigidBody : public SettingsComponent {
-protected:
-	RigidBody* myCollider;
+#include <set>
+#include <string>
+#include <vector>
+
+class TagRegistry {
 public:
-	SettingsRigidBody(GameObject* objeto);
+    static void registrar(const std::string& tag) {
+        if (!tag.empty()) tags().insert(tag);
+    }
 
-	void showDataComponent() override;
-	Component* getComponent() override;
+    static std::vector<std::string> registrados() {
+        return std::vector<std::string>(tags().begin(), tags().end());
+    }
+
+private:
+    static std::set<std::string>& tags() {
+        static std::set<std::string> valores{"Untagged"};
+        return valores;
+    }
 };
+
 #endif

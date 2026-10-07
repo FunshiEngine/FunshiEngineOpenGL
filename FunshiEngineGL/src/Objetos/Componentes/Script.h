@@ -20,6 +20,7 @@
 #define SCRIPT_H
 
 #include "../../Behaviour/ComportamientoCargado.h"
+#include "../../Fisicas/ContactoFisico.h"
 #include "Component.h"
 #include <string>
 #include <utility>
@@ -70,6 +71,8 @@ public:
     // Carga/ejecucion
     void actualizar(GameObject* owner, float deltaTime);
     void detener(GameObject* owner);
+    void notificarContacto(GameObject* owner, Collider* propio,
+                           Collider* otro, TipoContacto tipo);
     void recargar(GameObject* owner); // forza recompilar + recargar
     void cargarSiNecesario();         // carga (compila) sin arrancar onStart
 

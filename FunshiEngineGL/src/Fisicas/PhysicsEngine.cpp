@@ -40,3 +40,8 @@ void PhysicsEngine::addRigidBody(RigidBody* body) {
 void PhysicsEngine::removeRigidBody(RigidBody* body) {
     if (backend_) backend_->removeRigidBody(body);
 }
+
+std::vector<EventoContacto> PhysicsEngine::tomarEventosContacto() {
+    return backend_ ? backend_->tomarEventosContacto()
+                    : std::vector<EventoContacto>{};
+}

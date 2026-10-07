@@ -119,7 +119,8 @@ void SceneRenderer::render(const FrameContext& ctx, GameObject* activeCameraObje
     camara->getProjectionMatrix(
         projection,
         static_cast<float>(ctx.framebufferWidth) /
-            static_cast<float>(ctx.framebufferHeight));
+            static_cast<float>(ctx.framebufferHeight),
+        radioDifuminado(ctx));
 
     static bool diagMatricesPendiente = true;
     if (diagMatricesPendiente) {
@@ -199,6 +200,9 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     // entra por esta funcion.
     lineRenderer().setVista(view, projection);
     lineRenderer().setViewport(viewportAncho, viewportAlto);
+    const Difuminado horizonte =
+        Difuminado::desdeRadio(radioDifuminado(ctx), 1);
+    lineRenderer().setHorizonteVisual(horizonte.inicio, horizonte.fin);
 
     // Posicion de la camara en el mundo a partir de su matriz de vista:
     // view = [R | t] (column-major), ojo = -(R^T * t). La usa la grilla para
@@ -221,6 +225,9 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     // modelos: no depende de Modelos3D ni del recorrido normal de las
     // entidades.
     dibujarGrillaEditor(ctx, camaraMundo);
+    if (meshRenderer_) {
+        meshRenderer_->setHorizonteVisual(horizonte.inicio, horizonte.fin);
+    }
 
     // Luces de la pasada: van como uniforms del shader (MeshRenderer), que es
     // la unica via de iluminacion que queda.
@@ -663,18 +670,19 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
         object->getComponent<CameraComponent>() && object != camaraOjo)
         dibujarMarcadorCamara(object);
 
-    // Wireframe del collider en la escena 3D: SOLO mientras el gizmo del
-    // offset del collider esta habilitado para este objeto (checkbox "Gizmo
-    // activo" del transform del collider).
-    if (ctx.mostrarVisualesDepuracion && object != camaraOjo &&
-        ctx.selectedObject) {
+    // La visibilidad persistente es independiente del gizmo de edicion del
+    // offset, que solo dibuja el collider del objeto seleccionado.
+    if (ctx.mostrarVisualesDepuracion && object != camaraOjo) {
         Collider* collider = object->getComponent<Collider>();
         Transform* colliderTransform =
             collider ? collider->getTransform() : nullptr;
 
-        if (collider && colliderTransform &&
-            colliderTransform->gizmoHabilitado &&
-            collider->getOwner() == ctx.selectedObject) {
+        const bool gizmoSeleccionado =
+            collider && colliderTransform && ctx.selectedObject == object &&
+            collider->getOwner() == ctx.selectedObject &&
+            colliderTransform->gizmoHabilitado;
+        if (collider &&
+            (collider->estaVisibleEnEscena() || gizmoSeleccionado)) {
             collider->dibujarCollider();
         }
     }
@@ -807,8 +815,10 @@ float SceneRenderer::radioDifuminado(const FrameContext& ctx) {
     // Sin perfil de apariencia en la pasada (una vista previa, por ejemplo) se
     // usa el valor por defecto, que es el mismo que pone una configuracion
     // recien creada. El acotado al rango admitido lo hace Difuminado::desdeRadio.
-    if (!ctx.apariencia) return AparienciaUtil::kRadioDifuminadoPorDefecto;
-    return ctx.apariencia->radioDifuminado;
+    const float radio =
+        ctx.apariencia ? ctx.apariencia->radioDifuminado
+                       : AparienciaUtil::kRadioDifuminadoPorDefecto;
+    return Difuminado::desdeRadio(radio, 1).fin;
 }
 
 bool SceneRenderer::colorReferenciaGuia(const FrameContext& ctx,
@@ -885,7 +895,8 @@ void SceneRenderer::dibujarViewportsPrevios(const FrameContext& ctx) {
                 camara->getProjectionMatrix(
                     projection,
                     static_cast<float>(kPreviewW) /
-                        static_cast<float>(kPreviewH));
+                        static_cast<float>(kPreviewH),
+                    radioDifuminado(ctx));
                 // La vista previa de camara NO muestra la guia de eje: es una
                 // ayuda del editor sobre la pasada principal (en el preview
                 // ocuparia la imagen sin que el usuario la haya pedido).

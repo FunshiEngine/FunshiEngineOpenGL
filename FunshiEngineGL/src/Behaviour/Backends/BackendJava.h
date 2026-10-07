@@ -45,6 +45,9 @@ public:
                           GameObject* owner, float deltaTime) override;
     void llamarDetener(ComportamientoCargado& comportamiento,
                        GameObject* owner) override;
+    void llamarContacto(ComportamientoCargado& comportamiento,
+                        GameObject* owner, Collider* propio, Collider* otro,
+                        TipoContacto tipo) override;
 
     void inyectar(ComportamientoCargado& comportamiento,
                   const std::vector<ReflejoScripts::ValorCampo>& valores) override;

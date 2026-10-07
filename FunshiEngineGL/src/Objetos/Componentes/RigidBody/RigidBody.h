@@ -37,6 +37,8 @@ private:
     // Guarda la posicion y rotacion para serializar
     float pos[3];
     float rot[4]; // quaternion x,y,z,w
+    bool activo = true;
+    bool enSuelo = false;
 
     void serializeComponent(std::ofstream* fileNamePathContentObject) override;
     void deserializeComponent(std::ifstream* fileNamePathContentObject) override;
@@ -60,11 +62,17 @@ public:
     // Empuja el Transform del GameObject (collider+padre) hacia el cuerpo
     // fisico. Se usa cuando el gizmo mueve/rota/escala el objeto para que la
     // simulacion parta de la posicion visual del editor.
-    void syncGameObjectToPhysics();
+    void syncGameObjectToPhysics(bool restablecerVelocidades = true);
+    bool estaActivo() const { return activo; }
+    void setActivo(bool activo);
+    bool fijarVelocidadHorizontal(float x, float z);
+    bool saltar(float velocidad);
+    void actualizarEstadoSuelo(bool apoyado) { enSuelo = apoyado; }
 
     void saveComponent(std::ofstream* fileNamePathContentObject) override;
     void loadComponent(std::ifstream* fileNamePathContentObject) override;
 
     btRigidBody* getRigidBody() { return rigidBody.get(); }
+    Collider* getCollider() const { return collider; }
 };
 #endif

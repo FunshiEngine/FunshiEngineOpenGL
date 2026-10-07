@@ -121,6 +121,13 @@ void ScriptRuntime::llamarDetener(ComportamientoCargado& c, GameObject* owner) {
         backend->llamarDetener(c, owner);
 }
 
+void ScriptRuntime::llamarContacto(ComportamientoCargado& c,
+                                   GameObject* owner, Collider* propio,
+                                   Collider* otro, TipoContacto tipo) {
+    if (BackendScript* backend = backendPara(c.lenguaje))
+        backend->llamarContacto(c, owner, propio, otro, tipo);
+}
+
 void ScriptRuntime::inyectar(
     ComportamientoCargado& c,
     const std::vector<ReflejoScripts::ValorCampo>& valores) {

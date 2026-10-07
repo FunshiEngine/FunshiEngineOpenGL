@@ -21,6 +21,7 @@
 
 #include "../GeneralUserInterface.h"
 #include "../../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
+#include <array>
 
 class GameObject;
 class SettingsComponent;
@@ -32,6 +33,8 @@ class EventBus;
 class SettingsObjectInterface : public GeneralUserInterface {
 private:
 	GameObject* object;
+	GameObject* tagBufferOwner_ = nullptr;
+	std::array<char, 128> tagBuffer_{};
 	ListaDE<SettingsComponent*>* listaDESettingsComponent;
 	EditorController* editor = nullptr;
 	AudioEngine* audioMotor = nullptr;

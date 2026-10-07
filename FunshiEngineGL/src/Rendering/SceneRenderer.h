@@ -160,7 +160,7 @@ private:
     // Radio del difuminado del piso para este frame: el que eligio el usuario
     // en Opciones (Apariencia::radioDifuminado), acotado por el propio Difuminado
     // y con el valor por defecto si la pasada no trae perfil de apariencia. Lo
-    // leen la grilla y la guia de eje para desvanecerse en el MISMO circulo.
+    // los leen la grilla, la guia de eje y el far plane efectivo de camara.
     static float radioDifuminado(const FrameContext& ctx);
     // Color contra el que se mide el contraste de la guia de eje: el color
     // EFECTIVO de la grilla del suelo (el mismo que usa su propio dibujado, con

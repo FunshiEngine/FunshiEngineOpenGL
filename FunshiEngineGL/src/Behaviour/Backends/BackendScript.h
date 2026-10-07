@@ -28,6 +28,7 @@
 #include <string>
 
 #include "../ComportamientoCargado.h"
+#include "../../Fisicas/ContactoFisico.h"
 
 // Backend de un lenguaje de script: compila el fuente a un artefacto, lo
 // carga, instancia el comportamiento y ejecuta su ciclo. Los mensajes de error
@@ -56,6 +57,11 @@ public:
                                   GameObject* owner, float deltaTime) = 0;
     virtual void llamarDetener(ComportamientoCargado& comportamiento,
                                GameObject* owner) = 0;
+    virtual void llamarContacto(ComportamientoCargado&,
+                                GameObject*,
+                                Collider*,
+                                Collider*,
+                                TipoContacto) {}
 
     // SerializeField: inyecta/extrae el arbol de valores sobre la instancia.
     // El default vale para instancias con memoria C++ contigua (BackendCpp);

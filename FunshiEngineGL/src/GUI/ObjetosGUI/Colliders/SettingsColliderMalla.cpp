@@ -38,6 +38,9 @@ void SettingsColliderMalla::setEditor(EditorController* editor) {
 }
 
 void SettingsColliderMalla::showDataComponent() {
+	bool visible = myCollider->estaVisibleEnEscena();
+	if (ImGui::Checkbox("Visible en escena", &visible))
+		myCollider->setVisibleEnEscena(visible);
 	ImGui::InputFloat("Radio", &newRadio);
 	if (ImGui::Button("Confirmar")) {
 		if (newRadio > 0 && newRadio != myCollider->getRadio()) {
@@ -54,8 +57,6 @@ void SettingsColliderMalla::showDataComponent() {
 		}
 	}
 	settingsTransform->showDataComponent();
-
-	if (mostrarVisualesDepuracion_) myCollider->dibujarCollider();
 }
 
 Component* SettingsColliderMalla::getComponent() { return myCollider; }

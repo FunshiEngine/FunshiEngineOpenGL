@@ -303,6 +303,8 @@ bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
     const glm::mat4 invView = glm::inverse(glm::make_mat4(view));
     shader_->setVec3("uCameraPosition",
                      glm::vec3(invView[3][0], invView[3][1], invView[3][2]));
+    shader_->setFloat("uDistanceFadeStart", horizonteInicio_);
+    shader_->setFloat("uDistanceFadeEnd", horizonteFin_);
 
     aplicarMaterial(contexto);
     aplicarTexturas(contexto, mesh);
@@ -326,7 +328,10 @@ bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
 
     // El relleno de poligonos es el unico estado valido en un contexto core
     // (no hay glPolygonMode) y el depth test ya lo activa applyBaseState().
+    auto& backend = Rendering::Backend::activeBackend();
+    backend.setBlendEnabled(true);
     it->second->draw();
+    backend.setBlendEnabled(false);
     ShaderProgram::unbind();
     return true;
 }

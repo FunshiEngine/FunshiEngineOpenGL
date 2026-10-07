@@ -67,6 +67,10 @@ public:
     // globalAmbient = modelo de luz.
     void setLuces(const LightData* luces, int lucesCount,
                   const float* globalAmbient);
+    void setHorizonteVisual(float inicio, float fin) noexcept {
+        horizonteInicio_ = inicio;
+        horizonteFin_ = fin;
+    }
 
     // Dibuja el modelo con el pipeline moderno (update + material + malla).
     // Devuelve false si no se drew: shader/VAO no disponible, o malla vacía o
@@ -100,6 +104,8 @@ private:
     std::unordered_set<const Mesh*> mallasSinNormales_;
     std::vector<LightData> luces_;
     float globalAmbient_[3] = {0.15f, 0.15f, 0.15f};
+    float horizonteInicio_ = 40.0f;
+    float horizonteFin_ = 150.0f;
 
     // Compila el shader por defecto la primera vez. No lanza: si el pipeline
     // moderno no esta disponible, deja available() == false.

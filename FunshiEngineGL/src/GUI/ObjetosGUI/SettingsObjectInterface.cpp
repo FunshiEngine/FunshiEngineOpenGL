@@ -35,6 +35,7 @@
 #include "Grid/SettingsGrid.h"
 #include "Skybox/SettingsSkybox.h"
 #include "../../Objetos/GameObject.h"
+#include "../../Objetos/TagRegistry.h"
 #include "../../Objetos/Componentes/Light.h"
 #include "../../Objetos/Componentes/Material.h"
 #include "../../Objetos/Componentes/CameraComponent.h"
@@ -55,6 +56,8 @@
 #include "../../Herramientas/TypeUtils.h"
 #include <imgui.h>
 #include <typeinfo>
+#include <algorithm>
+#include <cstring>
 
 SettingsObjectInterface::SettingsObjectInterface(GameObject* object,
                                                  bool stateGUI)
@@ -88,6 +91,7 @@ void SettingsObjectInterface::desvincular() {
         listaDESettingsComponent->remove(pos);
     }
     object = nullptr;
+    tagBufferOwner_ = nullptr;
 }
 
 void SettingsObjectInterface::setEventBus(EventBus* bus) {
@@ -287,6 +291,7 @@ SettingsComponent* SettingsObjectInterface::settingsEnIndice(size_t indice) {
 void SettingsObjectInterface::setTargetObject(GameObject* newObject) {
     if (object == newObject || newObject == nullptr) return;
     object = newObject;
+    tagBufferOwner_ = nullptr;
     while (!listaDESettingsComponent->isEmpty()) {
         Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
         delete pos->getElement();
@@ -301,6 +306,39 @@ void SettingsObjectInterface::initGUI() {
 }
 
 void SettingsObjectInterface::contentGUI() {
+    if (object) {
+        if (tagBufferOwner_ != object) {
+            tagBuffer_.fill('\0');
+            const std::string& tag = object->getTag();
+            std::memcpy(tagBuffer_.data(), tag.data(),
+                        std::min(tag.size(), tagBuffer_.size() - 1));
+            tagBufferOwner_ = object;
+        }
+
+        ImGui::TextUnformatted("Tag");
+        ImGui::SetNextItemWidth(180.0f);
+        if (ImGui::InputText("##TagObject", tagBuffer_.data(),
+                             tagBuffer_.size(),
+                             ImGuiInputTextFlags_EnterReturnsTrue))
+            object->setTag(tagBuffer_.data());
+        ImGui::SameLine();
+        const std::string tagActual = object->getTag();
+        if (ImGui::BeginCombo("##TagsRegistrados", tagActual.c_str())) {
+            for (const std::string& tag : TagRegistry::registrados()) {
+                const bool seleccionado = tag == tagActual;
+                if (ImGui::Selectable(tag.c_str(), seleccionado)) {
+                    object->setTag(tag);
+                    tagBuffer_.fill('\0');
+                    std::memcpy(tagBuffer_.data(), tag.data(),
+                                std::min(tag.size(), tagBuffer_.size() - 1));
+                }
+                if (seleccionado) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::Separator();
+    }
+
 	// MOSTRAMOS COMPONENTES
 	iterandoComponentes = true;
 	componenteABorrar = nullptr;

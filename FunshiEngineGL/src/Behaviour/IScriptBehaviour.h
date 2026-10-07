@@ -21,6 +21,8 @@
 #include "Reflection/BehaviourReflection.h"
 #include "ScriptGameObject.h"
 
+class Collider;
+
 // Marca de exportacion de la fabrica FUNSHI_CREAR_COMPORTAMIENTO (H-15).
 // En Windows/MSVC una funcion de una .dll NO se exporta sola: sin
 // __declspec(dllexport) la .dll compila pero su tabla de exportaciones no
@@ -53,6 +55,24 @@ public:
     virtual ~IScriptBehaviour() {}
     virtual void onStart(GameObject* owner) = 0;
     virtual void onUpdate(GameObject* owner, float deltaTime) = 0;
+    virtual void onCollisionEnter(GameObject* owner, Collider* propio,
+                                  Collider* otro) {
+        (void)owner;
+        (void)propio;
+        (void)otro;
+    }
+    virtual void onCollisionStay(GameObject* owner, Collider* propio,
+                                 Collider* otro) {
+        (void)owner;
+        (void)propio;
+        (void)otro;
+    }
+    virtual void onCollisionExit(GameObject* owner, Collider* propio,
+                                 Collider* otro) {
+        (void)owner;
+        (void)propio;
+        (void)otro;
+    }
 
     // Opcional: recibe la tabla de punteros que implementa el motor en la TU
     // del ejecutable (así el .so del script no enlaza símbolos del motor).

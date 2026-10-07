@@ -78,6 +78,8 @@ public:
     // el picking y el render comparten la misma fuente de verdad.
     void getViewMatrix(float* outMatrix) const;
     void getProjectionMatrix(float* outMatrix, float aspect) const;
+    void getProjectionMatrix(float* outMatrix, float aspect,
+                             float limiteFarPlane) const;
 
     // Navegacion FPS (misma API que el viejo Camera).
     void forward(float dt);
