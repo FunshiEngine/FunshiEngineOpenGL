@@ -117,26 +117,40 @@ void StatusBarInterface::contentGUI() {
             Position<GameObject*>* pos = objs->first();
             while (pos && pos->getElement()) {
                 GameObject* objeto = pos->getElement();
-                if (Script* s = objeto->getComponent<Script>()) {
-                    alguno = true;
-                    std::string fuente = s->rutaFuente();
-                    std::string estado;
-                    if (compilando_ && fuente == actual_)
-                        estado = "cargando " +
-                                 std::to_string(BarraProgresoTexto::porcentaje(
-                                     hecha_, total_)) +
-                                 "%";
-                    else if (s->estaCargado())
-                        estado = "cargado";
-                    else if (!s->ultimoError().empty())
-                        estado = "error";
-                    else
-                        estado = "esperando";
-                    ImGui::BulletText("%s  [%s]",
-                                      fuente.empty() ? "(sin fuente)" : fuente.c_str(),
-                                      estado.c_str());
-                    if (!s->ultimoError().empty())
-                        ImGui::TextWrapped("-> %s", s->ultimoError().c_str());
+                ListaDE<Component*>* componentes = objeto->getComponents();
+                if (componentes && !componentes->isEmpty()) {
+                    Position<Component*>* posicion = componentes->first();
+                    while (posicion) {
+                        if (Script* s =
+                                dynamic_cast<Script*>(posicion->getElement())) {
+                            alguno = true;
+                            std::string fuente = s->rutaFuente();
+                            std::string estado;
+                            if (compilando_ && fuente == actual_)
+                                estado = "cargando " +
+                                         std::to_string(
+                                             BarraProgresoTexto::porcentaje(
+                                                 hecha_, total_)) +
+                                         "%";
+                            else if (s->estaCargado())
+                                estado = "cargado";
+                            else if (!s->ultimoError().empty())
+                                estado = "error";
+                            else
+                                estado = "esperando";
+                            ImGui::BulletText(
+                                "%s  [%s]",
+                                fuente.empty() ? "(sin fuente)"
+                                               : fuente.c_str(),
+                                estado.c_str());
+                            if (!s->ultimoError().empty())
+                                ImGui::TextWrapped("-> %s",
+                                                   s->ultimoError().c_str());
+                        }
+                        posicion = posicion != componentes->last()
+                                       ? componentes->next(posicion)
+                                       : nullptr;
+                    }
                 }
                 pos = (pos != objs->last()) ? objs->next(pos) : nullptr;
             }

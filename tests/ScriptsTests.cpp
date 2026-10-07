@@ -41,6 +41,8 @@
 #include "../FunshiEngineGL/src/Behaviour/Backends/ResolucionJdk.h"
 #include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/IScriptBehaviour.h"
+#include "../FunshiEngineGL/src/Behaviour/ScriptAudioHandles.h"
+#include "../FunshiEngineGL/src/Input/InputScripts.h"
 
 using namespace ReflejoScripts;
 namespace fs = std::filesystem;
@@ -262,6 +264,17 @@ static void testObjetoResolucion() {
     escribirCampo(defs[15], &b, v);
     CHECK(b.objetivo == nullptr, "resolver sin el objeto devuelve nulo");
 
+    GameObject* camara =
+        reinterpret_cast<GameObject*>(static_cast<std::uintptr_t>(0x1234));
+    fijarResolverObjetos([camara](const std::string& nombre) {
+        return nombre == "Camara" ? camara : nullptr;
+    });
+    v.contenido = std::string("Camara");
+    escribirCampo(defs[15], &b, v);
+    CHECK(b.objetivo == camara,
+          "referencia a GameObject se resuelve por nombre");
+    fijarResolverObjetos(nullptr);
+
     // Vector de objetos: nombres -> punteros nulos.
     std::vector<std::string> nombres{"A", "B"};
     ValorCampo vL = valorPorDefecto(defs[16]);
@@ -460,6 +473,59 @@ static void testAlinearValores() {
         CHECK(alineados.empty(),
               "sin campos reflejados el arbol alineado queda vacio");
     }
+}
+
+static void testEntradaDeScripts() {
+    InputScripts input;
+    input.reset();
+    input.onKey(87, 1);
+    CHECK(input.sostiene("W"), "W queda sostenida tras el evento de pulsacion");
+    CHECK(input.presionada("W"), "W publica el flanco de pulsacion");
+    input.onKey(87, 2);
+    CHECK(input.sostiene("W"), "GLFW_REPEAT conserva la tecla sostenida");
+    input.avanzarFrame();
+    CHECK(input.sostiene("W") && !input.presionada("W"),
+          "avanzar el frame consume el flanco y conserva el estado sostenido");
+    input.onKey(87, 0);
+    CHECK(!input.sostiene("W") && input.soltada("W"),
+          "el evento de liberacion publica el flanco correspondiente");
+    input.onMouseMove(100.0, 100.0);
+    CHECK(input.deltaMouseX() == 0.0f && input.deltaMouseY() == 0.0f,
+          "la primera posicion del mouse solo establece el origen");
+    input.onMouseMove(106.0, 97.0);
+    CHECK(input.deltaMouseX() == 6.0f && input.deltaMouseY() == -3.0f,
+          "el delta del mouse acumula movimiento en pixeles");
+    input.avanzarFrame();
+    CHECK(input.deltaMouseX() == 0.0f && input.deltaMouseY() == 0.0f,
+          "avanzar el frame consume el delta del mouse");
+    input.reset();
+    CHECK(!input.sostiene("W") && !input.soltada("W") &&
+              input.deltaMouseX() == 0.0f && input.deltaMouseY() == 0.0f,
+          "reset elimina teclas, flancos y delta del mouse");
+    for (int digito = 0; digito <= 9; ++digito) {
+        const std::string nombre = "D" + std::to_string(digito);
+        CHECK(InputScripts::codigoDe(nombre) == 48 + digito,
+              "los digitos usan los identificadores D0-D9");
+    }
+    CHECK(InputScripts::codigoDe("0") == -1,
+          "los identificadores simples 0-9 no son aliases");
+}
+
+static void testAudioIniciadoPorScripts() {
+    ScriptAudioHandles handlesScript;
+    std::vector<int> activos = {12, 27, 33};
+    handlesScript.registrar(27);
+    handlesScript.registrar(33);
+    handlesScript.registrar(-1);
+    activos.erase(std::remove(activos.begin(), activos.end(), 33),
+                  activos.end());
+    handlesScript.retirar(33);
+    handlesScript.detenerTodos([&activos](int handle) {
+        activos.erase(std::remove(activos.begin(), activos.end(), handle),
+                      activos.end());
+    });
+    CHECK(activos == std::vector<int>({12}),
+          "al cerrar la simulacion se detienen solo los handles de scripts");
 }
 
 // --- Contrato de compilacion de los scripts C++ (CRT compartido) -------------
@@ -1014,6 +1080,8 @@ int main(int argc, char** argv) {
     testObjetoResolucion();
     testSerializacionBinaria();
     testAlinearValores();
+    testEntradaDeScripts();
+    testAudioIniciadoPorScripts();
     testContratoCompilacion();
     testSondeoToolchain(argv[0]);
 

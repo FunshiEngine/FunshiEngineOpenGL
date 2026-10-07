@@ -227,7 +227,9 @@ auxiliares; los objetos y componentes de la escena siguen dibujandose. **Reset**
 el estado completo guardado al iniciar la simulacion, sin salir de ella.
 
 Clic en un objeto del arbol o del viewport lo selecciona; el Inspector muestra
-sus componentes a la derecha.
+sus componentes a la derecha. En el arbol, la seleccion se confirma al soltar
+el boton: si el puntero se desplaza al menos 6 px mientras esta presionado,
+se interpreta como arrastre y se conserva el objeto que ya muestra el Inspector.
 
 ---
 
@@ -671,6 +673,16 @@ ejecuta durante Depuración y Juego.
 - **SerializeField:** los campos declarados con macros `REFLECT_*` aparecen
   editables en el inspector, se guardan con la escena y sobreviven al hot
   reload (se reinyectan por nombre de campo).
+- Un GameObject puede tener varios componentes **Script**. Cada componente
+  conserva su propia fuente, campos reflejados y estado; todos se muestran en
+  el inspector y participan por separado del ciclo de vida de la simulacion.
+- Desde el menú contextual del encabezado de cada componente Script se puede
+  cambiar su nombre; queda guardado y organiza los paneles sin alterar el nombre
+  de clase del archivo fuente. Los campos SerializeField aparecen dentro del
+  mismo panel, debajo de la fuente, y sus nombres y tipos permanecen disponibles
+  después de recargar la escena.
+- Los ángulos de rotación de la API de scripts usan radianes aunque el
+  componente `Transform` los almacene internamente en grados.
 - Hot reload por mtime del fuente: durante la simulación, guardar el `.cpp`/`.java`
   recompila y recarga el comportamiento conservando los valores.
 - La ventana **Estado** muestra el toolchain (compilador C++, javac, libjvm,
@@ -737,7 +749,7 @@ Declaralos entre `REFLECT_INICIO(<Clase>)` y `REFLECT_FIN` (pueden ir en zona
 | Macro | Tipo del campo | Ejemplo |
 |---|---|---|
 | `REFLECT_CAMPO(nombre)` | `int`, `float`, `double`, `bool`, `std::string`, `vec3` | `int vidas = 3;` |
-| `REFLECT_CAMPO(objetivo)` | `GameObject*` | referencia por nombre del objeto |
+| `REFLECT_CAMPO(objetivo)` | `GameObject*` | referencia asignable arrastrando un objeto desde la jerarquia |
 | `REFLECT_ARRAY(puntos)` | `std::vector<T>` de primitivas / `vec3` / `std::vector<GameObject*>` | `std::vector<float> ratios;` |
 | `REFLECT_GRUPO(misil)` | struct anidado con su propio bloque `REFLECT_*` | `Misil misil;` |
 | `REFLECT_GRUPOS(oleadas)` | `std::vector<S>` de structs reflejados | `std::vector<Oleada> oleadas;` |
@@ -793,10 +805,13 @@ public:
 ```
 
 Notas:
-- Las referencias `GameObject*` se serializan por el **nombre** del objeto (no
-  por puntero), y sobreviven al hot reload.
+- Las referencias `GameObject*` se asignan arrastrando un objeto desde la
+  jerarquia sobre el campo del inspector. Se serializan por el **nombre** del
+  objeto (no por puntero), sobreviven al hot reload y pueden limpiarse con `x`.
+- Para asignar una camara, arrastra el objeto que contiene su componente
+  `CameraComponent`; el campo recibe el `GameObject*` de ese objeto.
 - El editor muestra cada campo con su widget (InputFloat, Checkbox, InputText,
-  ColorEdit para `vec3` cuando aplica, dropdown de objetos para referencias).
+  ColorEdit para `vec3` cuando aplica y destino de drag & drop para referencias).
 - Si el inspector muestra "Sin campos SerializeField", verificá que el bloque
   `REFLECT_*` este dentro de la clase y que `camposReflejados()` devuelva
   `reflexion()`.
@@ -809,16 +824,18 @@ scripts la usan como `this->api->...` y **deben comprobar `if (api)`** antes
 de usarla.
 
 **Versionado APPEND-ONLY:** los miembros nuevos se agregan siempre al final de
-la struct, sin reordenar ni cambiar tipos, de modo que un `.so` compilado
-contra una version anterior siga leyendo los miembros viejos en la misma
-direccion. El campo `version` (al final) permite guardas:
+la struct, sin reordenar ni cambiar tipos. El campo `version` (al final)
+permite guardas:
 `if (api->version >= 2) { float y = api->rotacionEjeY(owner); }`.
+No se promete compatibilidad binaria entre versiones del motor: al cambiar la
+API o el runtime, el cache invalida los artefactos y recompila los scripts
+contra la version actual.
 
 | Funcion | Version | Firma | Descripcion |
 |---|---|---|---|
 | `api->nombre(owner)` | 1 | `const char* (const void*)` | nombre del objeto |
-| `api->posicionX/Y/Z(owner)` | 1 | `float (const void*)` | posicion mundo por eje |
-| `api->fijarPosicion(owner,x,y,z)` | 1 | `void (void*, float, float, float)` | fija la posicion |
+| `api->posicionX/Y/Z(owner)` | 1 | `float (const void*)` | posicion local por eje |
+| `api->fijarPosicion(owner,x,y,z)` | 1 | `void (void*, float, float, float)` | fija la posicion local |
 | `api->fijarEscala(owner,x,y,z)` | 1 | `void (void*, float, float, float)` | fija la escala |
 | `api->fijarRotacionEjes(owner,ang,x,y,z)` | 1 | `void (void*, float, float, float, float)` | rota `ang` rad sobre el eje `(x,y,z)` |
 | `api->imprimirConsola("texto")` | 1 | `void (const char*)` | log a la consola del editor |
@@ -844,13 +861,16 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 }
 ```
 
-### 13.4 Servicios de escena: tabla `servicios` (v1)
+### 13.4 Servicios de escena: tabla `servicios` (v2)
 
 Ademas de `api`, `IScriptBehaviour` expone `this->servicios`: acceso a los
 servicios del motor que **no son del objeto** sino de la escena (audio,
 busqueda de objetos y teclado). GameScene la inyecta al iniciar la simulacion,
-antes del primer `onStart`, y la desconecta al terminar (fuera de simulacion las funciones
-son no-ops tolerantes: devuelven `false`/`nullptr`/`-1`, sin bloquear).
+antes del primer `onStart`. Al terminar la simulacion, los servicios siguen
+disponibles durante `onStop`; despues se detienen los sonidos iniciados desde
+scripts y los `AudioSource` de componentes, y se desconecta la tabla.
+Fuera de simulacion las funciones son no-ops tolerantes: devuelven
+`false`/`nullptr`/`-1`, sin bloquear.
 Misma convencion APPEND-ONLY con `servicios->version` al final.
 
 | Funcion | Firma | Descripcion |
@@ -861,9 +881,16 @@ Misma convencion APPEND-ONLY con `servicios->version` al final.
 | `servicios->teclaSostiene("W")` | `bool (const char*)` | tecla mantenida apretada |
 | `servicios->teclaPresionada("SPACE")` | `bool (const char*)` | tecla apretada este frame (edge press) |
 | `servicios->teclaSoltada("F")` | `bool (const char*)` | tecla soltada este frame (edge release) |
+| `servicios->deltaMouseX()` | `float ()` | movimiento horizontal del mouse en pixeles en el frame actual |
+| `servicios->deltaMouseY()` | `float ()` | movimiento vertical del mouse en pixeles en el frame actual |
+
+Los deltas del mouse se acumulan durante el frame y se reinician al avanzar al
+siguiente. Se capturan en Juego y cuando el cursor esta bloqueado durante
+Depuracion; la primera posicion tras iniciar la simulacion solo establece el
+origen y no produce un salto.
 
 Las teclas usan nombres de tecla GLFW sin el prefijo `GLFW_KEY_`:
-`"A"`..`"Z"`, `"0"`..`"9"`, `"F1"`..`"F12"`, `"SPACE"`, `"ENTER"`, `"TAB"`,
+`"A"`..`"Z"`, `"D0"`..`"D9"`, `"F1"`..`"F12"`, `"SPACE"`, `"ENTER"`, `"TAB"`,
 `"ESCAPE"`, `"LEFT_SHIFT"`, `"RIGHT_SHIFT"`, `"LEFT_CONTROL"`, `"UP"`,
 `"DOWN"`, `"LEFT"`, `"RIGHT"`, entre otras. Las letras son mayusculas.
 
@@ -897,8 +924,8 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 > proposito: audio/busqueda/teclado son servicios de escena, no del objeto, y
 > se inyectan como punteros opacos (`AudioEngine*`, `SceneRegistry*`,
 > `InputScripts*`) que el modulo de scripts envuelve sin conocer sus
-> cabeceras. En Java, la tabla `servicios` todavia no esta expuesta por el
-> bridge JNI (solo C++); la version Java recibe `api` con `version >= 2`.
+> cabeceras. Java usa las funciones estaticas equivalentes de `Nativo`,
+> descritas en la seccion 15.
 
 ### 13.5 Notas del backend C++
 
@@ -917,8 +944,9 @@ void onUpdate(GameObject* owner, float deltaTime) override {
   propio heap, y liberar memoria del otro lado corrompe el heap: el motor muere
   al asignar el script, sin log ni backtrace. El runtime del engine se declara
   en `CMakeLists.txt` (`CMAKE_MSVC_RUNTIME_LIBRARY`) y llega al script como
-  `FUNSHI_CXX_RUNTIME_FLAG`; el cache de artefactos incluye ese contrato, asi
-  que cambiar los flags recompila solo (no hay que borrar
+  `FUNSHI_CXX_RUNTIME_FLAG`; el cache de artefactos incluye ese contrato y la
+  version del runtime de scripts, asi que cambiar los flags o la API recompila
+  los binarios solos (no hay que borrar
   `%TEMP%/funshi_scripts` a mano).
 - El `.so` del script **no enlaza contra el motor**: todo el acceso pasa por
   la tabla `api` de punteros a funcion. No incluyas cabeceras del motor mas
@@ -1003,7 +1031,7 @@ instalar Temurin JDK 17. El paquete de Linux (Qt IFW) no puede encadenar
 instaladores, así que declara el requisito en la descripción: en la mayoría de
 distros el JDK ya viene instalado.
 
-### 14.1 Plantilla generada por el editor
+### 15.1 Plantilla generada por el editor
 
 ```java
 // El nombre de la clase debe coincidir con el del archivo (MiScript.java).
@@ -1022,12 +1050,55 @@ public class MiScript implements Comportamiento {
 }
 ```
 
-### 14.2 Diferencias con C++
+### 15.2 API del motor y servicios en Java
+
+Java tiene acceso a las mismas operaciones de objeto y servicios de escena que
+C++. El objeto recibido como `long` es un handle opaco: se pasa a los metodos
+que operan sobre GameObject y no se interpreta ni se modifica desde el script.
+Las posiciones consultadas o fijadas por `Nativo.posicionX/Y/Z` y
+`Nativo.fijarPosicion` son **locales** al transform del objeto.
+
+| Operacion | Metodos Java |
+|---|---|
+| Nombre y transform local | `Nativo.nombre`, `posicionX/Y/Z`, `fijarPosicion`, `fijarEscala`, `fijarRotacion` |
+| Getters de rotacion y escala | `Nativo.rotacionAngulo`, `rotacionEjeX/Y/Z`, `escalaX/Y/Z` |
+| Consola | `Nativo.imprimir` |
+| Audio de script | `Nativo.reproducirSonido(clip, volumen, bucle)`, `Nativo.detenerSonido(handle)` |
+| Busqueda de objetos | `Nativo.objetoPorNombre(nombre)`, devuelve `0` si no existe |
+| Teclado | `Nativo.teclaSostiene`, `teclaPresionada`, `teclaSoltada` |
+| Mouse | `Nativo.deltaMouseX`, `Nativo.deltaMouseY` (pixeles por frame) |
+
+El handle devuelto por `objetoPorNombre` puede pasarse a los getters y setters
+de `Nativo`. Los nombres de teclas usan las mismas cadenas GLFW de C++, incluidos
+los digitos `D0`..`D9`. Los servicios toleran no estar conectados; durante
+`detener` siguen conectados y los sonidos iniciados por scripts se detienen al
+terminar la simulacion, sin detener sonidos propios de componentes antes de
+ejecutar `detener`.
+
+```java
+@Override
+public void actualizar(long objeto, double deltaTime) {
+    if (Nativo.teclaPresionada("SPACE")) {
+        int sonido = Nativo.reproducirSonido("disparo.wav", 0.8f, false);
+        Nativo.detenerSonido(sonido);
+    }
+    long meta = Nativo.objetoPorNombre("Meta");
+    if (meta != 0) {
+        float x = Nativo.posicionX(meta);
+        Nativo.fijarPosicion(objeto, x, Nativo.posicionY(objeto),
+                             Nativo.posicionZ(objeto));
+    }
+}
+```
+
+### 15.3 Diferencias con C++
 
 - El ciclo es `iniciar` / `actualizar` / `detener` y reciben el objeto como
   `long` (handle nativo), no como `GameObject*`.
 - Los campos `public` del comportamiento son SerializeField automaticos; no se
   usan macros.
+- Las operaciones del motor se llaman como metodos estaticos de `Nativo`; en
+  C++ se accede mediante las tablas `api` y `servicios`.
 - Cada carga usa un classloader nuevo (child-first: delega al padre solo
   `Nativo`, `Comportamiento` y clases del JDK), lo que permite hot reload sin
   reiniciar la JVM.

@@ -30,12 +30,14 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Behaviour/Backends/BackendCpp.h"
 #include "../FunshiEngineGL/src/Behaviour/Backends/ComandoCompilacionCpp.h"
 #include "../FunshiEngineGL/src/Behaviour/Backends/SondeoToolchain.h"
 #include "../FunshiEngineGL/src/Behaviour/Reflection/BehaviourReflection.h"
@@ -62,6 +64,14 @@ const ApiScriptGameObject* tablaApi() {
         [](void*, float, float, float, float) {},
         /* .imprimirConsola  = */
         [](const char*) {},
+        /* .rotacionAngulo = */ [](const void*) { return 0.0f; },
+        /* .rotacionEjeX = */ [](const void*) { return 0.0f; },
+        /* .rotacionEjeY = */ [](const void*) { return 1.0f; },
+        /* .rotacionEjeZ = */ [](const void*) { return 0.0f; },
+        /* .escalaX = */ [](const void*) { return 1.0f; },
+        /* .escalaY = */ [](const void*) { return 1.0f; },
+        /* .escalaZ = */ [](const void*) { return 1.0f; },
+        /* .version = */ 2,
     };
     return &tabla;
 }
@@ -257,6 +267,31 @@ int main() {
             fs::last_write_time(comportamiento.artefacto, ecArtefacto);
         CHECK(!ecArtefacto, "el artefacto del primer componente existe");
 
+        const std::string claveCacheAnterior =
+            fs::weakly_canonical(fuente).string() + "|" +
+            BackendCpp::compiladorRuta() + "|" +
+            CompilacionCpp::flagsCompilador(std::string());
+        const fs::path artefactoCacheAnterior =
+            fs::path(BackendCpp::cacheDir()) /
+            ("script_" +
+             std::to_string(std::hash<std::string>{}(claveCacheAnterior)) +
+             fs::path(comportamiento.artefacto).extension().string());
+        CHECK(artefactoCacheAnterior.string() != comportamiento.artefacto,
+              "la clave actual del cache no coincide con la version sin API");
+        if (artefactoCacheAnterior.string() != comportamiento.artefacto) {
+            std::error_code ecCopia;
+            fs::copy_file(comportamiento.artefacto, artefactoCacheAnterior,
+                          fs::copy_options::overwrite_existing, ecCopia);
+            CHECK(!ecCopia,
+                  "se puede preparar un artefacto de cache sin version API");
+            if (!ecCopia)
+                fs::last_write_time(
+                    artefactoCacheAnterior,
+                    fs::file_time_type::clock::now() +
+                        std::chrono::hours(1),
+                    ecCopia);
+        }
+
         ComportamientoCargado segundo;
         std::string errorSegundo;
         const bool okSegundo = ScriptRuntime::compilarYCargar(
@@ -265,6 +300,8 @@ int main() {
         if (!okSegundo)
             std::cout << "  Error del backend: " << errorSegundo << std::endl;
         CHECK(segundo.valido(), "segundo comportamiento valido");
+        CHECK(segundo.artefacto != artefactoCacheAnterior.string(),
+              "un binario del cache anterior no se carga aunque este vigente");
         if (!ecArtefacto) {
             std::error_code ecDespues;
             const auto mtimeDespues =

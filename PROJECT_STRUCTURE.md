@@ -110,7 +110,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   └── AudioClip.h              ← handle/metadata del clip
         ├── Behaviour/
         │   ├── IScriptBehaviour.h       ← interfaz de scripts (onStart/onUpdate/onStop, campos)
-        │   ├── ScriptGameObject.*       ← tabla de acceso al GameObject inyectada al script
+        │   ├── ScriptGameObject.*       ← tablas versionadas de GameObject y servicios
+        │   │                                (audio, teclado, mouse; rotación en radianes)
         │   ├── ScriptRuntime.*          ← registro de backends, compilación y hot reload
         │   ├── ComportamientoCargado.h  ← instancia compilada (módulo + campos)
         │   ├── Backends/
@@ -121,6 +122,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   └── BackendJava.*        ← Java vía JNI/JVM dinámico (solo con FUNSHI_JAVA)
         │   └── Reflection/
         │       └── BehaviourReflection.* ← reflexión, macros SerializeField y serialización
+        │                                    de valores de script
         ├── Configuracion/
         │   ├── Apariencia.h             ← perfil de apariencia (tema/acento/fondo/B-N) + utilidades
         │   ├── EditorConfig.h/.cpp      ← fachada de la configuración (datos() + cargar*/guardar*, guardado
@@ -287,7 +289,9 @@ FunshiEngineGL/                          ← raíz del repo
         │       │                            (los campos tam/separacion quedan solo para que las
         │       │                            escenas viejas se lean igual; no se dibujan con ellos)
         │       ├── Skybox.h/.cpp         ← cubemap de 6 caras que reemplaza al cielo degradado
-        │       ├── Color.h / Model.h / Script.h
+        │       ├── Color.h / Model.h / Script.h ← varios scripts por objeto,
+        │       │                                    nombre editable y metadatos reflejados
+        │       │                                    serializados para el inspector
         │       ├── RigidBody/RigidBody.h/.cpp ← cuerpo Bullet sincronizado (RAII)
         │       └── Colliders/
         │           ├── Collider.h/.cpp   ← base abstracta; radio; gizmo del collider (GizmoTarget)
@@ -622,12 +626,22 @@ solo como orquestador de arranque y bucle.
   consulta de teclado via `InputScripts`, inyectadas por `GameScene` al iniciar
   la simulacion) para que el script no enlace contra el motor. Ambas tablas siguen
   versionado APPEND-ONLY con campo `version` final para guardas en runtime.
+  Las posiciones de la API de transform son locales. Durante el cierre, GameScene
+  conserva los servicios hasta completar `onStop`, detiene los handles de audio
+  iniciados por scripts y luego desconecta el contexto, sin afectar la propiedad
+  de audio de los componentes. `InputScripts` expone los edges del teclado y el
+  delta del mouse en pixeles durante el frame actual.
 - `BehaviourReflection` implementa la reflexión por macros (`REFLECT_INICIO`,
   `CAMPO`, `ARRAY`, `GRUPO`, `GRUPOS`, `FIN`), la conversión de valores tipados y la
   serialización binaria autodescriptiva de los campos.
 - `BackendCpp` compila el `.cpp` a `.so`/`.dll` con el compilador configurado y lo
   carga con `dlopen`/`LoadLibrary`; `BackendJava` (opcional, `-DFUNSHI_JAVA=ON`)
   compila con `javac` y ejecuta sobre un JVM cargado dinámicamente vía JNI.
+  Java accede a las mismas funciones de objeto y servicios de escena mediante
+  las funciones nativas de `Nativo`, sin enlazarse directamente con los módulos.
+  Los caches C++ y Java incluyen la version del runtime de scripts, por lo que
+  un cambio de API/runtime recompila los fuentes y no ofrece ABI binaria entre
+  versiones del motor.
   La eleccion del toolchain Java vive en `Behaviour/Backends/ResolucionJdk.h`, que
   es codigo puro (sin JNI, para poder probarlo en un test headless): recorre las
   raices candidatas en un orden fijo y **empareja** `libjvm` y `javac` de una misma
@@ -1085,7 +1099,6 @@ Los bugs de la Fase 2 (cámaras/vistas previas) y sus fixes están documentados 
 - [ ] `CommandManager` para undo/redo.
 - [ ] Cuadro de log de errores en el editor.
 - [ ] Resolver IDs duplicados al crear objetos; limpiar binarios huérfanos al eliminar.
-- [ ] Clase `Input` de gameplay (el input del editor ya está modularizado en `src/Input/EditorInput`; falta exponer teclado/mouse a los scripts vía la tabla `api`).
 - [ ] Terminar los popups del inspector.
 - [ ] Prefabs y duplicación de objetos.
 - [ ] Portabilidad de rutas de assets (centralizar `HOME` / rutas de Windows).

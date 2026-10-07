@@ -19,6 +19,7 @@
 #include "GameObject.h"
 #include "Componentes/ComponentFactory.h"
 #include "Componentes/CameraComponent.h"
+#include "Componentes/Script.h"
 
 #include <cmath>
 #include <algorithm>
@@ -265,8 +266,16 @@ void GameObject::update(float deltaTime) {
         body->syncPhysicsToGameObject();
     }
 
-    if (Script* script = getComponent<Script>()) {
-        script->actualizar(this, deltaTime);
+    if (components && !components->isEmpty()) {
+        Position<Component*>* position = components->first();
+        while (position) {
+            if (Script* script =
+                    dynamic_cast<Script*>(position->getElement()))
+                script->actualizar(this, deltaTime);
+            position = position != components->last()
+                           ? components->next(position)
+                           : nullptr;
+        }
     }
 }
 

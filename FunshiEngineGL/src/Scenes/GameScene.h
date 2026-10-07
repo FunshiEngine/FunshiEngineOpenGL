@@ -136,6 +136,7 @@ private:
     std::unique_ptr<GizmoController> gizmoController_;
 
     void asegurarGrilla();
+    void configurarResolverObjetosScripts();
     // Reproduce/detiene los AudioSource de la escena en las transiciones de
     // modo play (entrar = autoplay de los marcados; salir = detener todo).
     void sincronizarAudioPlay(bool entrarEnPlay);
@@ -201,6 +202,8 @@ public:
     void GUI();
     void pintarVentanaCamaras();
     void update(float deltaTime);
+    void registrarTeclaScript(int key, int action);
+    void registrarMouseScript(double x, double y);
     void gameScene();
     void setGizmoOperation(int operation);
     int getGizmoOperation() const;

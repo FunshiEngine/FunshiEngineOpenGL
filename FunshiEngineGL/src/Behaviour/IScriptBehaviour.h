@@ -46,9 +46,8 @@ public:
     const MotorScript::ApiScriptGameObject* api = nullptr;
 
     // Tabla de servicios de escena (audio, busqueda, teclado), inyectada por
-    // el motor al cargar. Los scripts la usan como
-    // `if (servicios) servicios->reproducirSonido(...)`; comprobar version con
-    // `servicios->version >= 1` si se quiere blindar contra builds viejas.
+    // el motor al cargar. Los scripts C++ la usan como
+    // `if (servicios) servicios->reproducirSonido(...)`; Java usa Nativo.*.
     const MotorScript::ScriptServices* servicios = nullptr;
 
     virtual ~IScriptBehaviour() {}

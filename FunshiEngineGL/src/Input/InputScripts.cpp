@@ -29,11 +29,26 @@ void InputScripts::onKey(int key, int action) {
     // action == 2 (GLFW_REPEAT) no altera el estado.
 }
 
+void InputScripts::onMouseMove(double x, double y) {
+    if (!posicionMouseInicializada_) {
+        ultimaPosicionMouseX_ = x;
+        ultimaPosicionMouseY_ = y;
+        posicionMouseInicializada_ = true;
+        return;
+    }
+    deltaMouseX_ += static_cast<float>(x - ultimaPosicionMouseX_);
+    deltaMouseY_ += static_cast<float>(y - ultimaPosicionMouseY_);
+    ultimaPosicionMouseX_ = x;
+    ultimaPosicionMouseY_ = y;
+}
+
 void InputScripts::avanzarFrame() {
     for (auto& par : estados()) {
         par.second.pressEdge = false;
         par.second.releaseEdge = false;
     }
+    deltaMouseX_ = 0.0f;
+    deltaMouseY_ = 0.0f;
 }
 
 bool InputScripts::sostiene(const std::string& tecla) const {
@@ -56,6 +71,10 @@ bool InputScripts::soltada(const std::string& tecla) const {
     const auto it = estados().find(codigo);
     return it != estados().end() && it->second.releaseEdge;
 }
+
+float InputScripts::deltaMouseX() const { return deltaMouseX_; }
+
+float InputScripts::deltaMouseY() const { return deltaMouseY_; }
 
 int InputScripts::codigoDe(const std::string& tecla) {
     // Tabla de nombres GLFW (sin el prefijo GLFW_KEY_). Cubre letras, digitos,
@@ -102,4 +121,11 @@ int InputScripts::codigoDe(const std::string& tecla) {
     return it != nombres.end() ? it->second : -1;
 }
 
-void InputScripts::reset() { estados().clear(); }
+void InputScripts::reset() {
+    estados().clear();
+    ultimaPosicionMouseX_ = 0.0;
+    ultimaPosicionMouseY_ = 0.0;
+    posicionMouseInicializada_ = false;
+    deltaMouseX_ = 0.0f;
+    deltaMouseY_ = 0.0f;
+}

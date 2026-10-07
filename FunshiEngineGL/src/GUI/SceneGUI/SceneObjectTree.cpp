@@ -50,6 +50,10 @@ void SceneObjectTree::bindScene(SceneRegistry* value, EditorController* controll
                 if (event.object)
                     openNodes.erase(static_cast<const void*>(event.object));
                 if (renombrando == event.object) renombrando = nullptr;
+                if (objetoSeleccionPendiente == event.object)
+                    objetoSeleccionPendiente = nullptr;
+                if (objetoBajoMouseAlSoltar_ == event.object)
+                    objetoBajoMouseAlSoltar_ = nullptr;
             } else if (event.type == SceneEventType::SceneCleared) {
                 resetState();
             }
@@ -62,6 +66,8 @@ void SceneObjectTree::setIconosGUI(IconosGUI* iconos) { iconosGUI = iconos; }
 void SceneObjectTree::resetState() {
     openNodes.clear();
     renombrando = nullptr;
+    objetoSeleccionPendiente = nullptr;
+    objetoBajoMouseAlSoltar_ = nullptr;
     objetoAEliminar = nullptr;
     objetoAReParentar = nullptr;
     objetoPadreNuevo = nullptr;
@@ -72,11 +78,26 @@ void SceneObjectTree::draw() {
     if (!scene) return;
     auto* tree = scene->getEntitysTree();
     if (!tree || tree->isEmpty()) return;
+    objetoBajoMouseAlSoltar_ = nullptr;
     // El recorrido generico gestiona PushID, colapso y recursion.
     TreeIG::drawTree(tree, tree->rootOfTree(), openNodes,
                      [this](GameObject* element, bool wasOpen) {
                          return drawRow(element, wasOpen);
                      });
+    if (objetoSeleccionPendiente) {
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        const float deltaX = mouse.x - posicionInicioSeleccion.x;
+        const float deltaY = mouse.y - posicionInicioSeleccion.y;
+        constexpr float umbralArrastre = 6.0f;
+        if (deltaX * deltaX + deltaY * deltaY >=
+            umbralArrastre * umbralArrastre) {
+            objetoSeleccionPendiente = nullptr;
+        } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+            if (objetoBajoMouseAlSoltar_ == objetoSeleccionPendiente && editor)
+                editor->selectObject(objetoSeleccionPendiente);
+            objetoSeleccionPendiente = nullptr;
+        }
+    }
     applyDeferredOperations();
     // Los dialogos modales deben dibujarse cada frame, fuera del recorrido
     // del arbol, para que ImGui los mantenga abiertos.
@@ -132,11 +153,16 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
         ImGui::SetKeyboardFocusHere(-1);
     }
 
-    if ((ImGui::IsItemClicked(ImGuiMouseButton_Left) ||
-         ImGui::IsItemClicked(ImGuiMouseButton_Right)) &&
-        editor)
+    const bool hovered = ImGui::IsItemHovered();
+    if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        objetoSeleccionPendiente = object;
+        posicionInicioSeleccion = ImGui::GetIO().MousePos;
+    }
+    if (hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        objetoBajoMouseAlSoltar_ = object;
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && editor)
         editor->selectObject(object);
-    if (ImGui::IsItemHovered())
+    if (hovered)
         ImGui::SetTooltip("ID: %d", object->getId());
 
     // Menu contextual con 4 opciones: Cambiar ID, Renombrar, Desanidar a raiz, Eliminar

@@ -47,6 +47,7 @@
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Assets/AssetManager.h"
 #include "../FunshiEngineGL/src/Assets/Mesh.h"
+#include "../FunshiEngineGL/src/Behaviour/ScriptGameObject.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Events/EventBus.h"
 #include "../FunshiEngineGL/src/Fisicas/IPhysicsBackend.h"
@@ -61,6 +62,7 @@
 #include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/EsfereCollider.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/RigidBody/RigidBody.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Script.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Skybox.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
@@ -971,6 +973,85 @@ void sanadoDeRutasRotas() {
           "sin raiz la referencia queda como estaba");
 }
 
+void variosScriptsPorObjeto() {
+    GameObject objeto;
+    auto primero = std::make_unique<Script>();
+    primero->setDllPath("Scripts/UserController.cpp");
+    Script* refPrimero = primero.get();
+    objeto.addComponent(std::move(primero));
+
+    auto segundo = std::make_unique<Script>();
+    segundo->setDllPath("Scripts/CameraController.cpp");
+    Script* refSegundo = segundo.get();
+    objeto.addComponent(std::move(segundo));
+
+    int cantidadScripts = 0;
+    ListaDE<Component*>* componentes = objeto.getComponents();
+    Position<Component*>* posicion = componentes->first();
+    while (posicion) {
+        if (dynamic_cast<Script*>(posicion->getElement()))
+            ++cantidadScripts;
+        posicion = posicion != componentes->last()
+                       ? componentes->next(posicion)
+                       : nullptr;
+    }
+
+    CHECK(cantidadScripts == 2,
+          "un GameObject conserva mas de un componente Script");
+    CHECK(refPrimero->getPath() == "Scripts/UserController.cpp",
+          "el primer componente Script mantiene su fuente");
+    CHECK(refSegundo->getPath() == "Scripts/CameraController.cpp",
+          "el segundo componente Script mantiene su fuente");
+}
+
+void nombreDeComponenteScriptSeSerializa() {
+    TempPruebas::CarpetaPrueba carpeta("funshi_nombre_script");
+    const fs::path archivo = carpeta.ruta() / "script.bin";
+
+    Script original;
+    original.setDllPath("Scripts/CameraController.cpp");
+    original.setNombreComponente("Camara secundaria");
+    ReflejoScripts::ValorCampo campoVelocidad;
+    campoVelocidad.nombre = "velocidad";
+    campoVelocidad.tag = ReflejoScripts::TagTipo::Flotante;
+    campoVelocidad.contenido = 3.5f;
+    original.obtenerValores().push_back(campoVelocidad);
+    {
+        std::ofstream salida(archivo, std::ios::binary);
+        original.saveComponent(&salida);
+    }
+
+    Script recuperado;
+    {
+        std::ifstream entrada(archivo, std::ios::binary);
+        recuperado.loadComponent(&entrada);
+    }
+    CHECK(recuperado.getNombreComponente() == "Camara secundaria",
+          "el nombre personalizado del componente Script sobrevive al guardado");
+    CHECK(recuperado.nombreParaMostrar() == "Camara secundaria",
+          "el nombre personalizado identifica el panel Script");
+    CHECK(recuperado.getNameClass() == "CameraController",
+          "la identidad del script sigue siendo el nombre de la clase");
+    CHECK(recuperado.obtenerCampos().size() == 1 &&
+              recuperado.obtenerCampos()[0].nombre == "velocidad" &&
+              recuperado.obtenerCampos()[0].tag ==
+                  ReflejoScripts::TagTipo::Flotante,
+          "los campos SerializeField siguen visibles tras recargar la escena");
+}
+
+void rotacionApiUsaRadianes() {
+    GameObject objeto;
+    const MotorScript::ApiScriptGameObject* api = MotorScript::tablaApi();
+    api->fijarRotacionEjes(&objeto, 1.57079632679f, 0.0f, 1.0f, 0.0f);
+    CHECK(std::fabs(objeto.getComponent<Transform>()->getRotatef()[0] -
+                    90.0f) < 0.001f,
+          "la API convierte radianes a grados al escribir el Transform");
+    CHECK(std::fabs(api->rotacionAngulo(&objeto) - 1.57079632679f) < 0.001f,
+          "la API devuelve el angulo de rotacion en radianes");
+    CHECK(std::fabs(api->rotacionEjeY(&objeto) - 1.0f) < 0.001f,
+          "el eje de rotacion conserva su valor");
+}
+
 // --- El Inspector se desvincula cuando se borra el objeto que muestra ---------
 // El Inspector (Settings) guarda el GameObject que muestra y un Settings por
 // cada componente, y solo se recarga cuando cambia el PUNTERO. Al borrar, el
@@ -1495,6 +1576,9 @@ int main() {
     rutasDeCarasDeSkybox();
     reescrituraDeReferencias();
     sanadoDeRutasRotas();
+    variosScriptsPorObjeto();
+    nombreDeComponenteScriptSeSerializa();
+    rotacionApiUsaRadianes();
     elInspectorSeDesvinculaAlBorrar();
     laCamaraBorradaNoSeUsaEnElRestoDelFrame();
     borrarCrearBorrarNoDesalineaElBinario();

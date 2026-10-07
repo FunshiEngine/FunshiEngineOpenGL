@@ -185,7 +185,8 @@ std::string BackendCpp::artefacto(const std::string& fuente) {
     // sin que el usuario tenga que borrar %TEMP%/funshi_scripts a mano.
     const std::string clave =
         std::filesystem::weakly_canonical(fuente).string() + "|" + compilador() +
-        "|" + CompilacionCpp::flagsCompilador(std::string());
+        "|" + CompilacionCpp::flagsCompilador(std::string()) + "|runtime=" +
+        std::to_string(MotorScript::versionRuntimeScript);
     std::size_t hash = std::hash<std::string>{}(clave);
     return (std::filesystem::path(directorioCache()) /
             ("script_" + std::to_string(hash) + "." + FUNSHI_ARTEFACTO_EXT))

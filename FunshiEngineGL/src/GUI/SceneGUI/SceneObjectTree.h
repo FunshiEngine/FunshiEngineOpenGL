@@ -70,6 +70,9 @@ private:
     TreeIG::OpenState openNodes;
     // Estado de renombrado en linea (doble click o menu Renombrar).
     GameObject* renombrando = nullptr;
+    GameObject* objetoSeleccionPendiente = nullptr;
+    ImVec2 posicionInicioSeleccion = ImVec2(0.0f, 0.0f);
+    GameObject* objetoBajoMouseAlSoltar_ = nullptr;
     // Operaciones diferidas: esperan al final del recorrido para mutar el
     // arbol con seguridad.
     GameObject* objetoAEliminar = nullptr;

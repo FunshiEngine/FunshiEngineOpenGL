@@ -227,9 +227,20 @@ void SettingsObjectInterface::crearSettingsFaltantes() {
 	if (rigidBody != nullptr && !tieneSettingsPara(rigidBody)) {
 		listaDESettingsComponent->addLast(new SettingsRigidBody(object));
 	}
-	Script* script = object->getComponent<Script>();
-	if (script != nullptr && !tieneSettingsPara(script)) {
-		listaDESettingsComponent->addLast(new SettingsScript(object));
+	ListaDE<Component*>* componentes = object->getComponents();
+	if (componentes && !componentes->isEmpty()) {
+		Position<Component*>* posicion = componentes->first();
+		while (posicion) {
+			if (Script* script =
+			        dynamic_cast<Script*>(posicion->getElement())) {
+				if (!tieneSettingsPara(script))
+					listaDESettingsComponent->addLast(
+					    new SettingsScript(script));
+			}
+			posicion = posicion != componentes->last()
+			               ? componentes->next(posicion)
+			               : nullptr;
+		}
 	}
 	Model* model = object->getComponent<Model>();
 	if (model != nullptr && !tieneSettingsPara(model)) {
@@ -302,11 +313,40 @@ void SettingsObjectInterface::contentGUI() {
 			SettingsComponent* comp = position->getElement();
 			ImGui::PushID(comp);
 
-			// Usamos demangle para obtener un nombre legible
-			std::string compName = demangle(typeid(*comp).name());
+			std::string compName;
+			if (Script* script =
+			        dynamic_cast<Script*>(comp->getComponent())) {
+				compName = "Script: " + script->nombreParaMostrar();
+			} else {
+				compName = demangle(typeid(*comp).name());
+			}
 
+			SettingsScript* scriptSettings =
+			    dynamic_cast<SettingsScript*>(comp);
+			if (scriptSettings && scriptSettings->estaEditandoNombre())
+				ImGui::SetNextItemOpen(true, ImGuiCond_Always);
 			bool open = ImGui::CollapsingHeader(
 			    compName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+
+			if (ImGui::BeginPopupContextItem(
+			        "ComponentContext",
+			        ImGuiPopupFlags_MouseButtonRight)) {
+				if (scriptSettings &&
+				    ImGui::MenuItem("Renombrar componente"))
+					scriptSettings->iniciarEdicionNombre();
+				if (ImGui::MenuItem("Eliminar Componente")) {
+					Component* target = comp->getComponent();
+					if (editor)
+						editor->removeComponent(object, target);
+					else
+						object->deleteComponent(target);
+					componenteABorrar = comp;
+					ImGui::EndPopup();
+					ImGui::PopID();
+					break;
+				}
+				ImGui::EndPopup();
+			}
 
 			if (ImGui::BeginDragDropSource(
 			        ImGuiDragDropFlags_SourceNoHoldToOpenOthers)) {
@@ -331,26 +371,6 @@ void SettingsObjectInterface::contentGUI() {
 					}
 				}
 				ImGui::EndDragDropTarget();
-			}
-
-			if (ImGui::BeginPopupContextItem("DeleteComponent",
-			                                 ImGuiPopupFlags_MouseButtonRight)) {
-				if (ImGui::MenuItem("Eliminar Componente")) {
-					Component* target = comp->getComponent();
-					if (editor) {
-						// Centralizado: des-registra de la fisica ANTES de
-						// liberar el componente (evita punteros colgantes).
-						editor->removeComponent(object, target);
-					} else {
-						object->deleteComponent(target);
-					}
-					// Borrado diferido: encolar para procesar DESPUÉS de la iteracion
-					componenteABorrar = comp;
-					ImGui::EndPopup();
-					ImGui::PopID();
-					break;
-				}
-				ImGui::EndPopup();
 			}
 
 			if (open) {

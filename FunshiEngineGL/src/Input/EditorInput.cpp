@@ -267,6 +267,7 @@ void EditorInput::onKey(GLFWwindow* window, int key, int scancode, int action,
                         int mods) {
     (void)scancode;
     (void)mods;
+    if (scene) scene->registrarTeclaScript(key, action);
 
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         // Volver al menu de inicio desde el editor: la maquina de estados es
@@ -616,7 +617,11 @@ void EditorInput::onMouseButton(GLFWwindow* window, int button, int action,
 }
 
 void EditorInput::onMouse(GLFWwindow* window, double xpos, double ypos) {
-    (void)window;
+    if (modoJuegoActivo() ||
+        (window &&
+         glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED)) {
+        if (scene) scene->registrarMouseScript(xpos, ypos);
+    }
     if (modoJuegoActivo()) {
         firstTimeMouseX = true;
         firstTimeMouseY = true;

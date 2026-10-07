@@ -20,6 +20,7 @@
 
 #include <iostream>
 
+#include "ScriptAudioHandles.h"
 #include "../Objetos/GameObject.h"
 #include "../Objetos/Componentes/Transform.h"
 #include "../Audio/AudioEngine.h"
@@ -58,7 +59,8 @@ void fijarEscala(void* objeto, float x, float y, float z) {
 }
 
 void fijarRotacionEjes(void* objeto, float angulo, float x, float y, float z) {
-    if (Transform* t = transformDe(objeto)) t->setRotatef(angulo, x, y, z);
+    if (Transform* t = transformDe(objeto))
+        t->setRotatef(angulo * 57.29577951308232f, x, y, z);
 }
 
 // Getters v2: leen el estado canonico del componente. Transform mantiene dos
@@ -67,7 +69,9 @@ void fijarRotacionEjes(void* objeto, float angulo, float x, float y, float z) {
 // devuelven las arr* ya sincronizadas.
 float rotacionEje(void* objeto, int indice) {
     Transform* t = transformDe(objeto);
-    return t ? t->getRotatef()[indice] : 0.0f;
+    if (!t) return 0.0f;
+    const float valor = t->getRotatef()[indice];
+    return indice == 0 ? valor * 0.017453292519943295f : valor;
 }
 
 float escalaEje(void* objeto, int indice) {
@@ -116,14 +120,18 @@ namespace {
 AudioEngine* g_audio = nullptr;
 SceneRegistry* g_escena = nullptr;
 InputScripts* g_input = nullptr;
+ScriptAudioHandles g_sonidosScript;
 
 int serviciosReproducirSonido(const char* clip, float volumen, bool bucle) {
     if (!g_audio || !clip) return -1;
-    return g_audio->reproducir(clip, volumen, bucle);
+    const int handle = g_audio->reproducir(clip, volumen, bucle);
+    g_sonidosScript.registrar(handle);
+    return handle;
 }
 
 void serviciosDetenerSonido(int handle) {
     if (g_audio) g_audio->detener(handle);
+    g_sonidosScript.retirar(handle);
 }
 
 void* serviciosObjetoPorNombre(const char* nombre) {
@@ -151,6 +159,19 @@ bool serviciosTeclaSoltada(const char* tecla) {
     return g_input ? g_input->soltada(tecla) : false;
 }
 
+float serviciosDeltaMouseX() {
+    return g_input ? g_input->deltaMouseX() : 0.0f;
+}
+
+float serviciosDeltaMouseY() {
+    return g_input ? g_input->deltaMouseY() : 0.0f;
+}
+
+void detenerSonidosScript() {
+    g_sonidosScript.detenerTodos(
+        [](int handle) { if (g_audio) g_audio->detener(handle); });
+}
+
 } // namespace
 
 const ScriptServices* tablaServicios() {
@@ -161,7 +182,9 @@ const ScriptServices* tablaServicios() {
         /* .teclaSostiene     = */ serviciosTeclaSostiene,
         /* .teclaPresionada   = */ serviciosTeclaPresionada,
         /* .teclaSoltada      = */ serviciosTeclaSoltada,
-        /* .version           = */ 1,
+        /* .deltaMouseX       = */ serviciosDeltaMouseX,
+        /* .deltaMouseY       = */ serviciosDeltaMouseY,
+        /* .version           = */ 2,
     };
     return &tabla;
 }
@@ -170,6 +193,7 @@ const ScriptServices* tablaServicios() {
 // cablear el contexto real de la escena a la tabla de servicios.
 void inyectarServiciosScript(AudioEngine* audio, SceneRegistry* escena,
                              InputScripts* input) {
+    if (!audio && !escena && !input) detenerSonidosScript();
     g_audio = audio;
     g_escena = escena;
     g_input = input;
