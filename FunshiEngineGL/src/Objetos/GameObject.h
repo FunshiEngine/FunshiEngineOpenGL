@@ -42,6 +42,7 @@ protected:
     bool state = true;
     int id = 0;
     int tam = 1;
+    std::string tag_ = "Untagged";
     // Buffer reutilizable para el global transform. NO puede ser un
     // unique_ptr recreado por llamada: getGlobalTransform() devuelve puntero a
     // este miembro y otros sistemas (gizmo, colliders, settings) lo guardan
@@ -76,6 +77,8 @@ public:
     int getId();
     bool getState();
     int getTam();
+    const std::string& getTag() const noexcept { return tag_; }
+    void setTag(std::string tag);
 
     // El dibujado no es responsabilidad de la entidad: SceneRenderer recorre la
     // escena y dibuja cada Modelos3D con MeshRenderer (VBO/VAO + shader). Asi

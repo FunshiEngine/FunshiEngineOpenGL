@@ -35,6 +35,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <map>
 #include <string>
@@ -63,6 +64,9 @@ const char* SRC_COMPORTAMIENTO =
     "    void iniciar(long objeto);\n"
     "    void actualizar(long objeto, double deltaTime);\n"
     "    default void detener(long objeto) {}\n"
+    "    default void colisionInicio(long objeto, long collider, long otroCollider) {}\n"
+    "    default void colisionPersistencia(long objeto, long collider, long otroCollider) {}\n"
+    "    default void colisionFin(long objeto, long collider, long otroCollider) {}\n"
     "}\n";
 
 const char* SRC_NATIVO =
@@ -74,7 +78,29 @@ const char* SRC_NATIVO =
     "    public static native void fijarPosicion(long objeto, float x, float y, float z);\n"
     "    public static native void fijarEscala(long objeto, float x, float y, float z);\n"
     "    public static native void fijarRotacion(long objeto, float angulo, float x, float y, float z);\n"
+    "    public static native float rotacionAngulo(long objeto);\n"
+    "    public static native float rotacionEjeX(long objeto);\n"
+    "    public static native float rotacionEjeY(long objeto);\n"
+    "    public static native float rotacionEjeZ(long objeto);\n"
+    "    public static native float escalaX(long objeto);\n"
+    "    public static native float escalaY(long objeto);\n"
+    "    public static native float escalaZ(long objeto);\n"
+    "    public static native boolean fijarVelocidadHorizontal(long objeto, float x, float z);\n"
+    "    public static native boolean saltar(long objeto, float velocidad);\n"
+    "    public static native String etiqueta(long objeto);\n"
+    "    public static native boolean tieneEtiqueta(long objeto, String etiqueta);\n"
+    "    public static native long objetoDeCollider(long collider);\n"
     "    public static native void imprimir(String texto);\n"
+    "    public static native int reproducirSonido(String clip, float volumen, boolean bucle);\n"
+    "    public static native void detenerSonido(int handle);\n"
+    "    public static native long objetoPorNombre(String nombre);\n"
+    "    public static native long objetoPorId(int id);\n"
+    "    public static native long objetoPorEtiqueta(String etiqueta);\n"
+    "    public static native boolean teclaSostiene(String tecla);\n"
+    "    public static native boolean teclaPresionada(String tecla);\n"
+    "    public static native boolean teclaSoltada(String tecla);\n"
+    "    public static native float deltaMouseX();\n"
+    "    public static native float deltaMouseY();\n"
     "    private Nativo() {}\n"
     "}\n";
 
@@ -503,6 +529,7 @@ std::string detalleExcepcion(JNIEnv* env) {
                     detalle = utf;
                     env->ReleaseStringUTFChars(texto, utf);
                 }
+
                 env->DeleteLocalRef(texto);
             }
         }
@@ -537,7 +564,39 @@ std::string detalleExcepcion(JNIEnv* env) {
             }
             env->DeleteLocalRef(clase);
         }
+    if (env->ExceptionCheck()) env->ExceptionClear();
     return detalle;
+}
+
+class MarcoLocalJNI {
+public:
+    explicit MarcoLocalJNI(JNIEnv* entorno) : env_(entorno) {}
+    ~MarcoLocalJNI() {
+        if (env_ && abierto_) env_->PopLocalFrame(nullptr);
+    }
+    bool abrir(jint capacidad) {
+        abierto_ = env_ && env_->PushLocalFrame(capacidad) == JNI_OK;
+        return abierto_;
+    }
+
+private:
+    JNIEnv* env_ = nullptr;
+    bool abierto_ = false;
+};
+
+std::string leerCadena(JNIEnv* env, jstring valor) {
+    if (!env || !valor) return {};
+    const char* utf = env->GetStringUTFChars(valor, nullptr);
+    if (!utf) return {};
+    const std::string utf8(utf);
+    env->ReleaseStringUTFChars(valor, utf);
+    return utf8;
+}
+
+void informarExcepcion(JNIEnv* env, const char* operacion) {
+    if (!env || !env->ExceptionCheck()) return;
+    std::cerr << "[scripts-java] " << operacion << ": "
+              << detalleExcepcion(env) << std::endl;
 }
 
 // Contexto del toolchain en los errores de carga: sin el, el mensaje dice que
@@ -553,6 +612,7 @@ std::string contextoHerramientas(const std::string& classesDir) {
 
 std::string firmarCaracter(const std::string& tipo) {
     if (tipo == "int") return "I";
+    if (tipo == "long") return "J";
     if (tipo == "float") return "F";
     if (tipo == "double") return "D";
     if (tipo == "boolean") return "Z";
@@ -563,6 +623,11 @@ std::string firmarCaracter(const std::string& tipo) {
 ReflejoScripts::TagTipo etiquetaDeTipo(const std::string& tipo) {
     using ReflejoScripts::TagTipo;
     if (tipo == "int") return TagTipo::Entero;
+    // Un `long` publico es una referencia a GameObject (handle opaco, como el
+    // `long objeto` de iniciar/actualizar): en el inspector se edita por
+    // drag & drop y en disco se guarda por nombre, igual que `GameObject*`
+    // en C++. Otros tipos de referencia no se soportan como SerializeField.
+    if (tipo == "long") return TagTipo::Objeto;
     if (tipo == "float") return TagTipo::Flotante;
     if (tipo == "double") return TagTipo::Doble;
     if (tipo == "boolean") return TagTipo::Booleano;
@@ -575,6 +640,9 @@ struct DatosJava {
     jmethodID iniciar = nullptr;
     jmethodID actualizar = nullptr;
     jmethodID detener = nullptr;
+    jmethodID colisionInicio = nullptr;
+    jmethodID colisionPersistencia = nullptr;
+    jmethodID colisionFin = nullptr;
     std::map<std::string, jfieldID> campos; // nombre -> jfieldID
 };
 
@@ -596,40 +664,155 @@ void escribirSiCambia(const std::string& ruta, const std::string& contenido) {
 
 // --- Nativos expuestos a Java (Nativo.xxx) ----------------------------------
 namespace {
-jlong comoHandle(jlong objeto) { return objeto; }
+void* comoObjeto(jlong objeto) {
+    return reinterpret_cast<void*>(static_cast<intptr_t>(objeto));
+}
 
 jstring nativoNombre(JNIEnv* env, jclass, jlong objeto) {
-    const char* n = MotorScript::tablaApi()->nombre(
-        reinterpret_cast<void*>(comoHandle(objeto)));
+    const char* n = MotorScript::tablaApi()->nombre(comoObjeto(objeto));
     return env->NewStringUTF(nuevoNombreUTF8(n ? n : "").c_str());
 }
 jfloat nativoPosicionX(JNIEnv*, jclass, jlong o) {
-    return MotorScript::tablaApi()->posicionX(reinterpret_cast<void*>(o));
+    return MotorScript::tablaApi()->posicionX(comoObjeto(o));
 }
 jfloat nativoPosicionY(JNIEnv*, jclass, jlong o) {
-    return MotorScript::tablaApi()->posicionY(reinterpret_cast<void*>(o));
+    return MotorScript::tablaApi()->posicionY(comoObjeto(o));
 }
 jfloat nativoPosicionZ(JNIEnv*, jclass, jlong o) {
-    return MotorScript::tablaApi()->posicionZ(reinterpret_cast<void*>(o));
+    return MotorScript::tablaApi()->posicionZ(comoObjeto(o));
 }
 void nativoFijarPosicion(JNIEnv*, jclass, jlong o, jfloat x, jfloat y, jfloat z) {
-    MotorScript::tablaApi()->fijarPosicion(reinterpret_cast<void*>(o), x, y, z);
+    MotorScript::tablaApi()->fijarPosicion(comoObjeto(o), x, y, z);
+}
+ jboolean nativoFijarVelocidadHorizontal(JNIEnv*, jclass, jlong o, jfloat x,
+                                         jfloat z) {
+    return MotorScript::tablaApi()->fijarVelocidadHorizontal(comoObjeto(o), x, z);
+}
+jboolean nativoSaltar(JNIEnv*, jclass, jlong o, jfloat velocidad) {
+    return MotorScript::tablaApi()->saltar(comoObjeto(o), velocidad);
+}
+jstring nativoEtiqueta(JNIEnv* env, jclass, jlong objeto) {
+    const char* tag = MotorScript::tablaApi()->etiqueta(comoObjeto(objeto));
+    return env->NewStringUTF(nuevoNombreUTF8(tag ? tag : "").c_str());
+}
+jboolean nativoTieneEtiqueta(JNIEnv* env, jclass, jlong objeto,
+                             jstring etiqueta) {
+    if (!etiqueta) return JNI_FALSE;
+    const std::string texto = leerCadena(env, etiqueta);
+    return MotorScript::tablaApi()->tieneEtiqueta(comoObjeto(objeto),
+                                                   texto.c_str())
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+jlong nativoObjetoDeCollider(JNIEnv*, jclass, jlong collider) {
+    void* owner =
+        MotorScript::tablaApi()->objetoDeCollider(comoObjeto(collider));
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(owner));
 }
 void nativoFijarEscala(JNIEnv*, jclass, jlong o, jfloat x, jfloat y, jfloat z) {
-    MotorScript::tablaApi()->fijarEscala(reinterpret_cast<void*>(o), x, y, z);
+    MotorScript::tablaApi()->fijarEscala(comoObjeto(o), x, y, z);
 }
 void nativoFijarRotacion(JNIEnv*, jclass, jlong o, jfloat a, jfloat x, jfloat y,
                          jfloat z) {
-    MotorScript::tablaApi()->fijarRotacionEjes(reinterpret_cast<void*>(o), a, x,
-                                               y, z);
+    MotorScript::tablaApi()->fijarRotacionEjes(comoObjeto(o), a, x, y, z);
+}
+jfloat nativoRotacion(JNIEnv*, jclass, jlong objeto, int eje) {
+    const auto* api = MotorScript::tablaApi();
+    const void* handle = comoObjeto(objeto);
+    switch (eje) {
+        case 0: return api->rotacionAngulo(handle);
+        case 1: return api->rotacionEjeX(handle);
+        case 2: return api->rotacionEjeY(handle);
+        default: return api->rotacionEjeZ(handle);
+    }
+}
+jfloat nativoEscala(JNIEnv*, jclass, jlong objeto, int eje) {
+    const auto* api = MotorScript::tablaApi();
+    const void* handle = comoObjeto(objeto);
+    switch (eje) {
+        case 0: return api->escalaX(handle);
+        case 1: return api->escalaY(handle);
+        default: return api->escalaZ(handle);
+    }
+}
+jfloat nativoRotacionAngulo(JNIEnv* e, jclass c, jlong o) {
+    return nativoRotacion(e, c, o, 0);
+}
+jfloat nativoRotacionEjeX(JNIEnv* e, jclass c, jlong o) {
+    return nativoRotacion(e, c, o, 1);
+}
+jfloat nativoRotacionEjeY(JNIEnv* e, jclass c, jlong o) {
+    return nativoRotacion(e, c, o, 2);
+}
+jfloat nativoRotacionEjeZ(JNIEnv* e, jclass c, jlong o) {
+    return nativoRotacion(e, c, o, 3);
+}
+jfloat nativoEscalaX(JNIEnv* e, jclass c, jlong o) {
+    return nativoEscala(e, c, o, 0);
+}
+jfloat nativoEscalaY(JNIEnv* e, jclass c, jlong o) {
+    return nativoEscala(e, c, o, 1);
+}
+jfloat nativoEscalaZ(JNIEnv* e, jclass c, jlong o) {
+    return nativoEscala(e, c, o, 2);
 }
 void nativoImprimir(JNIEnv* env, jclass, jstring texto) {
     if (!texto) return;
-    const char* utf = env->GetStringUTFChars(texto, nullptr);
-    if (utf) {
-        MotorScript::tablaApi()->imprimirConsola(utf);
-        env->ReleaseStringUTFChars(texto, utf);
-    }
+    const std::string mensaje = leerCadena(env, texto);
+    MotorScript::tablaApi()->imprimirConsola(mensaje.c_str());
+}
+jint nativoReproducirSonido(JNIEnv* env, jclass, jstring clip, jfloat volumen,
+                            jboolean bucle) {
+    if (!clip) return -1;
+    const std::string nombre = leerCadena(env, clip);
+    return MotorScript::tablaServicios()->reproducirSonido(
+        nombre.c_str(), volumen, bucle == JNI_TRUE);
+}
+void nativoDetenerSonido(JNIEnv*, jclass, jint handle) {
+    MotorScript::tablaServicios()->detenerSonido(handle);
+}
+jlong nativoObjetoPorNombre(JNIEnv* env, jclass, jstring nombre) {
+    if (!nombre) return 0;
+    const std::string texto = leerCadena(env, nombre);
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(
+        MotorScript::tablaServicios()->objetoPorNombre(texto.c_str())));
+}
+jlong nativoObjetoPorId(JNIEnv*, jclass, jint id) {
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(
+        MotorScript::tablaServicios()->objetoPorId(static_cast<int>(id))));
+}
+jlong nativoObjetoPorEtiqueta(JNIEnv* env, jclass, jstring etiqueta) {
+    if (!etiqueta) return 0;
+    const std::string texto = leerCadena(env, etiqueta);
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(
+        MotorScript::tablaServicios()->objetoPorEtiqueta(texto.c_str())));
+}
+jboolean nativoTecla(JNIEnv* env, jstring tecla, int consulta) {
+    if (!tecla) return JNI_FALSE;
+    const std::string nombre = leerCadena(env, tecla);
+    const auto* servicios = MotorScript::tablaServicios();
+    bool resultado = false;
+    if (consulta == 0) resultado = servicios->teclaSostiene(nombre.c_str());
+    else if (consulta == 1)
+        resultado = servicios->teclaPresionada(nombre.c_str());
+    else
+        resultado = servicios->teclaSoltada(nombre.c_str());
+    return resultado ? JNI_TRUE : JNI_FALSE;
+}
+jboolean nativoTeclaSostiene(JNIEnv* env, jclass, jstring tecla) {
+    return nativoTecla(env, tecla, 0);
+}
+jboolean nativoTeclaPresionada(JNIEnv* env, jclass, jstring tecla) {
+    return nativoTecla(env, tecla, 1);
+}
+jboolean nativoTeclaSoltada(JNIEnv* env, jclass, jstring tecla) {
+    return nativoTecla(env, tecla, 2);
+}
+jfloat nativoDeltaMouseX(JNIEnv*, jclass) {
+    return MotorScript::tablaServicios()->deltaMouseX();
+}
+jfloat nativoDeltaMouseY(JNIEnv*, jclass) {
+    return MotorScript::tablaServicios()->deltaMouseY();
 }
 
 bool registrarNativos(const std::string& clasesDir, std::string& error) {
@@ -656,14 +839,70 @@ bool registrarNativos(const std::string& clasesDir, std::string& error) {
          reinterpret_cast<void*>(&nativoFijarEscala)},
         {const_cast<char*>("fijarRotacion"), const_cast<char*>("(JFFFF)V"),
          reinterpret_cast<void*>(&nativoFijarRotacion)},
+        {const_cast<char*>("rotacionAngulo"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoRotacionAngulo)},
+        {const_cast<char*>("rotacionEjeX"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoRotacionEjeX)},
+        {const_cast<char*>("rotacionEjeY"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoRotacionEjeY)},
+        {const_cast<char*>("rotacionEjeZ"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoRotacionEjeZ)},
+        {const_cast<char*>("escalaX"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoEscalaX)},
+        {const_cast<char*>("escalaY"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoEscalaY)},
+        {const_cast<char*>("escalaZ"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoEscalaZ)},
+        {const_cast<char*>("fijarVelocidadHorizontal"),
+         const_cast<char*>("(JFF)Z"),
+         reinterpret_cast<void*>(&nativoFijarVelocidadHorizontal)},
+        {const_cast<char*>("saltar"), const_cast<char*>("(JF)Z"),
+         reinterpret_cast<void*>(&nativoSaltar)},
+        {const_cast<char*>("etiqueta"),
+         const_cast<char*>("(J)Ljava/lang/String;"),
+         reinterpret_cast<void*>(&nativoEtiqueta)},
+        {const_cast<char*>("tieneEtiqueta"),
+         const_cast<char*>("(JLjava/lang/String;)Z"),
+         reinterpret_cast<void*>(&nativoTieneEtiqueta)},
+        {const_cast<char*>("objetoDeCollider"), const_cast<char*>("(J)J"),
+         reinterpret_cast<void*>(&nativoObjetoDeCollider)},
         {const_cast<char*>("imprimir"), const_cast<char*>("(Ljava/lang/String;)V"),
          reinterpret_cast<void*>(&nativoImprimir)},
+        {const_cast<char*>("reproducirSonido"),
+         const_cast<char*>("(Ljava/lang/String;FZ)I"),
+         reinterpret_cast<void*>(&nativoReproducirSonido)},
+        {const_cast<char*>("detenerSonido"), const_cast<char*>("(I)V"),
+         reinterpret_cast<void*>(&nativoDetenerSonido)},
+        {const_cast<char*>("objetoPorNombre"),
+         const_cast<char*>("(Ljava/lang/String;)J"),
+         reinterpret_cast<void*>(&nativoObjetoPorNombre)},
+        {const_cast<char*>("objetoPorId"), const_cast<char*>("(I)J"),
+         reinterpret_cast<void*>(&nativoObjetoPorId)},
+        {const_cast<char*>("objetoPorEtiqueta"),
+         const_cast<char*>("(Ljava/lang/String;)J"),
+         reinterpret_cast<void*>(&nativoObjetoPorEtiqueta)},
+        {const_cast<char*>("teclaSostiene"),
+         const_cast<char*>("(Ljava/lang/String;)Z"),
+         reinterpret_cast<void*>(&nativoTeclaSostiene)},
+        {const_cast<char*>("teclaPresionada"),
+         const_cast<char*>("(Ljava/lang/String;)Z"),
+         reinterpret_cast<void*>(&nativoTeclaPresionada)},
+        {const_cast<char*>("teclaSoltada"),
+         const_cast<char*>("(Ljava/lang/String;)Z"),
+         reinterpret_cast<void*>(&nativoTeclaSoltada)},
+        {const_cast<char*>("deltaMouseX"), const_cast<char*>("()F"),
+         reinterpret_cast<void*>(&nativoDeltaMouseX)},
+        {const_cast<char*>("deltaMouseY"), const_cast<char*>("()F"),
+         reinterpret_cast<void*>(&nativoDeltaMouseY)},
     };
     if (env->RegisterNatives(nativo, metodos,
                              sizeof(metodos) / sizeof(metodos[0])) != JNI_OK) {
-        error = "RegisterNatives de Nativo fallo.";
+        error = "RegisterNatives de Nativo fallo: " +
+                detalleExcepcion(env);
+        env->DeleteLocalRef(nativo);
         return false;
     }
+    env->DeleteLocalRef(nativo);
     return true;
 }
 } // namespace
@@ -704,11 +943,35 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
         return false;
     }
 
-    const std::string cache = directorioCache();
+    const std::string versionEsperada =
+        std::to_string(MotorScript::versionRuntimeScript);
+    const std::string cache =
+        (fs::path(directorioCache()) / ("runtime_" + versionEsperada)).string();
     const std::string clasesDir = (fs::path(cache) / "clases").string();
     const std::string sdkDir = (fs::path(cache) / "sdk").string();
     const std::string logPath = (fs::path(cache) / "javac.log").string();
+    const std::string versionSdk =
+        (fs::path(sdkDir) / "runtime.version").string();
+    fs::create_directories(sdkDir, ec);
+    if (leerArchivo(versionSdk) != versionEsperada + "\n") {
+        fs::remove_all(clasesDir, ec);
+        if (ec) {
+            error = "No se pudo invalidar el cache Java del runtime: " +
+                    ec.message();
+            return false;
+        }
+        ec.clear();
+        escribirSiCambia(versionSdk, versionEsperada + "\n");
+        if (leerArchivo(versionSdk) != versionEsperada + "\n") {
+            error = "No se pudo actualizar la version del cache Java.";
+            return false;
+        }
+    }
     fs::create_directories(clasesDir, ec);
+    if (ec) {
+        error = "No se pudo crear el cache Java: " + ec.message();
+        return false;
+    }
     escribirSiCambia((fs::path(sdkDir) / "Comportamiento.java").string(),
                      SRC_COMPORTAMIENTO);
     escribirSiCambia((fs::path(sdkDir) / "Nativo.java").string(), SRC_NATIVO);
@@ -771,9 +1034,15 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
     }
 
     if (!arrancarJvm(clasesDir, error)) return false;
-    if (!registrarNativos(clasesDir, error)) return false;
-
     JNIEnv* env = entorno();
+    MarcoLocalJNI marcoLocal(env);
+    if (!marcoLocal.abrir(64)) {
+        error = "No se pudo reservar el marco local JNI." +
+                contextoHerramientas(clasesDir) +
+                "\n  motivo:  " + detalleExcepcion(env);
+        return false;
+    }
+    if (!registrarNativos(clasesDir, error)) return false;
 
     // El classloader del sistema cachea cada clase por nombre y la JVM no la
     // redefine aunque javac reescriba el .class; por eso FindClass no bastaria
@@ -841,65 +1110,133 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
     }
 
     auto* datos = new DatosJava();
-    datos->clase = static_cast<jclass>(env->NewGlobalRef(clase));
-    datos->cargador = env->NewGlobalRef(cargadorObj);
     datos->iniciar = env->GetMethodID(clase, "iniciar", "(J)V");
     datos->actualizar = env->GetMethodID(clase, "actualizar", "(JD)V");
     datos->detener = env->GetMethodID(clase, "detener", "(J)V");
+    datos->colisionInicio =
+        env->GetMethodID(clase, "colisionInicio", "(JJJ)V");
+    datos->colisionPersistencia =
+        env->GetMethodID(clase, "colisionPersistencia", "(JJJ)V");
+    datos->colisionFin = env->GetMethodID(clase, "colisionFin", "(JJJ)V");
+    if (!datos->iniciar || !datos->actualizar || !datos->detener ||
+        !datos->colisionInicio || !datos->colisionPersistencia ||
+        !datos->colisionFin ||
+        env->ExceptionCheck()) {
+        const std::string detalle = detalleExcepcion(env);
+        delete datos;
+        error = "La clase Java '" + nombreClase +
+                "' debe exponer iniciar(long), actualizar(long,double) y "
+                "detener(long)." +
+                (detalle.empty() ? std::string() : "\n  motivo:  " + detalle);
+        return false;
+    }
 
     // Reflexion de los campos publicos (no estaticos) -> SerializeField.
     std::vector<ReflejoScripts::DefCampo> campos;
-    jmethodID obtenerCampos = env->GetMethodID(
-        env->FindClass("java/lang/Class"), "getFields",
-        "()[Ljava/lang/reflect/Field;");
-    jobjectArray arreglo = static_cast<jobjectArray>(
-        env->CallObjectMethod(clase, obtenerCampos));
-    if (env->ExceptionCheck()) env->ExceptionClear();
+    jclass claseClass = env->FindClass("java/lang/Class");
+    jmethodID obtenerCampos =
+        claseClass
+            ? env->GetMethodID(claseClass, "getFields",
+                               "()[Ljava/lang/reflect/Field;")
+            : nullptr;
+    jmethodID nombreClaseJava =
+        claseClass
+            ? env->GetMethodID(claseClass, "getName",
+                               "()Ljava/lang/String;")
+            : nullptr;
+    if (claseClass) env->DeleteLocalRef(claseClass);
     jclass claseField = env->FindClass("java/lang/reflect/Field");
     jclass claseModifier = env->FindClass("java/lang/reflect/Modifier");
-    jmethodID getName = env->GetMethodID(claseField, "getName",
-                                         "()Ljava/lang/String;");
-    jmethodID getType = env->GetMethodID(claseField, "getType",
-                                         "()Ljava/lang/Class;");
-    jmethodID getMods = env->GetMethodID(claseField, "getModifiers", "()I");
+    jmethodID getName = claseField
+                            ? env->GetMethodID(claseField, "getName",
+                                               "()Ljava/lang/String;")
+                            : nullptr;
+    jmethodID getType = claseField
+                            ? env->GetMethodID(claseField, "getType",
+                                               "()Ljava/lang/Class;")
+                            : nullptr;
+    jmethodID getMods = claseField
+                            ? env->GetMethodID(claseField, "getModifiers", "()I")
+                            : nullptr;
     jmethodID esEstatico =
-        env->GetStaticMethodID(claseModifier, "isStatic", "(I)Z");
-    jmethodID nombreClaseJava =
-        env->GetMethodID(env->FindClass("java/lang/Class"), "getName",
-                         "()Ljava/lang/String;");
+        claseModifier
+            ? env->GetStaticMethodID(claseModifier, "isStatic", "(I)Z")
+            : nullptr;
+    if (!obtenerCampos || !nombreClaseJava || !claseField || !claseModifier ||
+        !getName || !getType || !getMods || !esEstatico ||
+        env->ExceptionCheck()) {
+        const std::string detalle = detalleExcepcion(env);
+        if (claseField) env->DeleteLocalRef(claseField);
+        if (claseModifier) env->DeleteLocalRef(claseModifier);
+        delete datos;
+        error = "No se pudo inspeccionar la clase Java '" + nombreClase + "'." +
+                (detalle.empty() ? std::string() : "\n  motivo:  " + detalle);
+        return false;
+    }
+    jobjectArray arreglo = static_cast<jobjectArray>(
+        env->CallObjectMethod(clase, obtenerCampos));
+    if (env->ExceptionCheck()) {
+        const std::string detalle = detalleExcepcion(env);
+        env->DeleteLocalRef(claseField);
+        env->DeleteLocalRef(claseModifier);
+        delete datos;
+        error = "No se pudieron enumerar los campos de '" + nombreClase + "'." +
+                (detalle.empty() ? std::string() : "\n  motivo:  " + detalle);
+        return false;
+    }
 
     const jsize total = arreglo ? env->GetArrayLength(arreglo) : 0;
     for (jsize i = 0; i < total; ++i) {
         jobject campo =
             env->GetObjectArrayElement(static_cast<jobjectArray>(arreglo), i);
+        if (!campo) continue;
         jint mods = env->CallIntMethod(campo, getMods);
-        if (env->CallBooleanMethod(claseModifier, esEstatico, mods)) continue;
+        if (env->CallBooleanMethod(claseModifier, esEstatico, mods)) {
+            env->DeleteLocalRef(campo);
+            continue;
+        }
 
         jstring jnombre =
             static_cast<jstring>(env->CallObjectMethod(campo, getName));
         jclass tipo = static_cast<jclass>(env->CallObjectMethod(campo, getType));
         jstring jtipo =
             static_cast<jstring>(env->CallObjectMethod(tipo, nombreClaseJava));
-        const char* nombreUtf = env->GetStringUTFChars(jnombre, nullptr);
-        const char* tipoUtf = env->GetStringUTFChars(jtipo, nullptr);
-        const std::string nombre = nombreUtf ? nombreUtf : "";
-        const std::string tipoNombre = tipoUtf ? tipoUtf : "";
-        env->ReleaseStringUTFChars(jnombre, nombreUtf);
-        env->ReleaseStringUTFChars(jtipo, tipoUtf);
+        const std::string nombre = leerCadena(env, jnombre);
+        const std::string tipoNombre = leerCadena(env, jtipo);
 
         const std::string firma = firmarCaracter(tipoNombre);
-        if (firma.empty()) continue; // tipo no soportado: se ignora
-
-        jfieldID id = env->GetFieldID(clase, nombre.c_str(), firma.c_str());
-        if (!id) {
-            env->ExceptionClear();
-            continue;
+        if (!firma.empty()) {
+            jfieldID id = env->GetFieldID(clase, nombre.c_str(), firma.c_str());
+            if (!id) {
+                env->ExceptionClear();
+            } else {
+                ReflejoScripts::DefCampo def;
+                def.nombre = nombre;
+                def.tag = etiquetaDeTipo(tipoNombre);
+                campos.push_back(std::move(def));
+                datos->campos[nombre] = id;
+            }
         }
-        ReflejoScripts::DefCampo def;
-        def.nombre = nombre;
-        def.tag = etiquetaDeTipo(tipoNombre);
-        campos.push_back(std::move(def));
-        datos->campos[nombre] = id;
+        if (jnombre) env->DeleteLocalRef(jnombre);
+        if (jtipo) env->DeleteLocalRef(jtipo);
+        if (tipo) env->DeleteLocalRef(tipo);
+        env->DeleteLocalRef(campo);
+    }
+    if (arreglo) env->DeleteLocalRef(arreglo);
+    env->DeleteLocalRef(claseField);
+    env->DeleteLocalRef(claseModifier);
+
+    datos->clase = static_cast<jclass>(env->NewGlobalRef(clase));
+    datos->cargador = env->NewGlobalRef(cargadorObj);
+    if (!datos->clase || !datos->cargador) {
+        const std::string detalle = detalleExcepcion(env);
+        if (datos->clase) env->DeleteGlobalRef(datos->clase);
+        if (datos->cargador) env->DeleteGlobalRef(datos->cargador);
+        delete datos;
+        error = "No se pudieron conservar las referencias JNI de '" +
+                nombreClase + "'." +
+                (detalle.empty() ? std::string() : "\n  motivo:  " + detalle);
+        return false;
     }
 
     salida.fuente = fuente;
@@ -907,6 +1244,17 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
     salida.artefacto = clasesDir;
     salida.manejador = jvm().jvm;
     salida.instancia = env->NewGlobalRef(objeto);
+    if (!salida.instancia) {
+        const std::string detalle = detalleExcepcion(env);
+        env->DeleteGlobalRef(datos->cargador);
+        env->DeleteGlobalRef(datos->clase);
+        delete datos;
+        salida = ComportamientoCargado{};
+        error = "No se pudo conservar la instancia Java '" + nombreClase +
+                "'." +
+                (detalle.empty() ? std::string() : "\n  motivo:  " + detalle);
+        return false;
+    }
     salida.datos = datos;
     salida.campos = std::move(campos);
     salida.mtimeFuente = mtimeFuente;
@@ -931,6 +1279,7 @@ void BackendJava::descargar(ComportamientoCargado& comportamiento,
                     static_cast<jobject>(comportamiento.instancia),
                     datos->detener, static_cast<jlong>(
                                         reinterpret_cast<intptr_t>(owner)));
+            informarExcepcion(env, "detener");
         }
         if (comportamiento.instancia)
             env->DeleteGlobalRef(
@@ -953,6 +1302,7 @@ void BackendJava::llamarInicio(ComportamientoCargado& comportamiento,
     entorno()->CallVoidMethod(
         static_cast<jobject>(comportamiento.instancia), datos->iniciar,
         static_cast<jlong>(reinterpret_cast<intptr_t>(owner)));
+    informarExcepcion(entorno(), "iniciar");
 }
 
 void BackendJava::llamarActualizar(ComportamientoCargado& comportamiento,
@@ -964,6 +1314,7 @@ void BackendJava::llamarActualizar(ComportamientoCargado& comportamiento,
         static_cast<jobject>(comportamiento.instancia), datos->actualizar,
         static_cast<jlong>(reinterpret_cast<intptr_t>(owner)),
         static_cast<jdouble>(deltaTime));
+    informarExcepcion(entorno(), "actualizar");
 }
 
 void BackendJava::llamarDetener(ComportamientoCargado& comportamiento,
@@ -974,6 +1325,30 @@ void BackendJava::llamarDetener(ComportamientoCargado& comportamiento,
     entorno()->CallVoidMethod(
         static_cast<jobject>(comportamiento.instancia), datos->detener,
         static_cast<jlong>(reinterpret_cast<intptr_t>(owner)));
+    informarExcepcion(entorno(), "detener");
+}
+
+void BackendJava::llamarContacto(ComportamientoCargado& comportamiento,
+                                 GameObject* owner, Collider* propio,
+                                 Collider* otro, TipoContacto tipo) {
+    if (!comportamiento.valido()) return;
+    auto* datos = static_cast<DatosJava*>(comportamiento.datos);
+    if (!datos) return;
+    jmethodID metodo = datos->colisionInicio;
+    const char* nombre = "colisionInicio";
+    if (tipo == TipoContacto::Persistencia) {
+        metodo = datos->colisionPersistencia;
+        nombre = "colisionPersistencia";
+    } else if (tipo == TipoContacto::Fin) {
+        metodo = datos->colisionFin;
+        nombre = "colisionFin";
+    }
+    entorno()->CallVoidMethod(
+        static_cast<jobject>(comportamiento.instancia), metodo,
+        static_cast<jlong>(reinterpret_cast<intptr_t>(owner)),
+        static_cast<jlong>(reinterpret_cast<intptr_t>(propio)),
+        static_cast<jlong>(reinterpret_cast<intptr_t>(otro)));
+    informarExcepcion(entorno(), nombre);
 }
 
 void BackendJava::inyectar(
@@ -1012,6 +1387,13 @@ void BackendJava::inyectar(
             jstring s =
                 env->NewStringUTF(nuevoNombreUTF8(valor->como<std::string>()).c_str());
             env->SetObjectField(objeto, id, s);
+            break;
+        }
+        case TagTipo::Objeto: {
+            void* destino = MotorScript::tablaServicios()->objetoPorNombre(
+                valor->como<std::string>().c_str());
+            env->SetLongField(objeto, id, static_cast<jlong>(
+                                               reinterpret_cast<intptr_t>(destino)));
             break;
         }
         default:
@@ -1057,6 +1439,15 @@ std::vector<ReflejoScripts::ValorCampo> BackendJava::extraer(
             } else {
                 valor.contenido = std::string();
             }
+            break;
+        }
+        case TagTipo::Objeto: {
+            const void* destino = reinterpret_cast<const void*>(
+                static_cast<intptr_t>(env->GetLongField(objeto, id)));
+            const char* nombre = destino
+                                     ? MotorScript::tablaApi()->nombre(destino)
+                                     : "";
+            valor.contenido = std::string(nombre ? nombre : "");
             break;
         }
         default:

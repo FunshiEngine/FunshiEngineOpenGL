@@ -18,6 +18,7 @@
 */
 #include "CameraComponent.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -367,8 +368,15 @@ void CameraComponent::getViewMatrix(float* outMatrix) const {
 }
 
 void CameraComponent::getProjectionMatrix(float* outMatrix, float aspect) const {
+    getProjectionMatrix(outMatrix, aspect, farPlane);
+}
+
+void CameraComponent::getProjectionMatrix(float* outMatrix, float aspect,
+                                          float limiteFarPlane) const {
+    const float maxFar = std::max(nearPlane + 0.01f, limiteFarPlane);
+    const float farEfectivo = std::min(farPlane, maxFar);
     glm::mat4 p = glm::perspective(glm::radians(fov), aspect, nearPlane,
-                                   farPlane);
+                                   farEfectivo);
     const float* ptr = glm::value_ptr(p);
     std::memcpy(outMatrix, ptr, sizeof(float) * 16);
 }

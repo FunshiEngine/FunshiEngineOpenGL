@@ -23,6 +23,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <string>
 
 #include "../FunshiEngineGL/src/Configuracion/Apariencia.h"
 #include "../FunshiEngineGL/src/Rendering/CacheCubemap.h"
@@ -30,6 +31,7 @@
 #include "../FunshiEngineGL/src/Rendering/Difuminado.h"
 #include "../FunshiEngineGL/src/Rendering/GuiaEje.h"
 #include "../FunshiEngineGL/src/Rendering/LineBuilder.h"
+#include "../FunshiEngineGL/src/Rendering/Shaders/ShaderSources.h"
 
 namespace {
 
@@ -684,6 +686,24 @@ void testDifuminadoOpacidad() {
           "la forma de la curva no depende del radio");
 }
 
+void testShaderLineasRespetaHorizonteRadial() {
+    const std::string vertex = kLineVertexShader;
+    const std::string fragment = kLineFragmentShader;
+    CHECK(vertex.find("out vec3 vWorldPosition") != std::string::npos &&
+              vertex.find("vWorldPosition = mix(worldS, worldE, aAlong)") !=
+                  std::string::npos,
+          "el shader de lineas entrega la posicion mundial de cada fragmento");
+    CHECK(fragment.find("length(vWorldPosition - uCameraPosition)") !=
+                  std::string::npos &&
+              fragment.find("distanciaCamara >= uDistanceFadeEnd") !=
+                  std::string::npos &&
+              fragment.find("discard") != std::string::npos,
+          "el shader descarta las lineas fuera del radio de horizonte");
+    CHECK(fragment.find("uDistanceFadeStart") != std::string::npos &&
+              fragment.find("1.0 - t * t") != std::string::npos,
+          "el shader difumina las lineas hasta el borde radial");
+}
+
 // Cielo: los colores efectivos resuelven el modo B/N y el tema, devolviendo
 // los dos extremos del degradado (superior e inferior).
 void testCieloColoresEfectivos() {
@@ -778,6 +798,7 @@ int main() {
     testDifuminadoDesdeRadio();
     testDifuminadoAcotaElRadio();
     testDifuminadoOpacidad();
+    testShaderLineasRespetaHorizonteRadial();
     testCieloColoresEfectivos();
     testCacheCubemapClave();
 

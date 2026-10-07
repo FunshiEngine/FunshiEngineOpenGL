@@ -16,19 +16,31 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#ifndef SETTINGSRIGIDBODY_H
-#define SETTINGSRIGIDBODY_H
-#include "../SettingsComponent.h"
-class GameObject;
-class RigidBody;
+#ifndef SCRIPTAUDIOHANDLES_H
+#define SCRIPTAUDIOHANDLES_H
 
-class SettingsRigidBody : public SettingsComponent {
-protected:
-	RigidBody* myCollider;
+#include <algorithm>
+#include <vector>
+
+class ScriptAudioHandles {
 public:
-	SettingsRigidBody(GameObject* objeto);
+    void registrar(int handle) {
+        if (handle >= 0) handles_.push_back(handle);
+    }
 
-	void showDataComponent() override;
-	Component* getComponent() override;
+    void retirar(int handle) {
+        handles_.erase(std::remove(handles_.begin(), handles_.end(), handle),
+                       handles_.end());
+    }
+
+    template <typename Detener>
+    void detenerTodos(Detener&& detener) {
+        for (int handle : handles_) detener(handle);
+        handles_.clear();
+    }
+
+private:
+    std::vector<int> handles_;
 };
+
 #endif

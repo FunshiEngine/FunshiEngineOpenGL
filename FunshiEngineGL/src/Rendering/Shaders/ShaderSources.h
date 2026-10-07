@@ -75,6 +75,8 @@ in mat3 vTbn;
 out vec4 FragColor;
 
 uniform vec3 uCameraPosition;
+uniform float uDistanceFadeStart;
+uniform float uDistanceFadeEnd;
 uniform vec3 uGlobalAmbient;
 uniform int uLightCount;
 const int MAX_LIGHTS = 8;
@@ -160,6 +162,13 @@ vec3 contribucionLuz(int i, vec3 N, vec3 V, vec3 fragPos, vec3 baseDiffuse,
 }
 
 void main() {
+    float distanciaCamara = length(vWorldPos - uCameraPosition);
+    if (distanciaCamara >= uDistanceFadeEnd) discard;
+    float rangoDifuminado = max(0.0001, uDistanceFadeEnd - uDistanceFadeStart);
+    float t = clamp((distanciaCamara - uDistanceFadeStart) / rangoDifuminado,
+                    0.0, 1.0);
+    float opacidadDistancia = 1.0 - t * t;
+
     // Normal del fragmento: con normal map se perturba en espacio tangente
     // (vTbn); sin el, es la normal interpolada de la geometria.
     vec3 N = normalizarSeguro(vNormalWorld);
@@ -186,7 +195,7 @@ void main() {
     if (uUseEmissionMap == 1) emision *= texture(uEmissionTex, vUv).rgb;
     color += emision;
 
-    FragColor = vec4(color, uMaterialDiffuse.a);
+    FragColor = vec4(color, uMaterialDiffuse.a * opacidadDistancia);
 }
 )";
 
@@ -221,13 +230,16 @@ uniform float uWidth;    // ancho de la linea en pixeles
 uniform float uNear;     // distancia al plano cercano (positivo)
 
 out vec4 vColor;
+out vec3 vWorldPosition;
 
 void main() {
     // 1. Recorte del plano cercano en espacio vista (z hacia -near). La
     //    geometria viene en el espacio local del objeto (grilla, collider), asi
     //    que pasa por uModel antes que por la vista.
-    vec3 s = (uView * uModel * vec4(aStart, 1.0)).xyz;
-    vec3 e = (uView * uModel * vec4(aEnd, 1.0)).xyz;
+    vec3 worldS = (uModel * vec4(aStart, 1.0)).xyz;
+    vec3 worldE = (uModel * vec4(aEnd, 1.0)).xyz;
+    vec3 s = (uView * vec4(worldS, 1.0)).xyz;
+    vec3 e = (uView * vec4(worldE, 1.0)).xyz;
     float nearZ = -uNear;
     bool sAdelante = s.z <= nearZ;
     bool eAdelante = e.z <= nearZ;
@@ -235,10 +247,19 @@ void main() {
         // Enteramente detras de la camara: vertice degenerado fuera de pantalla.
         gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
         vColor = aColor;
+        vWorldPosition = worldS;
         return;
     }
-    if (!sAdelante) s = mix(s, e, (nearZ - s.z) / (e.z - s.z));
-    if (!eAdelante) e = mix(e, s, (nearZ - e.z) / (s.z - e.z));
+    if (!sAdelante) {
+        float t = (nearZ - s.z) / (e.z - s.z);
+        s = mix(s, e, t);
+        worldS = mix(worldS, worldE, t);
+    }
+    if (!eAdelante) {
+        float t = (nearZ - e.z) / (s.z - e.z);
+        e = mix(e, s, t);
+        worldE = mix(worldE, worldS, t);
+    }
 
     // 2. A clip space y de ahí a NDC.
     vec4 clipS = uProjection * vec4(s, 1.0);
@@ -259,15 +280,26 @@ void main() {
     clip.xy += (offsetPx / px) * clip.w;
     gl_Position = clip;
     vColor = aColor;
+    vWorldPosition = mix(worldS, worldE, aAlong);
 }
 )";
 
 static const char* const kLineFragmentShader = R"(#version 330 core
 in vec4 vColor;
+in vec3 vWorldPosition;
 out vec4 FragColor;
 
+uniform vec3 uCameraPosition;
+uniform float uDistanceFadeStart;
+uniform float uDistanceFadeEnd;
+
 void main() {
-    FragColor = vColor;
+    float distanciaCamara = length(vWorldPosition - uCameraPosition);
+    if (distanciaCamara >= uDistanceFadeEnd) discard;
+    float rango = max(0.0001, uDistanceFadeEnd - uDistanceFadeStart);
+    float t = clamp((distanciaCamara - uDistanceFadeStart) / rango, 0.0, 1.0);
+    float opacidad = 1.0 - t * t;
+    FragColor = vec4(vColor.rgb, vColor.a * opacidad);
 }
 )";
 

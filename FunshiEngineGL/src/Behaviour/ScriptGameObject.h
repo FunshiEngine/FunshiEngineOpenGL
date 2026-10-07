@@ -32,13 +32,15 @@ namespace MotorScript {
 // (ScriptGameObject.cpp) y entregada al comportamiento en su creacion.
 //
 // Convencion de versionado: APPEND-ONLY. Los campos nuevos se agregan SIEMPRE
-// al final; los existentes no se reordenan ni se cambian de tipo, de modo que
-// un script compilado contra una version anterior siga leyendo la misma
-// direccion de memoria para los miembros viejos. Los scripts comprueban
-// `api->version >= N` antes de usar miembros introducidos en la version N.
+// al final y los existentes no se reordenan ni se cambian de tipo. Esto permite
+// versionar la tabla; no promete compatibilidad binaria entre versiones del
+// motor. Incrementar esta version cuando cambie el contrato/API/runtime: el
+// cache la incorpora y recompila los scripts con el motor actualizado.
+constexpr int versionRuntimeScript = 8;
 struct ApiScriptGameObject {
     // --- v1 (original) ---
     const char* (*nombre)(const void* objeto);
+    // Posicion y escala son valores locales del componente Transform.
     float (*posicionX)(const void* objeto);
     float (*posicionY)(const void* objeto);
     float (*posicionZ)(const void* objeto);
@@ -49,8 +51,8 @@ struct ApiScriptGameObject {
     void (*imprimirConsola)(const char* texto);
 
     // --- v2: getters de transform que faltaban (rotacion y escala) ---
-    // Rotacion en el formato canonico del componente: angulo (radianes) sobre
-    // un eje. Consistente con fijarRotacionEjes (angulo + eje).
+    // El angulo se expone en radianes y el eje es unitario. El componente
+    // Transform conserva internamente el angulo en grados.
     float (*rotacionAngulo)(const void* objeto);
     float (*rotacionEjeX)(const void* objeto);
     float (*rotacionEjeY)(const void* objeto);
@@ -60,8 +62,18 @@ struct ApiScriptGameObject {
     float (*escalaY)(const void* objeto);
     float (*escalaZ)(const void* objeto);
 
-    // Version de la tabla (siempre al final). Permite a un script compilado
-    // contra una version vieja hacer guardas: `if (api->version >= 2) ...`.
+    // --- v3: movimiento de cuerpos fisicos ---
+    // Devuelve true si el objeto tiene RigidBody; la velocidad es mundial.
+    bool (*fijarVelocidadHorizontal)(void* objeto, float x, float z);
+    // Solo salta si el cuerpo activo esta apoyado.
+    bool (*saltar)(void* objeto, float velocidad);
+
+    // --- v4: tags y datos de contacto ---
+    const char* (*etiqueta)(const void* objeto);
+    bool (*tieneEtiqueta)(const void* objeto, const char* etiqueta);
+    void* (*objetoDeCollider)(const void* collider);
+
+    // Version de la tabla (siempre al final).
     int version;
 };
 
@@ -102,10 +114,21 @@ struct ScriptServices {
     // el objeto viva (no crear/destruir objetos desde scripts aun).
     void* (*objetoPorNombre)(const char* nombre);
 
-    // Consulta de teclado (cadenas GLFW key names, ej. "W", "SPACE", "LEFT_SHIFT").
+    // --- v3: otras formas de resolver referencias a objetos ---
+    // Busca por id de escena (GameObject::getId); primer coincidente o nullptr.
+    void* (*objetoPorId)(int id);
+    // Busca por tag el primer objeto que lo tenga; nullptr si ninguno.
+    // Util para referencias opcionales (ej. la camara de un controlador).
+    void* (*objetoPorEtiqueta)(const char* etiqueta);
+
+    // Consulta de teclado (nombres GLFW, ej. "W", "D0", "SPACE").
     bool (*teclaSostiene)(const char* tecla);      // mantenida apretada
     bool (*teclaPresionada)(const char* tecla);    // este frame (edge press)
     bool (*teclaSoltada)(const char* tecla);       // este frame (edge release)
+
+    // Delta acumulado del mouse en pixeles durante el frame actual (v2).
+    float (*deltaMouseX)();
+    float (*deltaMouseY)();
 
     // Version de la tabla (siempre al final).
     int version;
@@ -114,9 +137,10 @@ struct ScriptServices {
 // Tabla de servicios de escena para scripts (audio, busqueda, teclado).
 const ScriptServices* tablaServicios();
 
-// Cablea el contexto real de la escena. GameScene la llama al entrar/salir de
-// Play (con nullptr al salir). Es un punto de integracion unico, sin que
-// ScriptGameObject dependa de las cabeceras de Audio/Scenes/Input.
+// Cablea el contexto real de la escena. GameScene la llama al entrar en
+// simulacion y, despues de onStop, con todos los punteros nulos para
+// desconectar; al desconectar tambien se detienen los handles de audio creados
+// por scripts. ScriptGameObject no depende de las cabeceras de Audio/Scenes/Input.
 void inyectarServiciosScript(AudioEngine* audio, SceneRegistry* escena,
                              InputScripts* input);
 

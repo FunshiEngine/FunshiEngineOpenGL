@@ -20,8 +20,10 @@
 #define SCRIPT_H
 
 #include "../../Behaviour/ComportamientoCargado.h"
+#include "../../Fisicas/ContactoFisico.h"
 #include "Component.h"
 #include <string>
+#include <utility>
 #include <vector>
 
 // Componente de comportamiento de usuario. Apunta a un fuente (.cpp o .java);
@@ -31,7 +33,9 @@ class Script : public Component {
 private:
     std::string dllPath; // fuente del script (.cpp / .java)
     std::string nameClass;
+    std::string nombreComponente_;
     ComportamientoCargado comportamiento_;
+    std::vector<ReflejoScripts::DefCampo> camposInspector_;
     std::vector<ReflejoScripts::ValorCampo> valores_;
     bool cargado_ = false;  // ya se intento cargar el fuente actual
     bool arrancado_ = false; // onStart ya fue invocado (en play mode)
@@ -53,10 +57,22 @@ public:
     void setDllPath(std::string dllPath);
     std::string getPath() { return dllPath; }
     std::string getNameClass() { return nameClass; }
+    const std::string& getNombreComponente() const noexcept {
+        return nombreComponente_;
+    }
+    void setNombreComponente(std::string nombre) {
+        nombreComponente_ = std::move(nombre);
+    }
+    std::string nombreParaMostrar() const {
+        if (!nombreComponente_.empty()) return nombreComponente_;
+        return nameClass.empty() ? "Script" : nameClass;
+    }
 
     // Carga/ejecucion
     void actualizar(GameObject* owner, float deltaTime);
     void detener(GameObject* owner);
+    void notificarContacto(GameObject* owner, Collider* propio,
+                           Collider* otro, TipoContacto tipo);
     void recargar(GameObject* owner); // forza recompilar + recargar
     void cargarSiNecesario();         // carga (compila) sin arrancar onStart
 
@@ -74,7 +90,7 @@ public:
 
     // SerializeField: campos reflejados del comportamiento (si esta cargado)
     const std::vector<ReflejoScripts::DefCampo>& obtenerCampos() const {
-        return comportamiento_.campos;
+        return camposInspector_;
     }
     std::vector<ReflejoScripts::ValorCampo>& obtenerValores() { return valores_; }
     const std::vector<ReflejoScripts::ValorCampo>& obtenerValores() const {

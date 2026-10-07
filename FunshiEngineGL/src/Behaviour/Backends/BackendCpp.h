@@ -44,6 +44,9 @@ public:
                           GameObject* owner, float deltaTime) override;
     void llamarDetener(ComportamientoCargado& comportamiento,
                        GameObject* owner) override;
+    void llamarContacto(ComportamientoCargado& comportamiento,
+                        GameObject* owner, Collider* propio, Collider* otro,
+                        TipoContacto tipo) override;
 
 private:
     static std::string artefacto(const std::string& fuente);

@@ -35,6 +35,7 @@
 #include "Grid/SettingsGrid.h"
 #include "Skybox/SettingsSkybox.h"
 #include "../../Objetos/GameObject.h"
+#include "../../Objetos/TagRegistry.h"
 #include "../../Objetos/Componentes/Light.h"
 #include "../../Objetos/Componentes/Material.h"
 #include "../../Objetos/Componentes/CameraComponent.h"
@@ -55,6 +56,8 @@
 #include "../../Herramientas/TypeUtils.h"
 #include <imgui.h>
 #include <typeinfo>
+#include <algorithm>
+#include <cstring>
 
 SettingsObjectInterface::SettingsObjectInterface(GameObject* object,
                                                  bool stateGUI)
@@ -88,6 +91,7 @@ void SettingsObjectInterface::desvincular() {
         listaDESettingsComponent->remove(pos);
     }
     object = nullptr;
+    tagBufferOwner_ = nullptr;
 }
 
 void SettingsObjectInterface::setEventBus(EventBus* bus) {
@@ -227,9 +231,20 @@ void SettingsObjectInterface::crearSettingsFaltantes() {
 	if (rigidBody != nullptr && !tieneSettingsPara(rigidBody)) {
 		listaDESettingsComponent->addLast(new SettingsRigidBody(object));
 	}
-	Script* script = object->getComponent<Script>();
-	if (script != nullptr && !tieneSettingsPara(script)) {
-		listaDESettingsComponent->addLast(new SettingsScript(object));
+	ListaDE<Component*>* componentes = object->getComponents();
+	if (componentes && !componentes->isEmpty()) {
+		Position<Component*>* posicion = componentes->first();
+		while (posicion) {
+			if (Script* script =
+			        dynamic_cast<Script*>(posicion->getElement())) {
+				if (!tieneSettingsPara(script))
+					listaDESettingsComponent->addLast(
+					    new SettingsScript(script));
+			}
+			posicion = posicion != componentes->last()
+			               ? componentes->next(posicion)
+			               : nullptr;
+		}
 	}
 	Model* model = object->getComponent<Model>();
 	if (model != nullptr && !tieneSettingsPara(model)) {
@@ -276,6 +291,7 @@ SettingsComponent* SettingsObjectInterface::settingsEnIndice(size_t indice) {
 void SettingsObjectInterface::setTargetObject(GameObject* newObject) {
     if (object == newObject || newObject == nullptr) return;
     object = newObject;
+    tagBufferOwner_ = nullptr;
     while (!listaDESettingsComponent->isEmpty()) {
         Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
         delete pos->getElement();
@@ -290,6 +306,39 @@ void SettingsObjectInterface::initGUI() {
 }
 
 void SettingsObjectInterface::contentGUI() {
+    if (object) {
+        if (tagBufferOwner_ != object) {
+            tagBuffer_.fill('\0');
+            const std::string& tag = object->getTag();
+            std::memcpy(tagBuffer_.data(), tag.data(),
+                        std::min(tag.size(), tagBuffer_.size() - 1));
+            tagBufferOwner_ = object;
+        }
+
+        ImGui::TextUnformatted("Tag");
+        ImGui::SetNextItemWidth(180.0f);
+        if (ImGui::InputText("##TagObject", tagBuffer_.data(),
+                             tagBuffer_.size(),
+                             ImGuiInputTextFlags_EnterReturnsTrue))
+            object->setTag(tagBuffer_.data());
+        ImGui::SameLine();
+        const std::string tagActual = object->getTag();
+        if (ImGui::BeginCombo("##TagsRegistrados", tagActual.c_str())) {
+            for (const std::string& tag : TagRegistry::registrados()) {
+                const bool seleccionado = tag == tagActual;
+                if (ImGui::Selectable(tag.c_str(), seleccionado)) {
+                    object->setTag(tag);
+                    tagBuffer_.fill('\0');
+                    std::memcpy(tagBuffer_.data(), tag.data(),
+                                std::min(tag.size(), tagBuffer_.size() - 1));
+                }
+                if (seleccionado) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::Separator();
+    }
+
 	// MOSTRAMOS COMPONENTES
 	iterandoComponentes = true;
 	componenteABorrar = nullptr;
@@ -302,11 +351,40 @@ void SettingsObjectInterface::contentGUI() {
 			SettingsComponent* comp = position->getElement();
 			ImGui::PushID(comp);
 
-			// Usamos demangle para obtener un nombre legible
-			std::string compName = demangle(typeid(*comp).name());
+			std::string compName;
+			if (Script* script =
+			        dynamic_cast<Script*>(comp->getComponent())) {
+				compName = "Script: " + script->nombreParaMostrar();
+			} else {
+				compName = demangle(typeid(*comp).name());
+			}
 
+			SettingsScript* scriptSettings =
+			    dynamic_cast<SettingsScript*>(comp);
+			if (scriptSettings && scriptSettings->estaEditandoNombre())
+				ImGui::SetNextItemOpen(true, ImGuiCond_Always);
 			bool open = ImGui::CollapsingHeader(
 			    compName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+
+			if (ImGui::BeginPopupContextItem(
+			        "ComponentContext",
+			        ImGuiPopupFlags_MouseButtonRight)) {
+				if (scriptSettings &&
+				    ImGui::MenuItem("Renombrar componente"))
+					scriptSettings->iniciarEdicionNombre();
+				if (ImGui::MenuItem("Eliminar Componente")) {
+					Component* target = comp->getComponent();
+					if (editor)
+						editor->removeComponent(object, target);
+					else
+						object->deleteComponent(target);
+					componenteABorrar = comp;
+					ImGui::EndPopup();
+					ImGui::PopID();
+					break;
+				}
+				ImGui::EndPopup();
+			}
 
 			if (ImGui::BeginDragDropSource(
 			        ImGuiDragDropFlags_SourceNoHoldToOpenOthers)) {
@@ -331,26 +409,6 @@ void SettingsObjectInterface::contentGUI() {
 					}
 				}
 				ImGui::EndDragDropTarget();
-			}
-
-			if (ImGui::BeginPopupContextItem("DeleteComponent",
-			                                 ImGuiPopupFlags_MouseButtonRight)) {
-				if (ImGui::MenuItem("Eliminar Componente")) {
-					Component* target = comp->getComponent();
-					if (editor) {
-						// Centralizado: des-registra de la fisica ANTES de
-						// liberar el componente (evita punteros colgantes).
-						editor->removeComponent(object, target);
-					} else {
-						object->deleteComponent(target);
-					}
-					// Borrado diferido: encolar para procesar DESPUÉS de la iteracion
-					componenteABorrar = comp;
-					ImGui::EndPopup();
-					ImGui::PopID();
-					break;
-				}
-				ImGui::EndPopup();
 			}
 
 			if (open) {

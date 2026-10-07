@@ -21,6 +21,8 @@
 #include "Reflection/BehaviourReflection.h"
 #include "ScriptGameObject.h"
 
+class Collider;
+
 // Marca de exportacion de la fabrica FUNSHI_CREAR_COMPORTAMIENTO (H-15).
 // En Windows/MSVC una funcion de una .dll NO se exporta sola: sin
 // __declspec(dllexport) la .dll compila pero su tabla de exportaciones no
@@ -46,14 +48,31 @@ public:
     const MotorScript::ApiScriptGameObject* api = nullptr;
 
     // Tabla de servicios de escena (audio, busqueda, teclado), inyectada por
-    // el motor al cargar. Los scripts la usan como
-    // `if (servicios) servicios->reproducirSonido(...)`; comprobar version con
-    // `servicios->version >= 1` si se quiere blindar contra builds viejas.
+    // el motor al cargar. Los scripts C++ la usan como
+    // `if (servicios) servicios->reproducirSonido(...)`; Java usa Nativo.*.
     const MotorScript::ScriptServices* servicios = nullptr;
 
     virtual ~IScriptBehaviour() {}
     virtual void onStart(GameObject* owner) = 0;
     virtual void onUpdate(GameObject* owner, float deltaTime) = 0;
+    virtual void onCollisionEnter(GameObject* owner, Collider* propio,
+                                  Collider* otro) {
+        (void)owner;
+        (void)propio;
+        (void)otro;
+    }
+    virtual void onCollisionStay(GameObject* owner, Collider* propio,
+                                 Collider* otro) {
+        (void)owner;
+        (void)propio;
+        (void)otro;
+    }
+    virtual void onCollisionExit(GameObject* owner, Collider* propio,
+                                 Collider* otro) {
+        (void)owner;
+        (void)propio;
+        (void)otro;
+    }
 
     // Opcional: recibe la tabla de punteros que implementa el motor en la TU
     // del ejecutable (así el .so del script no enlaza símbolos del motor).

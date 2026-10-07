@@ -30,11 +30,92 @@
 
 namespace {
 constexpr uint32_t MAGIC_SCRIPT = 0x31535346; // 'F','S','S','1'
-constexpr uint32_t VERSION_SCRIPT = 1;
+constexpr uint32_t VERSION_SCRIPT = 3;
+
+ReflejoScripts::DefCampo metadatosCampo(
+    const ReflejoScripts::DefCampo& campo) {
+    ReflejoScripts::DefCampo copia;
+    copia.nombre = campo.nombre;
+    copia.tag = campo.tag;
+    copia.subcampos.reserve(campo.subcampos.size());
+    for (const ReflejoScripts::DefCampo& subcampo : campo.subcampos)
+        copia.subcampos.push_back(metadatosCampo(subcampo));
+    return copia;
+}
+
+std::vector<ReflejoScripts::DefCampo> metadatosCampos(
+    const std::vector<ReflejoScripts::DefCampo>& campos) {
+    std::vector<ReflejoScripts::DefCampo> copia;
+    copia.reserve(campos.size());
+    for (const ReflejoScripts::DefCampo& campo : campos)
+        copia.push_back(metadatosCampo(campo));
+    return copia;
+}
+
+std::vector<ReflejoScripts::DefCampo> metadatosDesdeValores(
+    const std::vector<ReflejoScripts::ValorCampo>& valores) {
+    std::vector<ReflejoScripts::DefCampo> campos;
+    campos.reserve(valores.size());
+    for (const ReflejoScripts::ValorCampo& valor : valores) {
+        ReflejoScripts::DefCampo campo;
+        campo.nombre = valor.nombre;
+        campo.tag = valor.tag;
+        if (valor.tag == ReflejoScripts::TagTipo::Grupo) {
+            campo.subcampos =
+                metadatosDesdeValores(
+                    valor.como<std::vector<ReflejoScripts::ValorCampo>>());
+        } else if (valor.tag == ReflejoScripts::TagTipo::Grupos) {
+            const auto& grupos = valor.como<
+                std::vector<std::vector<ReflejoScripts::ValorCampo>>>();
+            if (!grupos.empty())
+                campo.subcampos = metadatosDesdeValores(grupos.front());
+        }
+        campos.push_back(std::move(campo));
+    }
+    return campos;
+}
+
+void guardarMetadatos(std::ofstream& archivo,
+                      const std::vector<ReflejoScripts::DefCampo>& campos) {
+    const size_t cantidad = campos.size();
+    archivo.write(reinterpret_cast<const char*>(&cantidad), sizeof(cantidad));
+    for (const ReflejoScripts::DefCampo& campo : campos) {
+        const size_t largo = campo.nombre.size();
+        archivo.write(reinterpret_cast<const char*>(&largo), sizeof(largo));
+        archivo.write(campo.nombre.data(), static_cast<std::streamsize>(largo));
+        const auto tag = static_cast<uint8_t>(campo.tag);
+        archivo.write(reinterpret_cast<const char*>(&tag), sizeof(tag));
+        guardarMetadatos(archivo, campo.subcampos);
+    }
+}
+
+std::vector<ReflejoScripts::DefCampo> cargarMetadatos(
+    std::ifstream& archivo) {
+    size_t cantidad = 0;
+    archivo.read(reinterpret_cast<char*>(&cantidad), sizeof(cantidad));
+    std::vector<ReflejoScripts::DefCampo> campos;
+    campos.reserve(cantidad);
+    for (size_t i = 0; i < cantidad; ++i) {
+        ReflejoScripts::DefCampo campo;
+        size_t largo = 0;
+        archivo.read(reinterpret_cast<char*>(&largo), sizeof(largo));
+        campo.nombre.resize(largo);
+        if (largo > 0)
+            archivo.read(&campo.nombre[0],
+                         static_cast<std::streamsize>(largo));
+        uint8_t tag = 0;
+        archivo.read(reinterpret_cast<char*>(&tag), sizeof(tag));
+        campo.tag = static_cast<ReflejoScripts::TagTipo>(tag);
+        campo.subcampos = cargarMetadatos(archivo);
+        campos.push_back(std::move(campo));
+    }
+    return campos;
+}
 } // namespace
 
 void Script::setDllPath(std::string dllPath) {
     this->dllPath = dllPath; // guarda el path completo del fuente
+    camposInspector_.clear();
 
     size_t lastSlash = dllPath.find_last_of("/\\");
     size_t lastDot = dllPath.find_last_of('.');
@@ -78,13 +159,12 @@ void Script::cargarSiNecesario() {
                   << error_ << std::endl;
         return;
     }
+    camposInspector_ = metadatosCampos(comportamiento_.campos);
 
-    // Servicios de escena (audio, busqueda, teclado): la tabla global se
-    // entrega aca, en el motor (los tests de scripts usan su propio stub de
-    // tablaApi y no enlazan ScriptGameObject.cpp). El contexto real de la
-    // escena lo cablea GameScene via inyectarServiciosScript al entrar en
-    // Play, antes del primer onStart. Solo para C++: en Java `instancia` es
-    // un jobject, no un IScriptBehaviour*.
+    // Servicios de escena (audio, busqueda, teclado): la instancia C++ recibe
+    // la tabla aca; Java consulta las mismas tablas desde sus metodos nativos
+    // Nativo.*. GameScene cablea el contexto real al entrar en Play, antes del
+    // primer onStart.
     if (comportamiento_.lenguaje == "cpp" && comportamiento_.instancia)
         static_cast<IScriptBehaviour*>(comportamiento_.instancia)->servicios =
             MotorScript::tablaServicios();
@@ -162,8 +242,15 @@ void Script::detener(GameObject* owner) {
     extraerValores(); // que la GUI conserve los ultimos valores editados
 }
 
+void Script::notificarContacto(GameObject* owner, Collider* propio,
+                               Collider* otro, TipoContacto tipo) {
+    if (!arrancado_ || !comportamiento_.valido()) return;
+    ScriptRuntime::llamarContacto(comportamiento_, owner, propio, otro, tipo);
+}
+
 void Script::liberarComportamiento() {
     if (!comportamiento_.cargado) return;
+    camposInspector_ = metadatosCampos(comportamiento_.campos);
     ScriptRuntime::descargar(comportamiento_); // sin owner: no dispara onStop
     cargado_ = false;
     arrancado_ = false;
@@ -204,6 +291,17 @@ void Script::serializeComponent(std::ofstream* f) {
     // 3. Valores de SerializeField (arbol autodescriptivo)
     extraerValores();
     ReflejoScripts::guardarValoresCampos(*f, valores_);
+
+    const size_t nombreLength = nombreComponente_.size();
+    f->write(reinterpret_cast<const char*>(&nombreLength), sizeof(size_t));
+    f->write(nombreComponente_.data(),
+             static_cast<std::streamsize>(nombreLength));
+
+    if (comportamiento_.valido())
+        camposInspector_ = metadatosCampos(comportamiento_.campos);
+    if (camposInspector_.empty())
+        camposInspector_ = metadatosDesdeValores(valores_);
+    guardarMetadatos(*f, camposInspector_);
 }
 
 void Script::deserializeComponent(std::ifstream* f) {
@@ -230,8 +328,23 @@ void Script::deserializeComponent(std::ifstream* f) {
 
         if (version >= 1)
             valores_ = ReflejoScripts::cargarValoresCampos(*f);
+        std::string nombreComponente;
+        if (version >= 2) {
+            size_t nombreLength = 0;
+            f->read(reinterpret_cast<char*>(&nombreLength), sizeof(size_t));
+            nombreComponente.resize(nombreLength);
+            if (nombreLength > 0)
+                f->read(&nombreComponente[0],
+                        static_cast<std::streamsize>(nombreLength));
+        }
+        std::vector<ReflejoScripts::DefCampo> camposGuardados;
+        if (version >= 3) camposGuardados = cargarMetadatos(*f);
 
         setDllPath(dllPath); // valida nombre clase + invalida lo cargado
+        nombreComponente_ = std::move(nombreComponente);
+        camposInspector_ = camposGuardados.empty()
+                               ? metadatosDesdeValores(valores_)
+                               : std::move(camposGuardados);
     } else {
         // Formato legacy: solo path + nombre de clase (sin magic).
         f->seekg(inicio); // rebobinar para releer por el camino viejo
@@ -246,6 +359,7 @@ void Script::deserializeComponent(std::ifstream* f) {
         f->read(reinterpret_cast<char*>(&nameLength), sizeof(size_t));
         nameClass.resize(nameLength);
         f->read(&nameClass[0], nameLength);
+        nombreComponente_.clear();
         setDllPath(dllPath);
     }
 

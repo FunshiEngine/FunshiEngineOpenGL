@@ -19,6 +19,10 @@
 #ifndef IPHYSICS_BACKEND_H
 #define IPHYSICS_BACKEND_H
 
+#include <vector>
+
+#include "ContactoFisico.h"
+
 class RigidBody;
 
 class IPhysicsBackend {
@@ -27,6 +31,7 @@ public:
     virtual void stepSimulation(float deltaTime) = 0;
     virtual void addRigidBody(RigidBody* body) = 0;
     virtual void removeRigidBody(RigidBody* body) = 0;
+    virtual std::vector<EventoContacto> tomarEventosContacto() { return {}; }
 };
 
 #endif

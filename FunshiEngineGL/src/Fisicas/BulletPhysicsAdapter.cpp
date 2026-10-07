@@ -18,6 +18,8 @@
 */
 #include "BulletPhysicsAdapter.h"
 
+#include <functional>
+
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 
 BulletPhysicsAdapter::BulletPhysicsAdapter()
@@ -52,15 +54,99 @@ BulletPhysicsAdapter::~BulletPhysicsAdapter() {
 }
 
 void BulletPhysicsAdapter::stepSimulation(float deltaTime) {
+    eventosContacto_.clear();
+    for (RigidBody* body : cuerpos_) {
+        if (!body) continue;
+        body->actualizarEstadoSuelo(false);
+        if (Collider* collider = body->getCollider())
+            collider->limpiarContactos();
+    }
     dynamicsWorld->stepSimulation(deltaTime);
+
+    std::set<ParColliders> contactosActuales;
+    for (int i = 0; i < dispatcher->getNumManifolds(); ++i) {
+        const btPersistentManifold* manifold =
+            dispatcher->getManifoldByIndexInternal(i);
+        const auto* objetoA =
+            static_cast<const btCollisionObject*>(manifold->getBody0());
+        const auto* objetoB =
+            static_cast<const btCollisionObject*>(manifold->getBody1());
+        const auto* cuerpoA = static_cast<const btRigidBody*>(objetoA);
+        const auto* cuerpoB = static_cast<const btRigidBody*>(objetoB);
+        for (int contacto = 0; contacto < manifold->getNumContacts(); ++contacto) {
+            const btManifoldPoint& punto = manifold->getContactPoint(contacto);
+            if (punto.getDistance() > 0.01f) continue;
+            const btVector3 normalHaciaA = punto.m_normalWorldOnB;
+            RigidBody* bodyA = nullptr;
+            RigidBody* bodyB = nullptr;
+            for (RigidBody* body : cuerpos_) {
+                if (!body || !body->estaActivo()) continue;
+                if (body->getRigidBody() == cuerpoA) {
+                    bodyA = body;
+                } else if (body->getRigidBody() == cuerpoB) {
+                    bodyB = body;
+                }
+                if (body->getRigidBody() == cuerpoA &&
+                    normalHaciaA.y() > 0.5f) {
+                    body->actualizarEstadoSuelo(true);
+                } else if (body->getRigidBody() == cuerpoB &&
+                           normalHaciaA.y() < -0.5f) {
+                    body->actualizarEstadoSuelo(true);
+                }
+            }
+            Collider* colliderA = bodyA ? bodyA->getCollider() : nullptr;
+            Collider* colliderB = bodyB ? bodyB->getCollider() : nullptr;
+            if (colliderA && colliderB && colliderA != colliderB) {
+                colliderA->registrarContacto(colliderB);
+                colliderB->registrarContacto(colliderA);
+                contactosActuales.insert(ordenarPar(colliderA, colliderB));
+            }
+        }
+    }
+
+    for (const ParColliders& par : contactosActuales) {
+        eventosContacto_.push_back(
+            {par.first, par.second,
+             contactosAnteriores_.count(par) ? TipoContacto::Persistencia
+                                             : TipoContacto::Inicio});
+    }
+    for (const ParColliders& par : contactosAnteriores_)
+        if (!contactosActuales.count(par))
+            eventosContacto_.push_back(
+                {par.first, par.second, TipoContacto::Fin});
+    contactosAnteriores_ = std::move(contactosActuales);
 }
 
 void BulletPhysicsAdapter::addRigidBody(RigidBody* body) {
-    if (dynamicsWorld && body && body->getRigidBody())
-        dynamicsWorld->addRigidBody(body->getRigidBody());
+    if (!dynamicsWorld || !body || !body->getRigidBody()) return;
+    dynamicsWorld->addRigidBody(body->getRigidBody());
+    cuerpos_.insert(body);
+    if (!body->estaActivo())
+        body->getRigidBody()->forceActivationState(DISABLE_SIMULATION);
 }
 
 void BulletPhysicsAdapter::removeRigidBody(RigidBody* body) {
-    if (dynamicsWorld && body && body->getRigidBody())
+    if (!body) return;
+    cuerpos_.erase(body);
+    if (dynamicsWorld && body->getRigidBody())
         dynamicsWorld->removeRigidBody(body->getRigidBody());
+    for (RigidBody* registrado : cuerpos_)
+        if (registrado && registrado->getCollider())
+            registrado->getCollider()->limpiarContactos();
+    if (Collider* collider = body->getCollider())
+        collider->limpiarContactos();
+    contactosAnteriores_.clear();
+    eventosContacto_.clear();
+}
+
+BulletPhysicsAdapter::ParColliders BulletPhysicsAdapter::ordenarPar(
+    Collider* a, Collider* b) {
+    return std::less<Collider*>{}(b, a) ? ParColliders{b, a}
+                                          : ParColliders{a, b};
+}
+
+std::vector<EventoContacto> BulletPhysicsAdapter::tomarEventosContacto() {
+    std::vector<EventoContacto> eventos = std::move(eventosContacto_);
+    eventosContacto_.clear();
+    return eventos;
 }

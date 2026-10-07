@@ -18,6 +18,7 @@
 */
 #include "LineRenderer.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 
@@ -59,12 +60,24 @@ void LineRenderer::setVista(const float view[16],
     }
     view_ = glm::make_mat4(view);
     projection_ = glm::make_mat4(projection);
+    const glm::mat4 invView = glm::inverse(view_);
+    posicionCamara_ = glm::vec3(invView[3]);
     vistaValida_ = true;
 }
 
 void LineRenderer::setViewport(int width, int height) noexcept {
     viewportWidth_ = width > 0 ? width : 0;
     viewportHeight_ = height > 0 ? height : 0;
+}
+
+void LineRenderer::setHorizonteVisual(float inicio, float fin) noexcept {
+    if (!std::isfinite(inicio) || !std::isfinite(fin) || fin <= 0.0f) {
+        horizonteInicio_ = 0.0f;
+        horizonteFin_ = 150.0f;
+        return;
+    }
+    horizonteFin_ = fin;
+    horizonteInicio_ = std::clamp(inicio, 0.0f, fin);
 }
 
 bool LineRenderer::inicializar() {
@@ -98,6 +111,9 @@ bool LineRenderer::preparar(const float model[16], float anchoPx) {
     shader_->setVec4("uViewport", viewport);
     shader_->setFloat("uWidth", anchoPx > 0.0f ? anchoPx : 1.0f);
     shader_->setFloat("uNear", nearDesdeProyeccion(projection_));
+    shader_->setVec3("uCameraPosition", posicionCamara_);
+    shader_->setFloat("uDistanceFadeStart", horizonteInicio_);
+    shader_->setFloat("uDistanceFadeEnd", horizonteFin_);
     return true;
 }
 
@@ -105,7 +121,10 @@ void LineRenderer::dibujar(const LineBatch& batch, const float model[16],
                            float anchoPx) {
     if (!batch.isUploaded() || batch.getVertexCount() == 0) return;
     if (!preparar(model, anchoPx)) return;
+    auto& backend = Rendering::Backend::activeBackend();
+    backend.setBlendEnabled(true);
     batch.draw();
+    backend.setBlendEnabled(false);
     ShaderProgram::unbind();
 }
 
@@ -126,4 +145,3 @@ LineRenderer& lineRenderer() {
     static LineRenderer renderer;
     return renderer;
 }
-

@@ -52,18 +52,110 @@ int fallos = 0;
 
 // Stub de la tabla de acceso: en el motor la implementa ScriptGameObject.cpp.
 namespace MotorScript {
+namespace {
+float posicion[3] = {1.0f, 2.0f, 3.0f};
+float escala[3] = {1.5f, 2.5f, 3.5f};
+float rotacion[4] = {0.25f, 0.0f, 1.0f, 0.0f};
+int handleSonidoDetenido = -1;
+std::string textoImpreso;
+}
+
 const ApiScriptGameObject* tablaApi() {
     static const ApiScriptGameObject tabla = {
-        [](const void*) { return "stub"; },
-        [](const void*) { return 0.0f; },
-        [](const void*) { return 0.0f; },
-        [](const void*) { return 0.0f; },
-        [](void*, float, float, float) {},
-        [](void*, float, float, float) {},
-        [](void*, float, float, float, float) {},
-        [](const char*) {},
+        [](const void* objeto) {
+            return objeto ==
+                           reinterpret_cast<void*>(
+                               static_cast<intptr_t>(0x1234))
+                       ? "meta"
+                       : "stub";
+        },
+        [](const void*) { return posicion[0]; },
+        [](const void*) { return posicion[1]; },
+        [](const void*) { return posicion[2]; },
+        [](void*, float x, float y, float z) {
+            posicion[0] = x;
+            posicion[1] = y;
+            posicion[2] = z;
+        },
+        [](void*, float x, float y, float z) {
+            escala[0] = x;
+            escala[1] = y;
+            escala[2] = z;
+        },
+        [](void*, float a, float x, float y, float z) {
+            rotacion[0] = a;
+            rotacion[1] = x;
+            rotacion[2] = y;
+            rotacion[3] = z;
+        },
+        [](const char* texto) { textoImpreso = texto ? texto : ""; },
+        [](const void*) { return rotacion[0]; },
+        [](const void*) { return rotacion[1]; },
+        [](const void*) { return rotacion[2]; },
+        [](const void*) { return rotacion[3]; },
+        [](const void*) { return escala[0]; },
+        [](const void*) { return escala[1]; },
+        [](const void*) { return escala[2]; },
+        [](void*, float, float) { return true; },
+        [](void*, float) { return true; },
+        [](const void* objeto) {
+            return objeto ==
+                           reinterpret_cast<void*>(
+                               static_cast<intptr_t>(0x1234))
+                       ? "suelo"
+                       : "jugador";
+        },
+        [](const void* objeto, const char* tag) {
+            return objeto ==
+                       reinterpret_cast<void*>(
+                           static_cast<intptr_t>(0x1234)) &&
+                   tag && std::string(tag) == "suelo";
+        },
+        [](const void* collider) {
+            return collider ==
+                           reinterpret_cast<void*>(
+                               static_cast<intptr_t>(0xBEEF))
+                       ? reinterpret_cast<void*>(
+                             static_cast<intptr_t>(0x1234))
+                       : nullptr;
+        },
+        4,
     };
     return &tabla;
+}
+
+const ScriptServices* tablaServicios() {
+    static const ScriptServices servicios = {
+        [](const char* clip, float volumen, bool bucle) {
+            return clip && std::string(clip) == "disparo.wav" &&
+                           volumen == 0.5f && !bucle
+                       ? 73
+                       : -1;
+        },
+        [](int handle) { handleSonidoDetenido = handle; },
+        [](const char* nombre) {
+            return nombre && std::string(nombre) == "Meta"
+                       ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
+                       : nullptr;
+        },
+        [](int id) {
+            return id == 7 ? reinterpret_cast<void*>(
+                                 static_cast<intptr_t>(0x1234))
+                           : nullptr;
+        },
+        [](const char* etiqueta) {
+            return etiqueta && std::string(etiqueta) == "suelo"
+                       ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
+                       : nullptr;
+        },
+        [](const char* tecla) { return tecla && std::string(tecla) == "W"; },
+        [](const char* tecla) { return tecla && std::string(tecla) == "SPACE"; },
+        [](const char* tecla) { return tecla && std::string(tecla) == "D0"; },
+        []() { return 12.5f; },
+        []() { return -4.0f; },
+        3,
+    };
+    return &servicios;
 }
 } // namespace MotorScript
 
@@ -73,12 +165,54 @@ static const char* FUENTE_JAVA =
     "    public int vidas = 3;\n"
     "    public boolean activo = true;\n"
     "    public String etiqueta = \"hola\";\n"
-    "    @Override public void iniciar(long o) { vidas = 100; }\n"
+    "    public String nombreObjeto;\n"
+    "    public float x, y, z, giro, ejeX, ejeY, ejeZ, escalaX, escalaY, escalaZ;\n"
+    "    public int sonido;\n"
+    "    public long meta;\n"
+    "    public String nombreMeta;\n"
+    "    public boolean sostenida, pulsada, soltada, servicioOnStop;\n"
+    "    public boolean movimientoFisico, saltoFisico;\n"
+    "    public String tagObjeto;\n"
+    "    public boolean etiquetaSuelo, colliderResuelto;\n"
+    "    public int contactosInicio, contactosPersistencia, contactosFin;\n"
+    "    public long camara;\n"
+    "    public boolean porIdOk, porTagOk;\n"
+    "    public float mouseX, mouseY;\n"
+    "    @Override public void iniciar(long o) {\n"
+    "        vidas = 100;\n"
+    "        nombreObjeto = Nativo.nombre(o);\n"
+    "        x = Nativo.posicionX(o); y = Nativo.posicionY(o); z = Nativo.posicionZ(o);\n"
+    "        Nativo.fijarPosicion(o, x + 1, y + 2, z + 3);\n"
+    "        Nativo.fijarEscala(o, 4, 5, 6);\n"
+    "        Nativo.fijarRotacion(o, 0.5f, 1, 0, 0);\n"
+    "        giro = Nativo.rotacionAngulo(o); ejeX = Nativo.rotacionEjeX(o);\n"
+    "        ejeY = Nativo.rotacionEjeY(o); ejeZ = Nativo.rotacionEjeZ(o);\n"
+    "        escalaX = Nativo.escalaX(o); escalaY = Nativo.escalaY(o); escalaZ = Nativo.escalaZ(o);\n"
+    "        sonido = Nativo.reproducirSonido(\"disparo.wav\", 0.5f, false);\n"
+    "        meta = Nativo.objetoPorNombre(\"Meta\");\n"
+    "        nombreMeta = Nativo.nombre(meta);\n"
+    "        sostenida = Nativo.teclaSostiene(\"W\");\n"
+    "        pulsada = Nativo.teclaPresionada(\"SPACE\");\n"
+    "        soltada = Nativo.teclaSoltada(\"D0\");\n"
+    "        mouseX = Nativo.deltaMouseX(); mouseY = Nativo.deltaMouseY();\n"
+    "        movimientoFisico = Nativo.fijarVelocidadHorizontal(o, 2, -3);\n"
+    "        saltoFisico = Nativo.saltar(o, 5);\n"
+    "        tagObjeto = Nativo.etiqueta(meta);\n"
+    "        etiquetaSuelo = Nativo.tieneEtiqueta(meta, \"suelo\");\n"
+    "        colliderResuelto = Nativo.objetoDeCollider(0xBEEF) == meta;\n"
+    "        camara = Nativo.objetoPorNombre(\"Meta\");\n"
+    "        porIdOk = Nativo.objetoPorId(7) == meta;\n"
+    "        porTagOk = Nativo.objetoPorEtiqueta(\"suelo\") == meta;\n"
+    "        Nativo.detenerSonido(sonido);\n"
+    "    }\n"
     "    @Override public void actualizar(long o, double dt) {\n"
     "        vidas += 1;\n"
-    "        Nativo.imprimir(\"tick\");\n"
+    "        Nativo.imprimir(\"acci\\u00F3n\");\n"
     "    }\n"
-    "    @Override public void detener(long o) { vidas = -1; }\n"
+    "    @Override public void detener(long o) { vidas = -1; servicioOnStop = Nativo.teclaSostiene(\"W\"); }\n"
+    "    @Override public void colisionInicio(long o, long c, long otro) { contactosInicio++; }\n"
+    "    @Override public void colisionPersistencia(long o, long c, long otro) { contactosPersistencia++; }\n"
+    "    @Override public void colisionFin(long o, long c, long otro) { contactosFin++; }\n"
     "}\n";
 
 static const ValorCampo* buscar(const std::vector<ValorCampo>& v,
@@ -135,8 +269,8 @@ int main() {
 
     CHECK(comportamiento.valido(), "objeto Java creado");
     CHECK(comportamiento.lenguaje == "java", "lenguaje = java");
-    CHECK(comportamiento.campos.size() == 4,
-          "4 campos publicos reflejados (velocidad/vidas/activo/etiqueta)");
+    CHECK(comportamiento.campos.size() == 35,
+          "campos publicos Java soportados reflejados (con long como objeto)");
 
     // Inyectar SerializeField y verificar por lectura.
     std::vector<ValorCampo> valores = ScriptRuntime::extraer(comportamiento);
@@ -145,6 +279,7 @@ int main() {
         if (v.nombre == "vidas") v.contenido = 9;
         if (v.nombre == "activo") v.contenido = false;
         if (v.nombre == "etiqueta") v.contenido = std::string("mundo");
+        if (v.nombre == "camara") v.contenido = std::string("Inexistente");
     }
     ScriptRuntime::inyectar(comportamiento, valores);
 
@@ -153,13 +288,103 @@ int main() {
     const ValorCampo* vid = buscar(valores, "vidas");
     const ValorCampo* act = buscar(valores, "activo");
     const ValorCampo* eti = buscar(valores, "etiqueta");
+    const ValorCampo* ref = buscar(valores, "camara");
     CHECK(vel && vel->como<float>() == 7.0f, "velocidad inyectada = 7");
     CHECK(vid && vid->como<int>() == 9, "vidas inyectadas = 9");
     CHECK(act && act->como<bool>() == false, "activo inyectado = false");
     CHECK(eti && eti->como<std::string>() == "mundo", "etiqueta = mundo");
+    CHECK(ref && ref->tag == TagTipo::Objeto &&
+              ref->como<std::string>().empty(),
+          "un long Java es referencia a objeto y el nombre ausente queda vacio");
 
     // Ciclo: iniciar fija vidas=100, dos actualizar suman 2.
     ScriptRuntime::llamarInicio(comportamiento, nullptr);
+    valores = ScriptRuntime::extraer(comportamiento);
+    const ValorCampo* nombreObjeto = buscar(valores, "nombreObjeto");
+    const ValorCampo* posX = buscar(valores, "x");
+    const ValorCampo* posY = buscar(valores, "y");
+    const ValorCampo* posZ = buscar(valores, "z");
+    const ValorCampo* giro = buscar(valores, "giro");
+    const ValorCampo* ejeX = buscar(valores, "ejeX");
+    const ValorCampo* ejeY = buscar(valores, "ejeY");
+    const ValorCampo* ejeZ = buscar(valores, "ejeZ");
+    const ValorCampo* escalaZ = buscar(valores, "escalaZ");
+    const ValorCampo* sonido = buscar(valores, "sonido");
+    const ValorCampo* nombreMeta = buscar(valores, "nombreMeta");
+    const ValorCampo* sostenida = buscar(valores, "sostenida");
+    const ValorCampo* pulsada = buscar(valores, "pulsada");
+    const ValorCampo* soltada = buscar(valores, "soltada");
+    const ValorCampo* mouseX = buscar(valores, "mouseX");
+    const ValorCampo* mouseY = buscar(valores, "mouseY");
+    const ValorCampo* movimientoFisico = buscar(valores, "movimientoFisico");
+    const ValorCampo* saltoFisico = buscar(valores, "saltoFisico");
+    const ValorCampo* tagObjeto = buscar(valores, "tagObjeto");
+    const ValorCampo* etiquetaSuelo = buscar(valores, "etiquetaSuelo");
+    const ValorCampo* colliderResuelto = buscar(valores, "colliderResuelto");
+    const ValorCampo* refCamara = buscar(valores, "camara");
+    const ValorCampo* porId = buscar(valores, "porIdOk");
+    const ValorCampo* porTag = buscar(valores, "porTagOk");
+    CHECK(nombreObjeto && nombreObjeto->como<std::string>() == "stub",
+          "Java accede al nombre mediante la API del objeto");
+    CHECK(posX && posY && posZ && posX->como<float>() == 1.0f &&
+              posY->como<float>() == 2.0f && posZ->como<float>() == 3.0f,
+          "Java consulta la posicion local por eje");
+    CHECK(MotorScript::posicion[0] == 2.0f &&
+              MotorScript::posicion[1] == 4.0f &&
+              MotorScript::posicion[2] == 6.0f,
+          "Java fija la posicion local mediante la API");
+    CHECK(MotorScript::escala[0] == 4.0f &&
+              MotorScript::escala[1] == 5.0f &&
+              MotorScript::escala[2] == 6.0f,
+          "Java fija y consulta escala por eje");
+    CHECK(MotorScript::rotacion[0] == 0.5f &&
+              MotorScript::rotacion[1] == 1.0f &&
+              MotorScript::rotacion[2] == 0.0f &&
+              MotorScript::rotacion[3] == 0.0f,
+          "Java fija y consulta angulo y eje de rotacion");
+    CHECK(giro && ejeX && ejeY && ejeZ && escalaZ &&
+              giro->como<float>() == 0.5f && ejeX->como<float>() == 1.0f &&
+              ejeY->como<float>() == 0.0f && ejeZ->como<float>() == 0.0f &&
+              escalaZ->como<float>() == 6.0f,
+          "Java lee todos los getters de rotacion y escala");
+    CHECK(sonido && sonido->como<int>() == 73 &&
+              MotorScript::handleSonidoDetenido == 73,
+          "Java reproduce y detiene sonido por servicio");
+    CHECK(nombreMeta && nombreMeta->como<std::string>() == "meta",
+          "Java usa el handle opaco del objeto encontrado en la API");
+    CHECK(sostenida && pulsada && soltada && sostenida->como<bool>() &&
+              pulsada->como<bool>() && soltada->como<bool>(),
+          "Java consulta tecla sostenida, pulsada y liberada");
+    CHECK(mouseX && mouseY && mouseX->como<float>() == 12.5f &&
+              mouseY->como<float>() == -4.0f,
+          "Java consulta el delta del mouse por servicios");
+    CHECK(movimientoFisico && movimientoFisico->como<bool>() &&
+              saltoFisico && saltoFisico->como<bool>(),
+          "Java accede al movimiento horizontal y al salto por la API");
+    CHECK(tagObjeto && tagObjeto->como<std::string>() == "suelo" &&
+              etiquetaSuelo && etiquetaSuelo->como<bool>() &&
+              colliderResuelto && colliderResuelto->como<bool>(),
+          "Java consulta tags y resuelve el dueño de un collider");
+    CHECK(refCamara && refCamara->como<std::string>() == "meta",
+          "un long Java guarda el handle y se lee como nombre del objeto");
+    CHECK(porId && porId->como<bool>() && porTag && porTag->como<bool>(),
+          "Java resuelve objetos por id y por etiqueta");
+
+    ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
+                                  TipoContacto::Inicio);
+    ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
+                                  TipoContacto::Persistencia);
+    ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
+                                  TipoContacto::Fin);
+    valores = ScriptRuntime::extraer(comportamiento);
+    CHECK(buscar(valores, "contactosInicio") &&
+              buscar(valores, "contactosInicio")->como<int>() == 1 &&
+              buscar(valores, "contactosPersistencia") &&
+              buscar(valores, "contactosPersistencia")->como<int>() == 1 &&
+              buscar(valores, "contactosFin") &&
+              buscar(valores, "contactosFin")->como<int>() == 1,
+          "Java recibe inicio, persistencia y fin de contacto");
+
     ScriptRuntime::llamarActualizar(comportamiento, nullptr, 0.016f);
     ScriptRuntime::llamarActualizar(comportamiento, nullptr, 0.016f);
     valores = ScriptRuntime::extraer(comportamiento);
@@ -170,13 +395,61 @@ int main() {
     valores = ScriptRuntime::extraer(comportamiento);
     vid = buscar(valores, "vidas");
     CHECK(vid && vid->como<int>() == -1, "detener deja vidas = -1");
+    CHECK(buscar(valores, "servicioOnStop") &&
+              buscar(valores, "servicioOnStop")->como<bool>(),
+          "los servicios de escena siguen disponibles durante detener");
+    CHECK(MotorScript::textoImpreso == std::string("acci") + "\xC3\xB3" + "n",
+          "Java conserva texto UTF-8 al imprimir por la API del motor");
+
+    // Una version anterior del runtime invalida incluso clases que tengan un
+    // mtime posterior al fuente; no se reutiliza bytecode de otra API.
+    {
+        const fs::path raizCache = BackendJava::cacheDir();
+        const fs::path raizVersion =
+            raizCache / ("runtime_" +
+                         std::to_string(MotorScript::versionRuntimeScript));
+        const fs::path claseCompilada =
+            raizVersion / "clases" / "MiPruebaJava.class";
+        const fs::path versionRuntime =
+            raizVersion / "sdk" / "runtime.version";
+        const auto mtimePrevio = fs::last_write_time(claseCompilada);
+        fs::last_write_time(
+            claseCompilada, fs::file_time_type::clock::now() +
+                                std::chrono::hours(1));
+        {
+            std::ofstream version(versionRuntime);
+            version << "obsoleto\n";
+        }
+        ComportamientoCargado runtimeActualizado;
+        const bool okRuntime = ScriptRuntime::compilarYCargar(
+            fuente, "MiPruebaJava", runtimeActualizado, error);
+        CHECK(okRuntime, "un cache Java de runtime anterior se recompila");
+        if (okRuntime) {
+            const auto mtimeActual =
+                fs::last_write_time(claseCompilada, ec);
+            CHECK(!ec && mtimeActual != mtimePrevio &&
+                      mtimeActual < fs::file_time_type::clock::now() +
+                                        std::chrono::minutes(1),
+                  "se reemplaza la clase obsoleta aunque su mtime fuera reciente");
+            std::ifstream version(versionRuntime);
+            std::string valorVersion;
+            std::getline(version, valorVersion);
+            CHECK(valorVersion ==
+                      std::to_string(MotorScript::versionRuntimeScript),
+                  "el cache registra la version actual del runtime");
+        }
+        ScriptRuntime::descargar(runtimeActualizado);
+    }
 
     // Segundo componente sobre el MISMO fuente: la cola de la escena lo
     // entrega con un ComportamientoCargado vacio (estado por componente).
     // La clase ya esta compilada, asi que no hay que volver a pasar por javac.
     {
         const fs::path claseCompilada =
-            fs::path(BackendJava::cacheDir()) / "clases" / "MiPruebaJava.class";
+            fs::path(BackendJava::cacheDir()) /
+            ("runtime_" +
+             std::to_string(MotorScript::versionRuntimeScript)) /
+            "clases" / "MiPruebaJava.class";
         std::error_code ecClase;
         const auto mtimeAntes = fs::last_write_time(claseCompilada, ecClase);
         CHECK(!ecClase, "la clase del primer componente existe");

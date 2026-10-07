@@ -26,6 +26,7 @@
 #include "../GUI/WindowNames.h"
 #include "../Objetos/Componentes/CameraComponent.h"
 #include "../Fisicas/PhysicsEngine.h"
+#include "../Fisicas/ContactoFisico.h"
 #include "../Iluminacion/LightSystem.h"
 #include "../Objetos/Componentes/Script.h"
 #include "../Objetos/Componentes/Transform.h"
@@ -33,6 +34,7 @@
 #include "../Objetos/Modelos3D.h"
 #include "../Objetos/SimpleObject.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
+#include "../Objetos/Componentes/Colliders/Collider.h"
 #include "EditorController.h"
 #include "ManifiestoAssets.h"
 #include "RutasReescritura.h"
@@ -97,6 +99,7 @@ GameScene::GameScene(GUIManager* manager)
     managerGUI->bindScene(sceneRegistry.get(), editorController.get(), &events);
     managerGUI->setAudioEngine(audioEngine.get());
     asegurarGrilla();
+    configurarResolverObjetosScripts();
     menuBarGUI = managerGUI->getMenuBarGUI(&start);
     if (menuBarGUI) {
         menuBarGUI->setPausa(&simulacionPausada);
@@ -111,6 +114,7 @@ GameScene::GameScene(GUIManager* manager)
 }
 
 GameScene::~GameScene() {
+    ReflejoScripts::fijarResolverObjetos(nullptr);
     eliminarSnapshotSimulacion();
     // Libera las geometrias cacheadas del SceneRenderer (meshes SUV + grilla)
     // si se llegaron a compilar. En el flujo normal main() crea GameScene con
@@ -167,6 +171,21 @@ void GameScene::sincronizarAudioPlay(bool entrarEnPlay) {
 ListaDE<GameObject*>* GameScene::getGameObjectsScene() {
     sceneRegistry->refreshGameObjectView();
     return sceneRegistry->getGameObjects();
+}
+
+void GameScene::configurarResolverObjetosScripts() {
+    ReflejoScripts::fijarResolverObjetos(
+        [this](const std::string& nombre) -> GameObject* {
+            auto* objetos = getGameObjectsScene();
+            if (!objetos || objetos->isEmpty()) return nullptr;
+            Position<GameObject*>* pos = objetos->first();
+            while (pos && pos->getElement()) {
+                if (nombre == pos->getElement()->inputName)
+                    return pos->getElement();
+                pos = (pos != objetos->last()) ? objetos->next(pos) : nullptr;
+            }
+            return nullptr;
+        });
 }
 
 void GameScene::asegurarGrilla() {
@@ -363,16 +382,29 @@ void GameScene::eliminarSnapshotSimulacion() noexcept {
 
 void GameScene::limpiarRuntimeSimulacion() {
     limpiarColaCompilacion();
-    MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
-    sincronizarAudioPlay(false);
     auto* gameObjects = getGameObjectsScene();
-    if (!gameObjects || gameObjects->isEmpty()) return;
-    Position<GameObject*>* pos = gameObjects->first();
-    while (pos && pos->getElement()) {
-        if (Script* script = pos->getElement()->getComponent<Script>())
-            script->detener(pos->getElement());
-        pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
+    if (gameObjects && !gameObjects->isEmpty()) {
+        Position<GameObject*>* pos = gameObjects->first();
+        while (pos && pos->getElement()) {
+            ListaDE<Component*>* componentes =
+                pos->getElement()->getComponents();
+            if (componentes && !componentes->isEmpty()) {
+                Position<Component*>* componente = componentes->first();
+                while (componente) {
+                    if (Script* script =
+                            dynamic_cast<Script*>(componente->getElement()))
+                        script->detener(pos->getElement());
+                    componente = componente != componentes->last()
+                                     ? componentes->next(componente)
+                                     : nullptr;
+                }
+            }
+            pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
+        }
     }
+    sincronizarAudioPlay(false);
+    MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
+    inputScripts.reset();
 }
 
 bool GameScene::isSimulacionPausada() const noexcept { return simulacionPausada; }
@@ -783,6 +815,7 @@ void GameScene::update(float value) {
         if (!snapshotSimulacionDisponible()) {
             std::cerr << "[escena] no se pudo restaurar el estado inicial de "
                          "la simulacion; la ejecucion continua sin cambios\n";
+            inputScripts.avanzarFrame();
             return;
         }
         limpiarRuntimeSimulacion();
@@ -793,6 +826,7 @@ void GameScene::update(float value) {
             std::cerr << "[escena] no se pudo restaurar el estado inicial de "
                          "la simulacion\n";
         }
+        inputScripts.avanzarFrame();
         return;
     }
     // Mientras se manipula el gizmo NO se avanza la simulacion: de lo
@@ -809,6 +843,7 @@ void GameScene::update(float value) {
     // pose del collider desde una posicion descartada. Se empuja el body a
     // la pose VISUAL actual antes de arrancar.
     if (start && !previousStart) {
+        inputScripts.reset();
         if (directorioSnapshot_.empty()) guardarSnapshotSimulacion();
         // Feedback visual inmediato: aunque no haya nada que recompilar, se ve
         // que "Activar" disparo la carga/verificacion de scripts.
@@ -818,20 +853,6 @@ void GameScene::update(float value) {
         // Los campos de SerializeField que referencian GameObjects se guardan
         // por nombre; aca se configura el resolver hacia los objetos de ESTA
         // escena (valido mientras se construye el arbol de valores).
-        ReflejoScripts::fijarResolverObjetos(
-            [this](const std::string& nombre) -> GameObject* {
-                auto* objetos = getGameObjectsScene();
-                if (objetos->isEmpty()) return nullptr;
-                Position<GameObject*>* pos = objetos->first();
-                while (pos && pos->getElement()) {
-                    if (nombre == pos->getElement()->inputName)
-                        return pos->getElement();
-                    pos = (pos != objetos->last()) ? objetos->next(pos)
-                                                   : nullptr;
-                }
-                return nullptr;
-            });
-
         auto* gameObjects = getGameObjectsScene();
         if (!gameObjects->isEmpty()) {
             Position<GameObject*>* pos = gameObjects->first();
@@ -881,8 +902,31 @@ void GameScene::update(float value) {
     // La fisica y los scripts SOLO avanzan en modo play (start==true) y sin
     // pausa (F6): con simulacionPausada congelada se congela el motor pero la
     // GUI/editor sigue, para reanudar desde el mismo frame.
-    if (phisics && start && !gizmoInUse() && !simulacionPausada)
+    if (phisics && start && !gizmoInUse() && !simulacionPausada) {
         phisics->stepSimulation(value);
+        const auto notificar = [](Collider* propio, Collider* otro,
+                                  TipoContacto tipo) {
+            if (!propio || !otro) return;
+            GameObject* owner = propio->getOwner();
+            ListaDE<Component*>* componentes =
+                owner ? owner->getComponents() : nullptr;
+            if (!componentes || componentes->isEmpty()) return;
+            Position<Component*>* componente = componentes->first();
+            while (componente) {
+                if (Script* script =
+                        dynamic_cast<Script*>(componente->getElement()))
+                    script->notificarContacto(owner, propio, otro, tipo);
+                componente =
+                    componente != componentes->last()
+                        ? componentes->next(componente)
+                        : nullptr;
+            }
+        };
+        for (const EventoContacto& evento : phisics->tomarEventosContacto()) {
+            notificar(evento.colliderA, evento.colliderB, evento.tipo);
+            notificar(evento.colliderB, evento.colliderA, evento.tipo);
+        }
+    }
 
     // Sincronizar la fisica de vuelta a los GameObjects del mundo
     // (GameObject::update escribe en los Transforms via RigidBody).
@@ -932,6 +976,15 @@ void GameScene::update(float value) {
             compilacionEnCurso_, cargaActual_, cargaHecha_, cargaTotal_,
             resultadosCarga_, overlayProgresoVisible_,
             overlayResultadoVisible_);
+    inputScripts.avanzarFrame();
+}
+
+void GameScene::registrarTeclaScript(int key, int action) {
+    inputScripts.onKey(key, action);
+}
+
+void GameScene::registrarMouseScript(double x, double y) {
+    inputScripts.onMouseMove(x, y);
 }
 
 void GameScene::encolarScriptsIniciales() {
@@ -941,11 +994,21 @@ void GameScene::encolarScriptsIniciales() {
     bool hayPendientes = false;
     Position<GameObject*>* pos = objs->first();
     while (pos && pos->getElement()) {
-        if (Script* s = pos->getElement()->getComponent<Script>()) {
-            if (s->necesitaCompilar()) {
-                colaCompilacion_.push_back({s, pos->getElement()});
-                s->setAplazarCarga(true);
-                hayPendientes = true;
+        ListaDE<Component*>* componentes = pos->getElement()->getComponents();
+        if (componentes && !componentes->isEmpty()) {
+            Position<Component*>* componente = componentes->first();
+            while (componente) {
+                if (Script* s =
+                        dynamic_cast<Script*>(componente->getElement())) {
+                    if (s->necesitaCompilar()) {
+                        colaCompilacion_.push_back({s, pos->getElement()});
+                        s->setAplazarCarga(true);
+                        hayPendientes = true;
+                    }
+                }
+                componente = componente != componentes->last()
+                                 ? componentes->next(componente)
+                                 : nullptr;
             }
         }
         pos = (pos != objs->last()) ? objs->next(pos) : nullptr;
@@ -981,11 +1044,21 @@ void GameScene::procesarColaCompilacion() {
         bool hay = false;
         Position<GameObject*>* pos = objs->first();
         while (pos && pos->getElement()) {
-            if (Script* s = pos->getElement()->getComponent<Script>()) {
-                if (s->necesitaCompilar()) {
-                    colaCompilacion_.push_back({s, pos->getElement()});
-                    s->setAplazarCarga(true);
-                    hay = true;
+            ListaDE<Component*>* componentes = pos->getElement()->getComponents();
+            if (componentes && !componentes->isEmpty()) {
+                Position<Component*>* componente = componentes->first();
+                while (componente) {
+                    if (Script* s =
+                            dynamic_cast<Script*>(componente->getElement())) {
+                        if (s->necesitaCompilar()) {
+                            colaCompilacion_.push_back({s, pos->getElement()});
+                            s->setAplazarCarga(true);
+                            hay = true;
+                        }
+                    }
+                    componente = componente != componentes->last()
+                                     ? componentes->next(componente)
+                                     : nullptr;
                 }
             }
             pos = (pos != objs->last()) ? objs->next(pos) : nullptr;
@@ -1047,8 +1120,18 @@ void GameScene::descargarScripts() {
     if (!gameObjects || gameObjects->isEmpty()) return;
     Position<GameObject*>* pos = gameObjects->first();
     while (pos && pos->getElement()) {
-        if (Script* script = pos->getElement()->getComponent<Script>())
-            script->liberarComportamiento();
+        ListaDE<Component*>* componentes = pos->getElement()->getComponents();
+        if (componentes && !componentes->isEmpty()) {
+            Position<Component*>* componente = componentes->first();
+            while (componente) {
+                if (Script* script =
+                        dynamic_cast<Script*>(componente->getElement()))
+                    script->liberarComportamiento();
+                componente = componente != componentes->last()
+                                 ? componentes->next(componente)
+                                 : nullptr;
+            }
+        }
         pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
     }
 }

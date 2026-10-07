@@ -581,6 +581,7 @@ add_test(NAME rendering-tests COMMAND rendering-tests)
 add_executable(scripts-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
     ${SRC_DIR}/FileManager/Proceso.cpp
+    ${SRC_DIR}/Input/InputScripts.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ScriptsTests.cpp
 )

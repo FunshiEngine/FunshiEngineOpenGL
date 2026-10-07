@@ -185,7 +185,8 @@ std::string BackendCpp::artefacto(const std::string& fuente) {
     // sin que el usuario tenga que borrar %TEMP%/funshi_scripts a mano.
     const std::string clave =
         std::filesystem::weakly_canonical(fuente).string() + "|" + compilador() +
-        "|" + CompilacionCpp::flagsCompilador(std::string());
+        "|" + CompilacionCpp::flagsCompilador(std::string()) + "|runtime=" +
+        std::to_string(MotorScript::versionRuntimeScript);
     std::size_t hash = std::hash<std::string>{}(clave);
     return (std::filesystem::path(directorioCache()) /
             ("script_" + std::to_string(hash) + "." + FUNSHI_ARTEFACTO_EXT))
@@ -381,4 +382,23 @@ void BackendCpp::llamarDetener(ComportamientoCargado& comportamiento,
                                GameObject* owner) {
     if (!comportamiento.valido()) return;
     reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia)->onStop(owner);
+}
+
+void BackendCpp::llamarContacto(ComportamientoCargado& comportamiento,
+                                GameObject* owner, Collider* propio,
+                                Collider* otro, TipoContacto tipo) {
+    if (!comportamiento.valido()) return;
+    IScriptBehaviour* script =
+        reinterpret_cast<IScriptBehaviour*>(comportamiento.instancia);
+    switch (tipo) {
+        case TipoContacto::Inicio:
+            script->onCollisionEnter(owner, propio, otro);
+            break;
+        case TipoContacto::Persistencia:
+            script->onCollisionStay(owner, propio, otro);
+            break;
+        case TipoContacto::Fin:
+            script->onCollisionExit(owner, propio, otro);
+            break;
+    }
 }

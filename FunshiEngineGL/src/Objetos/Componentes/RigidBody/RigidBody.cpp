@@ -24,6 +24,12 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <cmath>
+#include <cstdint>
+
+namespace {
+constexpr std::uint32_t kRigidBodyMagic = 0x32444252;
+constexpr std::uint32_t kRigidBodyVersion = 1;
+}
 
 RigidBody::RigidBody(Collider* collider, float mass)
     : collider(collider), mass(mass) {
@@ -93,6 +99,7 @@ void RigidBody::createRigidBody() {
     btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState.get(),
                                                     shape, localInertia);
     rigidBody = std::make_unique<btRigidBody>(rbInfo);
+    if (!activo) rigidBody->forceActivationState(DISABLE_SIMULATION);
 }
 
 void RigidBody::detachCollider() {
@@ -112,7 +119,7 @@ static void bulletWorldToMatrices(const btTransform& t, glm::vec3& pos,
 }
 
 void RigidBody::syncPhysicsToGameObject() {
-    if (!rigidBody || !collider) return;
+    if (!activo || !rigidBody || !collider) return;
 
     Transform* dadTransform = collider->getDadTransform();
     Transform* colliderTransform = collider->getTransform();
@@ -178,7 +185,7 @@ void RigidBody::syncPhysicsToGameObject() {
     rot[3] = bodyRot.w;
 }
 
-void RigidBody::syncGameObjectToPhysics() {
+void RigidBody::syncGameObjectToPhysics(bool restablecerVelocidades) {
     if (!rigidBody || !collider) return;
 
     // 1. Transform global actual del collider (padre + local)
@@ -215,10 +222,48 @@ void RigidBody::syncGameObjectToPhysics() {
     rigidBody->setWorldTransform(startTransform);
     rigidBody->getMotionState()->setWorldTransform(startTransform);
 
-    // 5. Cero de velocidades: el cuerpo comienza quieto en la posicion editada
-    rigidBody->setLinearVelocity(btVector3(0, 0, 0));
-    rigidBody->setAngularVelocity(btVector3(0, 0, 0));
+    if (restablecerVelocidades) {
+        rigidBody->setLinearVelocity(btVector3(0, 0, 0));
+        rigidBody->setAngularVelocity(btVector3(0, 0, 0));
+    }
+    if (activo)
+        rigidBody->activate();
+    else
+        rigidBody->forceActivationState(DISABLE_SIMULATION);
+}
+
+bool RigidBody::fijarVelocidadHorizontal(float x, float z) {
+    if (!rigidBody) return false;
+    if (!activo || !std::isfinite(x) || !std::isfinite(z)) return true;
+    const btVector3 velocidad = rigidBody->getLinearVelocity();
+    rigidBody->setLinearVelocity(btVector3(x, velocidad.y(), z));
     rigidBody->activate();
+    return true;
+}
+
+bool RigidBody::saltar(float velocidad) {
+    if (!rigidBody || !activo || !enSuelo || !std::isfinite(velocidad))
+        return false;
+    btVector3 actual = rigidBody->getLinearVelocity();
+    actual.setY(velocidad);
+    rigidBody->setLinearVelocity(actual);
+    rigidBody->activate();
+    enSuelo = false;
+    return true;
+}
+
+void RigidBody::setActivo(bool nuevoEstado) {
+    if (activo == nuevoEstado) return;
+    activo = nuevoEstado;
+    if (!rigidBody) return;
+    if (activo) {
+        rigidBody->forceActivationState(ACTIVE_TAG);
+        syncGameObjectToPhysics();
+    } else {
+        rigidBody->forceActivationState(DISABLE_SIMULATION);
+        rigidBody->setLinearVelocity(btVector3(0, 0, 0));
+        rigidBody->setAngularVelocity(btVector3(0, 0, 0));
+    }
 }
 
 void RigidBody::saveComponent(std::ofstream* fileNamePathContentObject) {
@@ -233,6 +278,14 @@ void RigidBody::loadComponent(std::ifstream* fileNamePathContentObject) {
 }
 
 void RigidBody::serializeComponent(std::ofstream* fileNamePathContentObject) {
+    fileNamePathContentObject->write(
+        reinterpret_cast<const char*>(&kRigidBodyMagic),
+        sizeof(kRigidBodyMagic));
+    fileNamePathContentObject->write(
+        reinterpret_cast<const char*>(&kRigidBodyVersion),
+        sizeof(kRigidBodyVersion));
+    fileNamePathContentObject->write(reinterpret_cast<const char*>(&activo),
+                                     sizeof(activo));
     // Guarda masa
     fileNamePathContentObject->write(reinterpret_cast<const char*>(&mass),
                                      sizeof(float));
@@ -245,6 +298,25 @@ void RigidBody::serializeComponent(std::ofstream* fileNamePathContentObject) {
 }
 
 void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
+    const std::streampos inicio = fileNamePathContentObject->tellg();
+    std::uint32_t magic = 0;
+    fileNamePathContentObject->read(reinterpret_cast<char*>(&magic),
+                                    sizeof(magic));
+    if (magic == kRigidBodyMagic) {
+        std::uint32_t version = 0;
+        fileNamePathContentObject->read(reinterpret_cast<char*>(&version),
+                                        sizeof(version));
+        fileNamePathContentObject->read(reinterpret_cast<char*>(&activo),
+                                        sizeof(activo));
+        if (version != kRigidBodyVersion) {
+            fileNamePathContentObject->setstate(std::ios::failbit);
+            return;
+        }
+    } else {
+        fileNamePathContentObject->clear();
+        fileNamePathContentObject->seekg(inicio);
+        activo = true;
+    }
     // Leer masa
     fileNamePathContentObject->read(reinterpret_cast<char*>(&mass),
                                     sizeof(float));

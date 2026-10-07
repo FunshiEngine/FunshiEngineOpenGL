@@ -25,12 +25,16 @@ class Script;
 class SettingsScript : public SettingsComponent {
 protected:
 	Script* myScript;
+	bool editandoNombre_ = false;
+	char bufferNombre_[256] = "";
 	// Si el usuario solto un .cpp/.java en este frame, la carga se difiere
 	// al SIGUIENTE frame: compilar con cl.exe/javac adentro del handler de
 	// drop congelaba la ventana en plena interaccion de ImGui (H-4).
 	bool cargaDiferidaPendiente_ = false;
 public:
-	SettingsScript(GameObject* objeto);
+	explicit SettingsScript(Script* script);
+	void iniciarEdicionNombre();
+	bool estaEditandoNombre() const noexcept { return editandoNombre_; }
 
 	// CONFIGURAR EL SISTEMA PARA QUE AL ACTIVAR SEA UN GHOST BODY, FALSO UN COMUN BODY
 	void showDataComponent() override;

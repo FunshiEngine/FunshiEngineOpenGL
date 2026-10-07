@@ -28,11 +28,39 @@
 #include "../../../Objetos/Componentes/Script.h"
 #include <imgui.h>
 
-SettingsScript::SettingsScript(GameObject* objeto) {
-	myScript = objeto->getComponent<Script>();
+SettingsScript::SettingsScript(Script* script) : myScript(script) {}
+
+void SettingsScript::iniciarEdicionNombre() {
+	const std::string& nombre = myScript->getNombreComponente();
+	std::strncpy(bufferNombre_, nombre.c_str(), sizeof(bufferNombre_) - 1);
+	bufferNombre_[sizeof(bufferNombre_) - 1] = '\0';
+	editandoNombre_ = true;
 }
 
 namespace {
+
+bool editarReferenciaObjeto(std::string& nombre) {
+	const char* etiqueta = nombre.empty() ? "[Ninguno]" : nombre.c_str();
+	ImGui::Button(etiqueta);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Arrastra un objeto de la escena para asignarlo");
+	bool modificado = false;
+	if (ImGui::BeginDragDropTarget()) {
+		if (const ImGuiPayload* payload =
+		        ImGui::AcceptDragDropPayload("ENTITY_NODE")) {
+			if (payload->DataSize == static_cast<int>(sizeof(GameObject*))) {
+				GameObject* objeto = nullptr;
+				std::memcpy(&objeto, payload->Data, sizeof(objeto));
+				if (objeto) {
+					nombre = objeto->inputName;
+					modificado = true;
+				}
+			}
+		}
+		ImGui::EndDragDropTarget();
+	}
+	return modificado;
+}
 
 // Widget para un valor escalar/objeto segun su tag, SIN etiqueta. Devuelve
 // true si el widget modifico `valor` (el arbol se reescribe solo aca).
@@ -95,12 +123,16 @@ bool editarScalar(ReflejoScripts::ValorCampo& valor) {
 		break;
 	}
 	case TagTipo::Objeto: {
-		char buffer[256];
-		const std::string& nombre = valor.como<std::string>();
-		std::strncpy(buffer, nombre.c_str(), sizeof(buffer) - 1);
-		buffer[sizeof(buffer) - 1] = '\0';
-		if (ImGui::InputText("##v", buffer, sizeof(buffer))) {
-			valor.contenido = std::string(buffer);
+		std::string& nombre = valor.como<std::string>();
+		bool modificado = editarReferenciaObjeto(nombre);
+		if (!nombre.empty()) {
+			ImGui::SameLine();
+			if (ImGui::SmallButton("x")) {
+				nombre.clear();
+				modificado = true;
+			}
+		}
+		if (modificado) {
 			return true;
 		}
 		break;
@@ -117,6 +149,19 @@ bool editarScalar(ReflejoScripts::ValorCampo& valor) {
 
 void SettingsScript::showDataComponent() {
 	using namespace ReflejoScripts;
+
+	if (editandoNombre_) {
+		const bool confirmar = ImGui::InputText(
+		    "Nombre del componente", bufferNombre_, sizeof(bufferNombre_),
+		    ImGuiInputTextFlags_EnterReturnsTrue);
+		ImGui::SameLine();
+		if (ImGui::Button("Aceptar") || confirmar) {
+			myScript->setNombreComponente(bufferNombre_);
+			editandoNombre_ = false;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancelar")) editandoNombre_ = false;
+	}
 
 	// 1. Selector del fuente (drag & drop) con la convencion <ClassName>.cpp
 	const std::string& className = myScript->getNameClass();
@@ -161,10 +206,8 @@ void SettingsScript::showDataComponent() {
 		ImGui::PopStyleColor();
 	}
 
-	// Los errores de carga/compilacion NO se muestran aca: se informan en la
-	// ventana Estado y en el log del motor (logs/), igual que el resto de los
-	// mensajes del scripting. El panel queda solo con el fuente asignado y sus
-	// SerializeField, para no repetir el mismo mensaje en dos lados.
+	// Los errores de carga/compilacion se informan en la ventana Estado y el
+	// log; el panel conserva el fuente y los campos reflejados.
 
 	const std::vector<DefCampo>& campos = myScript->obtenerCampos();
 	std::vector<ValorCampo>& valores = myScript->obtenerValores();
@@ -175,10 +218,8 @@ void SettingsScript::showDataComponent() {
 		return;
 	}
 
-	ImGui::Separator();
-	if (ImGui::CollapsingHeader("SerializeField",
-	                            ImGuiTreeNodeFlags_DefaultOpen)) {
-		// El bucle va por el MENOR de los dos cardinales, no solo por `campos`.
+	ImGui::TextDisabled("Campos serializados");
+	// El bucle va por el MENOR de los dos cardinales, no solo por `campos`.
 		// Script::cargarSiNecesario deja `valores_` con una entrada por campo,
 		// pero una escena guardada puede traer menos valores que los que expone
 		// el script actual (un SerializeField agregado despues, o una reflexion
@@ -417,17 +458,9 @@ void SettingsScript::showDataComponent() {
 				ImGui::TextUnformatted(def.nombre.c_str());
 				for (int j = 0; j < static_cast<int>(lista.size()); ++j) {
 					ImGui::PushID(j);
-					char buffer[256];
-					std::strncpy(buffer,
-					             lista[static_cast<std::size_t>(j)].c_str(),
-					             sizeof(buffer) - 1);
-					buffer[sizeof(buffer) - 1] = '\0';
-					if (ImGui::InputText("##v", buffer, sizeof(buffer))) {
-						lista[static_cast<std::size_t>(j)] =
-						    std::string(buffer);
-						camb = true;
-					}
-					ImGui::SameLine();
+					camb = editarReferenciaObjeto(
+					           lista[static_cast<std::size_t>(j)]) ||
+					       camb;
 					if (ImGui::SmallButton("x")) {
 						lista.erase(lista.begin() + j);
 						camb = true;
@@ -456,7 +489,6 @@ void SettingsScript::showDataComponent() {
 				myScript->escribirCampo(i, valor); // sincroniza instancia viva
 			ImGui::PopID();
 		}
-	}
 }
 
 Component* SettingsScript::getComponent() { return myScript; }

@@ -9,9 +9,8 @@
 // por NOMBRE de tecla GLFW ("W", "SPACE", "LEFT_SHIFT", "D1", etc.).
 //
 // Estado: por tecla guarda sostenida (down) y dos flags de edge que
-// avanzarFrame() consume: presionada/soltada SOLO retornan true en el frame
-// siguiente al evento. GameScene (o main) llama avanzarFrame() una vez por
-// frame de juego para rotar el buffer.
+// avanzarFrame() consume: presionada/soltada retornan true durante el frame
+// que procesa el evento. GameScene avanza el estado al final de cada frame.
 //
 // Modulo deliberadamente sin GLFW en la interfaz: la traduccion key-code ->
 // nombre vive en onKey, y el modulo de scripts no enlaza contra GLFW.
@@ -20,6 +19,7 @@ public:
     // Recibe el evento de teclado (codigo GLFW + action 0/1/2). Solo
     // registra; la consulta es via sostiene/presionada/soltada.
     void onKey(int key, int action);
+    void onMouseMove(double x, double y);
 
     // Rota los edges: presionada()/soltada() dejan de retornar true hasta el
     // proximo evento. Llamar una vez por frame de juego.
@@ -30,13 +30,22 @@ public:
     bool sostiene(const std::string& tecla) const;
     bool presionada(const std::string& tecla) const;
     bool soltada(const std::string& tecla) const;
+    float deltaMouseX() const;
+    float deltaMouseY() const;
 
     // Traduce un nombre de tecla GLFW a su codigo. Devuelve -1 si no es
     // reconocida (sin lanzar: los scripts consultan con cadenas de usuario).
     static int codigoDe(const std::string& tecla);
 
-    // Limpia todo el estado (al salir de Play).
+    // Limpia todo el estado al entrar o salir de la simulacion.
     void reset();
+
+private:
+    double ultimaPosicionMouseX_ = 0.0;
+    double ultimaPosicionMouseY_ = 0.0;
+    bool posicionMouseInicializada_ = false;
+    float deltaMouseX_ = 0.0f;
+    float deltaMouseY_ = 0.0f;
 };
 
 #endif // INPUT_SCRIPTS_H

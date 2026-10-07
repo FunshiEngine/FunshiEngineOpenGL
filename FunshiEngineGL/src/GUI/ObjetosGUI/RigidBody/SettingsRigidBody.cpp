@@ -26,10 +26,8 @@ SettingsRigidBody::SettingsRigidBody(GameObject* objeto) {
 }
 
 void SettingsRigidBody::showDataComponent() {
-	if (ImGui::Checkbox("Activo", &stateRigidBody)) {
-		// CONFIGURAR EL SISTEMA PARA QUE AL ACTIVAR SEA UN GHOST BODY,
-		// FALSO UN COMUN BODY
-	}
+	bool activo = myCollider->estaActivo();
+	if (ImGui::Checkbox("Activo", &activo)) myCollider->setActivo(activo);
 }
 
 Component* SettingsRigidBody::getComponent() { return myCollider; }
