@@ -36,7 +36,7 @@ namespace MotorScript {
 // versionar la tabla; no promete compatibilidad binaria entre versiones del
 // motor. Incrementar esta version cuando cambie el contrato/API/runtime: el
 // cache la incorpora y recompila los scripts con el motor actualizado.
-constexpr int versionRuntimeScript = 5;
+constexpr int versionRuntimeScript = 8;
 struct ApiScriptGameObject {
     // --- v1 (original) ---
     const char* (*nombre)(const void* objeto);
@@ -61,6 +61,17 @@ struct ApiScriptGameObject {
     float (*escalaX)(const void* objeto);
     float (*escalaY)(const void* objeto);
     float (*escalaZ)(const void* objeto);
+
+    // --- v3: movimiento de cuerpos fisicos ---
+    // Devuelve true si el objeto tiene RigidBody; la velocidad es mundial.
+    bool (*fijarVelocidadHorizontal)(void* objeto, float x, float z);
+    // Solo salta si el cuerpo activo esta apoyado.
+    bool (*saltar)(void* objeto, float velocidad);
+
+    // --- v4: tags y datos de contacto ---
+    const char* (*etiqueta)(const void* objeto);
+    bool (*tieneEtiqueta)(const void* objeto, const char* etiqueta);
+    void* (*objetoDeCollider)(const void* collider);
 
     // Version de la tabla (siempre al final).
     int version;
@@ -102,6 +113,13 @@ struct ScriptServices {
     // registro). Devuelve nullptr si no existe; el puntero es valido mientras
     // el objeto viva (no crear/destruir objetos desde scripts aun).
     void* (*objetoPorNombre)(const char* nombre);
+
+    // --- v3: otras formas de resolver referencias a objetos ---
+    // Busca por id de escena (GameObject::getId); primer coincidente o nullptr.
+    void* (*objetoPorId)(int id);
+    // Busca por tag el primer objeto que lo tenga; nullptr si ninguno.
+    // Util para referencias opcionales (ej. la camara de un controlador).
+    void* (*objetoPorEtiqueta)(const char* etiqueta);
 
     // Consulta de teclado (nombres GLFW, ej. "W", "D0", "SPACE").
     bool (*teclaSostiene)(const char* tecla);      // mantenida apretada

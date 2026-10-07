@@ -96,7 +96,30 @@ const ApiScriptGameObject* tablaApi() {
         [](const void*) { return escala[0]; },
         [](const void*) { return escala[1]; },
         [](const void*) { return escala[2]; },
-        2,
+        [](void*, float, float) { return true; },
+        [](void*, float) { return true; },
+        [](const void* objeto) {
+            return objeto ==
+                           reinterpret_cast<void*>(
+                               static_cast<intptr_t>(0x1234))
+                       ? "suelo"
+                       : "jugador";
+        },
+        [](const void* objeto, const char* tag) {
+            return objeto ==
+                       reinterpret_cast<void*>(
+                           static_cast<intptr_t>(0x1234)) &&
+                   tag && std::string(tag) == "suelo";
+        },
+        [](const void* collider) {
+            return collider ==
+                           reinterpret_cast<void*>(
+                               static_cast<intptr_t>(0xBEEF))
+                       ? reinterpret_cast<void*>(
+                             static_cast<intptr_t>(0x1234))
+                       : nullptr;
+        },
+        4,
     };
     return &tabla;
 }
@@ -115,12 +138,22 @@ const ScriptServices* tablaServicios() {
                        ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
                        : nullptr;
         },
+        [](int id) {
+            return id == 7 ? reinterpret_cast<void*>(
+                                 static_cast<intptr_t>(0x1234))
+                           : nullptr;
+        },
+        [](const char* etiqueta) {
+            return etiqueta && std::string(etiqueta) == "suelo"
+                       ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
+                       : nullptr;
+        },
         [](const char* tecla) { return tecla && std::string(tecla) == "W"; },
         [](const char* tecla) { return tecla && std::string(tecla) == "SPACE"; },
         [](const char* tecla) { return tecla && std::string(tecla) == "D0"; },
         []() { return 12.5f; },
         []() { return -4.0f; },
-        2,
+        3,
     };
     return &servicios;
 }
@@ -138,6 +171,12 @@ static const char* FUENTE_JAVA =
     "    public long meta;\n"
     "    public String nombreMeta;\n"
     "    public boolean sostenida, pulsada, soltada, servicioOnStop;\n"
+    "    public boolean movimientoFisico, saltoFisico;\n"
+    "    public String tagObjeto;\n"
+    "    public boolean etiquetaSuelo, colliderResuelto;\n"
+    "    public int contactosInicio, contactosPersistencia, contactosFin;\n"
+    "    public long camara;\n"
+    "    public boolean porIdOk, porTagOk;\n"
     "    public float mouseX, mouseY;\n"
     "    @Override public void iniciar(long o) {\n"
     "        vidas = 100;\n"
@@ -156,6 +195,14 @@ static const char* FUENTE_JAVA =
     "        pulsada = Nativo.teclaPresionada(\"SPACE\");\n"
     "        soltada = Nativo.teclaSoltada(\"D0\");\n"
     "        mouseX = Nativo.deltaMouseX(); mouseY = Nativo.deltaMouseY();\n"
+    "        movimientoFisico = Nativo.fijarVelocidadHorizontal(o, 2, -3);\n"
+    "        saltoFisico = Nativo.saltar(o, 5);\n"
+    "        tagObjeto = Nativo.etiqueta(meta);\n"
+    "        etiquetaSuelo = Nativo.tieneEtiqueta(meta, \"suelo\");\n"
+    "        colliderResuelto = Nativo.objetoDeCollider(0xBEEF) == meta;\n"
+    "        camara = Nativo.objetoPorNombre(\"Meta\");\n"
+    "        porIdOk = Nativo.objetoPorId(7) == meta;\n"
+    "        porTagOk = Nativo.objetoPorEtiqueta(\"suelo\") == meta;\n"
     "        Nativo.detenerSonido(sonido);\n"
     "    }\n"
     "    @Override public void actualizar(long o, double dt) {\n"
@@ -163,6 +210,9 @@ static const char* FUENTE_JAVA =
     "        Nativo.imprimir(\"acci\\u00F3n\");\n"
     "    }\n"
     "    @Override public void detener(long o) { vidas = -1; servicioOnStop = Nativo.teclaSostiene(\"W\"); }\n"
+    "    @Override public void colisionInicio(long o, long c, long otro) { contactosInicio++; }\n"
+    "    @Override public void colisionPersistencia(long o, long c, long otro) { contactosPersistencia++; }\n"
+    "    @Override public void colisionFin(long o, long c, long otro) { contactosFin++; }\n"
     "}\n";
 
 static const ValorCampo* buscar(const std::vector<ValorCampo>& v,
@@ -219,8 +269,8 @@ int main() {
 
     CHECK(comportamiento.valido(), "objeto Java creado");
     CHECK(comportamiento.lenguaje == "java", "lenguaje = java");
-    CHECK(comportamiento.campos.size() == 23,
-          "campos publicos Java soportados reflejados");
+    CHECK(comportamiento.campos.size() == 35,
+          "campos publicos Java soportados reflejados (con long como objeto)");
 
     // Inyectar SerializeField y verificar por lectura.
     std::vector<ValorCampo> valores = ScriptRuntime::extraer(comportamiento);
@@ -229,6 +279,7 @@ int main() {
         if (v.nombre == "vidas") v.contenido = 9;
         if (v.nombre == "activo") v.contenido = false;
         if (v.nombre == "etiqueta") v.contenido = std::string("mundo");
+        if (v.nombre == "camara") v.contenido = std::string("Inexistente");
     }
     ScriptRuntime::inyectar(comportamiento, valores);
 
@@ -237,10 +288,14 @@ int main() {
     const ValorCampo* vid = buscar(valores, "vidas");
     const ValorCampo* act = buscar(valores, "activo");
     const ValorCampo* eti = buscar(valores, "etiqueta");
+    const ValorCampo* ref = buscar(valores, "camara");
     CHECK(vel && vel->como<float>() == 7.0f, "velocidad inyectada = 7");
     CHECK(vid && vid->como<int>() == 9, "vidas inyectadas = 9");
     CHECK(act && act->como<bool>() == false, "activo inyectado = false");
     CHECK(eti && eti->como<std::string>() == "mundo", "etiqueta = mundo");
+    CHECK(ref && ref->tag == TagTipo::Objeto &&
+              ref->como<std::string>().empty(),
+          "un long Java es referencia a objeto y el nombre ausente queda vacio");
 
     // Ciclo: iniciar fija vidas=100, dos actualizar suman 2.
     ScriptRuntime::llamarInicio(comportamiento, nullptr);
@@ -261,6 +316,14 @@ int main() {
     const ValorCampo* soltada = buscar(valores, "soltada");
     const ValorCampo* mouseX = buscar(valores, "mouseX");
     const ValorCampo* mouseY = buscar(valores, "mouseY");
+    const ValorCampo* movimientoFisico = buscar(valores, "movimientoFisico");
+    const ValorCampo* saltoFisico = buscar(valores, "saltoFisico");
+    const ValorCampo* tagObjeto = buscar(valores, "tagObjeto");
+    const ValorCampo* etiquetaSuelo = buscar(valores, "etiquetaSuelo");
+    const ValorCampo* colliderResuelto = buscar(valores, "colliderResuelto");
+    const ValorCampo* refCamara = buscar(valores, "camara");
+    const ValorCampo* porId = buscar(valores, "porIdOk");
+    const ValorCampo* porTag = buscar(valores, "porTagOk");
     CHECK(nombreObjeto && nombreObjeto->como<std::string>() == "stub",
           "Java accede al nombre mediante la API del objeto");
     CHECK(posX && posY && posZ && posX->como<float>() == 1.0f &&
@@ -295,6 +358,32 @@ int main() {
     CHECK(mouseX && mouseY && mouseX->como<float>() == 12.5f &&
               mouseY->como<float>() == -4.0f,
           "Java consulta el delta del mouse por servicios");
+    CHECK(movimientoFisico && movimientoFisico->como<bool>() &&
+              saltoFisico && saltoFisico->como<bool>(),
+          "Java accede al movimiento horizontal y al salto por la API");
+    CHECK(tagObjeto && tagObjeto->como<std::string>() == "suelo" &&
+              etiquetaSuelo && etiquetaSuelo->como<bool>() &&
+              colliderResuelto && colliderResuelto->como<bool>(),
+          "Java consulta tags y resuelve el dueño de un collider");
+    CHECK(refCamara && refCamara->como<std::string>() == "meta",
+          "un long Java guarda el handle y se lee como nombre del objeto");
+    CHECK(porId && porId->como<bool>() && porTag && porTag->como<bool>(),
+          "Java resuelve objetos por id y por etiqueta");
+
+    ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
+                                  TipoContacto::Inicio);
+    ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
+                                  TipoContacto::Persistencia);
+    ScriptRuntime::llamarContacto(comportamiento, nullptr, nullptr, nullptr,
+                                  TipoContacto::Fin);
+    valores = ScriptRuntime::extraer(comportamiento);
+    CHECK(buscar(valores, "contactosInicio") &&
+              buscar(valores, "contactosInicio")->como<int>() == 1 &&
+              buscar(valores, "contactosPersistencia") &&
+              buscar(valores, "contactosPersistencia")->como<int>() == 1 &&
+              buscar(valores, "contactosFin") &&
+              buscar(valores, "contactosFin")->como<int>() == 1,
+          "Java recibe inicio, persistencia y fin de contacto");
 
     ScriptRuntime::llamarActualizar(comportamiento, nullptr, 0.016f);
     ScriptRuntime::llamarActualizar(comportamiento, nullptr, 0.016f);

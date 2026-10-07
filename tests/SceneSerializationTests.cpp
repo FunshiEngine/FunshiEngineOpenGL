@@ -35,6 +35,7 @@
 // salida final "OK/FALLOS: N comprobaciones" saliendo con 0 o 1.
 
 #include <cstdio>
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -43,6 +44,9 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
+
+#include <btBulletDynamicsCommon.h>
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Assets/AssetManager.h"
@@ -50,6 +54,7 @@
 #include "../FunshiEngineGL/src/Behaviour/ScriptGameObject.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Events/EventBus.h"
+#include "../FunshiEngineGL/src/Fisicas/BulletPhysicsAdapter.h"
 #include "../FunshiEngineGL/src/Fisicas/IPhysicsBackend.h"
 #include "../FunshiEngineGL/src/Fisicas/PhysicsEngine.h"
 #include "../FunshiEngineGL/src/GUI/ObjetosGUI/SettingsObjectInterface.h"
@@ -57,13 +62,16 @@
 #include "../FunshiEngineGL/src/Herramientas/PathUtils.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
+#include "../FunshiEngineGL/src/Objetos/TagRegistry.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Color.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/EsfereCollider.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/CameraComponent.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Script.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Skybox.h"
+#include "../FunshiEngineGL/src/Scenes/SceneRegistry.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
 #include "../FunshiEngineGL/src/Rendering/DibujoModelo.h"
@@ -275,6 +283,19 @@ void roundTripDeEscena() {
         if (creado) {
             nombreGuardado = creado->inputName;
             idGuardado = creado->getId();
+            creado->setTag("suelo");
+
+            auto collider = std::make_unique<EsfereCollider>(
+                1.0f, creado->getComponent<Transform>(), creado);
+            EsfereCollider* colliderPtr = collider.get();
+            colliderPtr->setVisibleEnEscena(true);
+            CHECK(editor.addComponent(creado, std::move(collider)),
+                  "se agrega un collider visible a la escena");
+            auto rigidBody = std::make_unique<RigidBody>(colliderPtr, 1.0f);
+            RigidBody* rigidBodyPtr = rigidBody.get();
+            rigidBodyPtr->setActivo(false);
+            CHECK(editor.addComponent(creado, std::move(rigidBody)),
+                  "se agrega un RigidBody desactivado a la escena");
 
             auto hijo = GameObjectFactory::createSimpleObject(creado);
             std::snprintf(hijo->inputName, sizeof(hijo->inputName),
@@ -318,6 +339,14 @@ void roundTripDeEscena() {
                 encontroPrimero = true;
                 CHECK(go->getId() == idGuardado,
                       "el id del objeto sobrevive el guardado");
+                CHECK(go->getTag() == "suelo",
+                      "el tag del objeto sobrevive el guardado de escena");
+                Collider* collider = go->getComponent<Collider>();
+                CHECK(collider && collider->estaVisibleEnEscena(),
+                      "la visibilidad del collider sobrevive la escena completa");
+                RigidBody* rigidBody = go->getComponent<RigidBody>();
+                CHECK(rigidBody && !rigidBody->estaActivo(),
+                      "el estado del RigidBody sobrevive la escena completa");
                 for (auto* posibleHijo : go->getChildEntities()) {
                     auto* h2 = dynamic_cast<GameObject*>(posibleHijo);
                     if (h2 && std::string(h2->inputName) == nombreHijo) {
@@ -331,6 +360,43 @@ void roundTripDeEscena() {
         CHECK(encontroPrimero, "el nombre del objeto sobrevive el guardado");
         CHECK(encontroHijo, "la jerarquia (hijo dentro del padre) se conserva");
     }
+}
+
+void tagsCompatiblesConEscenasAnteriores() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_tags_legacy");
+    std::error_code ec;
+    GameObject original;
+    original.setId(841);
+    original.setTag("suelo");
+    CHECK(original.saveEntity(carpetaDir.ruta().string()),
+          "el objeto etiquetado se guarda");
+
+    const fs::path archivo =
+        carpetaDir.ruta() / "ObjectN841.db";
+    const auto tamano = fs::file_size(archivo, ec);
+    CHECK(!ec && tamano > 12 + std::string("suelo").size(),
+          "el archivo contiene el bloque de tag al final");
+    if (ec || tamano <= 12 + std::string("suelo").size()) return;
+
+    GameObject recuperado;
+    recuperado.setId(841);
+    CHECK(recuperado.loadEntity(carpetaDir.ruta().string()),
+          "el tag se lee desde el formato actual");
+    CHECK(recuperado.getTag() == "suelo",
+          "la lectura actual conserva el tag");
+    const std::vector<std::string> tags = TagRegistry::registrados();
+    CHECK(std::find(tags.begin(), tags.end(), "suelo") != tags.end(),
+          "el tag cargado queda disponible en el registro del inspector");
+
+    fs::resize_file(archivo, tamano - 12 - std::string("suelo").size(), ec);
+    CHECK(!ec, "se prepara un objeto con formato anterior sin bloque de tag");
+    if (ec) return;
+    GameObject legacy;
+    legacy.setId(841);
+    CHECK(legacy.loadEntity(carpetaDir.ruta().string()),
+          "el formato anterior se carga sin bloque de tag");
+    CHECK(legacy.getTag() == "Untagged",
+          "una escena anterior asigna el tag predeterminado");
 }
 
 // --- Reporte de fallos en Binario ---------------------------------------------
@@ -1564,9 +1630,298 @@ void reparentarSobreviveElGuardado() {
     }
 }
 
+void opcionesDeRenderYFisicaSePersisten() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_opciones_componentes");
+    const fs::path archivoCollider = carpetaDir.ruta() / "collider.bin";
+    const fs::path archivoRigidBody = carpetaDir.ruta() / "rigidbody.bin";
+
+    Transform transformCollider;
+    EsfereCollider collider(2.0f, &transformCollider);
+    collider.setVisibleEnEscena(true);
+    {
+        std::ofstream salida(archivoCollider, std::ios::binary);
+        collider.saveComponent(&salida);
+    }
+    Transform transformColliderRecuperado;
+    EsfereCollider colliderRecuperado(1.0f, &transformColliderRecuperado);
+    {
+        std::ifstream entrada(archivoCollider, std::ios::binary);
+        colliderRecuperado.loadComponent(&entrada);
+    }
+    CHECK(colliderRecuperado.estaVisibleEnEscena(),
+          "la visibilidad del collider se conserva al serializar");
+    CHECK(std::abs(colliderRecuperado.getRadio() - 2.0f) < 0.001f,
+          "el formato nuevo conserva tambien el radio del collider");
+
+    const fs::path archivoColliderLegacy =
+        carpetaDir.ruta() / "collider-legacy.bin";
+    Transform transformLegacy;
+    EsfereCollider colliderLegacy(3.0f, &transformLegacy);
+    {
+        std::ofstream salida(archivoColliderLegacy, std::ios::binary);
+        const float radio = colliderLegacy.getRadio();
+        salida.write(reinterpret_cast<const char*>(&radio), sizeof(radio));
+        transformLegacy.saveComponent(&salida);
+        colliderLegacy.getTransform()->saveComponent(&salida);
+    }
+    Transform transformLegacyRecuperado;
+    EsfereCollider colliderLegacyRecuperado(1.0f,
+                                             &transformLegacyRecuperado);
+    {
+        std::ifstream entrada(archivoColliderLegacy, std::ios::binary);
+        colliderLegacyRecuperado.loadComponent(&entrada);
+    }
+    CHECK(!colliderLegacyRecuperado.estaVisibleEnEscena(),
+          "un collider de escena anterior carga oculto");
+    CHECK(std::abs(colliderLegacyRecuperado.getRadio() - 3.0f) < 0.001f,
+          "un collider de escena anterior conserva el radio");
+
+    Transform transformFisica;
+    EsfereCollider colliderFisico(1.0f, &transformFisica);
+    RigidBody rigidBody(&colliderFisico, 1.0f);
+    rigidBody.setActivo(false);
+    {
+        std::ofstream salida(archivoRigidBody, std::ios::binary);
+        rigidBody.saveComponent(&salida);
+    }
+    Transform transformFisicaRecuperada;
+    EsfereCollider colliderFisicoRecuperado(1.0f,
+                                             &transformFisicaRecuperada);
+    RigidBody rigidBodyRecuperado(&colliderFisicoRecuperado, 1.0f);
+    {
+        std::ifstream entrada(archivoRigidBody, std::ios::binary);
+        rigidBodyRecuperado.loadComponent(&entrada);
+    }
+    CHECK(!rigidBodyRecuperado.estaActivo(),
+          "el estado inactivo del RigidBody se conserva al serializar");
+    CHECK(rigidBodyRecuperado.getRigidBody() &&
+              rigidBodyRecuperado.getRigidBody()->getActivationState() ==
+                  DISABLE_SIMULATION,
+          "un RigidBody inactivo no participa en la simulacion de Bullet");
+    BulletPhysicsAdapter fisica;
+    fisica.addRigidBody(&rigidBodyRecuperado);
+    CHECK(rigidBodyRecuperado.getRigidBody()->getActivationState() ==
+              DISABLE_SIMULATION,
+          "el registro en Bullet conserva el estado inactivo");
+    rigidBodyRecuperado.setActivo(true);
+    CHECK(rigidBodyRecuperado.getRigidBody()->getActivationState() !=
+              DISABLE_SIMULATION,
+          "activar el RigidBody lo incorpora a la simulacion");
+    rigidBodyRecuperado.setActivo(false);
+    CHECK(rigidBodyRecuperado.getRigidBody()->getActivationState() ==
+              DISABLE_SIMULATION,
+          "desactivar el RigidBody registrado pausa la simulacion");
+    fisica.removeRigidBody(&rigidBodyRecuperado);
+
+    const fs::path archivoRigidBodyLegacy =
+        carpetaDir.ruta() / "rigidbody-legacy.bin";
+    {
+        std::ofstream salida(archivoRigidBodyLegacy, std::ios::binary);
+        const float masa = 1.0f;
+        const float posicion[3] = {0.0f, 0.0f, 0.0f};
+        const float rotacion[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+        salida.write(reinterpret_cast<const char*>(&masa), sizeof(masa));
+        salida.write(reinterpret_cast<const char*>(posicion),
+                     sizeof(posicion));
+        salida.write(reinterpret_cast<const char*>(rotacion),
+                     sizeof(rotacion));
+    }
+    Transform transformRigidBodyLegacy;
+    EsfereCollider colliderRigidBodyLegacy(1.0f, &transformRigidBodyLegacy);
+    RigidBody rigidBodyLegacy(&colliderRigidBodyLegacy, 1.0f);
+    {
+        std::ifstream entrada(archivoRigidBodyLegacy, std::ios::binary);
+        rigidBodyLegacy.loadComponent(&entrada);
+    }
+    CHECK(rigidBodyLegacy.estaActivo(),
+          "un RigidBody de escena anterior carga activo");
+
+    CameraComponent camara;
+    camara.setNearPlane(0.1f);
+    camara.setFarPlane(1000.0f);
+    float proyeccion[16];
+    camara.getProjectionMatrix(proyeccion, 1.0f, 150.0f);
+    const float m10Para150 = -(150.0f + 0.1f) / (150.0f - 0.1f);
+    const float m14Para150 = -(2.0f * 150.0f * 0.1f) / (150.0f - 0.1f);
+    CHECK(std::abs(proyeccion[10] - m10Para150) < 1e-6f &&
+              std::abs(proyeccion[14] - m14Para150) < 1e-6f,
+          "la proyeccion limita el plano lejano al horizonte solicitado");
+    camara.getProjectionMatrix(proyeccion, 1.0f);
+    const float m10Para1000 = -(1000.0f + 0.1f) / (1000.0f - 0.1f);
+    const float m14Para1000 =
+        -(2.0f * 1000.0f * 0.1f) / (1000.0f - 0.1f);
+    CHECK(std::abs(proyeccion[10] - m10Para1000) < 1e-6f &&
+              std::abs(proyeccion[14] - m14Para1000) < 1e-6f,
+          "la proyeccion ordinaria conserva el far plane configurable");
+}
+
+void movimientoFisicoYSaltoDesdeScripts() {
+    GameObject jugador;
+    Transform* transform = jugador.getComponent<Transform>();
+    CHECK(transform != nullptr, "el jugador tiene Transform");
+    if (!transform) return;
+
+    auto collider = std::make_unique<EsfereCollider>(
+        1.0f, transform, &jugador);
+    EsfereCollider* colliderPtr = collider.get();
+    jugador.addComponent(std::move(collider));
+    auto rigidBody = std::make_unique<RigidBody>(colliderPtr, 1.0f);
+    RigidBody* rigidBodyPtr = rigidBody.get();
+    jugador.addComponent(std::move(rigidBody));
+
+    BulletPhysicsAdapter fisica;
+    fisica.addRigidBody(rigidBodyPtr);
+    for (int i = 0; i < 20; ++i) fisica.stepSimulation(1.0f / 60.0f);
+
+    const MotorScript::ApiScriptGameObject* api = MotorScript::tablaApi();
+    CHECK(api->version >= 3,
+          "la API de scripts publica movimiento y salto con fisica");
+    CHECK(api->fijarVelocidadHorizontal(&jugador, 2.0f, -3.0f),
+          "la API detecta y mueve el RigidBody del GameObject");
+    CHECK(api->saltar(&jugador, 5.0f),
+          "un RigidBody apoyado acepta el salto");
+    btVector3 velocidad = rigidBodyPtr->getRigidBody()->getLinearVelocity();
+    CHECK(std::abs(velocidad.x() - 2.0f) < 0.001f &&
+              std::abs(velocidad.y() - 5.0f) < 0.001f &&
+              std::abs(velocidad.z() + 3.0f) < 0.001f,
+          "el movimiento horizontal conserva la velocidad vertical del salto");
+    CHECK(!api->saltar(&jugador, 5.0f),
+          "el cuerpo no acepta un segundo salto en el aire");
+    fisica.removeRigidBody(rigidBodyPtr);
+}
+
+void eventosDeContactoExponenColliderYPropietario() {
+    GameObject jugador;
+    jugador.setTag("jugador");
+    GameObject suelo;
+    suelo.setTag("suelo");
+    Transform* transformJugador = jugador.getComponent<Transform>();
+    Transform* transformSuelo = suelo.getComponent<Transform>();
+    CHECK(transformJugador && transformSuelo,
+          "los objetos de contacto tienen transform");
+    if (!transformJugador || !transformSuelo) return;
+    transformSuelo->setTranslatef(0.0f, -1.0f, 0.0f);
+
+    auto colliderJugador = std::make_unique<EsfereCollider>(
+        1.0f, transformJugador, &jugador);
+    Collider* colliderJugadorPtr = colliderJugador.get();
+    jugador.addComponent(std::move(colliderJugador));
+    auto cuerpoJugador =
+        std::make_unique<RigidBody>(colliderJugadorPtr, 1.0f);
+    RigidBody* cuerpoJugadorPtr = cuerpoJugador.get();
+    jugador.addComponent(std::move(cuerpoJugador));
+
+    auto colliderSuelo = std::make_unique<EsfereCollider>(
+        1.0f, transformSuelo, &suelo);
+    Collider* colliderSueloPtr = colliderSuelo.get();
+    suelo.addComponent(std::move(colliderSuelo));
+    auto cuerpoSuelo = std::make_unique<RigidBody>(colliderSueloPtr, 0.0f);
+    RigidBody* cuerpoSueloPtr = cuerpoSuelo.get();
+    suelo.addComponent(std::move(cuerpoSuelo));
+
+    BulletPhysicsAdapter fisica;
+    fisica.addRigidBody(cuerpoJugadorPtr);
+    fisica.addRigidBody(cuerpoSueloPtr);
+    const auto* api = MotorScript::tablaApi();
+    CHECK(api->version >= 4,
+          "la API de scripts publica consultas de tags y colliders");
+    CHECK(api->tieneEtiqueta(&suelo, "suelo") &&
+              std::string(api->etiqueta(&suelo)) == "suelo",
+          "la API consulta el tag registrado en el propietario");
+    CHECK(api->objetoDeCollider(colliderSueloPtr) == &suelo,
+          "la API resuelve el objeto propietario desde su collider");
+
+    fisica.stepSimulation(1.0f / 60.0f);
+    std::vector<EventoContacto> eventos = fisica.tomarEventosContacto();
+    auto contieneTipo = [](const std::vector<EventoContacto>& lista,
+                           TipoContacto tipo, Collider* a, Collider* b) {
+        for (const EventoContacto& evento : lista) {
+            if (evento.tipo == tipo &&
+                ((evento.colliderA == a && evento.colliderB == b) ||
+                 (evento.colliderA == b && evento.colliderB == a)))
+                return true;
+        }
+        return false;
+    };
+    CHECK(contieneTipo(eventos, TipoContacto::Inicio, colliderJugadorPtr,
+                       colliderSueloPtr),
+          "el primer contacto produce un evento de inicio");
+
+    fisica.stepSimulation(1.0f / 60.0f);
+    eventos = fisica.tomarEventosContacto();
+    CHECK(contieneTipo(eventos, TipoContacto::Persistencia,
+                       colliderJugadorPtr, colliderSueloPtr),
+          "el contacto continuo produce un evento de persistencia");
+    CHECK(colliderJugadorPtr->cantidadContactos() > 0 &&
+              colliderJugadorPtr->contactoEnIndice(0) == colliderSueloPtr,
+          "el collider expone los colliders en contacto");
+
+    btTransform separado;
+    separado.setIdentity();
+    separado.setOrigin(btVector3(100.0f, 10.0f, 0.0f));
+    cuerpoJugadorPtr->getRigidBody()->setWorldTransform(separado);
+    cuerpoJugadorPtr->getRigidBody()->getMotionState()->setWorldTransform(
+        separado);
+    cuerpoJugadorPtr->getRigidBody()->activate();
+    fisica.stepSimulation(1.0f / 60.0f);
+    eventos = fisica.tomarEventosContacto();
+    CHECK(contieneTipo(eventos, TipoContacto::Fin, colliderJugadorPtr,
+                       colliderSueloPtr),
+          "al separarse los colliders se produce un evento de fin");
+
+    fisica.removeRigidBody(cuerpoJugadorPtr);
+    fisica.removeRigidBody(cuerpoSueloPtr);
+}
+
+void busquedaDeObjetosPorNombreIdYEtiqueta() {
+    SceneRegistry registro;
+    auto camara = std::make_unique<GameObject>();
+    std::snprintf(camara->inputName, sizeof(camara->inputName), "%s",
+                  "Camara");
+    camara->setId(7);
+    camara->setTag("principal");
+    auto jugador = std::make_unique<GameObject>();
+    std::snprintf(jugador->inputName, sizeof(jugador->inputName), "%s",
+                  "Jugador");
+    jugador->setTag("jugador");
+    GameObject* camaraPtr = registro.createObject(std::move(camara));
+    GameObject* jugadorPtr = registro.createObject(std::move(jugador));
+    CHECK(camaraPtr && jugadorPtr,
+          "el registro crea los objetos de busqueda");
+    if (!camaraPtr || !jugadorPtr) return;
+
+    MotorScript::inyectarServiciosScript(nullptr, &registro, nullptr);
+    const MotorScript::ScriptServices* servicios =
+        MotorScript::tablaServicios();
+    CHECK(servicios->version >= 3,
+          "los servicios publican busqueda por nombre, id y etiqueta");
+    CHECK(servicios->objetoPorNombre("Camara") == camaraPtr,
+          "la busqueda por nombre devuelve la camara");
+    CHECK(servicios->objetoPorId(7) == camaraPtr,
+          "la busqueda por id devuelve la camara");
+    CHECK(servicios->objetoPorId(jugadorPtr->getId()) == jugadorPtr,
+          "la busqueda por id asignado devuelve al jugador");
+    CHECK(servicios->objetoPorEtiqueta("principal") == camaraPtr,
+          "la busqueda por etiqueta devuelve la camara");
+    CHECK(servicios->objetoPorEtiqueta("jugador") == jugadorPtr,
+          "la busqueda por etiqueta devuelve al jugador");
+    CHECK(servicios->objetoPorNombre("Inexistente") == nullptr,
+          "el nombre desconocido no resuelve objeto");
+    CHECK(servicios->objetoPorId(9999) == nullptr,
+          "el id desconocido no resuelve objeto");
+    CHECK(servicios->objetoPorEtiqueta("inexistente") == nullptr,
+          "la etiqueta desconocida no resuelve objeto");
+    MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
+    CHECK(servicios->objetoPorNombre("Camara") == nullptr &&
+              servicios->objetoPorId(7) == nullptr &&
+              servicios->objetoPorEtiqueta("principal") == nullptr,
+          "sin escena inyectada no hay busqueda");
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
+    tagsCompatiblesConEscenasAnteriores();
     restaurarBaselineDeEscena();
     guardadoConArbolVacio();
     reporteFalloBinario();
@@ -1586,6 +1941,10 @@ int main() {
     elEventoDePropiedadNoReconstruyeElInspector();
     reparentarPreservaLaPoseYRefrescaElCuerpo();
     reparentarSobreviveElGuardado();
+    opcionesDeRenderYFisicaSePersisten();
+    movimientoFisicoYSaltoDesdeScripts();
+    eventosDeContactoExponenColliderYPropietario();
+    busquedaDeObjetosPorNombreIdYEtiqueta();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

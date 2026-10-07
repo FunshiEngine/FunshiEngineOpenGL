@@ -18,11 +18,14 @@
 */
 #include "ScriptGameObject.h"
 
+#include <cstring>
 #include <iostream>
 
 #include "ScriptAudioHandles.h"
 #include "../Objetos/GameObject.h"
 #include "../Objetos/Componentes/Transform.h"
+#include "../Objetos/Componentes/RigidBody/RigidBody.h"
+#include "../Objetos/Componentes/Colliders/Collider.h"
 #include "../Audio/AudioEngine.h"
 #include "../Scenes/SceneRegistry.h"
 #include "../Input/InputScripts.h"
@@ -52,6 +55,11 @@ Transform* transformDe(void* objeto) {
 
 void fijarPosicion(void* objeto, float x, float y, float z) {
     if (Transform* t = transformDe(objeto)) t->setTranslatef(x, y, z);
+    GameObject* owner = static_cast<GameObject*>(objeto);
+    if (owner) {
+        if (RigidBody* body = owner->getComponent<RigidBody>())
+            body->syncGameObjectToPhysics(false);
+    }
 }
 
 void fijarEscala(void* objeto, float x, float y, float z) {
@@ -61,6 +69,39 @@ void fijarEscala(void* objeto, float x, float y, float z) {
 void fijarRotacionEjes(void* objeto, float angulo, float x, float y, float z) {
     if (Transform* t = transformDe(objeto))
         t->setRotatef(angulo * 57.29577951308232f, x, y, z);
+    GameObject* owner = static_cast<GameObject*>(objeto);
+    if (owner) {
+        if (RigidBody* body = owner->getComponent<RigidBody>())
+            body->syncGameObjectToPhysics(false);
+    }
+}
+
+bool fijarVelocidadHorizontal(void* objeto, float x, float z) {
+    GameObject* owner = static_cast<GameObject*>(objeto);
+    RigidBody* body = owner ? owner->getComponent<RigidBody>() : nullptr;
+    return body ? body->fijarVelocidadHorizontal(x, z) : false;
+}
+
+bool saltar(void* objeto, float velocidad) {
+    GameObject* owner = static_cast<GameObject*>(objeto);
+    RigidBody* body = owner ? owner->getComponent<RigidBody>() : nullptr;
+    return body ? body->saltar(velocidad) : false;
+}
+
+const char* etiquetaObjeto(const void* objeto) {
+    const GameObject* owner = static_cast<const GameObject*>(objeto);
+    return owner ? owner->getTag().c_str() : "";
+}
+
+bool tieneEtiqueta(const void* objeto, const char* etiqueta) {
+    if (!etiqueta || !*etiqueta) return false;
+    const GameObject* owner = static_cast<const GameObject*>(objeto);
+    return owner && owner->getTag() == etiqueta;
+}
+
+void* objetoDeCollider(const void* collider) {
+    const Collider* c = static_cast<const Collider*>(collider);
+    return c ? c->getOwner() : nullptr;
 }
 
 // Getters v2: leen el estado canonico del componente. Transform mantiene dos
@@ -103,13 +144,18 @@ const ApiScriptGameObject* tablaApi() {
         /* .escalaX        = */ [](const void* o) { return escalaEje(const_cast<void*>(o), 0); },
         /* .escalaY        = */ [](const void* o) { return escalaEje(const_cast<void*>(o), 1); },
         /* .escalaZ        = */ [](const void* o) { return escalaEje(const_cast<void*>(o), 2); },
-        /* .version        = */ 2,
+        /* .fijarVelocidadHorizontal = */ fijarVelocidadHorizontal,
+        /* .saltar         = */ saltar,
+        /* .etiqueta       = */ etiquetaObjeto,
+        /* .tieneEtiqueta  = */ tieneEtiqueta,
+        /* .objetoDeCollider = */ objetoDeCollider,
+        /* .version        = */ 4,
     };
     return &tabla;
 }
 
 // ============================================================================
-// ScriptServices (v1): audio + busqueda + teclado. Implementado aqui para que
+// ScriptServices (v3): audio + busqueda (nombre/id/etiqueta) + teclado. Implementado aqui para que
 // el modulo de scripts no enlace contra Audio/Scenes: GameScene inyecta los
 // punteros crudos (AudioEngine*, SceneRegistry*, InputScripts*) en
 // inyectarServiciosScript() y esta TU los envuelve en la tabla.
@@ -137,12 +183,40 @@ void serviciosDetenerSonido(int handle) {
 void* serviciosObjetoPorNombre(const char* nombre) {
     if (!g_escena || !nombre) return nullptr;
     // Recorrido en preorden de la lista lineal del registro (ya ordenada por
-    // jerarquia tras cada refreshTransformOrigins).
+    // jerarquia tras cada refreshTransformOrigins). next(last) lanza
+    // (no devuelve null), asi que se avanza con el idiom seguro de ListaDE.
     auto* lista = g_escena->getGameObjects();
     if (!lista || lista->isEmpty()) return nullptr;
-    for (auto* nodo = lista->first(); nodo; nodo = lista->next(nodo)) {
+    for (auto* nodo = lista->first(); nodo;
+         nodo = (nodo != lista->last()) ? lista->next(nodo) : nullptr) {
         GameObject* o = nodo->getElement();
-        if (o && nombreDelObjeto(o) == nombre) return o;
+        // Comparacion por texto: ambos son const char* y el == compararia
+        // punteros (el buffer inputName nunca es el literal buscado).
+        if (o && std::strcmp(nombreDelObjeto(o), nombre) == 0) return o;
+    }
+    return nullptr;
+}
+
+void* serviciosObjetoPorId(int id) {
+    if (!g_escena) return nullptr;
+    auto* lista = g_escena->getGameObjects();
+    if (!lista || lista->isEmpty()) return nullptr;
+    for (auto* nodo = lista->first(); nodo;
+         nodo = (nodo != lista->last()) ? lista->next(nodo) : nullptr) {
+        GameObject* o = nodo->getElement();
+        if (o && o->getId() == id) return o;
+    }
+    return nullptr;
+}
+
+void* serviciosObjetoPorEtiqueta(const char* etiqueta) {
+    if (!g_escena || !etiqueta) return nullptr;
+    auto* lista = g_escena->getGameObjects();
+    if (!lista || lista->isEmpty()) return nullptr;
+    for (auto* nodo = lista->first(); nodo;
+         nodo = (nodo != lista->last()) ? lista->next(nodo) : nullptr) {
+        GameObject* o = nodo->getElement();
+        if (o && o->getTag() == etiqueta) return o;
     }
     return nullptr;
 }
@@ -179,12 +253,14 @@ const ScriptServices* tablaServicios() {
         /* .reproducirSonido  = */ serviciosReproducirSonido,
         /* .detenerSonido     = */ serviciosDetenerSonido,
         /* .objetoPorNombre   = */ serviciosObjetoPorNombre,
+        /* .objetoPorId       = */ serviciosObjetoPorId,
+        /* .objetoPorEtiqueta = */ serviciosObjetoPorEtiqueta,
         /* .teclaSostiene     = */ serviciosTeclaSostiene,
         /* .teclaPresionada   = */ serviciosTeclaPresionada,
         /* .teclaSoltada      = */ serviciosTeclaSoltada,
         /* .deltaMouseX       = */ serviciosDeltaMouseX,
         /* .deltaMouseY       = */ serviciosDeltaMouseY,
-        /* .version           = */ 2,
+        /* .version           = */ 3,
     };
     return &tabla;
 }

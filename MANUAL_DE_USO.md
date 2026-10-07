@@ -271,7 +271,11 @@ No hay tamano ni separacion: la grilla es **infinita** y de densidad fija
 se dibuja persigue a la camara y las lineas se **difuminan con la distancia**:
 opacas hasta 40 unidades de la camara y desvanciendose por completo en el
 horizonte, a 150 unidades, que es tambien el limite: mas alla no se dibuja
-nada. Los tres ejes de la grilla (X rojo, Y verde, Z azul, los mismos colores
+nada. El render de la escena y las vistas previas de camara usan ese mismo
+horizonte como limite radial, con el mismo difuminado hasta el borde, aunque
+la camara tenga un `Far Plane` mayor; el valor configurable de la camara no se
+modifica. Los tres ejes de la
+grilla (X rojo, Y verde, Z azul, los mismos colores
 que el gizmo) se dibujan mas gruesos y se ajustan de brillo para que siempre
 se vean contra el color de la grilla.
 
@@ -470,6 +474,12 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
   gizmo mueve el objeto y el motor sincroniza collider/cuerpo/objeto con la
   matriz global compuesta del dueño, para que mover un collider no
   desincronice el cuerpo.
+- Cada collider tiene **Visible en escena**, que mantiene su wireframe visible
+  como ayuda de depuracion aunque su objeto no este seleccionado. La opcion
+  se guarda con la escena y no depende del gizmo del offset.
+- **Activo** en `RigidBody` habilita o pausa la participacion de ese cuerpo en
+  Bullet. El estado se guarda con la escena; las escenas anteriores cargan los
+  cuerpos como activos.
 - Mientras se manipula el gizmo, `stepSimulation` se pausa (la gravedad podria
   "eyectar" el objeto); al soltar, la simulacion sigue.
 - Gizmo dedicado de fisica para el collider activo.
@@ -842,6 +852,37 @@ contra la version actual.
 | `api->rotacionAngulo(owner)` | 2 | `float (const void*)` | angulo de rotacion (radianes) |
 | `api->rotacionEjeX/Y/Z(owner)` | 2 | `float (const void*)` | eje de rotacion por componente |
 | `api->escalaX/Y/Z(owner)` | 2 | `float (const void*)` | escala por eje |
+| `api->fijarVelocidadHorizontal(owner,x,z)` | 3 | `bool (void*, float, float)` | fija la velocidad horizontal mundial del `RigidBody`; `false` si no hay cuerpo |
+| `api->saltar(owner,velocidad)` | 3 | `bool (void*, float)` | salta con el `RigidBody` si esta apoyado; `false` si esta en el aire o no hay cuerpo |
+| `api->etiqueta(owner)` | 4 | `const char* (const void*)` | devuelve el tag del objeto |
+| `api->tieneEtiqueta(owner,tag)` | 4 | `bool (const void*, const char*)` | compara el tag del objeto |
+| `api->objetoDeCollider(collider)` | 4 | `void* (const void*)` | devuelve el GameObject dueño del collider; `nullptr` si no tiene dueño |
+
+Los tags son cadenas dinámicas, no un `enum`: se pueden asignar desde el
+Inspector y el motor registra los valores usados para ofrecerlos en los demás
+objetos. Los objetos de escenas guardadas conservan su tag; las escenas
+anteriores a este dato cargan como `Untagged`.
+
+Los scripts reciben los cambios de contacto en `onCollisionEnter`,
+`onCollisionStay` y `onCollisionExit`, con el `GameObject` propio, el collider
+propio y el collider opuesto. El collider opuesto permite obtener su dueño con
+`api->objetoDeCollider(otro)` y consultar su tag. Java tiene los callbacks
+equivalentes `colisionInicio`, `colisionPersistencia` y `colisionFin`; sus
+colliders se reciben como handles `long`.
+
+```cpp
+void onCollisionEnter(GameObject*, Collider*, Collider* otro) override {
+    if (!api || api->version < 4) return;
+    void* objetoSuelo = api->objetoDeCollider(otro);
+    if (api->tieneEtiqueta(objetoSuelo, "suelo"))
+        sobreSuelo = true;
+}
+```
+
+El plano de gravedad interno de Bullet no es un GameObject y no tiene
+`Collider` ni tag. Para detectar `"suelo"` desde scripts, el piso debe ser un
+objeto de escena con collider y RigidBody estático (masa `0`), etiquetado
+`"suelo"`. El salto también requiere que el RigidBody del jugador esté apoyado.
 
 Ejemplo de uso combinado:
 
@@ -878,6 +919,8 @@ Misma convencion APPEND-ONLY con `servicios->version` al final.
 | `servicios->reproducirSonido(clip, vol, loop)` | `int (const char*, float, bool)` | reproduce un clip de `Sonidos/` (la carpeta debe existir) por **nombre**; devuelve handle >= 0, o -1 si el clip no existe |
 | `servicios->detenerSonido(handle)` | `void (int)` | detiene la reproduccion del handle |
 | `servicios->objetoPorNombre("Enemigo")` | `void* (const char*)` | busca un GameObject por nombre en la escena; `nullptr` si no existe. El puntero vale mientras el objeto viva (todavia no se crean/destruyen objetos desde scripts) |
+| `servicios->objetoPorId(7)` (v3) | `void* (int)` | busca un GameObject por id de escena; `nullptr` si no existe |
+| `servicios->objetoPorEtiqueta("suelo")` (v3) | `void* (const char*)` | busca el primer GameObject con ese tag; `nullptr` si ninguno lo tiene. Util para referencias opcionales (ej. la camara de un controlador) |
 | `servicios->teclaSostiene("W")` | `bool (const char*)` | tecla mantenida apretada |
 | `servicios->teclaPresionada("SPACE")` | `bool (const char*)` | tecla apretada este frame (edge press) |
 | `servicios->teclaSoltada("F")` | `bool (const char*)` | tecla soltada este frame (edge release) |
@@ -1062,14 +1105,20 @@ Las posiciones consultadas o fijadas por `Nativo.posicionX/Y/Z` y
 |---|---|
 | Nombre y transform local | `Nativo.nombre`, `posicionX/Y/Z`, `fijarPosicion`, `fijarEscala`, `fijarRotacion` |
 | Getters de rotacion y escala | `Nativo.rotacionAngulo`, `rotacionEjeX/Y/Z`, `escalaX/Y/Z` |
+| Movimiento con fisica | `Nativo.fijarVelocidadHorizontal`, `Nativo.saltar` |
+| Tags y colliders | `Nativo.etiqueta`, `tieneEtiqueta`, `objetoDeCollider` |
+| Contactos | `colisionInicio`, `colisionPersistencia`, `colisionFin` |
 | Consola | `Nativo.imprimir` |
 | Audio de script | `Nativo.reproducirSonido(clip, volumen, bucle)`, `Nativo.detenerSonido(handle)` |
-| Busqueda de objetos | `Nativo.objetoPorNombre(nombre)`, devuelve `0` si no existe |
+| Busqueda de objetos | `Nativo.objetoPorNombre(nombre)`, `Nativo.objetoPorId(id)`, `Nativo.objetoPorEtiqueta(etiqueta)`; devuelven `0` si no existe |
 | Teclado | `Nativo.teclaSostiene`, `teclaPresionada`, `teclaSoltada` |
 | Mouse | `Nativo.deltaMouseX`, `Nativo.deltaMouseY` (pixeles por frame) |
 
-El handle devuelto por `objetoPorNombre` puede pasarse a los getters y setters
-de `Nativo`. Los nombres de teclas usan las mismas cadenas GLFW de C++, incluidos
+El handle devuelto por `objetoPorNombre`, `objetoPorId` u `objetoPorEtiqueta`
+puede pasarse a los getters y setters de `Nativo`. Un campo `public long` del
+comportamiento es una referencia a GameObject: en el inspector se asigna por
+drag & drop y en disco se guarda por nombre, igual que `GameObject*` en C++.
+Los nombres de teclas usan las mismas cadenas GLFW de C++, incluidos
 los digitos `D0`..`D9`. Los servicios toleran no estar conectados; durante
 `detener` siguen conectados y los sonidos iniciados por scripts se detienen al
 terminar la simulacion, sin detener sonidos propios de componentes antes de
@@ -1095,6 +1144,8 @@ public void actualizar(long objeto, double deltaTime) {
 
 - El ciclo es `iniciar` / `actualizar` / `detener` y reciben el objeto como
   `long` (handle nativo), no como `GameObject*`.
+- Los callbacks de contacto reciben los handles del objeto y de ambos colliders;
+  `Nativo.objetoDeCollider` resuelve el dueño del collider opuesto.
 - Los campos `public` del comportamiento son SerializeField automaticos; no se
   usan macros.
 - Las operaciones del motor se llaman como metodos estaticos de `Nativo`; en

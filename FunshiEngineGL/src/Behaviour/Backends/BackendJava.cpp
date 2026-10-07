@@ -64,6 +64,9 @@ const char* SRC_COMPORTAMIENTO =
     "    void iniciar(long objeto);\n"
     "    void actualizar(long objeto, double deltaTime);\n"
     "    default void detener(long objeto) {}\n"
+    "    default void colisionInicio(long objeto, long collider, long otroCollider) {}\n"
+    "    default void colisionPersistencia(long objeto, long collider, long otroCollider) {}\n"
+    "    default void colisionFin(long objeto, long collider, long otroCollider) {}\n"
     "}\n";
 
 const char* SRC_NATIVO =
@@ -82,10 +85,17 @@ const char* SRC_NATIVO =
     "    public static native float escalaX(long objeto);\n"
     "    public static native float escalaY(long objeto);\n"
     "    public static native float escalaZ(long objeto);\n"
+    "    public static native boolean fijarVelocidadHorizontal(long objeto, float x, float z);\n"
+    "    public static native boolean saltar(long objeto, float velocidad);\n"
+    "    public static native String etiqueta(long objeto);\n"
+    "    public static native boolean tieneEtiqueta(long objeto, String etiqueta);\n"
+    "    public static native long objetoDeCollider(long collider);\n"
     "    public static native void imprimir(String texto);\n"
     "    public static native int reproducirSonido(String clip, float volumen, boolean bucle);\n"
     "    public static native void detenerSonido(int handle);\n"
     "    public static native long objetoPorNombre(String nombre);\n"
+    "    public static native long objetoPorId(int id);\n"
+    "    public static native long objetoPorEtiqueta(String etiqueta);\n"
     "    public static native boolean teclaSostiene(String tecla);\n"
     "    public static native boolean teclaPresionada(String tecla);\n"
     "    public static native boolean teclaSoltada(String tecla);\n"
@@ -602,6 +612,7 @@ std::string contextoHerramientas(const std::string& classesDir) {
 
 std::string firmarCaracter(const std::string& tipo) {
     if (tipo == "int") return "I";
+    if (tipo == "long") return "J";
     if (tipo == "float") return "F";
     if (tipo == "double") return "D";
     if (tipo == "boolean") return "Z";
@@ -612,6 +623,11 @@ std::string firmarCaracter(const std::string& tipo) {
 ReflejoScripts::TagTipo etiquetaDeTipo(const std::string& tipo) {
     using ReflejoScripts::TagTipo;
     if (tipo == "int") return TagTipo::Entero;
+    // Un `long` publico es una referencia a GameObject (handle opaco, como el
+    // `long objeto` de iniciar/actualizar): en el inspector se edita por
+    // drag & drop y en disco se guarda por nombre, igual que `GameObject*`
+    // en C++. Otros tipos de referencia no se soportan como SerializeField.
+    if (tipo == "long") return TagTipo::Objeto;
     if (tipo == "float") return TagTipo::Flotante;
     if (tipo == "double") return TagTipo::Doble;
     if (tipo == "boolean") return TagTipo::Booleano;
@@ -624,6 +640,9 @@ struct DatosJava {
     jmethodID iniciar = nullptr;
     jmethodID actualizar = nullptr;
     jmethodID detener = nullptr;
+    jmethodID colisionInicio = nullptr;
+    jmethodID colisionPersistencia = nullptr;
+    jmethodID colisionFin = nullptr;
     std::map<std::string, jfieldID> campos; // nombre -> jfieldID
 };
 
@@ -664,6 +683,31 @@ jfloat nativoPosicionZ(JNIEnv*, jclass, jlong o) {
 }
 void nativoFijarPosicion(JNIEnv*, jclass, jlong o, jfloat x, jfloat y, jfloat z) {
     MotorScript::tablaApi()->fijarPosicion(comoObjeto(o), x, y, z);
+}
+ jboolean nativoFijarVelocidadHorizontal(JNIEnv*, jclass, jlong o, jfloat x,
+                                         jfloat z) {
+    return MotorScript::tablaApi()->fijarVelocidadHorizontal(comoObjeto(o), x, z);
+}
+jboolean nativoSaltar(JNIEnv*, jclass, jlong o, jfloat velocidad) {
+    return MotorScript::tablaApi()->saltar(comoObjeto(o), velocidad);
+}
+jstring nativoEtiqueta(JNIEnv* env, jclass, jlong objeto) {
+    const char* tag = MotorScript::tablaApi()->etiqueta(comoObjeto(objeto));
+    return env->NewStringUTF(nuevoNombreUTF8(tag ? tag : "").c_str());
+}
+jboolean nativoTieneEtiqueta(JNIEnv* env, jclass, jlong objeto,
+                             jstring etiqueta) {
+    if (!etiqueta) return JNI_FALSE;
+    const std::string texto = leerCadena(env, etiqueta);
+    return MotorScript::tablaApi()->tieneEtiqueta(comoObjeto(objeto),
+                                                   texto.c_str())
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+jlong nativoObjetoDeCollider(JNIEnv*, jclass, jlong collider) {
+    void* owner =
+        MotorScript::tablaApi()->objetoDeCollider(comoObjeto(collider));
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(owner));
 }
 void nativoFijarEscala(JNIEnv*, jclass, jlong o, jfloat x, jfloat y, jfloat z) {
     MotorScript::tablaApi()->fijarEscala(comoObjeto(o), x, y, z);
@@ -733,6 +777,16 @@ jlong nativoObjetoPorNombre(JNIEnv* env, jclass, jstring nombre) {
     return static_cast<jlong>(reinterpret_cast<intptr_t>(
         MotorScript::tablaServicios()->objetoPorNombre(texto.c_str())));
 }
+jlong nativoObjetoPorId(JNIEnv*, jclass, jint id) {
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(
+        MotorScript::tablaServicios()->objetoPorId(static_cast<int>(id))));
+}
+jlong nativoObjetoPorEtiqueta(JNIEnv* env, jclass, jstring etiqueta) {
+    if (!etiqueta) return 0;
+    const std::string texto = leerCadena(env, etiqueta);
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(
+        MotorScript::tablaServicios()->objetoPorEtiqueta(texto.c_str())));
+}
 jboolean nativoTecla(JNIEnv* env, jstring tecla, int consulta) {
     if (!tecla) return JNI_FALSE;
     const std::string nombre = leerCadena(env, tecla);
@@ -799,6 +853,19 @@ bool registrarNativos(const std::string& clasesDir, std::string& error) {
          reinterpret_cast<void*>(&nativoEscalaY)},
         {const_cast<char*>("escalaZ"), const_cast<char*>("(J)F"),
          reinterpret_cast<void*>(&nativoEscalaZ)},
+        {const_cast<char*>("fijarVelocidadHorizontal"),
+         const_cast<char*>("(JFF)Z"),
+         reinterpret_cast<void*>(&nativoFijarVelocidadHorizontal)},
+        {const_cast<char*>("saltar"), const_cast<char*>("(JF)Z"),
+         reinterpret_cast<void*>(&nativoSaltar)},
+        {const_cast<char*>("etiqueta"),
+         const_cast<char*>("(J)Ljava/lang/String;"),
+         reinterpret_cast<void*>(&nativoEtiqueta)},
+        {const_cast<char*>("tieneEtiqueta"),
+         const_cast<char*>("(JLjava/lang/String;)Z"),
+         reinterpret_cast<void*>(&nativoTieneEtiqueta)},
+        {const_cast<char*>("objetoDeCollider"), const_cast<char*>("(J)J"),
+         reinterpret_cast<void*>(&nativoObjetoDeCollider)},
         {const_cast<char*>("imprimir"), const_cast<char*>("(Ljava/lang/String;)V"),
          reinterpret_cast<void*>(&nativoImprimir)},
         {const_cast<char*>("reproducirSonido"),
@@ -809,6 +876,11 @@ bool registrarNativos(const std::string& clasesDir, std::string& error) {
         {const_cast<char*>("objetoPorNombre"),
          const_cast<char*>("(Ljava/lang/String;)J"),
          reinterpret_cast<void*>(&nativoObjetoPorNombre)},
+        {const_cast<char*>("objetoPorId"), const_cast<char*>("(I)J"),
+         reinterpret_cast<void*>(&nativoObjetoPorId)},
+        {const_cast<char*>("objetoPorEtiqueta"),
+         const_cast<char*>("(Ljava/lang/String;)J"),
+         reinterpret_cast<void*>(&nativoObjetoPorEtiqueta)},
         {const_cast<char*>("teclaSostiene"),
          const_cast<char*>("(Ljava/lang/String;)Z"),
          reinterpret_cast<void*>(&nativoTeclaSostiene)},
@@ -1041,7 +1113,14 @@ bool BackendJava::compilarYCargar(const std::string& fuente,
     datos->iniciar = env->GetMethodID(clase, "iniciar", "(J)V");
     datos->actualizar = env->GetMethodID(clase, "actualizar", "(JD)V");
     datos->detener = env->GetMethodID(clase, "detener", "(J)V");
+    datos->colisionInicio =
+        env->GetMethodID(clase, "colisionInicio", "(JJJ)V");
+    datos->colisionPersistencia =
+        env->GetMethodID(clase, "colisionPersistencia", "(JJJ)V");
+    datos->colisionFin = env->GetMethodID(clase, "colisionFin", "(JJJ)V");
     if (!datos->iniciar || !datos->actualizar || !datos->detener ||
+        !datos->colisionInicio || !datos->colisionPersistencia ||
+        !datos->colisionFin ||
         env->ExceptionCheck()) {
         const std::string detalle = detalleExcepcion(env);
         delete datos;
@@ -1249,6 +1328,29 @@ void BackendJava::llamarDetener(ComportamientoCargado& comportamiento,
     informarExcepcion(entorno(), "detener");
 }
 
+void BackendJava::llamarContacto(ComportamientoCargado& comportamiento,
+                                 GameObject* owner, Collider* propio,
+                                 Collider* otro, TipoContacto tipo) {
+    if (!comportamiento.valido()) return;
+    auto* datos = static_cast<DatosJava*>(comportamiento.datos);
+    if (!datos) return;
+    jmethodID metodo = datos->colisionInicio;
+    const char* nombre = "colisionInicio";
+    if (tipo == TipoContacto::Persistencia) {
+        metodo = datos->colisionPersistencia;
+        nombre = "colisionPersistencia";
+    } else if (tipo == TipoContacto::Fin) {
+        metodo = datos->colisionFin;
+        nombre = "colisionFin";
+    }
+    entorno()->CallVoidMethod(
+        static_cast<jobject>(comportamiento.instancia), metodo,
+        static_cast<jlong>(reinterpret_cast<intptr_t>(owner)),
+        static_cast<jlong>(reinterpret_cast<intptr_t>(propio)),
+        static_cast<jlong>(reinterpret_cast<intptr_t>(otro)));
+    informarExcepcion(entorno(), nombre);
+}
+
 void BackendJava::inyectar(
     ComportamientoCargado& comportamiento,
     const std::vector<ReflejoScripts::ValorCampo>& valores) {
@@ -1285,6 +1387,13 @@ void BackendJava::inyectar(
             jstring s =
                 env->NewStringUTF(nuevoNombreUTF8(valor->como<std::string>()).c_str());
             env->SetObjectField(objeto, id, s);
+            break;
+        }
+        case TagTipo::Objeto: {
+            void* destino = MotorScript::tablaServicios()->objetoPorNombre(
+                valor->como<std::string>().c_str());
+            env->SetLongField(objeto, id, static_cast<jlong>(
+                                               reinterpret_cast<intptr_t>(destino)));
             break;
         }
         default:
@@ -1330,6 +1439,15 @@ std::vector<ReflejoScripts::ValorCampo> BackendJava::extraer(
             } else {
                 valor.contenido = std::string();
             }
+            break;
+        }
+        case TagTipo::Objeto: {
+            const void* destino = reinterpret_cast<const void*>(
+                static_cast<intptr_t>(env->GetLongField(objeto, id)));
+            const char* nombre = destino
+                                     ? MotorScript::tablaApi()->nombre(destino)
+                                     : "";
+            valor.contenido = std::string(nombre ? nombre : "");
             break;
         }
         default:

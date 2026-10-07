@@ -111,7 +111,7 @@ FunshiEngineGL/                          ← raíz del repo
         ├── Behaviour/
         │   ├── IScriptBehaviour.h       ← interfaz de scripts (onStart/onUpdate/onStop, campos)
         │   ├── ScriptGameObject.*       ← tablas versionadas de GameObject y servicios
-        │   │                                (audio, teclado, mouse; rotación en radianes)
+        │   │                                (audio, teclado, mouse y movimiento físico)
         │   ├── ScriptRuntime.*          ← registro de backends, compilación y hot reload
         │   ├── ComportamientoCargado.h  ← instancia compilada (módulo + campos)
         │   ├── Backends/
@@ -162,7 +162,8 @@ FunshiEngineGL/                          ← raíz del repo
         │                                  ejecutable + assets + dependencias en Linux/Windows
         ├── Fisicas/
         │   ├── IPhysicsBackend.h        ← contrato Strategy del backend de física
-        │   ├── PhysicsEngine.h/.cpp     ← fachada PIMPL; el header no expone Bullet
+        │   ├── ContactoFisico.h           ← transiciones de contacto entre colliders
+        │   ├── PhysicsEngine.h/.cpp        ← fachada PIMPL; el header no expone Bullet
         │   └── BulletPhysicsAdapter.h/.cpp ← adaptador concreto de Bullet (RAII)
         ├── FileManager/
         │   ├── FileManager.h/.cpp       ← fachada del explorador (alto nivel): orquesta modelo,
@@ -250,8 +251,10 @@ FunshiEngineGL/                          ← raíz del repo
         │   └── StructVec3.h/.cpp         ← vec3 propio
         ├── Rendering/
         │   ├── SceneRenderer.h/.cpp       ← renderizador de la escena: skybox, modelos,
-        │   │                                  iluminación, grilla, ejes, gizmos (pipeline de líneas)
-        │   ├── MeshRenderer.h/.cpp         ← dibujo de meshes por GameObject
+        │   │                                  iluminación, horizonte común de grilla/render,
+        │   │                                  ejes y gizmos (pipeline de líneas)
+        │   ├── MeshRenderer.h/.cpp         ← dibujo de meshes con difuminado radial al horizonte
+        │   ├── LineRenderer.h/.cpp         ← líneas, wireframes y gizmos recortados al mismo horizonte
         │   ├── MeshGPU.h/.cpp              ← wrapper RAII de VBO/VAO/EBO
         │   ├── DibujoModelo.h/.cpp         ← helpers de render por modelo
         │   ├── LineBatch.h/.cpp            ← batch GPU de líneas expandidas
@@ -273,7 +276,8 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── ShaderProgram.h/.cpp
         │       └── ShaderSources.h/.cpp
         ├── Objetos/
-        │   ├── GameObject.h/.cpp         ← id, nombre, estado, update, serialización binaria
+        │   ├── GameObject.h/.cpp         ← id, nombre, tag, estado, update y serialización binaria
+        │   ├── TagRegistry.h             ← registro dinámico de tags para el Inspector
         │   ├── GameObjectFactory.h/.cpp
         │   ├── SimpleObject.h            ← GameObject sin geometría (Transform/Grid/Light...)
         │   ├── Modelos3D.h/.cpp          ← carga Assimp y datos de la malla (el dibujado
@@ -292,9 +296,9 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── Color.h / Model.h / Script.h ← varios scripts por objeto,
         │       │                                    nombre editable y metadatos reflejados
         │       │                                    serializados para el inspector
-        │       ├── RigidBody/RigidBody.h/.cpp ← cuerpo Bullet sincronizado (RAII)
+        │       ├── RigidBody/RigidBody.h/.cpp ← cuerpo Bullet sincronizado, habilitable, con detección de apoyo (RAII)
         │       └── Colliders/
-        │           ├── Collider.h/.cpp   ← base abstracta; radio; gizmo del collider (GizmoTarget)
+        │           ├── Collider.h/.cpp   ← base abstracta; radio; visibilidad persistente y gizmo
         │           │                        con wireframe por el batch de líneas
         │           ├── EsfereCollider.*  ← btSphereShape
         │           ├── CubeCollider.*    ← btBoxShape (half extents = radio)
@@ -621,8 +625,10 @@ solo como orquestador de arranque y bucle.
   valores por nombre de campo).
 - `IScriptBehaviour` define la interfaz: `onStart`/`onUpdate`/`onStop` y
   `camposReflejados()`; el motor inyecta la tabla `MotorScript::ApiScriptGameObject`
-  (nombre, transform completo con getters de rotacion/escala, log) y la tabla
-  `MotorScript::ScriptServices` (audio, busqueda de objetos por nombre y
+  (nombre, transform completo con getters de rotacion/escala, log y control
+  horizontal/salto sobre `RigidBody`) y la tabla
+  `MotorScript::ScriptServices` (audio, busqueda de objetos por nombre, id o
+  etiqueta y
   consulta de teclado via `InputScripts`, inyectadas por `GameScene` al iniciar
   la simulacion) para que el script no enlace contra el motor. Ambas tablas siguen
   versionado APPEND-ONLY con campo `version` final para guardas en runtime.
