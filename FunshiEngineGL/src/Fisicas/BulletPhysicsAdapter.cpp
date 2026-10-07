@@ -123,6 +123,31 @@ void BulletPhysicsAdapter::addRigidBody(RigidBody* body) {
     cuerpos_.insert(body);
     if (!body->estaActivo())
         body->getRigidBody()->forceActivationState(DISABLE_SIMULATION);
+    // El cuerpo guarda su respuesta a la gravedad por separado (usar/escala):
+    // al entrar al mundo se le empuja la gravedad vigente para que rija.
+    const btVector3 actual = dynamicsWorld->getGravity();
+    body->aplicarGravedadMundo(actual.x(), actual.y(), actual.z());
+}
+
+void BulletPhysicsAdapter::fijarGravedad(float x, float y, float z) {
+    if (!dynamicsWorld) return;
+    dynamicsWorld->setGravity(btVector3(x, y, z));
+    for (RigidBody* body : cuerpos_) {
+        if (body) body->aplicarGravedadMundo(x, y, z);
+    }
+}
+
+void BulletPhysicsAdapter::gravedad(float& x, float& y, float& z) const {
+    if (!dynamicsWorld) {
+        x = 0.0f;
+        y = -1.0f;
+        z = 0.0f;
+        return;
+    }
+    const btVector3 actual = dynamicsWorld->getGravity();
+    x = actual.x();
+    y = actual.y();
+    z = actual.z();
 }
 
 void BulletPhysicsAdapter::removeRigidBody(RigidBody* body) {

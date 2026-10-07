@@ -90,6 +90,28 @@ const char* SRC_NATIVO =
     "    public static native String etiqueta(long objeto);\n"
     "    public static native boolean tieneEtiqueta(long objeto, String etiqueta);\n"
     "    public static native long objetoDeCollider(long collider);\n"
+    "    public static native float masa(long objeto);\n"
+    "    public static native boolean fijarMasa(long objeto, float masa);\n"
+    "    public static native boolean usaGravedad(long objeto);\n"
+    "    public static native boolean fijarUsoGravedad(long objeto, boolean usar);\n"
+    "    public static native float escalaGravedad(long objeto);\n"
+    "    public static native boolean fijarEscalaGravedad(long objeto, float escala);\n"
+    "    public static native float friccion(long objeto);\n"
+    "    public static native boolean fijarFriccion(long objeto, float friccion);\n"
+    "    public static native boolean posicionCongelada(long objeto, int eje);\n"
+    "    public static native boolean fijarFreezePosicion(long objeto, boolean x, boolean y, boolean z);\n"
+    "    public static native boolean rotacionCongelada(long objeto, int eje);\n"
+    "    public static native boolean fijarFreezeRotacion(long objeto, boolean x, boolean y, boolean z);\n"
+    "    public static native void fijarGravedadGlobal(float x, float y, float z);\n"
+    "    public static native float gravedadGlobalX();\n"
+    "    public static native float gravedadGlobalY();\n"
+    "    public static native float gravedadGlobalZ();\n"
+    "    public static native long crearObjeto(String nombre, long padre);\n"
+    "    public static native boolean destruirObjeto(long objeto);\n"
+    "    public static native long clonarObjeto(long original, long padre);\n"
+    "    public static native boolean agregarColliderEsfera(long objeto, float radio);\n"
+    "    public static native boolean agregarColliderCubo(long objeto, float radio);\n"
+    "    public static native boolean agregarRigidBody(long objeto, float masa);\n"
     "    public static native void imprimir(String texto);\n"
     "    public static native int reproducirSonido(String clip, float volumen, boolean bucle);\n"
     "    public static native void detenerSonido(int handle);\n"
@@ -814,6 +836,125 @@ jfloat nativoDeltaMouseX(JNIEnv*, jclass) {
 jfloat nativoDeltaMouseY(JNIEnv*, jclass) {
     return MotorScript::tablaServicios()->deltaMouseY();
 }
+jfloat nativoMasa(JNIEnv*, jclass, jlong o) {
+    return MotorScript::tablaApi()->masa(comoObjeto(o));
+}
+jboolean nativoFijarMasa(JNIEnv*, jclass, jlong o, jfloat masa) {
+    return MotorScript::tablaApi()->fijarMasa(comoObjeto(o), masa) ? JNI_TRUE
+                                                                   : JNI_FALSE;
+}
+jboolean nativoUsaGravedad(JNIEnv*, jclass, jlong o) {
+    return MotorScript::tablaApi()->usaGravedad(comoObjeto(o)) ? JNI_TRUE
+                                                                : JNI_FALSE;
+}
+jboolean nativoFijarUsoGravedad(JNIEnv*, jclass, jlong o, jboolean usar) {
+    return MotorScript::tablaApi()->fijarUsoGravedad(comoObjeto(o),
+                                                     usar == JNI_TRUE)
+                ? JNI_TRUE
+                : JNI_FALSE;
+}
+jfloat nativoEscalaGravedad(JNIEnv*, jclass, jlong o) {
+    return MotorScript::tablaApi()->escalaGravedad(comoObjeto(o));
+}
+jboolean nativoFijarEscalaGravedad(JNIEnv*, jclass, jlong o, jfloat escala) {
+    return MotorScript::tablaApi()->fijarEscalaGravedad(comoObjeto(o), escala)
+                ? JNI_TRUE
+                : JNI_FALSE;
+}
+jfloat nativoFriccion(JNIEnv*, jclass, jlong o) {
+    return MotorScript::tablaApi()->friccion(comoObjeto(o));
+}
+jboolean nativoFijarFriccion(JNIEnv*, jclass, jlong o, jfloat friccion) {
+    return MotorScript::tablaApi()->fijarFriccion(comoObjeto(o), friccion)
+                ? JNI_TRUE
+                : JNI_FALSE;
+}
+jboolean nativoFreezeEje(JNIEnv*, jclass, jlong o, jint eje, bool rotacion) {
+    const auto* api = MotorScript::tablaApi();
+    const void* handle = comoObjeto(o);
+    const bool congelado = rotacion ? api->rotacionCongelada(handle, eje)
+                                    : api->posicionCongelada(handle, eje);
+    return congelado ? JNI_TRUE : JNI_FALSE;
+}
+jboolean nativoPosicionCongelada(JNIEnv* e, jclass c, jlong o, jint eje) {
+    return nativoFreezeEje(e, c, o, eje, false);
+}
+jboolean nativoRotacionCongelada(JNIEnv* e, jclass c, jlong o, jint eje) {
+    return nativoFreezeEje(e, c, o, eje, true);
+}
+jboolean nativoFijarFreeze(JNIEnv*, jclass, jlong o, jboolean x, jboolean y,
+                           jboolean z, bool rotacion) {
+    const auto* api = MotorScript::tablaApi();
+    void* handle = comoObjeto(o);
+    const bool ok = rotacion
+                        ? api->fijarFreezeRotacion(handle, x == JNI_TRUE,
+                                                  y == JNI_TRUE, z == JNI_TRUE)
+                        : api->fijarFreezePosicion(handle, x == JNI_TRUE,
+                                                  y == JNI_TRUE, z == JNI_TRUE);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+jboolean nativoFijarFreezePosicion(JNIEnv* e, jclass c, jlong o, jboolean x,
+                                   jboolean y, jboolean z) {
+    return nativoFijarFreeze(e, c, o, x, y, z, false);
+}
+jboolean nativoFijarFreezeRotacion(JNIEnv* e, jclass c, jlong o, jboolean x,
+                                   jboolean y, jboolean z) {
+    return nativoFijarFreeze(e, c, o, x, y, z, true);
+}
+void nativoFijarGravedadGlobal(JNIEnv*, jclass, jfloat x, jfloat y, jfloat z) {
+    MotorScript::tablaServicios()->fijarGravedadGlobal(x, y, z);
+}
+jfloat nativoGravedadGlobalEje(JNIEnv*, jclass, int eje) {
+    const auto* servicios = MotorScript::tablaServicios();
+    if (eje == 0) return servicios->gravedadGlobalX();
+    if (eje == 2) return servicios->gravedadGlobalZ();
+    return servicios->gravedadGlobalY();
+}
+jfloat nativoGravedadGlobalX(JNIEnv* e, jclass c) {
+    return nativoGravedadGlobalEje(e, c, 0);
+}
+jfloat nativoGravedadGlobalY(JNIEnv* e, jclass c) {
+    return nativoGravedadGlobalEje(e, c, 1);
+}
+jfloat nativoGravedadGlobalZ(JNIEnv* e, jclass c) {
+    return nativoGravedadGlobalEje(e, c, 2);
+}
+jlong nativoCrearObjeto(JNIEnv* env, jclass, jstring nombre, jlong padre) {
+    const auto* servicios = MotorScript::tablaServicios();
+    if (!nombre)
+        return static_cast<jlong>(reinterpret_cast<intptr_t>(
+            servicios->crearObjeto(nullptr, comoObjeto(padre))));
+    const std::string texto = leerCadena(env, nombre);
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(
+        servicios->crearObjeto(texto.c_str(), comoObjeto(padre))));
+}
+jboolean nativoDestruirObjeto(JNIEnv*, jclass, jlong o) {
+    return MotorScript::tablaServicios()->destruirObjeto(comoObjeto(o))
+                ? JNI_TRUE
+                : JNI_FALSE;
+}
+jlong nativoClonarObjeto(JNIEnv*, jclass, jlong original, jlong padre) {
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(
+        MotorScript::tablaServicios()->clonarObjeto(comoObjeto(original),
+                                                   comoObjeto(padre))));
+}
+jboolean nativoAgregarColliderEsfera(JNIEnv*, jclass, jlong o, jfloat radio) {
+    return MotorScript::tablaServicios()->agregarColliderEsfera(comoObjeto(o),
+                                                               radio)
+                ? JNI_TRUE
+                : JNI_FALSE;
+}
+jboolean nativoAgregarColliderCubo(JNIEnv*, jclass, jlong o, jfloat radio) {
+    return MotorScript::tablaServicios()->agregarColliderCubo(comoObjeto(o),
+                                                             radio)
+                ? JNI_TRUE
+                : JNI_FALSE;
+}
+jboolean nativoAgregarRigidBody(JNIEnv*, jclass, jlong o, jfloat masa) {
+    return MotorScript::tablaServicios()->agregarRigidBody(comoObjeto(o), masa)
+                ? JNI_TRUE
+                : JNI_FALSE;
+}
 
 bool registrarNativos(const std::string& clasesDir, std::string& error) {
     JNIEnv* env = entorno();
@@ -894,6 +1035,55 @@ bool registrarNativos(const std::string& clasesDir, std::string& error) {
          reinterpret_cast<void*>(&nativoDeltaMouseX)},
         {const_cast<char*>("deltaMouseY"), const_cast<char*>("()F"),
          reinterpret_cast<void*>(&nativoDeltaMouseY)},
+        {const_cast<char*>("masa"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoMasa)},
+        {const_cast<char*>("fijarMasa"), const_cast<char*>("(JF)Z"),
+         reinterpret_cast<void*>(&nativoFijarMasa)},
+        {const_cast<char*>("usaGravedad"), const_cast<char*>("(J)Z"),
+         reinterpret_cast<void*>(&nativoUsaGravedad)},
+        {const_cast<char*>("fijarUsoGravedad"), const_cast<char*>("(JZ)Z"),
+         reinterpret_cast<void*>(&nativoFijarUsoGravedad)},
+        {const_cast<char*>("escalaGravedad"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoEscalaGravedad)},
+        {const_cast<char*>("fijarEscalaGravedad"), const_cast<char*>("(JF)Z"),
+         reinterpret_cast<void*>(&nativoFijarEscalaGravedad)},
+        {const_cast<char*>("friccion"), const_cast<char*>("(J)F"),
+         reinterpret_cast<void*>(&nativoFriccion)},
+        {const_cast<char*>("fijarFriccion"), const_cast<char*>("(JF)Z"),
+         reinterpret_cast<void*>(&nativoFijarFriccion)},
+        {const_cast<char*>("posicionCongelada"), const_cast<char*>("(JI)Z"),
+         reinterpret_cast<void*>(&nativoPosicionCongelada)},
+        {const_cast<char*>("fijarFreezePosicion"),
+         const_cast<char*>("(JZZZ)Z"),
+         reinterpret_cast<void*>(&nativoFijarFreezePosicion)},
+        {const_cast<char*>("rotacionCongelada"), const_cast<char*>("(JI)Z"),
+         reinterpret_cast<void*>(&nativoRotacionCongelada)},
+        {const_cast<char*>("fijarFreezeRotacion"),
+         const_cast<char*>("(JZZZ)Z"),
+         reinterpret_cast<void*>(&nativoFijarFreezeRotacion)},
+        {const_cast<char*>("fijarGravedadGlobal"),
+         const_cast<char*>("(FFF)V"),
+         reinterpret_cast<void*>(&nativoFijarGravedadGlobal)},
+        {const_cast<char*>("gravedadGlobalX"), const_cast<char*>("()F"),
+         reinterpret_cast<void*>(&nativoGravedadGlobalX)},
+        {const_cast<char*>("gravedadGlobalY"), const_cast<char*>("()F"),
+         reinterpret_cast<void*>(&nativoGravedadGlobalY)},
+        {const_cast<char*>("gravedadGlobalZ"), const_cast<char*>("()F"),
+         reinterpret_cast<void*>(&nativoGravedadGlobalZ)},
+        {const_cast<char*>("crearObjeto"),
+         const_cast<char*>("(Ljava/lang/String;J)J"),
+         reinterpret_cast<void*>(&nativoCrearObjeto)},
+        {const_cast<char*>("destruirObjeto"), const_cast<char*>("(J)Z"),
+         reinterpret_cast<void*>(&nativoDestruirObjeto)},
+        {const_cast<char*>("clonarObjeto"), const_cast<char*>("(JJ)J"),
+         reinterpret_cast<void*>(&nativoClonarObjeto)},
+        {const_cast<char*>("agregarColliderEsfera"),
+         const_cast<char*>("(JF)Z"),
+         reinterpret_cast<void*>(&nativoAgregarColliderEsfera)},
+        {const_cast<char*>("agregarColliderCubo"), const_cast<char*>("(JF)Z"),
+         reinterpret_cast<void*>(&nativoAgregarColliderCubo)},
+        {const_cast<char*>("agregarRigidBody"), const_cast<char*>("(JF)Z"),
+         reinterpret_cast<void*>(&nativoAgregarRigidBody)},
     };
     if (env->RegisterNatives(nativo, metodos,
                              sizeof(metodos) / sizeof(metodos[0])) != JNI_OK) {

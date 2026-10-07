@@ -37,10 +37,12 @@
 #include <cstdio>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -67,6 +69,7 @@
 #include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/EsfereCollider.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/CubeCollider.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/CameraComponent.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Script.h"
@@ -1918,6 +1921,280 @@ void busquedaDeObjetosPorNombreIdYEtiqueta() {
           "sin escena inyectada no hay busqueda");
 }
 
+void propiedadesFisicasDesdeScripts() {
+    GameObject jugador;
+    Transform* transform = jugador.getComponent<Transform>();
+    CHECK(transform != nullptr, "el objeto fisico tiene Transform");
+    if (!transform) return;
+    auto collider = std::make_unique<EsfereCollider>(1.0f, transform, &jugador);
+    EsfereCollider* colliderPtr = collider.get();
+    jugador.addComponent(std::move(collider));
+    auto cuerpo = std::make_unique<RigidBody>(colliderPtr, 1.0f);
+    RigidBody* cuerpoPtr = cuerpo.get();
+    jugador.addComponent(std::move(cuerpo));
+
+    BulletPhysicsAdapter fisica;
+    fisica.addRigidBody(cuerpoPtr);
+
+    const MotorScript::ApiScriptGameObject* api = MotorScript::tablaApi();
+    CHECK(api->version >= 5,
+          "la API de scripts publica masa, gravedad, friccion y freeze");
+    CHECK(api->masa(&jugador) == 1.0f, "la API lee la masa inicial");
+    CHECK(api->fijarMasa(&jugador, 5.0f) && api->masa(&jugador) == 5.0f,
+          "la API fija la masa del cuerpo");
+    CHECK(std::abs(cuerpoPtr->getRigidBody()->getMass() - 5.0f) < 0.001f,
+          "la masa llega a la inercia de Bullet");
+    CHECK(api->fijarMasa(&jugador, 0.0f) && api->masa(&jugador) == 0.0f,
+          "la masa cero deja el cuerpo estatico");
+    api->fijarMasa(&jugador, 1.0f);
+
+    CHECK(api->usaGravedad(&jugador),
+          "el cuerpo usa la gravedad del mundo por defecto");
+    CHECK(api->fijarEscalaGravedad(&jugador, 2.0f) &&
+              api->escalaGravedad(&jugador) == 2.0f,
+          "la API fija la escala de gravedad por cuerpo");
+    CHECK(!api->fijarEscalaGravedad(&jugador,
+                                    std::numeric_limits<float>::quiet_NaN()),
+          "la escala no finita se rechaza");
+    fisica.fijarGravedad(0.0f, -10.0f, 0.0f);
+    const btVector3 gravedad =
+        cuerpoPtr->getRigidBody()->getGravity();
+    CHECK(std::abs(gravedad.y() + 20.0f) < 0.001f,
+          "la gravedad del mundo por la escala llega al cuerpo");
+    CHECK(api->fijarUsoGravedad(&jugador, false) &&
+              !api->usaGravedad(&jugador),
+          "la API desactiva la gravedad por cuerpo");
+    const btVector3 sinGravedad =
+        cuerpoPtr->getRigidBody()->getGravity();
+    CHECK(sinGravedad.length() < 0.001f,
+          "sin gravedad el cuerpo no acelera");
+    api->fijarUsoGravedad(&jugador, true);
+
+    CHECK(std::abs(api->friccion(&jugador) - 0.5f) < 0.001f,
+          "la friccion por defecto es la historica de Bullet");
+    CHECK(api->fijarFriccion(&jugador, 0.1f) &&
+              std::abs(api->friccion(&jugador) - 0.1f) < 0.001f,
+          "la API fija la friccion del cuerpo");
+    CHECK(std::abs(cuerpoPtr->getRigidBody()->getFriction() - 0.1f) < 0.001f,
+          "la friccion llega al contacto de Bullet");
+    CHECK(!api->fijarFriccion(&jugador, -1.0f) ||
+              api->friccion(&jugador) >= 0.0f,
+          "la friccion negativa no entra al cuerpo");
+
+    CHECK(api->fijarFreezePosicion(&jugador, true, false, true) &&
+              api->posicionCongelada(&jugador, 0) &&
+              !api->posicionCongelada(&jugador, 1) &&
+              api->posicionCongelada(&jugador, 2),
+          "la API congela la posicion por ejes");
+    const btVector3 factorLineal =
+        cuerpoPtr->getRigidBody()->getLinearFactor();
+    CHECK(factorLineal.x() == 0.0f && factorLineal.y() == 1.0f &&
+              factorLineal.z() == 0.0f,
+          "el freeze de posicion llega al linearFactor de Bullet");
+    CHECK(api->fijarFreezeRotacion(&jugador, false, true, false) &&
+              !api->rotacionCongelada(&jugador, 0) &&
+              api->rotacionCongelada(&jugador, 1) &&
+              !api->rotacionCongelada(&jugador, 2),
+          "la API congela la rotacion por ejes");
+    const btVector3 factorAngular =
+        cuerpoPtr->getRigidBody()->getAngularFactor();
+    CHECK(factorAngular.x() == 1.0f && factorAngular.y() == 0.0f &&
+              factorAngular.z() == 1.0f,
+          "el freeze de rotacion llega al angularFactor de Bullet");
+
+    GameObject vacio;
+    CHECK(api->masa(&vacio) == 0.0f && !api->usaGravedad(&vacio) &&
+              api->escalaGravedad(&vacio) == 0.0f &&
+              api->friccion(&vacio) == 0.0f &&
+              !api->posicionCongelada(&vacio, 0) &&
+              !api->rotacionCongelada(&vacio, 0),
+          "sin RigidBody los getters devuelven neutro");
+    CHECK(!api->fijarMasa(&vacio, 1.0f) &&
+              !api->fijarUsoGravedad(&vacio, true) &&
+              !api->fijarEscalaGravedad(&vacio, 1.0f) &&
+              !api->fijarFriccion(&vacio, 1.0f) &&
+              !api->fijarFreezePosicion(&vacio, true, true, true) &&
+              !api->fijarFreezeRotacion(&vacio, true, true, true),
+          "sin RigidBody los setters informan que no aplican");
+    fisica.removeRigidBody(cuerpoPtr);
+}
+
+void rigidBodySerializaPropiedadesNuevas() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_rigidbody_v2");
+    const fs::path archivo = carpetaDir.ruta() / "rigidbody-v2.bin";
+
+    Transform transform;
+    EsfereCollider collider(1.0f, &transform);
+    RigidBody cuerpo(&collider, 2.0f);
+    cuerpo.fijarUsoGravedad(false);
+    cuerpo.fijarEscalaGravedad(0.5f);
+    cuerpo.fijarFriccion(0.9f);
+    cuerpo.fijarFreezePosicion(true, false, false);
+    cuerpo.fijarFreezeRotacion(false, false, true);
+    {
+        std::ofstream salida(archivo, std::ios::binary);
+        cuerpo.saveComponent(&salida);
+    }
+    Transform transformRecuperado;
+    EsfereCollider colliderRecuperado(1.0f, &transformRecuperado);
+    RigidBody recuperado(&colliderRecuperado, 1.0f);
+    {
+        std::ifstream entrada(archivo, std::ios::binary);
+        recuperado.loadComponent(&entrada);
+        CHECK(static_cast<bool>(entrada),
+              "el formato v2 carga sin error");
+    }
+    CHECK(recuperado.masa() == 2.0f, "la masa se conserva al serializar");
+    CHECK(!recuperado.usaGravedad(), "el uso de gravedad se conserva");
+    CHECK(recuperado.escalaGravedad() == 0.5f,
+          "la escala de gravedad se conserva");
+    CHECK(std::abs(recuperado.friccion() - 0.9f) < 0.001f,
+          "la friccion se conserva al serializar");
+    CHECK(recuperado.posicionCongelada(0) &&
+              !recuperado.posicionCongelada(1) &&
+              !recuperado.posicionCongelada(2),
+          "el freeze de posicion se conserva");
+    CHECK(!recuperado.rotacionCongelada(0) &&
+              !recuperado.rotacionCongelada(1) &&
+              recuperado.rotacionCongelada(2),
+          "el freeze de rotacion se conserva");
+
+    // Compatibilidad hacia atras: blob v1 escrito a mano (magia + version 1
+    // + activo + masa + pos + rot) carga con los valores por defecto.
+    const fs::path archivoV1 = carpetaDir.ruta() / "rigidbody-v1.bin";
+    {
+        std::ofstream salida(archivoV1, std::ios::binary);
+        const std::uint32_t magia = 0x32444252;
+        const std::uint32_t version = 1;
+        const bool activo = true;
+        const float masa = 3.0f;
+        const float pos[3] = {0.0f, 0.0f, 0.0f};
+        const float rot[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+        salida.write(reinterpret_cast<const char*>(&magia), sizeof(magia));
+        salida.write(reinterpret_cast<const char*>(&version), sizeof(version));
+        salida.write(reinterpret_cast<const char*>(&activo), sizeof(activo));
+        salida.write(reinterpret_cast<const char*>(&masa), sizeof(masa));
+        salida.write(reinterpret_cast<const char*>(pos), sizeof(pos));
+        salida.write(reinterpret_cast<const char*>(rot), sizeof(rot));
+    }
+    Transform transformV1;
+    EsfereCollider colliderV1(1.0f, &transformV1);
+    RigidBody cuerpoV1(&colliderV1, 1.0f);
+    {
+        std::ifstream entrada(archivoV1, std::ios::binary);
+        cuerpoV1.loadComponent(&entrada);
+        CHECK(static_cast<bool>(entrada), "el formato v1 sigue cargando");
+    }
+    CHECK(cuerpoV1.masa() == 3.0f, "v1 conserva la masa");
+    CHECK(cuerpoV1.usaGravedad() && cuerpoV1.escalaGravedad() == 1.0f &&
+              std::abs(cuerpoV1.friccion() - 0.5f) < 0.001f &&
+              !cuerpoV1.posicionCongelada(0) &&
+              !cuerpoV1.rotacionCongelada(0),
+          "v1 toma gravedad, friccion y freeze por defecto");
+}
+
+void gestionDeObjetosDesdeScripts() {
+    SceneRegistry registro;
+    PhysicsEngine fisica;
+    EventBus bus;
+    EditorController editor(&registro, &fisica, &bus, nullptr);
+    MotorScript::inyectarServiciosScript(nullptr, &registro, nullptr, &fisica,
+                                         &editor);
+    const MotorScript::ScriptServices* servicios =
+        MotorScript::tablaServicios();
+    CHECK(servicios->version >= 4,
+          "los servicios publican gravedad global y gestion de objetos");
+
+    float gx = 9.0f;
+    float gy = 9.0f;
+    float gz = 9.0f;
+    fisica.gravedad(gx, gy, gz);
+    CHECK(gx == 0.0f && gy == -1.0f && gz == 0.0f,
+          "la gravedad global por defecto es la historica");
+    servicios->fijarGravedadGlobal(0.0f, -3.0f, 0.0f);
+    CHECK(servicios->gravedadGlobalX() == 0.0f &&
+              servicios->gravedadGlobalY() == -3.0f &&
+              servicios->gravedadGlobalZ() == 0.0f,
+          "los servicios fijan y leen la gravedad global");
+
+    GameObject* creado = static_cast<GameObject*>(
+        servicios->crearObjeto("Enemigo", nullptr));
+    CHECK(creado != nullptr, "crearObjeto devuelve el objeto de inmediato");
+    if (!creado) {
+        MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
+        return;
+    }
+    CHECK(!registro.contains(creado),
+          "el objeto entra a la escena al final del frame, no adentro");
+    CHECK(std::string(creado->inputName) == "Enemigo",
+          "el objeto conserva el nombre pedido");
+    CHECK(creado->getComponent<Transform>() != nullptr,
+          "el objeto nuevo trae Transform para configurarlo ya");
+    MotorScript::procesarPeticionesObjetos();
+    CHECK(registro.contains(creado),
+          "tras procesar, el objeto pertenece a la escena");
+
+    GameObject* duplicado = static_cast<GameObject*>(
+        servicios->crearObjeto("Enemigo", nullptr));
+    MotorScript::procesarPeticionesObjetos();
+    CHECK(duplicado != nullptr && duplicado != creado &&
+              std::string(duplicado->inputName) != "Enemigo" &&
+              registro.contains(duplicado),
+          "el nombre repetido se uniciza al crear");
+
+    CHECK(servicios->agregarColliderEsfera(creado, 1.0f),
+          "el servicio agrega collider esfera");
+    CHECK(!servicios->agregarColliderCubo(creado, 1.0f),
+          "un segundo collider en el mismo frame no se encola");
+    MotorScript::procesarPeticionesObjetos();
+    CHECK(creado->getComponent<Collider>() != nullptr,
+          "el collider entra al final del frame");
+    CHECK(servicios->agregarRigidBody(creado, 2.0f),
+          "el servicio agrega cuerpo con masa");
+    MotorScript::procesarPeticionesObjetos();
+    RigidBody* cuerpoCreado = creado->getComponent<RigidBody>();
+    CHECK(cuerpoCreado != nullptr && cuerpoCreado->masa() == 2.0f &&
+              cuerpoCreado->getRigidBody() &&
+              cuerpoCreado->getRigidBody()->isInWorld(),
+          "el cuerpo agregado queda registrado en el mundo fisico");
+    CHECK(!servicios->agregarRigidBody(creado, 1.0f),
+          "un segundo cuerpo no se agrega");
+
+    GameObject* clon = static_cast<GameObject*>(
+        servicios->clonarObjeto(creado, nullptr));
+    CHECK(clon != nullptr && clon != creado,
+          "clonar devuelve la copia de inmediato");
+    MotorScript::procesarPeticionesObjetos();
+    CHECK(registro.contains(clon), "el clon entra a la escena al procesar");
+    CHECK(clon->getId() != creado->getId(),
+          "el clon recibe id propio");
+    CHECK(clon->getComponent<Collider>() != nullptr &&
+              clon->getComponent<RigidBody>() != nullptr,
+          "el clon conserva collider y cuerpo");
+    RigidBody* cuerpoClon = clon->getComponent<RigidBody>();
+    CHECK(cuerpoClon && cuerpoClon->masa() == 2.0f &&
+              cuerpoClon->getRigidBody()->isInWorld(),
+          "el cuerpo clonado queda registrado en el mundo fisico");
+
+    CHECK(servicios->destruirObjeto(creado),
+          "destruir marca el objeto");
+    CHECK(registro.contains(creado),
+          "el borrado tambien espera al final del frame");
+    MotorScript::procesarPeticionesObjetos();
+    CHECK(!registro.contains(creado),
+          "tras procesar, el objeto ya no esta en la escena");
+    CHECK(!servicios->destruirObjeto(creado),
+          "destruir dos veces informa que ya no existe");
+
+    MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
+    CHECK(servicios->crearObjeto("Tarde", nullptr) == nullptr &&
+              !servicios->destruirObjeto(clon) &&
+              servicios->clonarObjeto(clon, nullptr) == nullptr &&
+              !servicios->agregarColliderEsfera(clon, 1.0f) &&
+              !servicios->agregarRigidBody(clon, 1.0f),
+          "sin escena inyectada no hay gestion de objetos");
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -1945,6 +2222,9 @@ int main() {
     movimientoFisicoYSaltoDesdeScripts();
     eventosDeContactoExponenColliderYPropietario();
     busquedaDeObjetosPorNombreIdYEtiqueta();
+    propiedadesFisicasDesdeScripts();
+    rigidBodySerializaPropiedadesNuevas();
+    gestionDeObjetosDesdeScripts();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

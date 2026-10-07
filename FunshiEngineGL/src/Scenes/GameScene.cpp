@@ -845,6 +845,11 @@ void GameScene::update(float value) {
     if (start && !previousStart) {
         inputScripts.reset();
         if (directorioSnapshot_.empty()) guardarSnapshotSimulacion();
+        // El undo guarda ids de edicion: al entrar en play la escena puede
+        // mutar y al salir se restaura el snapshot (los ids caducan). Sin
+        // limpiar, un Ctrl+Z posterior operaria sobre objetos ajenos.
+        if (editorController && editorController->getGestorComandos())
+            editorController->getGestorComandos()->limpiar();
         // Feedback visual inmediato: aunque no haya nada que recompilar, se ve
         // que "Activar" disparo la carga/verificacion de scripts.
         overlayProgresoVisible_ = true;
@@ -871,8 +876,9 @@ void GameScene::update(float value) {
         // Scripts: cablear los servicios de escena (audio, busqueda, teclado)
         // a la tabla que consultan los comportamientos via `servicios->...`.
         MotorScript::inyectarServiciosScript(audioEngine.get(),
-                                             sceneRegistry.get(),
-                                             &inputScripts);
+                                              sceneRegistry.get(),
+                                              &inputScripts, phisics.get(),
+                                              editorController.get());
 
         // Todos los scripts que necesitan (re)compilarse entran a la cola: su
         // progreso se ve en la barra "Estado" antes de bloquear con g++/javac.
@@ -892,6 +898,10 @@ void GameScene::update(float value) {
                          "al terminar la simulacion\n";
         }
         eliminarSnapshotSimulacion();
+        // Como al entrar: la restauracion reasigna el mundo y los ids
+        // guardados en el historial ya no corresponden.
+        if (editorController && editorController->getGestorComandos())
+            editorController->getGestorComandos()->limpiar();
 
         std::cout << "[escena] simulacion detenida: audio cortado, servicios "
                      "desconectados y scripts avisados con onStop"
@@ -941,6 +951,9 @@ void GameScene::update(float value) {
                                                    : nullptr;
             }
         }
+        // Altas/bajas de objetos pedidas por scripts: tras el recorrido (crear
+        // o borrar adentro reconstruiria la vista e invalidaria el iterador).
+        MotorScript::procesarPeticionesObjetos();
     }
 
     // Overlay de carga de scripts: mientras hay trabajo en cola se mantiene

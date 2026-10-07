@@ -59,6 +59,8 @@ private:
     void resetState();
     void unbind();
     void dibujarDialogosModales();
+    void manejarAtajos();
+    static bool esDescendiente(GameObject* nodo, GameObject* ancestro);
 
     SceneRegistry* scene = nullptr;
     EditorController* editor = nullptr;
@@ -78,6 +80,13 @@ private:
     GameObject* objetoAEliminar = nullptr;
     GameObject* objetoAReParentar = nullptr;
     GameObject* objetoPadreNuevo = nullptr;
+    // Portapapeles de copiar/pegar (Ctrl+C/X/V): no es dueño, solo observa.
+    // Pegar varias veces el mismo objeto conserva el portapapeles; cortar lo
+    // vacia al pegar (es mover). El pegado tambien es diferido.
+    GameObject* objetoCopiado = nullptr;
+    bool cortePendiente = false;
+    GameObject* objetoAPegar = nullptr;
+    GameObject* padreDePegado = nullptr;
     // Desanidar a raiz diferido: el objeto a mover a la raiz.
     GameObject* objetoADesanidar = nullptr;
 

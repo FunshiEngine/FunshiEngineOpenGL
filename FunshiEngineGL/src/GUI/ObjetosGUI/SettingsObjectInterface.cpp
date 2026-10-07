@@ -52,6 +52,9 @@
 #include "../../Objetos/Componentes/Colliders/MallaCollider.h"
 #include "../../Objetos/Componentes/Skybox.h"
 #include "../../Scenes/EditorController.h"
+#include "../../Comandos/AgregarComponenteComando.h"
+#include "../../Comandos/QuitarComponenteComando.h"
+#include "../../Comandos/GestorComandos.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/TypeUtils.h"
 #include <imgui.h>
@@ -229,7 +232,9 @@ void SettingsObjectInterface::crearSettingsFaltantes() {
 	}
 	RigidBody* rigidBody = object->getComponent<RigidBody>();
 	if (rigidBody != nullptr && !tieneSettingsPara(rigidBody)) {
-		listaDESettingsComponent->addLast(new SettingsRigidBody(object));
+		SettingsRigidBody* s = new SettingsRigidBody(object);
+		s->setEditor(editor);
+		listaDESettingsComponent->addLast(s);
 	}
 	ListaDE<Component*>* componentes = object->getComponents();
 	if (componentes && !componentes->isEmpty()) {
@@ -374,7 +379,14 @@ void SettingsObjectInterface::contentGUI() {
 					scriptSettings->iniciarEdicionNombre();
 				if (ImGui::MenuItem("Eliminar Componente")) {
 					Component* target = comp->getComponent();
-					if (editor)
+					// Por el gestor: Ctrl+Z restaura el componente quitado.
+					if (target && editor && editor->getGestorComandos())
+						editor->getGestorComandos()->ejecutar(
+						    std::make_unique<QuitarComponenteComando>(
+						        editor, object,
+						        demangle(typeid(*target).name()),
+						        editor->getScene()));
+					else if (editor)
 						editor->removeComponent(object, target);
 					else
 						object->deleteComponent(target);
@@ -441,58 +453,69 @@ void SettingsObjectInterface::contentGUI() {
 		if (object && editor) {
 			Transform* transform = object->getComponent<Transform>();
 			Collider* collider = object->getComponent<Collider>();
+			// Alta por el gestor: Ctrl+Z quita el componente agregado.
+			auto agregarViaComando =
+			    [&](std::unique_ptr<Component> componente) {
+				    if (GestorComandos* comandos = editor->getGestorComandos())
+					    comandos->ejecutar(
+					        std::make_unique<AgregarComponenteComando>(
+					            editor, object, std::move(componente),
+					            editor->getScene()));
+				    else
+					    editor->addComponent(object, std::move(componente));
+			    };
 
 			if (ImGui::MenuItem("Transform")) {
-				editor->addComponent(object, std::make_unique<Transform>());
+				agregarViaComando(std::make_unique<Transform>());
 			}
 			if (ImGui::MenuItem("Color")) {
-				editor->addComponent(object, std::make_unique<Color>());
+				agregarViaComando(std::make_unique<Color>());
 			}
 			if (ImGui::MenuItem("Material")) {
-				editor->addComponent(object, std::make_unique<Material>());
+				agregarViaComando(std::make_unique<Material>());
 			}
 			if (ImGui::MenuItem("Light")) {
-				editor->addComponent(object, std::make_unique<Light>());
+				agregarViaComando(std::make_unique<Light>());
 			}
 			if (ImGui::MenuItem("CameraComponent")) {
-				editor->addComponent(object, std::make_unique<CameraComponent>());
+				agregarViaComando(std::make_unique<CameraComponent>());
 			}
 			if (transform) {
 				if (ImGui::BeginMenu("Add Collider")) {
 					if (ImGui::MenuItem("EsfereCollider")) {
-						editor->addComponent(object, std::make_unique<EsfereCollider>(5.0f, transform, object));
+						agregarViaComando(std::make_unique<EsfereCollider>(5.0f, transform, object));
 					}
 					if (ImGui::MenuItem("CubeCollider")) {
-						editor->addComponent(object, std::make_unique<CubeCollider>(5.0f, transform, object));
+						agregarViaComando(std::make_unique<CubeCollider>(5.0f, transform, object));
 					}
 					if (ImGui::MenuItem("MallaCollider")) {
-						editor->addComponent(object, std::make_unique<MallaCollider>(5.0f, transform, object));
+						agregarViaComando(std::make_unique<MallaCollider>(5.0f, transform, object));
 					}
 					ImGui::EndMenu();
 				}
 			}
 			if (collider) {
 				if (ImGui::MenuItem("RigidBody")) {
-					editor->addComponent(object, std::make_unique<RigidBody>(collider, 1.0f));
+					agregarViaComando(std::make_unique<RigidBody>(collider, 1.0f));
 				}
 			}
 			if (ImGui::MenuItem("Script")) {
-				editor->addComponent(object, std::make_unique<Script>());
+				agregarViaComando(std::make_unique<Script>());
 			}
 			if (ImGui::MenuItem("Model")) {
-				editor->addComponent(object, std::make_unique<Model>());
+				agregarViaComando(std::make_unique<Model>());
 			}
 			if (ImGui::MenuItem("Grid")) {
-				editor->addComponent(object, std::make_unique<Grid>());
+				agregarViaComando(std::make_unique<Grid>());
 			}
 			if (ImGui::MenuItem("Skybox")) {
-				editor->addComponent(object, std::make_unique<Skybox>());
+				agregarViaComando(std::make_unique<Skybox>());
 			}
 			if (ImGui::MenuItem("AudioSource")) {
-				editor->addComponent(object, std::make_unique<AudioSource>());
+				agregarViaComando(std::make_unique<AudioSource>());
 			}
 			if (ImGui::MenuItem("InterfaceComponent")) {
-				editor->addComponent(object, std::make_unique<InterfaceComponent>());
+				agregarViaComando(std::make_unique<InterfaceComponent>());
 			}
 		}
 		ImGui::EndPopup();

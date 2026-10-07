@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "QuitarComponenteComando.h"
+#include "Scenes/EditorController.h"
 #include "Scenes/SceneRegistry.h"
 #include "Objetos/GameObject.h"
 #include "Objetos/Componentes/Component.h"
@@ -35,20 +36,26 @@ QuitarComponenteComando::QuitarComponenteComando(EditorController* ec,
 }
 
 void QuitarComponenteComando::ejecutar() {
-    if (!sceneRegistry || objectId <= 0 || componenteEliminado) return;
+    if (!sceneRegistry || !editorController || objectId <= 0 ||
+        componenteEliminado)
+        return;
     GameObject* obj = sceneRegistry->getObjectByID(objectId);
     if (!obj) return;
     Component* comp = obj->getComponentByName(nombreComponente);
     if (comp) {
-        componenteEliminado = obj->extractComponent(comp);
+        // Extraccion con fisica: desregistra cuerpos y desacopla colliders.
+        componenteEliminado =
+            editorController->extraerComponente(obj, comp);
     }
 }
 
 void QuitarComponenteComando::deshacer() {
-    if (!sceneRegistry || objectId <= 0 || !componenteEliminado) return;
+    if (!sceneRegistry || !editorController || objectId <= 0 ||
+        !componenteEliminado)
+        return;
     GameObject* obj = sceneRegistry->getObjectByID(objectId);
     if (!obj) return;
-    obj->addComponent(std::move(componenteEliminado));
+    editorController->addComponent(obj, std::move(componenteEliminado));
 }
 
 std::string QuitarComponenteComando::descripcion() const {

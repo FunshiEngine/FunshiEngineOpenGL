@@ -22,6 +22,10 @@
 #include "../../Objetos/GameObject.h"
 #include "../../Scenes/EditorController.h"
 #include "../../Scenes/SceneRegistry.h"
+#include "../../Comandos/BorrarObjetoComando.h"
+#include "../../Comandos/ReparentarComando.h"
+#include "../../Comandos/DuplicarObjetoComando.h"
+#include "../../Comandos/GestorComandos.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/TypeUtils.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
@@ -54,6 +58,15 @@ void SceneObjectTree::bindScene(SceneRegistry* value, EditorController* controll
                     objetoSeleccionPendiente = nullptr;
                 if (objetoBajoMouseAlSoltar_ == event.object)
                     objetoBajoMouseAlSoltar_ = nullptr;
+                // El portapapeles observa: si se borra afuera, se invalida.
+                if (objetoCopiado == event.object) {
+                    objetoCopiado = nullptr;
+                    cortePendiente = false;
+                }
+                if (objetoAPegar == event.object) {
+                    objetoAPegar = nullptr;
+                    padreDePegado = nullptr;
+                }
             } else if (event.type == SceneEventType::SceneCleared) {
                 resetState();
             }
@@ -72,6 +85,10 @@ void SceneObjectTree::resetState() {
     objetoAReParentar = nullptr;
     objetoPadreNuevo = nullptr;
     objetoADesanidar = nullptr;
+    objetoCopiado = nullptr;
+    cortePendiente = false;
+    objetoAPegar = nullptr;
+    padreDePegado = nullptr;
 }
 
 void SceneObjectTree::draw() {
@@ -99,6 +116,15 @@ void SceneObjectTree::draw() {
         }
     }
     applyDeferredOperations();
+    manejarAtajos();
+    // Clic en el vacio de la ventana deselecciona (para pegar a la raiz o
+    // para soltar la seleccion). Solo al presionar, con la ventana enfocada
+    // y sin nada bajo el mouse: no pelea con el arrastre ni con los popups.
+    if (editor && ImGui::IsWindowHovered() &&
+        ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+        ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+        !ImGui::IsAnyItemHovered())
+        editor->clearSelection();
     // Los dialogos modales deben dibujarse cada frame, fuera del recorrido
     // del arbol, para que ImGui los mantenga abiertos.
     dibujarDialogosModales();
@@ -329,14 +355,19 @@ void SceneObjectTree::dibujarDialogosModales() {
 }
 
 void SceneObjectTree::applyDeferredOperations() {
-    if (objetoAReParentar && objetoPadreNuevo && editor)
-        editor->reparentGameObject(objetoAReParentar, objetoPadreNuevo);
+    GestorComandos* comandos =
+        editor ? editor->getGestorComandos() : nullptr;
+    if (objetoAReParentar && objetoPadreNuevo && editor && comandos)
+        comandos->ejecutar(std::make_unique<ReparentarComando>(
+            editor, objetoAReParentar, objetoPadreNuevo, scene));
     objetoAReParentar = nullptr;
     objetoPadreNuevo = nullptr;
 
     if (objetoADesanidar) {
         GameObject* raiz = scene ? scene->getRoot() : nullptr;
-        if (editor && raiz) editor->reparentGameObject(objetoADesanidar, raiz);
+        if (editor && comandos && raiz)
+            comandos->ejecutar(std::make_unique<ReparentarComando>(
+                editor, objetoADesanidar, raiz, scene));
         objetoADesanidar = nullptr;
     }
 
@@ -345,6 +376,75 @@ void SceneObjectTree::applyDeferredOperations() {
         objetoAEliminar = nullptr;
         openNodes.erase(static_cast<const void*>(doomed));
         if (renombrando == doomed) renombrando = nullptr;
-        if (editor) editor->deleteGameObject(doomed);
+        if (editor && comandos)
+            comandos->ejecutar(
+                std::make_unique<BorrarObjetoComando>(editor, doomed, scene));
+    }
+
+    if (objetoAPegar) {
+        GameObject* fuente = objetoAPegar;
+        objetoAPegar = nullptr;
+        GameObject* destino = padreDePegado;
+        padreDePegado = nullptr;
+        if (editor && scene && scene->contains(fuente)) {
+            if (!destino || !scene->contains(destino)) destino = nullptr;
+            // Pegar sobre si mismo o sobre un descendiente colgaria el
+            // duplicado de su propio subarbol: en ese caso va a la raiz.
+            if (destino && (destino == fuente || esDescendiente(destino, fuente)))
+                destino = nullptr;
+            // Sin tocar la seleccion: el clon no se selecciona para que el
+            // proximo Ctrl+V caiga en el mismo destino y nunca se anide.
+            // Por el gestor: Ctrl+Z deshace el pegado.
+            if (GestorComandos* comandos = editor->getGestorComandos())
+                comandos->ejecutar(std::make_unique<DuplicarObjetoComando>(
+                    editor, fuente, destino, scene));
+            // Cortar es mover: tras pegar se borra el original y se vacia.
+            // Tambien por el gestor: el corte completo se deshace en dos
+            // Ctrl+Z (borrado y duplicado).
+            if (cortePendiente) {
+                openNodes.erase(static_cast<const void*>(fuente));
+                if (renombrando == fuente) renombrando = nullptr;
+                if (GestorComandos* comandos = editor->getGestorComandos())
+                    comandos->ejecutar(std::make_unique<BorrarObjetoComando>(
+                        editor, fuente, scene));
+                objetoCopiado = nullptr;
+                cortePendiente = false;
+            }
+        }
+    }
+}
+
+bool SceneObjectTree::esDescendiente(GameObject* nodo, GameObject* ancestro) {
+    for (Entity* p = nodo ? nodo->getParentEntity() : nullptr; p;
+         p = p->getParentEntity()) {
+        if (p == ancestro) return true;
+    }
+    return false;
+}
+
+void SceneObjectTree::manejarAtajos() {
+    if (!editor || !scene) return;
+    if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) return;
+    // Con un campo de texto activo (renombrado), Ctrl+C/V son del texto.
+    if (ImGui::IsAnyItemActive()) return;
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_C) ||
+        ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_X)) {
+        GameObject* seleccionado = editor->getSelectedObject();
+        if (!seleccionado || seleccionado == scene->getRoot()) return;
+        objetoCopiado = seleccionado;
+        cortePendiente =
+            ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_X);
+    }
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_V)) {
+        if (!objetoCopiado || !scene->contains(objetoCopiado)) {
+            objetoCopiado = nullptr;
+            cortePendiente = false;
+            return;
+        }
+        // Pegar con un objeto seleccionado entra como su hijo; sin seleccion
+        // (clic en el vacio deselecciona) entra a la raiz. Diferido como el
+        // resto: mutar el arbol aca invalidaria el recorrido.
+        objetoAPegar = objetoCopiado;
+        padreDePegado = editor->getSelectedObject();
     }
 }
