@@ -387,6 +387,8 @@ Reglas:
   cambios realizados. No se permite adjudicar coautoría, autoría, firmas ni
   menciones a herramientas, asistentes o terceros que no correspondan al
   trabajo concreto sobre el código.
+- **Sin coautorías**: nunca agregar trailers `Co-authored-by` a los mensajes
+  de commit, independientemente de la persona o herramienta que se atribuya.
 - **Commits solo con archivos propios**: al commitear, agregar únicamente los
   archivos que modificó el agente en la tarea actual (`git add <archivos>`),
   NO usar `git add -A` ni `git add .` que incluyen cambios ajenos sin
