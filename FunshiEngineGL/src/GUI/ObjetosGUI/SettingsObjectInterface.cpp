@@ -354,6 +354,8 @@ void SettingsObjectInterface::contentGUI() {
 			}
 
 			if (open) {
+				comp->setMostrarVisualesDepuracion(
+				    mostrarVisualesDepuracion_);
 				comp->showDataComponent();
 			}
 

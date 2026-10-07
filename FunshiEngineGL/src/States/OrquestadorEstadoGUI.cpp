@@ -36,13 +36,11 @@ OrquestadorEstadoGUI::OrquestadorEstadoGUI(ApplicationStateMachine* maquina) noe
 // Reglas por estado:
 //  - MainMenu: no hay nada que abandonar.
 //  - Editing: vuelve al menu principal.
-//  - Playing: deja la simulacion como F7 (corta y vuelve al editor) en vez de
-//    saltar al menu, porque con la simulacion en marcha el menu no esta a la
-//    vista: la simulacion se abandona con la misma tecla que la detiene y el
-//    menu queda a un Escape mas, ya en el editor.
+//  - Debugging y Playing: termina la simulacion y vuelve al editor. El cierre
+//    conserva la escena en Depuracion y restaura el baseline en Juego.
 void OrquestadorEstadoGUI::manejarTeclaEscape() noexcept
 {
-    if (maquina->is(ApplicationState::Playing)) {
+    if (enSimulacion()) {
         // Misma regla que F7: cortar la simulacion y dejar la pausa limpia
         // para el proximo play.
         simulacionPausada_ = false;
@@ -74,49 +72,72 @@ bool OrquestadorEstadoGUI::iniciarEstudio() noexcept
 // reenvia; main refleja la decision sobre la escena con setStart().
 //
 // Reglas:
-//  - F5 Play solo arranca desde el editor (Editing -> Playing); en Playing ya
-//    esta corriendo y en el menu no tiene sentido. Al arrancar, la pausa
-//    nunca queda heredada del play anterior.
-//  - F6 Pausa alterna congelar/reanudar SOLO mientras se simula (Playing);
+//  - F5 Depuracion solo arranca desde el editor (Editing -> Debugging).
+//  - Juego arranca desde el editor (Editing -> Playing).
+//  - F6 Pausa alterna congelar/reanudar SOLO mientras se simula
+//    (Debugging o Playing);
 //    fuera del play es inofensivo (no cambia nada).
-//  - F7 Stop solo corta desde Playing (Playing -> Editing) y deja la pausa
-//    limpia para el proximo play. En el editor/menu es inofensivo.
-// En los tres casos el boton "Activar/Detener" del menu de escena y estas
-// teclas comparten la misma fuente de verdad: la maquina de estados.
+//  - F7 Stop corta desde cualquiera de los modos de simulacion y deja la pausa
+//    limpia para el proximo inicio. En el editor/menu es inofensivo.
+// Los botones y las teclas comparten la misma fuente de verdad: la maquina
+// de estados.
 void OrquestadorEstadoGUI::manejarTeclaSimulacion(TeclaSimulacion tecla) noexcept
 {
     switch (tecla) {
-        case TeclaSimulacion::Play:
+        case TeclaSimulacion::Depuracion:
+            if (maquina->is(ApplicationState::Editing)) {
+                simulacionPausada_ = false;
+                maquina->transitionTo(ApplicationState::Debugging);
+            }
+            break;
+        case TeclaSimulacion::Juego:
             if (maquina->is(ApplicationState::Editing)) {
                 simulacionPausada_ = false;
                 maquina->transitionTo(ApplicationState::Playing);
             }
             break;
         case TeclaSimulacion::Pausa:
-            if (maquina->is(ApplicationState::Playing)) {
+            if (enSimulacion()) {
                 simulacionPausada_ = !simulacionPausada_;
             }
             break;
         case TeclaSimulacion::Stop:
-            if (maquina->is(ApplicationState::Playing)) {
+            if (enSimulacion()) {
                 simulacionPausada_ = false;
                 maquina->transitionTo(ApplicationState::Editing);
             }
+            break;
+        case TeclaSimulacion::Reset:
+            if (enSimulacion()) solicitudReset_ = true;
             break;
         case TeclaSimulacion::Ninguna:
             break;
     }
 }
 
-// El boton "Activar/Detener" del menu de escena no decide nada por su cuenta:
-// pide acá el mismo cambio que F5/F7 piden por teclado, para que play tenga un
-// unico dueño (esta maquina). Es la razon de que el botno y las teclas no
-// puedan discrepar: uno u otro camino, la transicion pasa por las reglas de
-// arriba.
+// El boton de inicio de Depuracion comparte la regla de F5 y el de terminar
+// comparte F7; ambos caminos pasan por la maquina de estados.
 void OrquestadorEstadoGUI::alternarSimulacion() noexcept
 {
     manejarTeclaSimulacion(enSimulacion() ? TeclaSimulacion::Stop
-                                          : TeclaSimulacion::Play);
+                                          : TeclaSimulacion::Depuracion);
+}
+
+void OrquestadorEstadoGUI::iniciarJuego() noexcept
+{
+    manejarTeclaSimulacion(TeclaSimulacion::Juego);
+}
+
+void OrquestadorEstadoGUI::solicitarReset() noexcept
+{
+    manejarTeclaSimulacion(TeclaSimulacion::Reset);
+}
+
+bool OrquestadorEstadoGUI::consumirSolicitudReset() noexcept
+{
+    const bool solicitada = solicitudReset_;
+    solicitudReset_ = false;
+    return solicitada;
 }
 
 bool OrquestadorEstadoGUI::menuDebeEstarVisible() const noexcept
@@ -132,6 +153,7 @@ bool OrquestadorEstadoGUI::menuDebeEstarVisible() const noexcept
 bool OrquestadorEstadoGUI::dentroDelEditor() const noexcept
 {
     return maquina->is(ApplicationState::Editing) ||
+           maquina->is(ApplicationState::Debugging) ||
            maquina->is(ApplicationState::Playing);
 }
 
@@ -143,6 +165,16 @@ bool OrquestadorEstadoGUI::escenaDebeCorrer() const noexcept
 }
 
 bool OrquestadorEstadoGUI::enSimulacion() const noexcept
+{
+    return enDepuracion() || enModoJuego();
+}
+
+bool OrquestadorEstadoGUI::enDepuracion() const noexcept
+{
+    return maquina->is(ApplicationState::Debugging);
+}
+
+bool OrquestadorEstadoGUI::enModoJuego() const noexcept
 {
     return maquina->is(ApplicationState::Playing);
 }

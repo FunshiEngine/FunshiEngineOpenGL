@@ -66,6 +66,7 @@
 #include "../FunshiEngineGL/src/Objetos/SimpleObject.h"
 #include "../FunshiEngineGL/src/Rendering/DibujoModelo.h"
 #include "../FunshiEngineGL/src/Scenes/EditorController.h"
+#include "../FunshiEngineGL/src/Scenes/CameraFrameSafety.h"
 #include "../FunshiEngineGL/src/Scenes/RutasReescritura.h"
 #include "../FunshiEngineGL/src/Scenes/SceneRegistry.h"
 #include "../FunshiEngineGL/src/Scenes/SceneSerializer.h"
@@ -126,6 +127,66 @@ void nombresPorDefecto() {
         CHECK(std::string(colgado->inputName) != nombre1,
               "el nombre por defecto no repite el del padre");
     }
+}
+
+void restaurarBaselineDeEscena() {
+    TempPruebas::CarpetaPrueba carpetaDir("funshi_escena_baseline");
+    const fs::path base = carpetaDir.ruta();
+    std::error_code ec;
+    fs::create_directories(base / "Scene", ec);
+
+    const std::string prefijo = (base / "Scene").string();
+    const std::string pathTxt = (base / "SceneBBDDObjetos.txt").string();
+    const std::string semiPath = (base / "Scene").string() + "/";
+
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    SceneSerializer serializer(&registry, &editor, &assets);
+
+    GameObject* raiz = registry.getRoot();
+    auto objeto = GameObjectFactory::createSimpleObject(raiz);
+    std::snprintf(objeto->inputName, sizeof(objeto->inputName), "Baseline");
+    Transform* transformOriginal = objeto->getComponent<Transform>();
+    CHECK(transformOriginal != nullptr, "el objeto baseline tiene Transform");
+    if (transformOriginal) transformOriginal->setTranslatef(3.f, 4.f, 5.f);
+    GameObject* original = editor.createGameObject(std::move(objeto), raiz);
+    CHECK(original != nullptr, "se crea el objeto baseline");
+    const int idOriginal = original ? original->getId() : -1;
+    serializer.save(prefijo);
+
+    if (original) {
+        original->getComponent<Transform>()->setTranslatef(90.f, 80.f, 70.f);
+        editor.deleteGameObject(original);
+    }
+    auto agregado = GameObjectFactory::createSimpleObject(raiz);
+    std::snprintf(agregado->inputName, sizeof(agregado->inputName), "Temporal");
+    CHECK(editor.createGameObject(std::move(agregado), raiz) != nullptr,
+          "se agrega un objeto durante la simulacion");
+
+    serializer.load(pathTxt, semiPath);
+
+    GameObject* restaurado = nullptr;
+    for (auto* entidad : registry.getRoot()->getChildEntities()) {
+        auto* objetoEscena = dynamic_cast<GameObject*>(entidad);
+        if (objetoEscena && std::string(objetoEscena->inputName) == "Baseline")
+            restaurado = objetoEscena;
+        CHECK(!objetoEscena ||
+                  std::string(objetoEscena->inputName) != "Temporal",
+              "la restauracion elimina objetos agregados durante la simulacion");
+    }
+    CHECK(restaurado != nullptr,
+          "la restauracion recupera un objeto eliminado durante la simulacion");
+    CHECK(restaurado && restaurado->getId() == idOriginal,
+          "la restauracion conserva el id del objeto baseline");
+    Transform* transformRestaurado =
+        restaurado ? restaurado->getComponent<Transform>() : nullptr;
+    CHECK(transformRestaurado &&
+              std::abs(transformRestaurado->getTranslatef()[0] - 3.f) < 0.001f &&
+              std::abs(transformRestaurado->getTranslatef()[1] - 4.f) < 0.001f &&
+              std::abs(transformRestaurado->getTranslatef()[2] - 5.f) < 0.001f,
+          "la restauracion recupera la pose inicial completa");
 }
 
 // --- Guardar con el arbol vacio -----------------------------------------------
@@ -983,6 +1044,49 @@ void elInspectorSeDesvinculaAlBorrar() {
           "limpiar la escena desvincula el inspector");
 }
 
+// La ventana Camaras puede borrar el objeto activo durante GUI(). El puntero
+// capturado al inicio del frame debe rechazarse antes de pasarlo al gizmo.
+void laCamaraBorradaNoSeUsaEnElRestoDelFrame() {
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    GameObject* raiz = registry.getRoot();
+    CHECK(raiz != nullptr, "la escena tiene raiz para la prueba de camara");
+    if (!raiz) return;
+
+    auto objeto = GameObjectFactory::createSimpleObject(raiz);
+    auto componente = std::make_unique<CameraComponent>();
+    CameraComponent* capturada = componente.get();
+    objeto->addComponent(std::move(componente));
+    GameObject* camara = editor.createGameObject(std::move(objeto), raiz);
+    CHECK(camara != nullptr, "la camara entra en la escena");
+    if (!camara) return;
+
+    CHECK(CameraFrameSafety::validarCamara(&registry, camara, capturada) ==
+              capturada,
+          "la camara activa viva puede continuar en el frame");
+    CHECK(editor.deleteGameObject(camara),
+          "la camara activa se elimina desde la interfaz");
+    CHECK(CameraFrameSafety::validarCamara(&registry, camara, capturada) ==
+              nullptr,
+          "el puntero capturado se invalida antes de usarlo tras GUI");
+
+    auto reemplazoObjeto = GameObjectFactory::createSimpleObject(raiz);
+    auto reemplazoComponente = std::make_unique<CameraComponent>();
+    CameraComponent* reemplazoCapturado = reemplazoComponente.get();
+    reemplazoObjeto->addComponent(std::move(reemplazoComponente));
+    GameObject* reemplazo =
+        editor.createGameObject(std::move(reemplazoObjeto), raiz);
+    CHECK(reemplazo != nullptr, "la camara de reemplazo entra en la escena");
+    if (reemplazo) {
+        CHECK(CameraFrameSafety::validarCamara(
+                  &registry, reemplazo, reemplazoCapturado) ==
+                  reemplazoCapturado,
+              "la camara de reemplazo queda validada para el gizmo");
+    }
+}
+
 // --- Renombrar -> borrar -> crear -> borrar: el binario no se desalinea -------
 // Secuencia reportada en la que el Transform aparece con datos basura. Antes de
 // mirar el ciclo de vida del Inspector, hay que descartar la otra hipotesis: que
@@ -1382,6 +1486,7 @@ void reparentarSobreviveElGuardado() {
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
+    restaurarBaselineDeEscena();
     guardadoConArbolVacio();
     reporteFalloBinario();
     indiceCorruptoSinFantasmas();
@@ -1391,6 +1496,7 @@ int main() {
     reescrituraDeReferencias();
     sanadoDeRutasRotas();
     elInspectorSeDesvinculaAlBorrar();
+    laCamaraBorradaNoSeUsaEnElRestoDelFrame();
     borrarCrearBorrarNoDesalineaElBinario();
     elModeloSeResuelveConLaMatrizMundial();
     elEventoDePropiedadNoReconstruyeElInspector();

@@ -185,9 +185,33 @@ void CameraComponent::escribirATransform() {
         if (parentGlobal) {
             float parentMatArr[16];
             buildMatrixFromTransform(parentGlobal, parentMatArr);
-            glm::mat4 mParent = glm::make_mat4(parentMatArr);
-            glm::mat4 invParent = glm::inverse(mParent);
-            matLocal = invParent * matMundo;
+            bool parentFinito = true;
+            for (int i = 0; i < 16; ++i) {
+                if (!std::isfinite(parentMatArr[i])) { parentFinito = false; break; }
+            }
+            if (parentFinito) {
+                glm::mat4 mParent = glm::make_mat4(parentMatArr);
+                // Skip compensation if parent is effectively identity
+                bool isIdentity = true;
+                for (int i = 0; i < 4 && isIdentity; ++i) {
+                    for (int j = 0; j < 4 && isIdentity; ++j) {
+                        float v = parentMatArr[i*4+j];
+                        float expect = (i==j) ? 1.0f : 0.0f;
+                        if (std::fabs(v - expect) > 1e-5f) isIdentity = false;
+                    }
+                }
+                if (!isIdentity) {
+                    glm::mat4 invParent = glm::inverse(mParent);
+                    const float* invp = glm::value_ptr(invParent);
+                    bool invFinito = true;
+                    for (int i = 0; i < 16; ++i) {
+                        if (!std::isfinite(invp[i])) { invFinito = false; break; }
+                    }
+                    if (invFinito) {
+                        matLocal = invParent * matMundo;
+                    }
+                }
+            }
         }
     }
 

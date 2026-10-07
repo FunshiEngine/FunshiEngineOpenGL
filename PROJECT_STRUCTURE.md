@@ -229,7 +229,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   └── SceneGUI/
         │       ├── SceneSelectedInterface.h/.cpp  ← jerarquía y selección; usa EditorController
         │       ├── SceneObjectTree.h/.cpp         ← árbol de objetos (con drag & drop)
-        │       └── SceneMenuBarInterface.h/.cpp   ← barra Play/Stop/acciones de escena (flag `start`)
+        │       └── SceneMenuBarInterface.h/.cpp   ← controles Depuración/Juego/Pausa/Reset/Terminar
         ├── GUIManager/
         │   └── GUIManager.h/.cpp         ← fábrica y registro de ventanas; posee FileManager
         ├── Herramientas/
@@ -331,12 +331,10 @@ FunshiEngineGL/                          ← raíz del repo
             │                                absolutizar + precedencia, con las 6 caras del
             │                                Skybox); tests propios
         └── States/
-            ├── ApplicationStateMachine.h/.cpp ← MainMenu/Editing/Playing/Exiting
+            ├── ApplicationStateMachine.h/.cpp ← MainMenu/Editing/Debugging/Playing/Exiting
             └── OrquestadorEstadoGUI.h/.cpp    ← reglas de transición menú↔editor y de
-                                                   simulación: la "función de marco" que fija
-                                                   el comportamiento ante F5(Play)/F6(Pausa)/
-                                                   F7(Stop) y demás teclas (Escape, Iniciar
-                                                   Estudio); headless, con tests propios
+                                                   Depuración/Juego: pausa, reset, término y
+                                                   Escape; headless, con tests propios
                                                    (orquestador-estado-tests)
 ```
 
@@ -358,24 +356,25 @@ main.cpp
   ├── GestorDeProyectos            ← ciclo de vida del proyecto activo (entrar/guardar/
   │                                  renombrar/eliminar/exportar + imgui.ini)
   ├── EditorConfig                 ← carga JSON y aplica a menú/GUI/escena
-  ├── ApplicationStateMachine      ← MainMenu / Editing / Playing / Exiting
+  ├── ApplicationStateMachine      ← MainMenu / Editing / Debugging / Playing / Exiting
   └── bucle principal
       ├── glfwPollEvents
       ├── EngineTime::update (deltaTime)
       ├── ImGui::NewFrame
       ├── refleja el estado del menú en la fachada MenuGUI (guardia de cambio)
-      ├── refleja en la escena lo que pide el orquestador (start + pausa de la simulación)
-      ├── GameScene::update(dt) SIEMPRE: dentro, física y scripts se auto-gatean por start
-      │   y el resto corre en los flancos de transición (editor→play: pose a los cuerpos
-      │   Bullet + audio + servicios de script + cola de compilación; play→editor: vacía la
-      │   cola, desconecta los servicios, corta el audio y avisa onStop), con F6 pausando
-      │   y F7 cortando (Playing → Editing)
+      ├── refleja en la escena el modo (Depuración/Juego), start y pausa
+      ├── GameScene::update(dt) SIEMPRE: al iniciar guarda un estado serializado
+      │   de la escena; Reset lo restaura con la física reconstruida. Al terminar
+      │   ambos modos vuelven al estado previo a la simulación.
+      │   En ambos modos avanzan física/scripts/audio y F6 pausa sin reinicio.
       ├── pasada de la grilla (Grid + batch de líneas + shader de ancho en
-      │   píxeles; color efectivo según el perfil de apariencia y, con la guia
-      │   de eje activa, la guia usa ese mismo color como referencia de contraste)
+      │   píxeles; solo fuera de Juego, color efectivo según el perfil de
+      │   apariencia y referencia de contraste para la guía de eje)
       ├── dibujarGameObjects (MeshRenderer VBO/VAO+shader; único pipeline)
-      ├── gizmo ImGuizmo sobre el objetivo activo (objeto o collider)
-      ├── GUI() de GameScene (paneles) + vistas previas de cámaras (FBO)
+      ├── gizmo ImGuizmo y overlays auxiliares solo fuera de Juego
+      ├── GUI() de GameScene + DockSpace siempre enviados durante edición y
+      │   simulación; E solo oculta paneles, y las ventanas flotantes se
+      │   reanclan a su último dock válido sin reconstruir los splits
       ├── GestorDeProyectos::sincronizar/eliminar (cambios de proyecto desde el menú)
       ├── ImGui::Render + swap buffers
       └── al salir: GestorDeProyectos::guardarProyectoCompleto (escena + config)
@@ -426,12 +425,12 @@ solo como orquestador de arranque y bucle.
 - `LightSystem` es el dueño del estado GL de luces: cada frame escanea los objetos,
   toma los componentes `Light` y parametriza los slots `GL_LIGHT0..7`. No queda
   lógica de luz en el bucle ni en los componentes.
-- `ApplicationStateMachine` modela los estados `MainMenu`, `Editing`, `Playing` y
-  `Exiting`. Las transiciones se deciden en `OrquestadorEstadoGUI` (función de
-  marco: Escape → menú, Iniciar Estudio → editor, F5 → Play, F7 → Stop) y solo
-  se aplican sobre la máquina desde ahí; conviven con flags de UI legados
-  (`menuActivo`, `start`) con roles documentados — `start` lo manejan a la vez el
-  botón Activar/Detener del menú de escena y el reflejo de F5/F7.
+- `ApplicationStateMachine` modela `MainMenu`, `Editing`, `Debugging`, `Playing`
+  (Juego) y `Exiting`. `OrquestadorEstadoGUI` decide Escape, Iniciar Estudio,
+  F5/Depuración, Juego, pausa, Reset y término; `GameScene` conserva un snapshot
+  serializado al iniciar y reconstruye física y referencias al restaurarlo.
+  `menuActivo` solo gobierna paneles GUI; el flag de simulación refleja los dos
+  modos en `GameScene`.
 - `EditorController` posee un `GestorComandos` que envuelve cada mutación
   (crear/borrar/reparentar, cambios de transform, agregar/quitar componentes,
   limpiar escena) en un `IComando`. Las operaciones de la GUI van por el
@@ -536,8 +535,8 @@ solo como orquestador de arranque y bucle.
   los paneles `Settings*` específicos de cada componente presente. El checkbox
   **"Gizmo activo"** de `SettingsTransform` enciende/apaga el gizmo de ese
   transform (del objeto o del offset del collider) sin deseleccionar.
-- `SceneMenuBarInterface` gestiona la barra de menú de escena y comunica el
-  estado Play/Stop mediante un `bool*` (`start`) que consume `GameScene`.
+- `SceneMenuBarInterface` ofrece los controles de Depuración/Juego y, durante
+  una simulación, Pausa/Reset/Terminar; las transiciones pasan por el orquestador.
 - `MenuGUI` es la fachada del paquete `MenusGUI` (menú principal): `MenuModel`
   (lógica pura) + `MenuView` (ImGui) + `StartMenuPresenter` (puente motor).
   Ver `src/GUI/MenusGUI/README.md`.
@@ -620,8 +619,8 @@ solo como orquestador de arranque y bucle.
   `camposReflejados()`; el motor inyecta la tabla `MotorScript::ApiScriptGameObject`
   (nombre, transform completo con getters de rotacion/escala, log) y la tabla
   `MotorScript::ScriptServices` (audio, busqueda de objetos por nombre y
-  consulta de teclado via `InputScripts`, inyectadas por `GameScene` al entrar
-  en Play) para que el script no enlace contra el motor. Ambas tablas siguen
+  consulta de teclado via `InputScripts`, inyectadas por `GameScene` al iniciar
+  la simulacion) para que el script no enlace contra el motor. Ambas tablas siguen
   versionado APPEND-ONLY con campo `version` final para guardas en runtime.
 - `BehaviourReflection` implementa la reflexión por macros (`REFLECT_INICIO`,
   `CAMPO`, `ARRAY`, `GRUPO`, `GRUPOS`, `FIN`), la conversión de valores tipados y la
@@ -815,10 +814,9 @@ registrados en CTest (`scripts-java-tests` solo se registra con
 - `manifiesto-assets-tests` (37): manifiesto `SceneAssets.json` (JSON round-trip de
   malla, texturas, script y las seis caras del cubemap, tolerancia a manifiestos
   corruptos y precedencia sobre el `.db`).
-- `orquestador-estado-tests` (54): la "función de marco" F5/F6/F7 y el botón
-  Activar/Detener (reglas por estado de Play/Pausa/Stop), Escape por estado (en
-  play detiene, en editor vuelve al menú), la condición compartida de las teclas
-  del editor (editor o play) y los atajos del editor frente a ImGui.
+- `orquestador-estado-tests`: transiciones de Depuración/Juego, pausa, solicitud
+  consumible de Reset, fin/Escape por estado, teclas del editor y atajos frente
+  a ImGui.
 - `escena-serializacion-tests` (151): round-trip completo de escena (guardar →
   recargar → conservar nombre, id y jerarquía), defensas del índice de escena
   (líneas corruptas saltadas con aviso, auto-sanado de hijos con id 0),
@@ -854,12 +852,12 @@ main.cpp
   │                                       ──► tecla E: toggleEditorInterfaces()
   │                                       ──► 1/T, 2/R, 3/U: operación del gizmo (y apagan la guía)
   │                                       ──► X/Y/Z: guía de eje del objeto seleccionado
-  │                                       ──► Escape: en play detiene (como F7), en editor
+  │                                       ──► Escape: en simulación termina; en editor
   │                                         vuelve al menú (regla en el orquestador)
   │
   ├─ GameScene::GUI()
-  │     ├─ SceneMenuBarInterface ──► botón Activar/Detener ──► Orquestador::alternarSimulacion
-  │     │                          (misma regla que F5/F7; el bool solo muestra el estado)
+  │     ├─ SceneMenuBarInterface ──► Depuración/Juego o Pausa/Reset/Terminar
+  │     │                          ──► OrquestadorEstadoGUI
   │     ├─ SceneSelectedInterface ──► EditorController (crear/borrar/reparentar GO)
   │     │                         ──► EventBus.publish(ObjectCreated/Deleted/Selected)
   │     ├─ SceneObjectTree ──► selección y reparentado por drag & drop
@@ -869,16 +867,17 @@ main.cpp
   │
   ├─ GameScene::update(dt)  (siempre, también con start en false: es donde viven los
   │                          flancos de transición; física/scripts se auto-gatean)
-  │     ├─ transición editor→play: empuja la pose visual a los cuerpos Bullet
-  │     ├─ transición play→editor: cola de compilación vacía, servicios de script
+  │     ├─ transición editor→simulación: empuja la pose visual a los cuerpos Bullet
+  │     ├─ transición simulación→edición: cola vacía, servicios de script
   │     │   desconectados, audio cortado y onStop a cada script
+  │     │   (ambos modos restauran el estado previo a la simulación)
   │     ├─ si start y gizmo libre: PhysicsEngine::stepSimulation(dt)
   │     │               └─ btDiscreteDynamicsWorld::stepSimulation
   │     └─ scripts: IScriptBehaviour::onUpdate (si compilados)
   │
   └─ GameScene::gameScene()
         ├─ LightSystem::beginFrame() [solo CPU: datos de luz para el shader]
-        ├─ pasada de la grilla (Grid + batch de líneas, color efectivo según apariencia)
+        ├─ pasada de la grilla (Grid + batch de líneas; solo fuera de Juego)
         ├─ dibujarGameObjects (MeshRenderer shader; único pipeline)
         ├─ marcadores de luz y cámara (wireframes auxiliares, batch de líneas)
         ├─ ImGuizmo::Manipulate sobre el GizmoTarget activo (objeto o collider)
@@ -969,7 +968,7 @@ cargar, así que mover la raíz no invalida las escenas existentes.
   publica el evento **antes** de destruir el objeto, para que los observadores
   invaliden sus referencias a tiempo (fix de un use-after-free histórico).
 - La manipulación del gizmo pausa `stepSimulation` mientras el usuario arrastra y
-  la física solo corre en Play; el sync collider↔rigidbody↔objeto usa la matriz
+  la física solo corre en Depuración o Juego; el sync collider↔rigidbody↔objeto usa la matriz
   global compuesta del dueño, de modo que mover un collider no desincroniza el cuerpo.
 - Las rutas de usuario (`<directorioEjecutable>/MotorGrafico`) están
   centralizadas en `EditorConfig` para la configuración y el layout, pero los assets
@@ -1049,9 +1048,10 @@ GameScene → coordina todos los subsistemas del frame
   en el árbol), el guardado con el árbol vacío (archivo vacío **con aviso en el
   log**, nunca un trunc silencioso) y el reporte de fallos de apertura en
   `Binario` (sin `std::remove` destructivo previo, con valor de retorno `bool` y
-  propagación en `saveEntity`/`loadEntity`). Es la suite que faltaba: hasta
-  ahora solo existía `ModelSerializationTests`, que cubre el componente `Model`
-  aislado.
+  propagación en `saveEntity`/`loadEntity`). También verifica que el puntero a
+  una cámara eliminada durante la UI se invalide antes de usarlo en el gizmo.
+  Es la suite que faltaba: hasta ahora solo existía `ModelSerializationTests`,
+  que cubre el componente `Model` aislado.
 - `tests/TemaEditorTests.cpp`: aplicación del perfil `Apariencia` al estilo de ImGui
   (`TemaEditor::aplicarEstilo`, solo contexto de ImGui, sin pila gráfica). Cubre la
   regresión "el color de acento no llega a toda la interfaz": con un acento no azul

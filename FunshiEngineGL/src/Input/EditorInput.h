@@ -32,8 +32,8 @@ class OrquestadorEstadoGUI;
 // creada por main; las callbacks estaticas redireccionan via instancia.
 //
 // Dos responsabilidades:
-//  1. Traduccion de eventos GLFW a acciones del editor (E, G, gizmo, Escape,
-//     clic derecho = navegar, cursor capturado).
+//  1. Traduccion de eventos GLFW a acciones del editor (E, C, G, gizmo,
+//     Escape, clic derecho = navegar, cursor capturado).
 //  2. Maquina de estado de movimiento: onKey() SOLO registra las teclas
 //     WASD/Espacio/Shift (PRESS/RELEASE) y main llama aplicarMovimiento(dt)
 //     por frame; el desplazamiento se computa con un vector de direccion
@@ -56,9 +56,8 @@ public:
     // camara activa multiplicando por la sensibilidad de movimiento.
     void aplicarMovimiento(float deltaTime);
 
-    // Devuelve el cursor a su estado segun la maquina de estados (atrapado en
-    // navegacion libre o clic derecho; normal en menu/editor). main la llama
-    // al arrancar y al transicionar estados.
+    // Aplica el estado de cursor del modo actual. main la llama al arrancar y
+    // al sincronizar estados.
     void aplicarModoCursor(GLFWwindow* window);
 
     // Descarta el delta de look acumulado (transicion Iniciar Estudio): sin
@@ -87,12 +86,12 @@ private:
     void onMouse(GLFWwindow* window, double xpos, double ypos);
     void onScroll(GLFWwindow* window, double xoffset, double yoffset);
 
-    // Condicion unica de las teclas del editor: editor O play (la regla vive en
-    // el orquestador). El play es el editor con sus interfaces ocultas, asi que
-    // E, WASD, la guia de eje y el modo del cursor siguen siendo validos con la
-    // simulacion en marcha; solo el menu de inicio queda afuera. Sin orquestador
-    // inyectado cae al estado de edicion de la maquina.
+    // Condicion unica de las teclas del editor: editor o simulacion (la regla
+    // vive en el orquestador). Sin orquestador inyectado cae al estado de
+    // edicion de la maquina.
     bool dentroDelEditor() const noexcept;
+    bool modoJuegoActivo() const noexcept;
+    void limpiarMovimientoCamara() noexcept;
 
     GameScene* scene;
     ApplicationStateMachine* appState;
@@ -110,13 +109,12 @@ private:
     bool teclaArriba = false;     // Space
     bool teclaAbajo = false;      // Left Shift
 
-    // Clic derecho sostenido sobre la escena 3D: navegacion desde el editor sin
-    // apretar E (mira-se mueve) manteniendo visibles las interfaces.
+    // Clic derecho sostenido desde cursor visible: captura temporal para mirar.
     bool mouseDerechoParaNavegar = false;
+    bool cursorOcultoPorC = false;
 
-    // Orbita con clic derecho + editor oculto (E): la camara rota alrededor de
-    // un punto origen en la direccion de mirada, manteniendo radio y mirando
-    // hacia el origen. La rueda del mouse ajusta el radio durante la orbita.
+    // Orbita con clic derecho y cursor capturado por C, solo con GUI oculta.
+    // La rueda del mouse ajusta el radio durante la orbita.
     bool orbitando = false;
     float origenOrbita[3] = {0.f, 0.f, 0.f};
     float radioOrbita = 10.0f;

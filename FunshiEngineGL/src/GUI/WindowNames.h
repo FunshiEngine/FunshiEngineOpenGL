@@ -31,6 +31,7 @@ inline constexpr const char* Settings       = "Settings";
 inline constexpr const char* MenuBar        = "MenuBar";
 inline constexpr const char* EditorDockSpace = "EditorDockSpace";
 inline constexpr const char* Status         = "Estado";
+inline constexpr const char* CameraList     = "Camaras";
 // Ventanas del sistema de audio + creador de interfaces (CreadorDeInterfaces)
 // y el canvas que las pinta con sonido (CanvasInterface).
 inline constexpr const char* CreadorInterfaces = "Creador de Interfaces";

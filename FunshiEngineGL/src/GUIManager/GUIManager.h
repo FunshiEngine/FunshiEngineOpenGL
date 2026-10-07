@@ -105,6 +105,7 @@ public:
 	SceneSelectedInterface* getSelecteableGUI();
 	ContentFolderInterface* getContentFolderGUI();
 	DockSpaceInterface* getDockSpaceGUI();
+	IconosGUI* getIconosGUI() noexcept { return iconosGUI.get(); }
 	StatusBarInterface* getStatusBarGUI();
 
 	// Acceso a las ventanas del sistema de audio + creador de interfaces.

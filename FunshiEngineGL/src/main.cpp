@@ -223,13 +223,33 @@ static int EjecutarMotor(int argc, char* argv[])
     // maquina de estado de movimiento (diagonales WASD normalizadas).
     EditorInput* input =
         new EditorInput(scene, &appStateMachine, &orquestadorDeGUI);
-    // El boton Activar/Detener del menu de escena pide aqui su cambio de
-    // play/stop: la accion va al orquestador, dueno de la decision, igual que
-    // las teclas F5/F7. Asi el boton no puede dejar la maquina de estados
-    // desfasada respecto de la simulacion que se ve.
+    // Los controles del menu de escena piden transiciones al orquestador,
+    // unica fuente de verdad para Depuracion, Juego, pausa, reset y fin.
     if (SceneMenuBarInterface* menuBarEscena = managerOfGUI->getMenuBarGUI())
-        menuBarEscena->setAccionAlternarSimulacion(
-            [] { orquestadorDeGUI.alternarSimulacion(); });
+        menuBarEscena->setAccionSimulacion(
+            [](SceneMenuBarInterface::AccionSimulacion accion) {
+                using Accion = SceneMenuBarInterface::AccionSimulacion;
+                switch (accion) {
+                    case Accion::IniciarDepuracion:
+                        orquestadorDeGUI.manejarTeclaSimulacion(
+                            OrquestadorEstadoGUI::TeclaSimulacion::Depuracion);
+                        break;
+                    case Accion::IniciarJuego:
+                        orquestadorDeGUI.iniciarJuego();
+                        break;
+                    case Accion::Pausa:
+                        orquestadorDeGUI.manejarTeclaSimulacion(
+                            OrquestadorEstadoGUI::TeclaSimulacion::Pausa);
+                        break;
+                    case Accion::Reset:
+                        orquestadorDeGUI.solicitarReset();
+                        break;
+                    case Accion::Terminar:
+                        orquestadorDeGUI.manejarTeclaSimulacion(
+                            OrquestadorEstadoGUI::TeclaSimulacion::Stop);
+                        break;
+                }
+            });
     Time::start();
 
     // Resolucion de la raiz de datos y recuperacion de datos previos. Va antes
@@ -390,7 +410,20 @@ static int EjecutarMotor(int argc, char* argv[])
     // ya no por relectura por frame del menu.
     TemaEditor::aplicarEstilo(mainMenu->getApariencia());
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 440"); //460 PARA PC , 440 PARA NOTEBOOK
+    // El contexto que pide Ventana es OpenGL 3.3 core, asi que el GLSL del
+    // backend tiene que caber en ese contexto (un "#version 440" no compila en
+    // 3.3 y el shader del backend queda rechazado). El backend parsea el numero
+    // con sscanf("#version %d"), por eso la variante "core" no altera la
+    // eleccion de shaders y el string se prepende tal cual al fuente GLSL.
+    // El retorno se chequea: si el backend no arranca, io.BackendRendererUserData
+    // queda en nullptr y en Release (sin IM_ASSERT) la primera llamada a
+    // ImGui_ImplOpenGL3_NewFrame() desreferencia ese puntero. Con el flag el
+    // bucle omite los llamados del renderer y la app corre sin UI dibujada en
+    // vez de caerse.
+    bool imguiGl3Listo = ImGui_ImplOpenGL3_Init("#version 330 core");
+    if (!imguiGl3Listo)
+        std::cerr << "[main] ImGui_ImplOpenGL3_Init fallo: no se dibujara la "
+                     "interfaz ImGui (renderer OpenGL3 no disponible)\n";
 
     // Ventana Estado: al cerrarla con la 'X' se persiste en la config
     // del proyecto activo, no en la general. El mismo canal sirve para el
@@ -503,12 +536,16 @@ static int EjecutarMotor(int argc, char* argv[])
         // reaplica estilo/fondo cada frame.
 
         // El estado de simulacion de la escena es un reflejo del orquestador: lo
-        // piden las teclas (F5/F6/F7/Escape) y el boton Activar/Detener, y aca se
-        // escribe una sola vez por frame. La pausa se refleja aparte porque
+        // piden las teclas y los controles del menu, y aca se escribe una sola
+        // vez por frame. La pausa y el modo se reflejan aparte porque
         // congela fisica y scripts sin tocar `start` (asi no se dispara la
         // limpieza de play->editor).
         scene->setStart(orquestadorDeGUI.enSimulacion());
+        scene->setModoJuego(orquestadorDeGUI.enModoJuego());
         scene->setSimulacionPausada(orquestadorDeGUI.simulacionPausada());
+        input->aplicarModoCursor(window);
+        if (orquestadorDeGUI.consumirSolicitudReset())
+            scene->solicitarResetSimulacion();
 
         // GameScene::update() se llama siempre: adentro cada bloque se auto-gatea
         // por start (fisicas, scripts, cola de compilacion solo corren en play).
@@ -525,7 +562,11 @@ static int EjecutarMotor(int argc, char* argv[])
         // listo para ImGui y la pasada de la escena.
         Rendering::Backend::activeBackend().clearScreen(nullptr);
 
-            ImGui_ImplOpenGL3_NewFrame();
+            // El frame del renderer solo si el backend arranco: con
+            // ImGui_ImplOpenGL3_Init() fallido no hay backend data y en Release
+            // (sin IM_ASSERT) NewFrame desreferencia un puntero nulo.
+            if (imguiGl3Listo)
+                ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
@@ -610,8 +651,8 @@ static int EjecutarMotor(int argc, char* argv[])
                 mainMenu->Renderizar();             // la vista dibuja la vista activa del modelo
             }
 
-            // La escena corre en cualquier estado que no sea el menu (Editing,
-            // y futuramente Playing); el menu visible la detiene y dibuja solo.
+            // La escena corre en Editing y en ambos modos de simulacion; el
+            // menu visible la detiene y dibuja solo.
             const bool sceneRunning =
                 orquestadorDeGUI.escenaDebeCorrer();
 
@@ -627,26 +668,31 @@ static int EjecutarMotor(int argc, char* argv[])
             editorConfig.volcarGuardadoGeneral();
 
             if (sceneRunning) {
-                if (scene->isEditorActivo())
-                    managerOfGUI->getDockSpaceGUI()->printGUI();
+                ImGui::PushStyleVar(
+                    ImGuiStyleVar_Alpha,
+                    scene->isEditorGUIVisible() ? 1.0f : 0.0f);
+                managerOfGUI->getDockSpaceGUI()->printGUI();
+                ImGui::BeginDisabled(scene->isModoJuego() ||
+                                     !scene->isEditorGUIVisible());
+                treeFilesInterface->printGUI();
+                contentFolderInterface->printGUI();
+                ImGui::EndDisabled();
+                ImGui::PopStyleVar();
                 scene->gameScene();
+                managerOfGUI->getDockSpaceGUI()->repararVentanasFlotantes();
             }
             // El estado abierto/cerrado del menu de inicio lo gobierna el
             // modelo del paquete MenuGUI (MenuModel), no un bool suelto de main.
 
-            if (scene->isEditorActivo()) {
-                treeFilesInterface->printGUI();
-                // El panel de contenido se gobierna solo (lee la seleccion
-                // compartida del FileManager) y ya no depende de que main le
-                // sincronice la carpeta con setContentFolderGUI().
-                contentFolderInterface->printGUI();
-            }
-
-        // Sidebar de radio de orbita (editor oculto + clic derecho).
-        input->dibujarSidebarOrbita();
+        // Sidebar de radio de orbita (editor oculto + clic derecho): es una
+        // ayuda de navegacion del editor, no una superposicion del Juego.
+        if (!scene->isModoJuego()) input->dibujarSidebarOrbita();
 
         ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        // Mismo guardia que NewFrame: sin backend, RenderDrawData tambien
+        // desreferencia el puntero nulo del backend data.
+        if (imguiGl3Listo)
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);    
     }
@@ -655,6 +701,7 @@ static int EjecutarMotor(int argc, char* argv[])
     // al estudio) ninguna ruta debe escribir bajo un "Nuevo Proyecto" fantasma:
     // el gestor no toca nada con proyecto vacio. Con proyecto, guarda
     // escena + manifiesto + config del proyecto (misma rutina que Ctrl+S).
+    scene->cerrarSimulacionAntesDeGuardar();
     gestor.guardarProyectoCompleto();
 
     // Apagado ordenado de los scripts antes de salir: primero se liberan las
@@ -664,7 +711,10 @@ static int EjecutarMotor(int argc, char* argv[])
     scene->descargarScripts();
     ScriptRuntime::apagarScripts();
 
-    ImGui_ImplOpenGL3_Shutdown();
+    // Shutdown solo con backend vivo: ImGui_ImplOpenGL3_Shutdown() desreferencia
+    // el backend data y en Release no hay assert que lo frene.
+    if (imguiGl3Listo)
+        ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 

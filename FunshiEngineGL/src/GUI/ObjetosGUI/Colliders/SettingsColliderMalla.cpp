@@ -55,7 +55,7 @@ void SettingsColliderMalla::showDataComponent() {
 	}
 	settingsTransform->showDataComponent();
 
-	myCollider->dibujarCollider();
+	if (mostrarVisualesDepuracion_) myCollider->dibujarCollider();
 }
 
 Component* SettingsColliderMalla::getComponent() { return myCollider; }

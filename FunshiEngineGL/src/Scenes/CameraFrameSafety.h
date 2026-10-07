@@ -16,25 +16,24 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#ifndef APPLICATION_STATE_MACHINE_H
-#define APPLICATION_STATE_MACHINE_H
+#ifndef CAMERA_FRAME_SAFETY_H
+#define CAMERA_FRAME_SAFETY_H
 
-enum class ApplicationState {
-    MainMenu,
-    Editing,
-    Debugging,
-    Playing,
-    Exiting
-};
+#include "../Objetos/Componentes/CameraComponent.h"
+#include "../Objetos/GameObject.h"
+#include "SceneRegistry.h"
 
-class ApplicationStateMachine {
-private:
-    ApplicationState state = ApplicationState::MainMenu;
+namespace CameraFrameSafety {
 
-public:
-    ApplicationState getState() const noexcept;
-    bool is(ApplicationState value) const noexcept;
-    void transitionTo(ApplicationState value) noexcept;
-};
+inline CameraComponent* validarCamara(
+    const SceneRegistry* escena, GameObject* propietario,
+    CameraComponent* camara) noexcept {
+    if (!escena || !propietario || !camara || !escena->contains(propietario))
+        return nullptr;
+    return propietario->getComponent<CameraComponent>() == camara ? camara
+                                                                  : nullptr;
+}
+
+}  // namespace CameraFrameSafety
 
 #endif

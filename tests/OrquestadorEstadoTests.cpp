@@ -19,8 +19,8 @@
 // Pruebas headless del orquestador de estados de GUI (la "funcion de marco"
 // que fija el comportamiento del editor ante F5/F6/F7, el boton
 // Activar/Detener y las teclas). Cubre las reglas por estado de la simulacion
-// (Play/Pausa/Stop), la condicion compartida por las teclas del editor (editor
-// o play), Escape por estado y "Iniciar Estudio" -> editor. Sin pila grafica:
+// (Depuracion/Juego/Pausa/Reset/Stop), la condicion compartida por las teclas
+// del editor, Escape por estado y "Iniciar Estudio" -> editor. Sin pila grafica:
 // solo ApplicationStateMachine + OrquestadorEstadoGUI, que son pura logica de
 // estados.
 
@@ -82,24 +82,24 @@ void escapePorEstado() {
     orquestador.manejarTeclaEscape();
     CHECK(orquestador.getEstado() == ApplicationState::MainMenu,
           "Escape en el editor vuelve al menu");
-    // Durante el play, Escape deja la simulacion como F7 (detiene y vuelve al
-    // editor) en vez de saltar al menu: la simulacion se abandona con la misma
-    // tecla que la detiene, y el menu queda a un Escape mas.
+    // Durante Depuracion, Escape detiene y vuelve al editor. La restauracion
+    // de la escena pertenece al ciclo de vida de GameScene.
     orquestador.iniciarEstudio();
-    orquestador.manejarTeclaSimulacion(Tecla::Play);
+    orquestador.manejarTeclaSimulacion(Tecla::Depuracion);
     orquestador.manejarTeclaEscape();
     CHECK(orquestador.getEstado() == ApplicationState::Editing,
-          "Escape en play detiene y vuelve al editor");
-    CHECK(!orquestador.enSimulacion(), "Escape en play corta la simulacion");
+          "Escape en Depuracion detiene y vuelve al editor");
+    CHECK(!orquestador.enSimulacion(),
+          "Escape en Depuracion corta la simulacion");
     CHECK(!orquestador.simulacionPausada(),
-          "Escape en play deja la pausa limpia para el proximo play");
+          "Escape en Depuracion deja la pausa limpia");
     // Segundo Escape, ya en el editor: al menu.
     orquestador.manejarTeclaEscape();
     CHECK(orquestador.getEstado() == ApplicationState::MainMenu,
           "el segundo Escape, en el editor, vuelve al menu");
     // Con la simulacion pausada pasa lo mismo, y la pausa no queda pegada.
     orquestador.iniciarEstudio();
-    orquestador.manejarTeclaSimulacion(Tecla::Play);
+    orquestador.manejarTeclaSimulacion(Tecla::Depuracion);
     orquestador.manejarTeclaSimulacion(Tecla::Pausa);
     orquestador.manejarTeclaEscape();
     CHECK(orquestador.getEstado() == ApplicationState::Editing,
@@ -108,18 +108,17 @@ void escapePorEstado() {
           "Escape con la simulacion pausada limpia la pausa");
 }
 
-// Condicion compartida por las teclas del editor que tambien tienen sentido
-// con la simulacion en marcha (E, WASD, guia de eje, modo del cursor): el
-// play es el editor con las interfaces ocultas, no un estado aparte.
+// Depuracion y Juego conservan la escena del editor; solo Juego bloquea
+// operaciones de edicion.
 void dentroDelEditorSegunEstado() {
     ApplicationStateMachine maquina;
     OrquestadorEstadoGUI orquestador(&maquina);
     CHECK(!orquestador.dentroDelEditor(), "en el menu no es el editor");
     orquestador.iniciarEstudio();
     CHECK(orquestador.dentroDelEditor(), "en edicion es el editor");
-    orquestador.manejarTeclaSimulacion(Tecla::Play);
+    orquestador.manejarTeclaSimulacion(Tecla::Depuracion);
     CHECK(orquestador.dentroDelEditor(),
-          "en play tambien: el editor sigue vivo, solo se ocultan sus interfaces");
+          "Depuracion conserva el acceso a las teclas del editor");
     orquestador.manejarTeclaSimulacion(Tecla::Stop);
     CHECK(orquestador.dentroDelEditor(),
           "al volver a edicion sigue siendo el editor");
@@ -136,8 +135,8 @@ void elBotonAlternaLaSimulacion() {
           "el boton en el menu de inicio no arranca la simulacion");
     orquestador.iniciarEstudio();
     orquestador.alternarSimulacion();
-    CHECK(orquestador.getEstado() == ApplicationState::Playing,
-          "el boton en el editor arranca la simulacion");
+    CHECK(orquestador.getEstado() == ApplicationState::Debugging,
+          "el boton en el editor arranca Depuracion");
     CHECK(orquestador.enSimulacion(), "el boton deja la simulacion corriendo");
     orquestador.alternarSimulacion();
     CHECK(orquestador.getEstado() == ApplicationState::Editing,
@@ -171,15 +170,15 @@ void f5ArrancaDesdeEditor() {
     OrquestadorEstadoGUI orquestador(&maquina);
     orquestador.iniciarEstudio();
     orquestador.manejarTeclaSimulacion(Tecla::Play);
-    CHECK(orquestador.getEstado() == ApplicationState::Playing,
-          "F5 en el editor entra a Playing");
+    CHECK(orquestador.getEstado() == ApplicationState::Debugging,
+          "F5 en el editor entra a Depuracion");
     CHECK(orquestador.enSimulacion(), "F5 pide que la simulacion corra");
     CHECK(!orquestador.simulacionPausada(),
           "F5 arranca sin pausa heredada del play anterior");
     // F5 repetido ya en play no reinicia nada.
     orquestador.manejarTeclaSimulacion(Tecla::Play);
-    CHECK(orquestador.getEstado() == ApplicationState::Playing,
-          "F5 repetido en play es inofensivo");
+    CHECK(orquestador.getEstado() == ApplicationState::Debugging,
+          "F5 repetido en Depuracion es inofensivo");
 }
 
 void f6SoloEnPlay() {
@@ -239,6 +238,56 @@ void reflejosPorEstado() {
     CHECK(orquestador.menuDebeEstarVisible(), "stop + Escape vuelven al menu");
 }
 
+void juegoBloqueadoYReset() {
+    ApplicationStateMachine maquina;
+    OrquestadorEstadoGUI orquestador(&maquina);
+    orquestador.iniciarEstudio();
+    orquestador.iniciarJuego();
+    CHECK(orquestador.getEstado() == ApplicationState::Playing,
+          "Juego entra a Playing");
+    CHECK(orquestador.enModoJuego() && !orquestador.enDepuracion(),
+          "el modo Juego se distingue de Depuracion");
+    CHECK(orquestador.dentroDelEditor() && orquestador.escenaDebeCorrer(),
+          "Juego mantiene la escena activa dentro del editor");
+    orquestador.manejarTeclaSimulacion(Tecla::Pausa);
+    CHECK(orquestador.simulacionPausada(),
+          "Pausa funciona en Juego");
+    orquestador.solicitarReset();
+    CHECK(orquestador.consumirSolicitudReset(),
+          "Reset genera una solicitud consumible");
+    CHECK(!orquestador.consumirSolicitudReset(),
+          "la solicitud de Reset se consume una sola vez");
+    CHECK(orquestador.getEstado() == ApplicationState::Playing &&
+              orquestador.simulacionPausada(),
+          "Reset no detiene ni reanuda la simulacion");
+    orquestador.manejarTeclaEscape();
+    CHECK(orquestador.getEstado() == ApplicationState::Editing,
+          "Escape termina Juego y vuelve al editor");
+    CHECK(!orquestador.simulacionPausada(),
+          "Terminar limpia el estado de pausa");
+
+    orquestador.manejarTeclaSimulacion(Tecla::Depuracion);
+    orquestador.manejarTeclaSimulacion(Tecla::Pausa);
+    orquestador.solicitarReset();
+    CHECK(orquestador.consumirSolicitudReset(),
+          "Reset tambien se solicita en Depuracion");
+    CHECK(orquestador.getEstado() == ApplicationState::Debugging &&
+              orquestador.simulacionPausada(),
+          "Reset en Depuracion conserva el modo y la pausa");
+}
+
+void resetNoSolicitadoFueraDeSimulacion() {
+    ApplicationStateMachine maquina;
+    OrquestadorEstadoGUI orquestador(&maquina);
+    orquestador.solicitarReset();
+    CHECK(!orquestador.consumirSolicitudReset(),
+          "Reset fuera de simulacion no genera una solicitud");
+    orquestador.iniciarEstudio();
+    orquestador.solicitarReset();
+    CHECK(!orquestador.consumirSolicitudReset(),
+          "Reset en edicion no genera una solicitud");
+}
+
 // --- Atajos del editor frente al teclado de ImGui ----------------------------
 // Ctrl+S guarda SIEMPRE: un InputText enfocado no hace nada con esa combinacion,
 // y con el guard viejo (el mismo que Escape) renombrar un objeto y guardar sin
@@ -269,6 +318,8 @@ int main() {
     f6SoloEnPlay();
     f7ParaElPlay();
     reflejosPorEstado();
+    juegoBloqueadoYReset();
+    resetNoSolicitadoFueraDeSimulacion();
     atajosFrenteAlCampoDeTexto();
 
     std::cout << "orquestador-estado-tests: " << total << " comprobaciones, "
