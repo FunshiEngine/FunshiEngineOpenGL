@@ -220,8 +220,10 @@ versiona; es la memoria de trabajo del agente.
 | Ruta | Para qué sirve |
 |---|---|
 | `.agentes/MEMORIA.md` | Memoria de contexto entre sesiones: estado del trabajo en curso, sistemas del código ya analizados (con punteros a archivos y líneas), supuestos abiertos, hallazgos pendientes, comandos de build/test que funcionan en el entorno y archivos que no se deben tocar. |
+| `.agentes/ARQUITECTURA.md` | Mapa de la estructura local de `.agentes/` y propósito de cada carpeta de trabajo. |
 | `.agentes/PLAN GENERAL DE FIX.md` | Lote de correcciones: cada hallazgo con su cadena `síntoma → evidencia → causa → fix → test`, la tabla de avance con los commits que cierran cada ítem y lo que queda por validar. |
 | `.agentes/auditorias/` | Informes de auditoría por área, uno por archivo: qué se revisó, qué se encontró, con evidencia `archivo:línea`, y si es regresión de un commit reciente o deuda preexistente. |
+| `.agentes/pendiente-revision/PENDIENTE_DE_REVISAR.md` | Lista local de verificaciones manuales todavía pendientes; no forma parte de la documentación versionada del proyecto. |
 
 Reglas:
 
