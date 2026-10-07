@@ -656,15 +656,18 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
         }
     }
 
-    if (object->getComponent<Light>()) dibujarMarcadorLuz(object);
+    if (ctx.mostrarVisualesDepuracion && object->getComponent<Light>())
+        dibujarMarcadorLuz(object);
 
-    if (object->getComponent<CameraComponent>() && object != camaraOjo)
+    if (ctx.mostrarVisualesDepuracion &&
+        object->getComponent<CameraComponent>() && object != camaraOjo)
         dibujarMarcadorCamara(object);
 
     // Wireframe del collider en la escena 3D: SOLO mientras el gizmo del
     // offset del collider esta habilitado para este objeto (checkbox "Gizmo
     // activo" del transform del collider).
-    if (ctx.editorActivo && object != camaraOjo && ctx.selectedObject) {
+    if (ctx.mostrarVisualesDepuracion && object != camaraOjo &&
+        ctx.selectedObject) {
         Collider* collider = object->getComponent<Collider>();
         Transform* colliderTransform =
             collider ? collider->getTransform() : nullptr;
@@ -757,6 +760,7 @@ void SceneRenderer::dibujarMarcadorCamara(GameObject* object) {
 
 void SceneRenderer::dibujarGrillaEditor(const FrameContext& ctx,
                                         const float camaraMundo[3]) {
+    if (!ctx.mostrarVisualesDepuracion) return;
     auto* gameObjects = ctx.gameObjects;
 
     if (!gameObjects || gameObjects->isEmpty()) return;

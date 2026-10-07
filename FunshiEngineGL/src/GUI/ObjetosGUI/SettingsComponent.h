@@ -25,10 +25,16 @@
 class Component;
 
 class SettingsComponent {
+protected:
+	bool mostrarVisualesDepuracion_ = true;
+
 public:
 	SettingsComponent(){}
 	virtual ~SettingsComponent() = default;
 	virtual void showDataComponent() = 0;
 	virtual Component* getComponent() = 0;
+	void setMostrarVisualesDepuracion(bool mostrar) noexcept {
+		mostrarVisualesDepuracion_ = mostrar;
+	}
 };
 #endif

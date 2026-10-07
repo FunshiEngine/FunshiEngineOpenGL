@@ -55,7 +55,7 @@ void SettingsColliderEsfera::showDataComponent() {
 	}
 	settingsTransform->showDataComponent();
 
-	myCollider->dibujarCollider();
+	if (mostrarVisualesDepuracion_) myCollider->dibujarCollider();
 }
 
 Component* SettingsColliderEsfera::getComponent() { return myCollider; }

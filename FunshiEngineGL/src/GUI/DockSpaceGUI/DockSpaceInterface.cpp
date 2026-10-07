@@ -20,6 +20,9 @@
 #include "../WindowNames.h"
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <array>
+#include <cstring>
+#include <vector>
 
 DockSpaceInterface::DockSpaceInterface(bool state)
     : GeneralUserInterface(WindowNames::EditorDockSpace, state,
@@ -51,6 +54,17 @@ void DockSpaceInterface::initGUI() {
         ImGui::DockBuilderDockWindow(WindowNames::MenuBar,        top);
         ImGui::DockBuilderDockWindow(WindowNames::ShowFolder,     bottom);
         ImGui::DockBuilderDockWindow(WindowNames::Status,       right);
+        ImGui::DockBuilderDockWindow(WindowNames::CameraList,   right);
+        ImGui::DockBuilderDockWindow(WindowNames::CreadorInterfaces, right);
+
+        ultimoDockValido_[WindowNames::SelectedObjects] = left;
+        ultimoDockValido_[WindowNames::BrowseFile] = leftBottom;
+        ultimoDockValido_[WindowNames::Settings] = right;
+        ultimoDockValido_[WindowNames::MenuBar] = top;
+        ultimoDockValido_[WindowNames::ShowFolder] = bottom;
+        ultimoDockValido_[WindowNames::Status] = right;
+        ultimoDockValido_[WindowNames::CameraList] = right;
+        ultimoDockValido_[WindowNames::CreadorInterfaces] = right;
 
         ImGui::DockBuilderFinish(dockspaceId);
     }
@@ -66,5 +80,74 @@ void DockSpaceInterface::contentGUI() {
 void DockSpaceInterface::endGUI() {}
 
 void DockSpaceInterface::printGUI() {
-    if (stateGUI) { initGUI(); contentGUI(); endGUI(); }
+    initGUI();
+    contentGUI();
+    endGUI();
+}
+
+void DockSpaceInterface::repararVentanasFlotantes() {
+    ImGuiContext& g = *GImGui;
+    ImGuiDockNode* root = ImGui::DockBuilderGetNode(dockspaceId);
+    if (!root) return;
+
+    const auto esHojaDelDockspace = [root](ImGuiID id) {
+        ImGuiDockNode* node = ImGui::DockBuilderGetNode(id);
+        if (!node || !node->IsLeafNode()) return false;
+        while (node->ParentNode) node = node->ParentNode;
+        return node == root;
+    };
+
+    const auto primeraHoja = [](ImGuiDockNode* nodo) {
+        while (nodo && !nodo->IsLeafNode())
+            nodo = nodo->ChildNodes[0] ? nodo->ChildNodes[0]
+                                       : nodo->ChildNodes[1];
+        return nodo;
+    };
+    ImGuiDockNode* hojaAlternativa =
+        root->CentralNode && root->CentralNode->IsLeafNode()
+            ? root->CentralNode
+            : primeraHoja(root);
+    if (!hojaAlternativa) return;
+
+    const std::array<const char*, 9> nombres = {
+        WindowNames::SelectedObjects, WindowNames::BrowseFile,
+        WindowNames::Settings, WindowNames::MenuBar, WindowNames::ShowFolder,
+        WindowNames::Status, WindowNames::CameraList,
+        WindowNames::CreadorInterfaces, WindowNames::CanvasUI};
+    std::vector<ImGuiWindow*> ventanas;
+    for (const char* nombre : nombres) {
+        if (ImGuiWindow* window = ImGui::FindWindowByName(nombre))
+            ventanas.push_back(window);
+    }
+    for (ImGuiWindow* window : g.Windows) {
+        if (std::strncmp(window->Name, "Vista previa: ", 14) == 0)
+            ventanas.push_back(window);
+    }
+
+    for (ImGuiWindow* window : ventanas) {
+        if (window->Flags & ImGuiWindowFlags_NoDocking) continue;
+        const char* nombre = window->Name;
+
+        ImGuiDockNode* node = window->DockNode;
+        if (node && node->IsLeafNode()) {
+            ImGuiDockNode* ancestor = node;
+            while (ancestor->ParentNode) ancestor = ancestor->ParentNode;
+            if (ancestor == root) {
+                ultimoDockValido_[nombre] = node->ID;
+                continue;
+            }
+        }
+
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left) ||
+            g.MovingWindow == window)
+            continue;
+
+        ImGuiID destino = hojaAlternativa->ID;
+        const auto ultimo = ultimoDockValido_.find(nombre);
+        if (ultimo != ultimoDockValido_.end() &&
+            esHojaDelDockspace(ultimo->second))
+            destino = ultimo->second;
+        ImGui::DockBuilderDockWindow(nombre, destino);
+        ultimoDockValido_[nombre] = destino;
+    }
 }

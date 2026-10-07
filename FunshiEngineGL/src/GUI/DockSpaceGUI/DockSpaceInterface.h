@@ -21,15 +21,19 @@
 
 #include "../GeneralUserInterface.h"
 #include <imgui.h>
+#include <string>
+#include <unordered_map>
 
 class DockSpaceInterface : public GeneralUserInterface {
 protected:
 	ImGuiID dockspaceId = 0;
+	std::unordered_map<std::string, ImGuiID> ultimoDockValido_;
 public:
 	DockSpaceInterface(bool stateGUI);
 	virtual void initGUI() override;
 	virtual void contentGUI() override;
 	virtual void endGUI() override;
 	virtual void printGUI() override;
+	void repararVentanasFlotantes();
 };
 #endif

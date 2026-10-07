@@ -46,6 +46,7 @@ GUIManager::GUIManager(GLFWwindow* window)
     dockSpaceGUI = std::make_unique<DockSpaceInterface>(true);
     iconosGUI = std::make_unique<IconosGUI>();
     iconosGUI->init();
+    menuBarGUI->setIconosGUI(iconosGUI.get());
     statusBarGUI = std::make_unique<StatusBarInterface>(true);
     // Ventanas del creador de interfaces: arrancan ocultas; se alternan desde
     // el menu "Ventanas" o al crear una interfaz (se persisten por proyecto).

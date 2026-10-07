@@ -37,6 +37,7 @@ private:
 	AudioEngine* audioMotor = nullptr;
 	EventBus* events = nullptr;
 	size_t eventSubscription = 0;
+	bool mostrarVisualesDepuracion_ = true;
 	// Cuenta los cambios estructurales (alta/baja de componente) que
 	// reconciliaron la lista de paneles. La carga inicial no cuenta.
 	size_t reconciliaciones = 0;
@@ -65,6 +66,9 @@ public:
 	~SettingsObjectInterface();
 
 	void setEditor(EditorController* editor);
+	void setMostrarVisualesDepuracion(bool mostrar) noexcept {
+		mostrarVisualesDepuracion_ = mostrar;
+	}
 	// El motor de audio se inyecta desde la escena para que los inspectores de
 	// AudioSource puedan probar la reproduccion. Puede ser nullptr.
 	void setAudioEngine(AudioEngine* motor) { audioMotor = motor; }

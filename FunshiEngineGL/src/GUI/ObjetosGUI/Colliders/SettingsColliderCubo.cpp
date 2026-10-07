@@ -55,7 +55,7 @@ void SettingsColliderCubo::showDataComponent() {
 	}
 	settingsTransform->showDataComponent();
 
-	myCollider->dibujarCollider();
+	if (mostrarVisualesDepuracion_) myCollider->dibujarCollider();
 }
 
 Component* SettingsColliderCubo::getComponent() { return myCollider; }

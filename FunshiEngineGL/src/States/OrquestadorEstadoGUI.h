@@ -23,10 +23,10 @@
 
 // Orquestador de estados de GUI: centraliza las transiciones que gobiernan
 // "que GUI es visible este frame" (menu de inicio vs editor) y la simulacion
-// (F5/F6/F7 y el boton Activar/Detener). Encapsula las REGLAS (no los if sueltos
+// (F5/F6/F7 y los botones de Depuracion/Juego). Encapsula las REGLAS (no los if sueltos
 // de main): Escape en editor -> volver al menu, Escape en play -> detener y
-// volver al editor, "Iniciar Estudio" -> entrar al editor, F5 -> play, F6 ->
-// pausa, F7 -> stop. Ni la escena ni las fachadas de GUI conocen esta clase;
+// volver al editor, "Iniciar Estudio" -> entrar al editor, F5 -> Depuracion,
+// Juego -> simulacion bloqueada, F6 -> pausa, F7 -> stop. Ni la escena ni las fachadas de GUI conocen esta clase;
 // main le pregunta por frame y ella es la unica fuente de verdad sobre cuando
 // hay que mostrar menu, correr la escena o simular.
 //
@@ -42,9 +42,12 @@ public:
     // se decide aca, nunca en main.
     enum class TeclaSimulacion {
         Ninguna,
-        Play,    // F5: arrancar (Editing -> Playing)
-        Pausa,   // F6: congelar/reanudar (solo en Playing; fuera no hace nada)
-        Stop     // F7: cortar y volver (Playing -> Editing)
+        Depuracion, // F5: arrancar la simulacion editable
+        Juego,      // iniciar simulacion sin edicion
+        Pausa,   // F6: congelar/reanudar (solo durante simulacion)
+        Reset,   // restaurar la escena al inicio de la simulacion
+        Stop,    // F7: cortar y volver (Playing/Debugging -> Editing)
+        Play = Depuracion
     };
 
 public:
@@ -64,17 +67,20 @@ public:
     // main solo refleja la decision: setStart(estaEnSimulacion()).
     void manejarTeclaSimulacion(TeclaSimulacion tecla) noexcept;
 
-    // El boton "Activar/Detener" del menu de escena pide el mismo cambio que
-    // F5/F7: arranca la simulacion si no corre y la corta si corre, aplicando
-    // las reglas por estado de arriba (fuera del editor es inofensivo).
+    // Compatibilidad para clientes que alternan Depuracion sin elegir modo.
     void alternarSimulacion() noexcept;
+    void iniciarJuego() noexcept;
+    void solicitarReset() noexcept;
+    bool consumirSolicitudReset() noexcept;
 
     // Reflejos por frame (lo que main pregunta en el bucle):
     bool menuDebeEstarVisible() const noexcept;   // MainMenu activo
     bool escenaDebeCorrer() const noexcept;       // cualquier estado no-menu
     bool cerrarMenuPendiente() const noexcept;    // quedo solicitud sin aplicar
-    bool enSimulacion() const noexcept;           // estado Playing
-    bool simulacionPausada() const noexcept;      // F6 dentro de Playing
+    bool enSimulacion() const noexcept;           // Debugging o Playing
+    bool enDepuracion() const noexcept;
+    bool enModoJuego() const noexcept;
+    bool simulacionPausada() const noexcept;      // F6 durante simulacion
     // Editor o play: la condicion compartida por las teclas del editor que
     // tambien tienen sentido con la simulacion en marcha (E, WASD, guia de
     // eje, modo del cursor). Solo el menu de inicio queda afuera.
@@ -88,9 +94,10 @@ private:
     // llamar iniciarEstudio() y se limpia al consultar (patron usado por la
     // fachada del menu para no repetir la transicion el siguiente frame).
     bool solicitudCierrePendiente = false;
-    // Pausa de la simulacion (F6): solo tiene efecto mientras esta en Playing;
+    // Pausa de la simulacion (F6): solo tiene efecto mientras simula;
     // se limpia al entrar/salir de play para que nunca quede heredada.
     bool simulacionPausada_ = false;
+    bool solicitudReset_ = false;
 };
 
 #endif // ORQUESTADOR_ESTADO_GUI_H

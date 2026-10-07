@@ -46,6 +46,11 @@ public:
     ImTextureID getIconoJava() const { return aImTexture(iconoJava); }
     ImTextureID getIconoGameObject() const { return aImTexture(iconoGameObject); }
     ImTextureID getIconoLogo() const { return aImTexture(iconoLogo); }
+    ImTextureID getIconoDepuracion() const { return aImTexture(iconoDepuracion); }
+    ImTextureID getIconoPlay() const { return aImTexture(iconoPlay); }
+    ImTextureID getIconoPausa() const { return aImTexture(iconoPausa); }
+    ImTextureID getIconoReset() const { return aImTexture(iconoReset); }
+    ImTextureID getIconoStop() const { return aImTexture(iconoStop); }
     // Proporcion ancho/alto del logo (1 si no cargo): util para dibujarlo
     // con un alto dado manteniendo el aspecto del asset.
     float aspectoLogo() const {
@@ -67,6 +72,11 @@ private:
     Rendering::Backend::Handle iconoHpp = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoJava = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoGameObject = Rendering::Backend::kInvalidHandle;
+    Rendering::Backend::Handle iconoDepuracion = Rendering::Backend::kInvalidHandle;
+    Rendering::Backend::Handle iconoPlay = Rendering::Backend::kInvalidHandle;
+    Rendering::Backend::Handle iconoPausa = Rendering::Backend::kInvalidHandle;
+    Rendering::Backend::Handle iconoReset = Rendering::Backend::kInvalidHandle;
+    Rendering::Backend::Handle iconoStop = Rendering::Backend::kInvalidHandle;
 
     // Logo del motor (marca del editor; se muestra en el menu superior).
     Rendering::Backend::Handle iconoLogo = Rendering::Backend::kInvalidHandle;

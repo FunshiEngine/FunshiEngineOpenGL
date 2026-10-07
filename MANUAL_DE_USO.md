@@ -69,8 +69,8 @@ cmake --build FunshiEngineGL/build -j$(nproc)
    eliminabas el proyecto abierto, el motor vuelve al estado "sin proyecto".
    "Iniciar Estudio" crea el proyecto y sus carpetas automaticamente.
 2. Navega la escena con `W`/`A`/`S`/`D`, `Espacio`/`Shift` y el mouse (nav FPS).
-   `E` oculta la UI; `Escape` vuelve al menu (y durante el play, detiene la
-   simulacion y deja el editor).
+   `E` oculta los paneles; `Escape` vuelve al menu desde edicion y termina la
+   simulacion desde Depuración o Juego.
 
 ---
 
@@ -196,17 +196,18 @@ de estado avisa en vez de ignorar el atajo.
 
 | Tecla / accion | Funcion |
 |---|---|
-| `W` `A` `S` `D` | Mover la camara activa (diagonales normalizadas). Solo con las interfaces del editor ocultas (`E`) o con el clic derecho sostenido sobre el viewport. Funciona en edicion y tambien durante el play |
+| `W` `A` `S` `D` | Mover la camara libre del editor (diagonales normalizadas). Solo en Edicion o Depuracion, con las interfaces ocultas (`E`) o el clic derecho sostenido sobre el viewport |
 | `Espacio` / `Shift izq.` | Subir / bajar la camara (misma condicion que `WASD`) |
-| Mouse / clic der. | Nav FPS; el clic derecho sostenido sobre el viewport navega **sin** esconder las interfaces (sensibilidad en Opciones) |
-| `E` | Mostrar/ocultar interfaces del editor (en edicion y durante el play; no en el menu de inicio) |
-| `F5` | Simular (Play): arranca la simulacion de la escena (fisica, scripts y audio) desde el editor |
-| `F6` | Pausar/reanudar la simulacion (solo durante el play; congela fisica y scripts sin salir) |
-| `F7` | Detener la simulacion y volver al modo edicion |
+| Mouse / clic der. | El mouse solo mueve la camara con cursor oculto (`C`) o mientras se sostiene clic derecho; el clic derecho navega **sin** esconder las interfaces y con cursor visible no activa la orbita (sensibilidad en Opciones) |
+| `E` | Mostrar/ocultar solo los paneles GUI; al ocultarlos el cursor queda visible y no rota la camara; no cambia gizmos, guias ni marcadores visuales |
+| `C` | Con la GUI oculta, alterna ocultar/mostrar el cursor. Con cursor oculto el mouse puede mirar libremente y el clic derecho activa orbita |
+| `F5` | Iniciar Depuracion: simula fisica, scripts y audio, y permite editar la escena |
+| `F6` | Pausar/reanudar la simulacion activa sin reiniciarla (Depuracion o Juego) |
+| `F7` | Terminar la simulacion y restaurar la escena al estado previo al inicio |
 | `Ctrl+S` | Guardar el proyecto en caliente (escena + manifiesto + config) |
 | `Ctrl+Z` | Deshacer ultima accion del editor (undo) |
 | `Ctrl+Y` | Rehacer accion deshecha (redo) |
-| `Escape` | Durante el play: detener la simulacion y volver al modo edicion (igual que `F7`). En edicion: volver al menu de inicio. En el menu: no hace nada |
+| `Escape` | Durante Depuracion o Juego: terminar y restaurar la escena al estado previo al inicio. En edicion: volver al menu; en el menu: no hace nada |
 | `1` / `T` | Gizmo: traslacion (apaga la guia de eje) |
 | `2` / `R` | Gizmo: rotacion (apaga la guia de eje) |
 | `3` / `U` | Gizmo: escala (la `Y` suelta la tomo la guia de eje; apaga la guia) |
@@ -214,10 +215,19 @@ de estado avisa en vez de ignorar el atajo.
 | `G` | Gizmo local / mundo (gizmo y guia de eje) |
 | Clic en objeto | Seleccionar en viewport |
 
-El modo Play/Stop tambien se controla con el boton **Activar/Detener** de la
-barra de menu de la escena, que hace exactamente lo mismo que `F5` y `F7`; la
-fisica y los scripts solo se ejecutan en Play. Clic en un objeto del arbol o del
-viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
+Fuera de una simulacion, la barra de la escena ofrece **Depuración** y
+**Juego**. Durante cualquiera de los dos modos, esos botones se reemplazan por
+**Pausa/Reanudar**, **Reset** y **Terminar**. Depuración conserva el modo
+editable existente: la física y los scripts avanzan, y los cambios hechos
+durante la simulacion se descartan al terminar y la escena vuelve al estado
+previo al inicio, igual que en Juego. Los controles se muestran como iconos y
+su nombre aparece al pasar el cursor. Juego ejecuta la escena sin
+permitir operaciones de edicion y oculta la grilla, gizmos, guias y marcadores
+auxiliares; los objetos y componentes de la escena siguen dibujandose. **Reset** restaura
+el estado completo guardado al iniciar la simulacion, sin salir de ella.
+
+Clic en un objeto del arbol o del viewport lo selecciona; el Inspector muestra
+sus componentes a la derecha.
 
 ---
 
@@ -246,8 +256,9 @@ viewport lo selecciona; el Inspector muestra sus componentes a la derecha.
 ### Grilla del suelo
 
 La escena trae un objeto llamado **"Grilla"** con el componente `Grid`: es el
-piso del editor y se dibuja siempre que el componente este visible. Su panel en
-el Inspector tiene solo dos controles:
+piso del editor y se dibuja siempre que el componente este visible, excepto
+durante Juego, cuando se oculta junto con las demas ayudas visuales del editor.
+Su panel en el Inspector tiene solo dos controles:
 
 - **Visible**: enciende o apaga la grilla.
 - **Color**: el color de las lineas. El que trae de fabrica es un blanco hielo
@@ -453,9 +464,10 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 ## 7. Física
 
 - Colliders de esfera, cubo o malla; con `RigidBody` participan de la
-  simulacion Bullet. Solo simula en modo **Play**: en edicion el gizmo mueve
-  el objeto y el motor sincroniza collider/cuerpo/objeto con la matriz global
-  compuesta del dueño, para que mover un collider no desincronice el cuerpo.
+  simulacion Bullet. Solo simula en **Depuración** o **Juego**: en edicion el
+  gizmo mueve el objeto y el motor sincroniza collider/cuerpo/objeto con la
+  matriz global compuesta del dueño, para que mover un collider no
+  desincronice el cuerpo.
 - Mientras se manipula el gizmo, `stepSimulation` se pausa (la gravedad podria
   "eyectar" el objeto); al soltar, la simulacion sigue.
 - Gizmo dedicado de fisica para el collider activo.
@@ -467,8 +479,9 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 - Crea la carpeta `Sonidos/` (si no existe) y coloca los clips en `Sonidos/` (wav/mp3/etc.). `AudioClipsManager` los
   descubre y los registra **por nombre** en el `AudioEngine` al escanear.
 - Agrega `AudioSource` a un objeto; en su panel elige el clip del dropdown
-  (o arrastralo desde `Sonidos/` tras crearla), ajusta volumen, loop y "reproduccion
-  automatica". En Play, el AudioEngine reproduce en su hilo de audio.
+  (o arrastralo desde `Sonidos/` tras crearla), ajusta volumen, loop y
+  "reproduccion automatica". En Depuración y Juego, el AudioEngine reproduce
+  en su hilo de audio.
 - Cambiar de proyecto re-escanea y limpia el registro de clips.
 
 ---
@@ -479,7 +492,7 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
   `Memory/Interfaces/<nombre>.json`).
 - Agrega `InterfaceComponent` a un GameObject; su inspector muestra el nombre
   del asset (dropdown + drop desde `Memory/Interfaces/`).
-- Al entrar en **Play**, la escena muestra esa interfaz a pantalla completa
+- Durante **Depuración** o **Juego**, la escena muestra esa interfaz a pantalla completa
   delante de la camara principal (HUD del juego).
 
 ---
@@ -644,7 +657,7 @@ azul clasico.
 
 Los comportamientos del juego se escriben como **scripts dinamicos**: archivos
 `.cpp` o `.java` dentro del proyecto que el editor compila en caliente y
-ejecuta en modo Play.
+ejecuta durante Depuración y Juego.
 
 - Se crean desde el explorador: clic derecho sobre la carpeta actual > "New
   Script" y, en el dialogo que se abre, elegir **C++ (`.cpp`)** o **Java
@@ -653,12 +666,12 @@ ejecuta en modo Play.
   archivo). El backend compila la clase como `FUNSHI_<ClassName>` mediante
   `-DFUNSHI_NOMBRE_CLASE=<ClassName>`.
 - Ciclo de vida en C++ (`IScriptBehaviour`): `onStart(owner)` al entrar en
-  Play, `onUpdate(owner, deltaTime)` cada frame en Play, y `onStop(owner)`
-  opcional al salir de Play.
+  Depuración o Juego, `onUpdate(owner, deltaTime)` cada frame de simulación, y
+  `onStop(owner)` opcional al terminar.
 - **SerializeField:** los campos declarados con macros `REFLECT_*` aparecen
   editables en el inspector, se guardan con la escena y sobreviven al hot
   reload (se reinyectan por nombre de campo).
-- Hot reload por mtime del fuente: en Play, guardar el `.cpp`/`.java`
+- Hot reload por mtime del fuente: durante la simulación, guardar el `.cpp`/`.java`
   recompila y recarga el comportamiento conservando los valores.
 - La ventana **Estado** muestra el toolchain (compilador C++, javac, libjvm,
   cache) y el resultado de compilacion/carga de cada script de la escena.
@@ -835,8 +848,8 @@ void onUpdate(GameObject* owner, float deltaTime) override {
 
 Ademas de `api`, `IScriptBehaviour` expone `this->servicios`: acceso a los
 servicios del motor que **no son del objeto** sino de la escena (audio,
-busqueda de objetos y teclado). GameScene la inyecta al entrar en Play, antes
-del primer `onStart`, y la desconecta al salir (fuera de Play las funciones
+busqueda de objetos y teclado). GameScene la inyecta al iniciar la simulacion,
+antes del primer `onStart`, y la desconecta al terminar (fuera de simulacion las funciones
 son no-ops tolerantes: devuelven `false`/`nullptr`/`-1`, sin bloquear).
 Misma convencion APPEND-ONLY con `servicios->version` al final.
 
@@ -1024,7 +1037,7 @@ public class MiScript implements Comportamiento {
 
 ## 16. Hot reload y depuración
 
-- **C++:** guardar el `.cpp` en Play recompila; el editor compara el mtime del
+- **C++:** guardar el `.cpp` durante la simulacion recompila; el editor compara el mtime del
   fuente con el del artefacto cargado. Los valores SerializeField se extraen
   antes de descargar y se reinyectan por nombre de campo al terminar, de modo
   que reordenar campos en el fuente no pierde valores.
@@ -1039,7 +1052,7 @@ public class MiScript implements Comportamiento {
 - **Errores de carga/compilacion C++** aparecen en la ventana Estado y en el log
   del motor (`logs/FunshiEngineGL_*.log` en la carpeta de datos, seccion 2), no
   en el panel del componente; corregi el fuente y guardalo de nuevo (no hace
-  falta salir de Play).
+  no hace falta terminar la simulacion).
 - Al cerrar la aplicacion los comportamientos se descargan sin disparar
   `onStop`; los backends (incluida la JVM) se apagan despues.
 

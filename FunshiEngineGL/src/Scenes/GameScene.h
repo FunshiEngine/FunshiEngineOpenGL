@@ -110,6 +110,12 @@ private:
     // transicion play->editor). La gobierna main desde el orquestador de
     // estados (funcion de marco de F5/F6/F7).
     bool simulacionPausada = false;
+    bool modoJuego = false;
+    bool resetSimulacionPendiente = false;
+    int camaraActivaAlIniciar = -1;
+    std::string directorioEscena_;
+    std::string directorioSnapshot_;
+    std::string indiceSnapshot_;
     bool menuActivo = false;
     // Sensibilidad global del mouse look, sincronizada desde MenuGUI (vista
     // Opciones). La aplica main al offset del raton antes de updateYaw().
@@ -133,6 +139,11 @@ private:
     // Reproduce/detiene los AudioSource de la escena en las transiciones de
     // modo play (entrar = autoplay de los marcados; salir = detener todo).
     void sincronizarAudioPlay(bool entrarEnPlay);
+    bool guardarSnapshotSimulacion();
+    bool snapshotSimulacionDisponible() const;
+    bool restaurarSnapshotSimulacion();
+    void eliminarSnapshotSimulacion() noexcept;
+    void limpiarRuntimeSimulacion();
     // Muestra las vistas previas del SceneRenderer (textura FBO por camara con
     // "Vista previa" activo) como ventanas ImGui.
     void pintarViewportsGUI();
@@ -173,10 +184,12 @@ public:
     ListaDE<GameObject*>* getGameObjectsScene();
     void saveScene(const std::string& filename);
     bool isStart();
-    // Fuente de verdad de la simulacion: la maquina de estados (F5/F7) la
-    // refleja aca desde el input (EditorInput), compartida con el boton
-    // Activar/Detener del menu de escena.
+    // Reflejo del estado del orquestador; la escena solo ejecuta los ciclos
+    // de simulacion y limpieza asociados a sus transiciones.
     void setStart(bool activo) noexcept;
+    void setModoJuego(bool juego) noexcept;
+    void solicitarResetSimulacion() noexcept;
+    void cerrarSimulacionAntesDeGuardar();
     // Pausa (F6): congela la simulacion sin salir de play.
     bool isSimulacionPausada() const noexcept;
     void setSimulacionPausada(bool pausada) noexcept;
@@ -233,14 +246,16 @@ public:
     // ubicarla con el gizmo. Ventana "Camaras" -> "Agregar camara".
     GameObject* agregarCamaraEnVistaActiva();
 
-    // Modo editor: interfaces (gizmo, jerarquia, settings, folders) activas
-    // si se aprieta E (toggleEditorInterfaces) o hay un objeto seleccionado.
+    // Visibilidad de los paneles del editor; E solo cambia esta bandera y no
+    // altera la seleccion ni los overlays de Depuracion.
     void toggleEditorInterfaces();
     // Activa o desactiva el modo editor sin alternar (main la enciende al
     // entrar al editor desde el menu para que los paneles sean visibles de una;
     // E la alterna durante la sesion).
     void setMenuActivo(bool activo) noexcept;
     bool isEditorActivo() const;
+    bool isEditorGUIVisible() const noexcept;
+    bool isModoJuego() const noexcept;
     void clearSelection();
 
     // Acceso al controlador del editor para comandos (undo/redo)
