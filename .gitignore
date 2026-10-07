@@ -128,6 +128,7 @@ FunshiEngineGL/refactor_gui.py
 # regla estable del proyecto se promueve a los .md versionados (README.md,
 # MANUAL_DE_USO.md, PROJECT_STRUCTURE.md, DocuTecnicoBugs.md) en el commit
 # que lo justifica.
+.agentes/pendiente-revision/
 .agentes/
 
 
