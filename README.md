@@ -1,6 +1,14 @@
 # FunshiEngineGL
 
+<table align="center" bgcolor="#202124">
+  <tr>
+    <td><img src="FunshiEngineGL/Imagenes/FunshiEngineGL_Logo_Principal_Blanco.svg" alt="FunshiEngineGL" width="260"></td>
+  </tr>
+</table>
+
 Motor y editor 3D en tiempo real escrito en C++17, con interfaz Dear ImGui, renderizado OpenGL 3.3 Core y arquitectura modular (backends intercambiables).
+
+**Licencia:** [Apache License 2.0](LICENSE).
 
 ## Compilación
 
