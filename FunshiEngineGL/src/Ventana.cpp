@@ -59,9 +59,10 @@ std::string directorioEjecutable() {
 }
 
 // Ruta del logo del motor (busqueda identica a IconosGUI: junto al ejecutable
-// o un nivel arriba, y fallback relativo al cwd).
+// o un nivel arriba, y fallback relativo al cwd). El logo esta en
+// Imagenes/Logo/.
 std::string ubicarLogoVentana() {
-    const char* nombre = "FunshiEngineGL_Isotipo_Blanco.png";
+    const char* nombre = "Logo/FunshiEngineGL_Isotipo_Blanco.png";
     const std::string exeDir = directorioEjecutable();
     std::vector<std::string> carpetas;
     if (!exeDir.empty()) {
