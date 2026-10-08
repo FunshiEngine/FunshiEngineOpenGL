@@ -318,6 +318,10 @@ set_target_properties(escena-serializacion-tests PROPERTIES
     CXX_EXTENSIONS OFF
 )
 add_test(NAME escena-serializacion-tests COMMAND escena-serializacion-tests)
+# Cubre tambien el recorrido de paneles del inspector en un frame headless: si
+# ese recorrido no avanza (cuelgue al seleccionar un objeto), la prueba no
+# vuelve y CTest la da por fallida por timeout en lugar de quedarse esperando.
+set_tests_properties(escena-serializacion-tests PROPERTIES TIMEOUT 60)
 
 if(WIN32)
     target_link_libraries(escena-serializacion-tests PRIVATE dbghelp)

@@ -48,6 +48,8 @@
 #include <string>
 #include <vector>
 
+#include <imgui.h>
+
 #include <btBulletDynamicsCommon.h>
 
 #include "TempPruebas.h"
@@ -1474,6 +1476,55 @@ void elEventoDePropiedadNoReconstruyeElInspector() {
           "el componente nuevo tiene su panel en la lista");
 }
 
+// --- El inspector dibuja un frame completo sin arrastre activo ---------------
+// contentGUI() recorre los paneles con un PushID por panel y cierra el recorrido
+// con el PopID y el avance de la lista. Si ese cierre quedara dentro de un
+// `if (ImGui::BeginDragDropTarget())` (que solo es verdadero mientras hay un
+// arrastre encima del encabezado), entonces en el caso normal -sin arrastre-
+// el recorrido no avanza nunca: el inspector gira al 100% de CPU con la ventana
+// congelada al seleccionar un objeto, y el ID de ImGui crece un nivel por
+// iteracion.
+//
+// La prueba arma un frame headless (contexto ImGui sin backend, sin ventana) y
+// exige que printGUI() vuelva. Si el bucle no termina, la prueba se cuelga y
+// CTest la da por fallida por timeout.
+void elInspectorDibujaUnFrameSinArrastre() {
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    GameObject* raiz = registry.getRoot();
+
+    auto objeto = GameObjectFactory::createSimpleObject(raiz);
+    GameObject* a = editor.createGameObject(std::move(objeto), raiz);
+    CHECK(a != nullptr, "el objeto del frame del inspector entra en la escena");
+    if (!a) return;
+
+    SettingsObjectInterface inspector(a, true);
+    inspector.setEditor(&editor);
+    inspector.setEventBus(&events);
+
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    // Mismo contrato que el backend OpenGL del motor: el atlas de fuentes lo
+    // construye ImGui en NewFrame() (sin backend, TexIsBuilt arranca en falso y
+    // ImFontAtlasUpdateNewFrame() desreferencia un Builder nulo).
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+    io.DisplaySize = ImVec2(1280.0f, 720.0f);
+    io.DeltaTime = 1.0f / 60.0f;
+    // No dejar imgui.ini en el directorio de trabajo de la prueba.
+    io.IniFilename = nullptr;
+
+    ImGui::NewFrame();
+    inspector.printGUI();
+    ImGui::EndFrame();
+
+    CHECK(inspector.settingsEnIndice(0) != nullptr,
+          "el frame termina y el panel del Transform sigue en el inspector");
+
+    ImGui::DestroyContext();
+}
+
 // --- Reparentar preserva la pose y refresca el cuerpo fisico ------------------
 // SceneRegistry::reparent movia el nodo en el arbol y cambiaba parentEntity,
 // pero no tocaba el transform local: como el local se interpreta contra el
@@ -2216,6 +2267,7 @@ int main() {
     borrarCrearBorrarNoDesalineaElBinario();
     elModeloSeResuelveConLaMatrizMundial();
     elEventoDePropiedadNoReconstruyeElInspector();
+    elInspectorDibujaUnFrameSinArrastre();
     reparentarPreservaLaPoseYRefrescaElCuerpo();
     reparentarSobreviveElGuardado();
     opcionesDeRenderYFisicaSePersisten();

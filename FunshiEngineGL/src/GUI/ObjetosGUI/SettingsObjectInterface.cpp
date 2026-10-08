@@ -34,6 +34,8 @@
 #include "Interface/SettingsInterface.h"
 #include "Grid/SettingsGrid.h"
 #include "Skybox/SettingsSkybox.h"
+#include "../../Objetos/PrefabLibrary.h"
+#include "../../Objetos/Prefab.h"
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/TagRegistry.h"
 #include "../../Objetos/Componentes/Light.h"
@@ -50,6 +52,7 @@
 #include "../../Objetos/Componentes/Colliders/EsfereCollider.h"
 #include "../../Objetos/Componentes/Colliders/CubeCollider.h"
 #include "../../Objetos/Componentes/Colliders/MallaCollider.h"
+#include "../../Objetos/SimpleObject.h"
 #include "../../Objetos/Componentes/Skybox.h"
 #include "../../Scenes/EditorController.h"
 #include "../../Comandos/AgregarComponenteComando.h"
@@ -83,6 +86,10 @@ SettingsObjectInterface::~SettingsObjectInterface() {
 
 void SettingsObjectInterface::setEditor(EditorController* editor) {
 	this->editor = editor;
+	// Si ya hay objeto inspeccionado, reconciliar para crear panel Prefab si falta.
+	if (object && editor) {
+		crearSettingsFaltantes();
+	}
 }
 
 // Desvincula el inspector del objeto actual: libera los Settings* y deja
@@ -138,11 +145,21 @@ bool SettingsObjectInterface::tieneSettingsPara(Component* componente) {
 }
 
 // Borra los Settings cuyo componente ya no pertenece al objeto inspeccionado.
-// Al liberar el componente, getComponent() deja de encontrarlo y el panel queda
-// huerfano (dibujaria memoria liberada si sobreviviera).
+// Usa el nombre de tipo almacenado en SettingsComponent (estable en construccion)
+// para evitar desreferenciar punteros colgantes.
 void SettingsObjectInterface::purgarSettingsHuerfanos() {
 	if (!object || listaDESettingsComponent->isEmpty()) return;
 	ListaDE<Component*>* componentes = object->getComponents();
+	if (!componentes || componentes->isEmpty()) {
+		// Si no hay componentes, todos los settings son huerfanos
+		while (!listaDESettingsComponent->isEmpty()) {
+			Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+			delete pos->getElement();
+			listaDESettingsComponent->remove(pos);
+		}
+		return;
+	}
+
 	Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
 	while (pos != nullptr) {
 		Position<SettingsComponent*>* siguiente =
@@ -150,20 +167,32 @@ void SettingsObjectInterface::purgarSettingsHuerfanos() {
 		        ? listaDESettingsComponent->next(pos)
 		        : nullptr;
 		SettingsComponent* s = pos->getElement();
-		Component* c = s ? s->getComponent() : nullptr;
+		if (!s) {
+			listaDESettingsComponent->remove(pos);
+			pos = siguiente;
+			continue;
+		}
+
+		// Verificar si existe un componente de este tipo en el objeto
+		const std::string& tipoEsperado = s->getTipoComponente();
 		bool vigente = false;
-		if (c != nullptr && componentes != nullptr && !componentes->isEmpty()) {
+		if (!tipoEsperado.empty()) {
 			Position<Component*>* pc = componentes->first();
 			while (pc != nullptr) {
-				if (pc->getElement() == c) {
-					vigente = true;
-					break;
+				Component* c = pc->getElement();
+				if (c) {
+					std::string tipoActual = demangle(typeid(*c).name());
+					if (tipoActual == tipoEsperado) {
+						vigente = true;
+						break;
+					}
 				}
 				pc = (pc != componentes->last())
 				         ? componentes->next(pc)
 				         : nullptr;
 			}
 		}
+
 		if (!vigente) {
 			listaDESettingsComponent->remove(pos);
 			delete s;
@@ -311,42 +340,47 @@ void SettingsObjectInterface::initGUI() {
 }
 
 void SettingsObjectInterface::contentGUI() {
-    if (object) {
-        if (tagBufferOwner_ != object) {
-            tagBuffer_.fill('\0');
-            const std::string& tag = object->getTag();
-            std::memcpy(tagBuffer_.data(), tag.data(),
-                        std::min(tag.size(), tagBuffer_.size() - 1));
-            tagBufferOwner_ = object;
-        }
+    if (!object) return;
 
-        ImGui::TextUnformatted("Tag");
-        ImGui::SetNextItemWidth(180.0f);
-        if (ImGui::InputText("##TagObject", tagBuffer_.data(),
-                             tagBuffer_.size(),
-                             ImGuiInputTextFlags_EnterReturnsTrue))
-            object->setTag(tagBuffer_.data());
-        ImGui::SameLine();
-        const std::string tagActual = object->getTag();
-        if (ImGui::BeginCombo("##TagsRegistrados", tagActual.c_str())) {
-            for (const std::string& tag : TagRegistry::registrados()) {
-                const bool seleccionado = tag == tagActual;
-                if (ImGui::Selectable(tag.c_str(), seleccionado)) {
-                    object->setTag(tag);
-                    tagBuffer_.fill('\0');
-                    std::memcpy(tagBuffer_.data(), tag.data(),
-                                std::min(tag.size(), tagBuffer_.size() - 1));
-                }
-                if (seleccionado) ImGui::SetItemDefaultFocus();
-            }
-            ImGui::EndCombo();
-        }
-        ImGui::Separator();
+    if (tagBufferOwner_ != object) {
+        tagBuffer_.fill('\0');
+        const std::string& tag = object->getTag();
+        std::memcpy(tagBuffer_.data(), tag.data(),
+                    std::min(tag.size(), tagBuffer_.size() - 1));
+        tagBufferOwner_ = object;
     }
+
+    ImGui::TextUnformatted("Tag");
+    ImGui::SetNextItemWidth(180.0f);
+    if (ImGui::InputText("##TagObject", tagBuffer_.data(),
+                         tagBuffer_.size(),
+                         ImGuiInputTextFlags_EnterReturnsTrue))
+        object->setTag(tagBuffer_.data());
+    ImGui::SameLine();
+    const std::string tagActual = object->getTag();
+    if (ImGui::BeginCombo("##TagsRegistrados", tagActual.c_str())) {
+        for (const std::string& tag : TagRegistry::registrados()) {
+            const bool seleccionado = tag == tagActual;
+            if (ImGui::Selectable(tag.c_str(), seleccionado)) {
+                object->setTag(tag);
+                tagBuffer_.fill('\0');
+                std::memcpy(tagBuffer_.data(), tag.data(),
+                            std::min(tag.size(), tagBuffer_.size() - 1));
+            }
+            if (seleccionado) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::Separator();
 
 	// MOSTRAMOS COMPONENTES
 	iterandoComponentes = true;
 	componenteABorrar = nullptr;
+
+	// Purga preventiva: elimina settings de componentes que ya no existen
+	// en el objeto (evita punteros colgantes si el evento de estructura
+	// no se proceso a tiempo).
+	purgarSettingsHuerfanos();
 
 	if (!listaDESettingsComponent->isEmpty()) {
 		Position<SettingsComponent*>* position =
@@ -354,15 +388,71 @@ void SettingsObjectInterface::contentGUI() {
 
 		while (position != nullptr && position->getElement() != nullptr) {
 			SettingsComponent* comp = position->getElement();
+			if (!comp) {
+				position = (position != listaDESettingsComponent->last())
+				               ? listaDESettingsComponent->next(position)
+				               : nullptr;
+				continue;
+			}
 			ImGui::PushID(comp);
 
-			std::string compName;
-			if (Script* script =
-			        dynamic_cast<Script*>(comp->getComponent())) {
-				compName = "Script: " + script->nombreParaMostrar();
-			} else {
-				compName = demangle(typeid(*comp).name());
+			// Obtener componente subyacente de forma segura
+			Component* componenteReal = comp->getComponent();
+			if (!componenteReal) {
+				ImGui::PopID();
+				position = (position != listaDESettingsComponent->last())
+				               ? listaDESettingsComponent->next(position)
+				               : nullptr;
+				continue;
 			}
+
+			// Verificacion adicional: el componente debe seguir en el objeto
+			// Usamos el tipo almacenado para no depender de punteros
+			bool componenteValido = false;
+			if (object) {
+				ListaDE<Component*>* componentes = object->getComponents();
+				if (componentes && !componentes->isEmpty()) {
+					const std::string& tipoEsperado = comp->getTipoComponente();
+					if (!tipoEsperado.empty()) {
+						Position<Component*>* pc = componentes->first();
+						while (pc != nullptr) {
+							Component* c = pc->getElement();
+							if (c) {
+								std::string tipoActual = demangle(typeid(*c).name());
+								if (tipoActual == tipoEsperado) {
+									componenteValido = true;
+									break;
+								}
+							}
+							pc = (pc != componentes->last())
+							         ? componentes->next(pc)
+							         : nullptr;
+						}
+					}
+				}
+			}
+			if (!componenteValido) {
+				ImGui::PopID();
+				position = (position != listaDESettingsComponent->last())
+				               ? listaDESettingsComponent->next(position)
+				               : nullptr;
+				continue;
+			}
+
+			std::string compName;
+			if (Script* script = dynamic_cast<Script*>(componenteReal)) {
+				std::string nombreScript = script->nombreParaMostrar();
+				if (nombreScript.empty()) nombreScript = "Script";
+				compName = "Script: " + nombreScript;
+			} else {
+				compName = comp->getTipoComponente();
+				if (compName.empty() && componenteReal) {
+					compName = demangle(typeid(*componenteReal).name());
+				}
+			}
+
+			// Asegurar que compName no esté vacío
+			if (compName.empty()) compName = "Componente";
 
 			SettingsScript* scriptSettings =
 			    dynamic_cast<SettingsScript*>(comp);
@@ -418,6 +508,48 @@ void SettingsObjectInterface::contentGUI() {
 					    comp);
 					if (posA && posB && posA != posB) {
 						listaDESettingsComponent->swapPositions(posA, posB);
+					}
+				}
+				ImGui::EndDragDropTarget();
+			}
+// Drag & drop: .prefab -> instanciar; .obj -> crear objeto con Model
+			if (ImGui::BeginDragDropTarget()) {
+				if (const ImGuiPayload* payload =
+				        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+					const char* path = static_cast<const char*>(payload->Data);
+					if (path && editor) {
+						std::string pathStr(path);
+						std::cout << "[DEBUG Inspector] Drag-drop received: " << pathStr << std::endl;
+						if (pathStr.size() >= 7 &&
+						    pathStr.substr(pathStr.size() - 7) == ".prefab") {
+							std::string nombre =
+							    std::filesystem::path(pathStr).stem().string();
+							if (auto* prefabLib = editor->getPrefabLibrary()) {
+								if (Prefab* prefab = prefabLib->obtener(nombre)) {
+									GameObject* instancia =
+									    prefab->instanciar(editor, nullptr);
+									if (instancia)
+										editor->selectObject(instancia);
+								}
+							}
+						} else if (pathStr.size() >= 4 &&
+						           pathStr.substr(pathStr.size() - 4) == ".obj") {
+							auto obj = std::make_unique<SimpleObject>();
+							std::string nombre =
+							    std::filesystem::path(pathStr).stem().string();
+							std::snprintf(obj->inputName,
+							              sizeof(obj->inputName), "%s",
+							              nombre.c_str());
+							GameObject* creado =
+							    editor->createGameObject(std::move(obj), nullptr);
+							if (creado) {
+								auto* model = new Model();
+								model->setPath(pathStr);
+								creado->addComponent(
+								    std::unique_ptr<Component>(model));
+								editor->selectObject(creado);
+							}
+						}
 					}
 				}
 				ImGui::EndDragDropTarget();

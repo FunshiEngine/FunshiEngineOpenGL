@@ -84,7 +84,7 @@ private:
     int anchoLogo = 0;
     int altoLogo = 0;
 
-    // Iconos por extension de asset/formato (Imagenes/ + nombre.png).
+    // Iconos por extension de asset/formato (Imagenes/File-Image/ + nombre.png).
     Rendering::Backend::Handle iconoBlend = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoCsv = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoExr = Rendering::Backend::kInvalidHandle;
@@ -97,6 +97,7 @@ private:
     Rendering::Backend::Handle iconoMaya = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoMp3 = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoObj = Rendering::Backend::kInvalidHandle;
+    Rendering::Backend::Handle iconoPrefab = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoOgg = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoOtf = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoPng = Rendering::Backend::kInvalidHandle;
