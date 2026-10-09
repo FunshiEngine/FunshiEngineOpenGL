@@ -428,6 +428,13 @@ void GameScene::loadScene(const std::string& pathTxt, const std::string& semiPat
     directorioEscena_ = semiPath;
     if (sceneSerializer) {
         sceneSerializer->load(pathTxt, semiPath);
+        // La carga limpia la escena y reconstruye los objetos: los punteros
+        // cacheados de camara apuntarian a memoria liberada (heap-use-after-free
+        // al cambiar de proyecto). Se olvidan aqui; setActiveCameraById o
+        // getActiveCamera los resuelven de nuevo sobre la escena cargada.
+        requestedActiveCamera = nullptr;
+        activeCameraObject = nullptr;
+        activeCamera = nullptr;
         // Los RigidBody deserializados nunca pasan por EditorController: la
         // malla se carga despues de los componentes (shape provisional) y el
         // cuerpo no se registra en el mundo. Aqui se reconstruye la shape con
@@ -552,11 +559,22 @@ void GameScene::setActiveCamera(GameObject* object) {
 }
 
 int GameScene::getActiveCameraId() const noexcept {
-    return requestedActiveCamera ? requestedActiveCamera->getId() : -1;
+    // El pedido puede quedar colgando si la escena se limpio por otro camino
+    // (p. ej. cambio de proyecto): contains() solo compara direcciones, sin
+    // desreferenciar, igual que hace getActiveCamera().
+    if (!requestedActiveCamera || !sceneRegistry ||
+        !sceneRegistry->contains(requestedActiveCamera))
+        return -1;
+    return requestedActiveCamera->getId();
 }
 
 void GameScene::setActiveCameraById(int id) {
-    if (id < 0 || !sceneRegistry) return;
+    // Id automatico (-1) o sin escena: modo automatico, sin camara pedida (si
+    // quedaba una de otro proyecto, se olvida aqui en vez de colgar).
+    if (id < 0 || !sceneRegistry) {
+        requestedActiveCamera = nullptr;
+        return;
+    }
 
     auto* gameObjects = getGameObjectsScene();
     if (!gameObjects || gameObjects->isEmpty()) return;
@@ -570,7 +588,9 @@ void GameScene::setActiveCameraById(int id) {
         }
         pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
     }
-    // No se encontro la camara persistida: se deja el modo automatico.
+    // No se encontro la camara persistida: se deja el modo automatico,
+    // olvidando cualquier pedido anterior (puede ser de otro proyecto).
+    requestedActiveCamera = nullptr;
 }
 
 GameObject* GameScene::agregarCamaraEnVistaActiva() {
