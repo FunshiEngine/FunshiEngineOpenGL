@@ -328,6 +328,24 @@ if(WIN32)
     target_compile_definitions(escena-serializacion-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
+# --- Pruebas headless del sistema de Prefabs (round-trip y validacion) -------
+# Cubre: guardar prefab -> instanciar -> conservar nombre, tag, jerarquia,
+# componentes, Transform; PrefabLibrary cache y validacion de archivos corruptos.
+add_executable(prefab-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/PrefabTests.cpp
+)
+target_include_directories(prefab-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+)
+target_link_libraries(prefab-tests PRIVATE funshi_engine)
+set_target_properties(prefab-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME prefab-tests COMMAND prefab-tests)
+
 # Nucleo del manifiesto de assets de la escena (SceneAssets.json): headless,
 # sin GameObjects (como MenuModel). Cubre JSON round-trip, tolerancia a
 # archivos corruptos/inexistentes, relativizacion/absolutizacion contra la

@@ -59,7 +59,7 @@ Prefab* PrefabLibrary::crearPrefab(
     auto prefab = std::make_unique<Prefab>(nombreFinal);
     if (prefab->guardarDesdeObjeto(raiz, editor)) {
         Prefab* ptr = prefab.get();
-        cache_[nombreFinal] = std::move(prefab);
+    cache_[nombreFinal] = std::move(prefab);
         return ptr;
     }
     return nullptr;
@@ -68,10 +68,15 @@ Prefab* PrefabLibrary::crearPrefab(
 Prefab* PrefabLibrary::obtener(const std::string& nombre) {
     auto it = cache_.find(nombre);
     if (it != cache_.end()) return it->second.get();
-    
+
     // Intentar cargar del disco
     fs::path archivo = fs::path(directorioPrefabs()) / (nombre + ".prefab");
     if (fs::exists(archivo)) {
+        // Validar integridad del archivo antes de cachear
+        if (!Prefab::validarArchivo(archivo.string())) {
+            std::cerr << "[PrefabLibrary] Archivo prefab invalido o corrupto: " << archivo.string() << std::endl;
+            return nullptr;
+        }
         cache_[nombre] = std::make_unique<Prefab>(nombre);
         return cache_[nombre].get();
     }
@@ -101,8 +106,8 @@ bool PrefabLibrary::renombrar(const std::string& viejoNombre, const std::string&
     if (!fs::exists(viejoArchivo)) return false;
     fs::rename(viejoArchivo, nuevoArchivo);
     if (auto it = cache_.find(viejoNombre); it != cache_.end()) {
-        cache_[nuevoNombre] = std::move(it->second);
-        cache_.erase(it);
+    cache_[nuevoNombre] = std::move(it->second);
+    cache_.erase(it);
     }
     return true;
 }

@@ -260,11 +260,74 @@ seleccion).
   para pegar varias veces; cortar lo vacia al pegar (es mover). Pegar sobre el
   propio objeto o sobre uno de sus descendientes entra a la raiz (evita colgar
   el duplicado de su propio subarbol).
-- **Gizmos** (ImGuizmo): traslacion/rotacion/escala con `1`/`2`/`3` o
-  `T`/`R`/`U`, local/mundo con `G`; la fisica tiene su gizmo propio para el
-  collider activo. El checkbox **"Gizmo activo"** del panel `Transform` apaga
-  el gizmo de ese objeto (y el del collider, si el que se edita es el offset de
-  un collider) sin sacarlo de la seleccion.
+
+### Prefabs: reutilizar jerarquías completas
+
+Un **prefab** guarda un objeto (raiz) con todos sus hijos, componentes y
+propiedades (nombre, tag, Transform) en un archivo `.prefab` bajo
+`Assets/Prefabs/`. Al instanciarlo se crea una copia profunda en la escena con
+IDs nuevos; el original no se toca.
+
+**Crear un prefab**
+
+1. Selecciona el objeto raiz en la jerarquía.
+2. Abre el panel **Prefab** del Inspector (pestaña/panel "Prefab").
+3. Escribe un nombre en el campo "Nombre del prefab" y pulsa **Guardar**.
+   El archivo aparece en `Assets/Prefabs/<nombre>.prefab`.
+
+**Instanciar un prefab**
+
+1. En el panel Prefab, la lista "Prefabs guardados" muestra todos los `.prefab`
+   disponibles.
+2. Selecciona uno y pulsa **Instanciar**.
+   - Si hay un objeto seleccionado en la jerarquía, la instancia entra como
+     hijo de ese objeto.
+   - Si no hay selección, la instancia entra en la raíz de la escena.
+3. La instancia conserva **nombre, tag, Transform (posición global), jerarquía
+   completa y todos los componentes** del prefab original.
+
+**Biblioteca de prefabs (`PrefabLibrary`)**
+
+- Escanea `Assets/Prefabs/` al arrancar y cada vez que se pulsa "Recargar"
+  en el panel Prefab.
+- Mantiene un **caché en memoria** (`std::unordered_map<string, Prefab>`) para
+  que instanciar sea instantáneo tras la primera vez.
+- **Validación automática** antes de cachear: rechaza archivos con magic number
+  incorrecto, versión incompatible, truncados o sin objetos (numObjetos = 0).
+  Los archivos inválidos se loguean en consola y no entran en el caché.
+
+**Formato del archivo (.prefab)**
+
+- Binario, mismo esquema que la serialización de escena (preorden con marcadores
+  `=>` / `<=`), pero **solo el subárbol del prefab**, no la escena completa.
+- Cabecera: magic `0x42415250` ("PREB") + versión `1`.
+- Para cada GameObject: state, id, tam, inputName, tag + lista de componentes
+  (length + typeName + datos del componente) + hijos recursivos.
+- Los componentes usan `ComponentFactory::create()` + `loadComponent()` para
+  deserializar (Transform, Color, Model, etc.). Componentes desconocidos abortan
+  la carga.
+
+**Diferencias con copiar/pegar (Ctrl+C / Ctrl+V)**
+
+| Aspecto | Copiar/pegar | Prefab |
+|---|---|---|
+| **Alcance** | Solo el objeto seleccionado (no hijos) | Raiz + **todos los descendientes** |
+| **Persistencia** | Solo en sesión actual (portapapeles) | **Archivo en disco** (`Assets/Prefabs/`) |
+| **Reutilización** | Una vez por pegado | **Ilimitada** (múltiples instancias) |
+| **IDs** | Nuevos en cada pegado | **Nuevos en cada instanciación** (SceneRegistry) |
+| **Workflow** | Rápido, ad-hoc | **Predefinido**, versionable, compartible |
+
+**Buenas prácticas**
+
+- Usa nombres descriptivos: `Enemigo_Base`, `Arbol_Pino`, `Item_Medkit`.
+- El panel Prefab muestra la **ruta absoluta** del archivo al guardar, útil para
+  depurar rutas.
+- Si mueves o renombras `Assets/Prefabs/` desde el explorador, los archivos
+  `.prefab` se mueven con él; el panel "Recargar" actualiza la lista.
+- Los IDs se regeneran al instanciar: no colisionan con el original ni entre
+  instancias.
+
+---
 
 ### Grilla del suelo
 
@@ -467,6 +530,7 @@ El explorador de archivos (arbol + grid) emite el payload ImGui
 | Panel **Script** del Inspector | `Script` | path completo del fuente (`std::string`) |
 | Dropdown **Sonido** de AudioSource | `AudioSource` | nombre del clip |
 | Dropdown **Interfaz** de InterfaceComponent | `InterfaceComponent` | nombre del asset JSON |
+| Panel **Prefab** del Inspector | `Prefab` | instancia el prefab completo (jerarquía + componentes) |
 
 Todos los receptores almacenan el valor en `std::string` o en buffers de al
 menos 4096 bytes, de modo que paths largos no se truncan (el componente
@@ -480,6 +544,13 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
    del panel del componente ("Arrastra modelo", campo Fuente del script,
    dropdown de Sonido, dropdown de Interfaz).
 3. La escena guarda el path o nombre; al recargar se resuelve de nuevo.
+
+**Instanciar prefab por drag & drop (nuevo):**
+1. En el explorador, localiza un archivo `.prefab` en `Assets/Prefabs/`.
+2. Arrástralo y suéltalo sobre el **panel Prefab del Inspector** (donde está el
+   botón "Guardar como prefab" / "Instanciar prefab").
+3. La instancia se crea como hijo del objeto seleccionado (o en la raíz si no
+   hay selección) y se selecciona automáticamente.
 
 ---
 
@@ -969,6 +1040,8 @@ Misma convencion APPEND-ONLY con `servicios->version` al final.
 | `servicios->agregarColliderEsfera(obj,radio)` (v4) | `bool (void*, float)` | agrega collider esfera; `false` si ya tiene uno o el radio no es valido |
 | `servicios->agregarColliderCubo(obj,radio)` (v4) | `bool (void*, float)` | agrega collider cubo; mismas condiciones |
 | `servicios->agregarRigidBody(obj,masa)` (v4) | `bool (void*, float)` | agrega cuerpo con masa; `false` si no hay collider o ya tiene cuerpo |
+| `servicios->instanciarPrefab("Enemigo",padre)` (v5) | `void* (const char*, void*)` | instancia un prefab por nombre como hijo de `padre` (`nullptr` = raiz). Devuelve la raiz de la instancia (valida al final del frame). |
+| `servicios->listarPrefabs()` (v5) | `const char** ()` | lista los nombres de prefabs disponibles; array terminado en `nullptr`. |
 
 Los deltas del mouse se acumulan durante el frame y se reinician al avanzar al
 siguiente. Se capturan en Juego y cuando el cursor esta bloqueado durante
@@ -1157,6 +1230,7 @@ Las posiciones consultadas o fijadas por `Nativo.posicionX/Y/Z` y
 | Busqueda de objetos | `Nativo.objetoPorNombre(nombre)`, `Nativo.objetoPorId(id)`, `Nativo.objetoPorEtiqueta(etiqueta)`; devuelven `0` si no existe |
 | Gravedad global | `Nativo.fijarGravedadGlobal(x, y, z)`, `Nativo.gravedadGlobalX/Y/Z` |
 | Gestion de objetos | `Nativo.crearObjeto(nombre, padre)`, `Nativo.destruirObjeto(objeto)`, `Nativo.clonarObjeto(original, padre)`, `Nativo.agregarColliderEsfera/cubo(objeto, radio)`, `Nativo.agregarRigidBody(objeto, masa)` |
+| Prefabs | `Nativo.instanciarPrefab(nombre, padre)`, `Nativo.listarPrefabs()` (devuelve `String[]`) |
 | Teclado | `Nativo.teclaSostiene`, `teclaPresionada`, `teclaSoltada` |
 | Mouse | `Nativo.deltaMouseX`, `Nativo.deltaMouseY` (pixeles por frame) |
 

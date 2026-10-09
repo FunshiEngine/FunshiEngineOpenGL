@@ -72,11 +72,8 @@ void Model::deserializeComponent(std::ifstream* fileNamePathContentObject) {
             EditorConfig::absolutizarRuta(std::string(filePath));
         strncpy(filePath, abs.c_str(), sizeof(filePath) - 1);
         filePath[sizeof(filePath) - 1] = '\0';
-
-        std::cout << filePath << std::endl;
     } else {
         filePath[0] = '\0';
-        std::cout << "No hay un path en el binario" << std::endl;
     }
 }
 
