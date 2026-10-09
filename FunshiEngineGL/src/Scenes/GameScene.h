@@ -137,6 +137,7 @@ private:
 
     void asegurarGrilla();
     void configurarResolverObjetosScripts();
+    void configurarResolverObjetosEditor(); // Resolver para modo editor (serializacion, drag&drop)
     // Reproduce/detiene los AudioSource de la escena en las transiciones de
     // modo play (entrar = autoplay de los marcados; salir = detener todo).
     void sincronizarAudioPlay(bool entrarEnPlay);
