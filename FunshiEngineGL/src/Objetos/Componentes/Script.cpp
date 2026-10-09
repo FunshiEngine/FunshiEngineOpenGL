@@ -340,11 +340,16 @@ void Script::deserializeComponent(std::ifstream* f) {
         std::vector<ReflejoScripts::DefCampo> camposGuardados;
         if (version >= 3) camposGuardados = cargarMetadatos(*f);
 
-        setDllPath(dllPath); // valida nombre clase + invalida lo cargado
+        // NO llamar a setDllPath aqui: ya tenemos dllPath, nameClass, valores_ y
+        // camposGuardados leidos del archivo. setDllPath limpiaria camposInspector_
+        // y resetearia estado de carga innecesariamente.
+        this->dllPath = dllPath;
+        this->nameClass = nameClass;
+        // comportamiento_ y cargado_ se resetean abajo
         nombreComponente_ = std::move(nombreComponente);
         camposInspector_ = camposGuardados.empty()
-                               ? metadatosDesdeValores(valores_)
-                               : std::move(camposGuardados);
+                           ? metadatosDesdeValores(valores_)
+                           : std::move(camposGuardados);
     } else {
         // Formato legacy: solo path + nombre de clase (sin magic).
         f->seekg(inicio); // rebobinar para releer por el camino viejo
@@ -361,6 +366,7 @@ void Script::deserializeComponent(std::ifstream* f) {
         f->read(&nameClass[0], nameLength);
         nombreComponente_.clear();
         setDllPath(dllPath);
+        return; // setDllPath ya resetea cargado_ y comportamiento_
     }
 
     cargado_ = false;

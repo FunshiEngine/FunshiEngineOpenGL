@@ -19,10 +19,9 @@
 #ifndef SETTINGSCOLLIDERCUBO_H
 #define SETTINGSCOLLIDERCUBO_H
 #include "../SettingsComponent.h"
-class GameObject;
-class SettingsTransform;
-class CubeCollider;
-class EditorController;
+#include "../Transform/SettingsTransform.h"
+#include "../../../Objetos/Componentes/Colliders/CubeCollider.h"
+#include "../../../Scenes/EditorController.h"
 
 class SettingsColliderCubo : public SettingsComponent {
 protected:
@@ -31,11 +30,11 @@ protected:
 	float newRadio;
 	EditorController* editor = nullptr;
 public:
-	SettingsColliderCubo(GameObject* objeto);
+	explicit SettingsColliderCubo(GameObject* objeto);
 	~SettingsColliderCubo();
 
 	void setEditor(EditorController* editor);
 	void showDataComponent() override;
-	Component* getComponent() override;
+	Component* getComponent() override { return myCollider; }
 };
 #endif

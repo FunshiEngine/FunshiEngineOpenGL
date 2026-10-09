@@ -20,9 +20,8 @@
 #define SETTINGSINTERFACE_H
 
 #include "../SettingsComponent.h"
-
-class GameObject;
-class InterfaceComponent;
+#include "../../../Objetos/GameObject.h"
+#include "../../../Objetos/Componentes/InterfaceComponent.h"
 
 // Inspector del InterfaceComponent: nombre del asset de interfaz
 // (Memory/Interfaces/<nombre>.json) que se muestra delante de la camara
@@ -32,9 +31,8 @@ class SettingsInterface : public SettingsComponent {
 
 public:
     explicit SettingsInterface(GameObject* gameObject);
-
     void showDataComponent() override;
-    Component* getComponent() override;
+    Component* getComponent() override { return gameObject ? gameObject->getComponent<InterfaceComponent>() : nullptr; }
 };
 
 #endif // SETTINGSINTERFACE_H

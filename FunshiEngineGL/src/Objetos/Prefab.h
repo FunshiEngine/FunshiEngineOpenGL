@@ -56,6 +56,9 @@ public:
     const std::string& getRutaArchivo() const noexcept { return rutaArchivo_; }
     bool existeArchivo() const noexcept;
 
+    // Valida la integridad de un archivo .prefab (magic, version, estructura basica)
+    static bool validarArchivo(const std::string& ruta);
+
 private:
     std::string nombre_;
     std::string rutaArchivo_;

@@ -27,10 +27,10 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-SettingsTransform::SettingsTransform(Transform* componentTransform, GameObject* ownerObject) {
-	this->componentTransform = componentTransform;
-	this->ownerObject = ownerObject;
-}
+SettingsTransform::SettingsTransform(Transform* componentTransform, GameObject* ownerObject)
+    : SettingsComponent(demangle(typeid(Transform).name())),
+      componentTransform(componentTransform),
+      ownerObject(ownerObject) {}
 
 void SettingsTransform::showDataComponent() {
 	float* trans = componentTransform->getTranslatef();
@@ -115,8 +115,4 @@ void SettingsTransform::showDataComponent() {
 	// objeto (o del offset del collider cuando es el transform del collider)
 	// sin tener que deseleccionar.
 	ImGui::Checkbox("Gizmo activo", &componentTransform->gizmoHabilitado);
-}
-
-Component* SettingsTransform::getComponent() {
-	return componentTransform;
 }

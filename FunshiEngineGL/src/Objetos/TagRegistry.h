@@ -35,7 +35,9 @@ public:
 
 private:
     static std::set<std::string>& tags() {
-        static std::set<std::string> valores{"Untagged"};
+        static std::set<std::string> valores{"Untagged",
+            "gameObject", "simpleObject", "iluminacion", "sonido",
+            "interface", "grilla", "camara"};
         return valores;
     }
 };

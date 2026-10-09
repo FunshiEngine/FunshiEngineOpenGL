@@ -35,6 +35,7 @@
 #include "../Objetos/SimpleObject.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../Objetos/Componentes/Colliders/Collider.h"
+#include "../Objetos/Componentes/Model.h"
 #include "EditorController.h"
 #include "ManifiestoAssets.h"
 #include "RutasReescritura.h"
@@ -48,6 +49,8 @@
 #include "../Rendering/RenderTarget.h"
 #include "../Rendering/SceneRenderer.h"
 #include "../Rendering/GuiaEje.h"
+#include "../Objetos/Prefab.h"
+#include "../Objetos/PrefabLibrary.h"
 #include "../Audio/AudioEngine.h"
 #include "../Audio/MiniAudioBackend.h"
 #include "../GUI/CreadorUI/CreadorDeInterfaces.h"
@@ -186,6 +189,12 @@ void GameScene::configurarResolverObjetosScripts() {
             }
             return nullptr;
         });
+}
+
+void GameScene::configurarResolverObjetosEditor() {
+    // Mismo resolver que en play mode, pero disponible en editor para
+    // serializacion/deserializacion y drag&drop de GameObjects en scripts.
+    configurarResolverObjetosScripts();
 }
 
 void GameScene::asegurarGrilla() {
@@ -419,6 +428,13 @@ void GameScene::loadScene(const std::string& pathTxt, const std::string& semiPat
     directorioEscena_ = semiPath;
     if (sceneSerializer) {
         sceneSerializer->load(pathTxt, semiPath);
+        // La carga limpia la escena y reconstruye los objetos: los punteros
+        // cacheados de camara apuntarian a memoria liberada (heap-use-after-free
+        // al cambiar de proyecto). Se olvidan aqui; setActiveCameraById o
+        // getActiveCamera los resuelven de nuevo sobre la escena cargada.
+        requestedActiveCamera = nullptr;
+        activeCameraObject = nullptr;
+        activeCamera = nullptr;
         // Los RigidBody deserializados nunca pasan por EditorController: la
         // malla se carga despues de los componentes (shape provisional) y el
         // cuerpo no se registra en el mundo. Aqui se reconstruye la shape con
@@ -465,6 +481,10 @@ void GameScene::loadScene(const std::string& pathTxt, const std::string& semiPat
             saveScene(prefijoEscena);
         }
     }
+    // Configurar resolver para modo editor: permite resolver referencias a
+    // GameObjects por nombre durante serializacion/deserializacion y drag&drop
+    // de GameObjects en scripts (inspector) mientras se edita.
+    configurarResolverObjetosEditor();
 }
 
 CameraComponent* GameScene::getActiveCamera() {
@@ -539,11 +559,22 @@ void GameScene::setActiveCamera(GameObject* object) {
 }
 
 int GameScene::getActiveCameraId() const noexcept {
-    return requestedActiveCamera ? requestedActiveCamera->getId() : -1;
+    // El pedido puede quedar colgando si la escena se limpio por otro camino
+    // (p. ej. cambio de proyecto): contains() solo compara direcciones, sin
+    // desreferenciar, igual que hace getActiveCamera().
+    if (!requestedActiveCamera || !sceneRegistry ||
+        !sceneRegistry->contains(requestedActiveCamera))
+        return -1;
+    return requestedActiveCamera->getId();
 }
 
 void GameScene::setActiveCameraById(int id) {
-    if (id < 0 || !sceneRegistry) return;
+    // Id automatico (-1) o sin escena: modo automatico, sin camara pedida (si
+    // quedaba una de otro proyecto, se olvida aqui en vez de colgar).
+    if (id < 0 || !sceneRegistry) {
+        requestedActiveCamera = nullptr;
+        return;
+    }
 
     auto* gameObjects = getGameObjectsScene();
     if (!gameObjects || gameObjects->isEmpty()) return;
@@ -557,7 +588,9 @@ void GameScene::setActiveCameraById(int id) {
         }
         pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
     }
-    // No se encontro la camara persistida: se deja el modo automatico.
+    // No se encontro la camara persistida: se deja el modo automatico,
+    // olvidando cualquier pedido anterior (puede ser de otro proyecto).
+    requestedActiveCamera = nullptr;
 }
 
 GameObject* GameScene::agregarCamaraEnVistaActiva() {
@@ -730,6 +763,44 @@ void GameScene::pintarViewportsGUI() {
             ImVec2(static_cast<float>(target->getWidth()),
                    static_cast<float>(target->getHeight())),
             ImVec2(0.f, 1.f), ImVec2(1.f, 0.f));
+
+        // Drag & drop: .prefab -> instanciar; .obj -> crear objeto con Model
+        // Usa InvisibleButton superpuesto para crear zona de drop válida
+        ImGui::InvisibleButton(("##ViewportDropTarget" + std::to_string(index)).c_str(),
+                               ImVec2(static_cast<float>(target->getWidth()),
+                                      static_cast<float>(target->getHeight())));
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+                const char* path = static_cast<const char*>(payload->Data);
+                if (path && editorController) {
+                    std::string pathStr(path);
+                    std::cout << "[DEBUG Viewport] Drag-drop received: " << pathStr << std::endl;
+                    if (pathStr.size() >= 7 && pathStr.substr(pathStr.size() - 7) == ".prefab") {
+                        // Instanciar prefab
+                        std::string nombre = std::filesystem::path(pathStr).stem().string();
+                        if (auto* prefabLib = editorController->getPrefabLibrary()) {
+                            if (Prefab* prefab = prefabLib->obtener(nombre)) {
+                                GameObject* instancia = prefab->instanciar(editorController.get(), nullptr);
+                                if (instancia) editorController->selectObject(instancia);
+                            }
+                        }
+                    } else if (pathStr.size() >= 4 && pathStr.substr(pathStr.size() - 4) == ".obj") {
+                        // Crear objeto con Model component
+                        auto obj = std::make_unique<SimpleObject>();
+                        std::string nombre = std::filesystem::path(pathStr).stem().string();
+                        std::snprintf(obj->inputName, sizeof(obj->inputName), "%s", nombre.c_str());
+                        GameObject* creado = editorController->createGameObject(std::move(obj), nullptr);
+                        if (creado) {
+                            auto* model = new Model();
+                            model->setPath(pathStr);
+                            creado->addComponent(std::unique_ptr<Component>(model));
+                            editorController->selectObject(creado);
+                        }
+                    }
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
         ImGui::End();
     }
 }

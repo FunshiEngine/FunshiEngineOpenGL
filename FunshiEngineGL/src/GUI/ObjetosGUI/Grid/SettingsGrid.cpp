@@ -21,7 +21,8 @@
 #include "../../../Objetos/Componentes/Grid.h"
 #include "../../../Objetos/GameObject.h"
 
-SettingsGrid::SettingsGrid(GameObject* gameObject) : gameObject(gameObject) {}
+SettingsGrid::SettingsGrid(GameObject* gameObject)
+    : SettingsComponent(demangle(typeid(Grid).name())), gameObject(gameObject) {}
 
 void SettingsGrid::showDataComponent() {
     Grid* grid = gameObject ? gameObject->getComponent<Grid>() : nullptr;
@@ -42,8 +43,4 @@ void SettingsGrid::showDataComponent() {
     // unidad, principales cada 5) y difuminado en el horizonte: NO hay
     // tamano ni separacion configurables (se eliminaron por diseño).
     ImGui::TextDisabled("Grilla infinita con densidad fija");
-}
-
-Component* SettingsGrid::getComponent() {
-    return gameObject ? gameObject->getComponent<Grid>() : nullptr;
 }

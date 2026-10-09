@@ -19,10 +19,9 @@
 #ifndef SETTINGSCOLLIDERMALLA_H
 #define SETTINGSCOLLIDERMALLA_H
 #include "../SettingsComponent.h"
-class GameObject;
-class SettingsTransform;
-class MallaCollider;
-class EditorController;
+#include "../Transform/SettingsTransform.h"
+#include "../../../Objetos/Componentes/Colliders/MallaCollider.h"
+#include "../../../Scenes/EditorController.h"
 
 class SettingsColliderMalla : public SettingsComponent {
 protected:
@@ -31,11 +30,11 @@ protected:
 	float newRadio;
 	EditorController* editor = nullptr;
 public:
-	SettingsColliderMalla(GameObject* objeto);
+	explicit SettingsColliderMalla(GameObject* objeto);
 	~SettingsColliderMalla();
 
 	void setEditor(EditorController* editor);
 	void showDataComponent() override;
-	Component* getComponent() override;
+	Component* getComponent() override { return myCollider; }
 };
 #endif

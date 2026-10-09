@@ -287,12 +287,10 @@ static int EjecutarMotor(int argc, char* argv[])
     EditorConfig::asegurarEstructuraBase();
 
     // Proyecto activo al arrancar: lo decide ProyectoInicial::resolver a partir
-    // de lo persistido y de --proyecto, sin leer disco ni UI (asi la politica es
-    // testeable headless). Primer arranque (sin Configuracion.json): no hay
-    // proyecto abierto y el nombre queda vacio para OBLIGAR a elegir (o crear)
-    // uno en el menu — "Iniciar Estudio" queda deshabilitado — y evitar que las
-    // carpetas de "Nuevo Proyecto" se creen solas. --proyecto tiene prioridad y
-    // entra directo al editor (skip menu).
+    // de --proyecto (si se pasa) o vacio para forzar el menu. NO se usa
+    // ultimoProyecto persistido automaticamente: siempre arranca en el menu
+    // salvo que se pase --proyecto (skip menu). Asi se evita entrada automatica
+    // al editor por config previa.
     const bool hayConfigGeneral =
         std::filesystem::exists(EditorConfig::rutaPorDefecto());
     const ProyectoInicial::Resolucion arranque = ProyectoInicial::resolver(

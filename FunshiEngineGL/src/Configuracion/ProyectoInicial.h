@@ -38,8 +38,10 @@ struct Resolucion {
 // nombrePersistido: ultimo proyecto de la config general (vacio si no hay).
 // proyectoCLI: valor de --proyecto (vacio si no se paso).
 // hayConfigGeneral: si ya existe Configuracion.json.
-// La linea de comandos tiene prioridad y entra directo al editor; si no, se
-// retoma el proyecto persistido (que puede ser vacio).
+// La linea de comandos (--proyecto) tiene prioridad y entra directo al editor;
+// si NO se pasa --proyecto, SIEMPRE arranca desde el menu (nombre vacio),
+// obligando al usuario a elegir o crear un proyecto. Esto evita entrada
+// automatica al editor por haber un ultimoProyecto persistido.
 inline Resolucion resolver(const std::string& nombrePersistido,
                            const std::string& proyectoCLI,
                            bool hayConfigGeneral) {
@@ -48,9 +50,9 @@ inline Resolucion resolver(const std::string& nombrePersistido,
     if (!proyectoCLI.empty()) {
         r.nombre = proyectoCLI;
         r.primerArranque = false;
-    } else if (hayConfigGeneral) {
-        r.nombre = nombrePersistido;
     }
+    // Si no hay --proyecto, dejamos nombre vacio para forzar el menu.
+    // El ultimoProyecto persistido NO se usa automaticamente.
     return r;
 }
 

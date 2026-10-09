@@ -84,6 +84,7 @@ private:
     bool dockAlive_ = true;
     std::string cacheCarpeta;
     std::filesystem::file_time_type cacheMtime{};
+    unsigned long ultimoContadorVisto = 0;  // Para detectar cambios en el arbol y refrescar antes de initGUI
 
     std::string crearNuevoElemento();
     void recorrer(const std::string& path);

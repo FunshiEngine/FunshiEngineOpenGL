@@ -28,7 +28,7 @@ namespace {
 
 // Version del formato del manifiesto: se incrementa al cambiar el esquema.
 // El campo es solo informativo; la lectura no exige una version exacta.
-constexpr int VERSION_MANIFIESTO = 1;
+constexpr int VERSION_MANIFIESTO = 2;
 
 // Las seis caras del cubemap del Skybox, con la clave de cada una. Se agrupan en
 // un array para que escribir, leer y transformar rutas no puedan quedar por debajo
@@ -57,8 +57,15 @@ nlohmann::json entradaAJson(const EntradaAssets& entrada) {
     for (const std::string& textura : entrada.texturas)
         texturas.push_back(textura);
     objeto["texturas"] = std::move(texturas);
-    if (!entrada.script.empty())
-        objeto["script"] = entrada.script;
+    if (!entrada.scripts.empty()) {
+        nlohmann::json scripts = nlohmann::json::array();
+        for (const std::string& script : entrada.scripts) {
+            if (!script.empty())
+                scripts.push_back(script);
+        }
+        if (!scripts.empty())
+            objeto["scripts"] = std::move(scripts);
+    }
     const std::array<const std::string*, 6> caras = carasCubemap(entrada);
     for (std::size_t i = 0; i < caras.size(); ++i)
         if (!caras[i]->empty())
@@ -71,8 +78,22 @@ bool jsonAEntrada(const nlohmann::json& objeto, EntradaAssets& entrada) {
         return false;
     if (objeto.contains("malla") && objeto["malla"].is_string())
         entrada.malla = objeto["malla"].get<std::string>();
-    if (objeto.contains("script") && objeto["script"].is_string())
-        entrada.script = objeto["script"].get<std::string>();
+    // Leer scripts (nuevo formato: array "scripts")
+    if (objeto.contains("scripts") && objeto["scripts"].is_array()) {
+        for (const auto& script : objeto["scripts"]) {
+            if (script.is_string()) {
+                std::string scriptStr = script.get<std::string>();
+                if (!scriptStr.empty())
+                    entrada.scripts.push_back(std::move(scriptStr));
+            }
+        }
+    }
+    // Compatibilidad con formato legacy: campo "script" (string simple)
+    else if (objeto.contains("script") && objeto["script"].is_string()) {
+        std::string scriptStr = objeto["script"].get<std::string>();
+        if (!scriptStr.empty())
+            entrada.scripts.push_back(std::move(scriptStr));
+    }
     if (objeto.contains("texturas") && objeto["texturas"].is_array()) {
         // Solo los slots presentes (hasta 4); los ausentes quedan vacios.
         const std::size_t slots =
@@ -143,7 +164,8 @@ void ManifiestoAssetsCore::relativizarEntrada(EntradaAssets& entrada) {
     entrada.malla = EditorConfig::relativizarRuta(entrada.malla);
     for (std::string& textura : entrada.texturas)
         textura = EditorConfig::relativizarRuta(textura);
-    entrada.script = EditorConfig::relativizarRuta(entrada.script);
+    for (std::string& script : entrada.scripts)
+        script = EditorConfig::relativizarRuta(script);
     for (std::string* cara : carasCubemap(entrada))
         *cara = EditorConfig::relativizarRuta(*cara);
 }
@@ -152,7 +174,8 @@ void ManifiestoAssetsCore::absolutizarEntrada(EntradaAssets& entrada) {
     entrada.malla = EditorConfig::absolutizarRuta(entrada.malla);
     for (std::string& textura : entrada.texturas)
         textura = EditorConfig::absolutizarRuta(textura);
-    entrada.script = EditorConfig::absolutizarRuta(entrada.script);
+    for (std::string& script : entrada.scripts)
+        script = EditorConfig::absolutizarRuta(script);
     for (std::string* cara : carasCubemap(entrada))
         *cara = EditorConfig::absolutizarRuta(*cara);
 }
@@ -163,8 +186,11 @@ std::string ManifiestoAssetsCore::resolverRuta(
 }
 
 bool ManifiestoAssetsCore::entradaVacia(const EntradaAssets& entrada) {
-    if (!entrada.malla.empty() || !entrada.script.empty())
+    if (!entrada.malla.empty())
         return false;
+    for (const std::string& script : entrada.scripts)
+        if (!script.empty())
+            return false;
     for (const std::string& textura : entrada.texturas)
         if (!textura.empty()) return false;
     for (const std::string* cara : carasCubemap(entrada))

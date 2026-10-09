@@ -127,10 +127,13 @@ int main() {
     }
 
     // 1c. ProyectoInicial::resolver: politica de arranque sin disco ni UI.
+    // Sin --proyecto SIEMPRE arranca en el menu (nombre vacio): el
+    // ultimoProyecto persistido NO reabre solo el editor.
     {
         using ProyectoInicial::resolver;
         const auto conConfig = resolver("MiEscena", "", true);
-        CHECK(conConfig.nombre == "MiEscena", "resolver: retoma el persistido");
+        CHECK(conConfig.nombre.empty(),
+              "resolver: sin --proyecto no retoma el persistido (menu)");
         CHECK(!conConfig.primerArranque,
               "resolver: con config no es primer arranque");
 
@@ -144,9 +147,9 @@ int main() {
         CHECK(primer.nombre.empty(), "resolver: primer arranque sin proyecto");
         CHECK(primer.primerArranque, "resolver: sin config es primer arranque");
 
-        const auto conCLI = resolver("", "ProyectoCLI", false);
+        const auto conCLI = resolver("MiEscena", "ProyectoCLI", false);
         CHECK(conCLI.nombre == "ProyectoCLI",
-              "resolver: --proyecto tiene prioridad");
+              "resolver: --proyecto tiene prioridad sobre el persistido");
         CHECK(!conCLI.primerArranque,
               "resolver: --proyecto entra directo al editor");
     }

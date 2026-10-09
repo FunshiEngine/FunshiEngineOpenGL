@@ -39,6 +39,8 @@
 #include "../Audio/AudioEngine.h"
 #include "../Scenes/SceneRegistry.h"
 #include "../Scenes/EditorController.h"
+#include "../Objetos/Prefab.h"
+#include "../Objetos/PrefabLibrary.h"
 #include "../Fisicas/PhysicsEngine.h"
 #include "../Input/InputScripts.h"
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
@@ -509,6 +511,32 @@ bool serviciosAgregarRigidBody(void* objeto, float masa) {
                              std::make_unique<RigidBody>(collider, masa));
 }
 
+void* serviciosInstanciarPrefab(const char* nombre, void* padre) {
+    if (!g_editor || !g_escena || !nombre || !*nombre) return nullptr;
+    GameObject* padreObj = static_cast<GameObject*>(padre);
+    if (padreObj && !g_escena->contains(padreObj)) padreObj = nullptr;
+    if (!g_editor->getPrefabLibrary()) return nullptr;
+    Prefab* prefab = g_editor->getPrefabLibrary()->obtener(nombre);
+    if (!prefab) return nullptr;
+    GameObject* instancia = prefab->instanciar(g_editor, padreObj);
+    return instancia;
+}
+
+const char** serviciosListarPrefabs() {
+    if (!g_editor || !g_editor->getPrefabLibrary()) return nullptr;
+    static std::vector<const char*> cache;
+    cache.clear();
+    auto nombres = g_editor->getPrefabLibrary()->listarNombres();
+    cache.reserve(nombres.size() + 1);
+    for (const auto& n : nombres) {
+        // Nota: los strings son propios de la biblioteca, sus punteros son
+        // validos mientras la biblioteca no se recargue.
+        cache.push_back(n.c_str());
+    }
+    cache.push_back(nullptr);
+    return cache.data();
+}
+
 } // namespace
 
 const ScriptServices* tablaServicios() {
@@ -536,7 +564,9 @@ const ScriptServices* tablaServicios() {
         /* .agregarColliderEsfera = */ serviciosAgregarColliderEsfera,
         /* .agregarColliderCubo = */ serviciosAgregarColliderCubo,
         /* .agregarRigidBody  = */ serviciosAgregarRigidBody,
-        /* .version           = */ 4,
+        /* .instanciarPrefab  = */ serviciosInstanciarPrefab,
+        /* .listarPrefabs     = */ serviciosListarPrefabs,
+        /* .version           = */ 5,
     };
     return &tabla;
 }

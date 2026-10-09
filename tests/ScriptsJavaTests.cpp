@@ -214,7 +214,12 @@ const ScriptServices* tablaServicios() {
         [](void*, float) { return true; },
         [](void*, float) { return true; },
         [](void*, float) { return true; },
-        4,
+        [](const char*, void*) { return objetoCreado; },
+        []() { 
+            static const char* prefabs[] = { "Enemigo", "Jugador", nullptr };
+            return prefabs;
+        },
+        5,
     };
     return &servicios;
 }

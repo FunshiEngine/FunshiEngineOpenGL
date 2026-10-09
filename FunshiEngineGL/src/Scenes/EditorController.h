@@ -31,6 +31,12 @@ class SceneRegistry;
 class EventBus;
 class Transform;
 class AssetManager;
+class PrefabLibrary;
+
+// Deleter para unique_ptr<PrefabLibrary> definido en el .cpp
+struct PrefabLibraryDeleter {
+    void operator()(PrefabLibrary* ptr) noexcept;
+};
 
 // Objetivo generico del gizmo: el Transform LOCAL a editar mas el Transform
 // GLOBAL del contexto padre (para recomponer/mover en espacio local). Con
@@ -78,6 +84,9 @@ private:
     // Gestor de comandos para undo/redo
     GestorComandos gestorComandos;
 
+    // Biblioteca de prefabs (deleter definido en .cpp para evitar incluir header)
+    std::unique_ptr<PrefabLibrary, PrefabLibraryDeleter> prefabLibrary;
+
 public:
     EditorController(SceneRegistry* scene, PhysicsEngine* physics = nullptr,
                      EventBus* events = nullptr,
@@ -88,6 +97,8 @@ public:
     void setPhysics(PhysicsEngine* physics) noexcept;
     void setEventBus(EventBus* events) noexcept;
     void setAssetManager(AssetManager* assetsManager) noexcept;
+    PrefabLibrary* getPrefabLibrary() noexcept { return prefabLibrary.get(); }
+    const PrefabLibrary* getPrefabLibrary() const noexcept { return prefabLibrary.get(); }
 
     // Raw pointers are non-owning scene views.
     GameObject* createGameObject(std::unique_ptr<GameObject> object,

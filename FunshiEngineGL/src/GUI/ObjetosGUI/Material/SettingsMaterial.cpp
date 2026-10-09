@@ -25,9 +25,8 @@
 #include "../../../Objetos/Componentes/Material.h"
 #include <imgui.h>
 
-SettingsMaterial::SettingsMaterial(GameObject* gameObject) {
-	this->gameObject = gameObject;
-}
+SettingsMaterial::SettingsMaterial(GameObject* gameObject)
+    : SettingsComponent(demangle(typeid(Material).name())), gameObject(gameObject) {}
 
 void SettingsMaterial::showDataComponent() {
 	Material* material = gameObject->getComponent<Material>();
@@ -109,8 +108,4 @@ void SettingsMaterial::showDataComponent() {
 	             &Material::setNormalMapPath);
 	campoTextura("Emision", material->getEmissionMapPath(),
 	             &Material::setEmissionMapPath);
-}
-
-Component* SettingsMaterial::getComponent() {
-	return gameObject->getComponent<Material>();
 }

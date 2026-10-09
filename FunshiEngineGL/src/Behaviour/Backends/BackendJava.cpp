@@ -112,6 +112,8 @@ const char* SRC_NATIVO =
     "    public static native boolean agregarColliderEsfera(long objeto, float radio);\n"
     "    public static native boolean agregarColliderCubo(long objeto, float radio);\n"
     "    public static native boolean agregarRigidBody(long objeto, float masa);\n"
+    "    public static native long instanciarPrefab(String nombre, long padre);\n"
+    "    public static native String[] listarPrefabs();\n"
     "    public static native void imprimir(String texto);\n"
     "    public static native int reproducirSonido(String clip, float volumen, boolean bucle);\n"
     "    public static native void detenerSonido(int handle);\n"
@@ -955,6 +957,25 @@ jboolean nativoAgregarRigidBody(JNIEnv*, jclass, jlong o, jfloat masa) {
                 ? JNI_TRUE
                 : JNI_FALSE;
 }
+jlong nativoInstanciarPrefab(JNIEnv* env, jclass, jstring nombre, jlong padre) {
+    if (!nombre) return 0;
+    const std::string texto = leerCadena(env, nombre);
+    void* res = MotorScript::tablaServicios()->instanciarPrefab(texto.c_str(),
+                                                               comoObjeto(padre));
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(res));
+}
+jobjectArray nativoListarPrefabs(JNIEnv* env, jclass) {
+    const char** nombres = MotorScript::tablaServicios()->listarPrefabs();
+    if (!nombres) return nullptr;
+    int count = 0;
+    while (nombres[count]) ++count;
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray arr = env->NewObjectArray(count, stringClass, nullptr);
+    for (int i = 0; i < count; ++i) {
+        env->SetObjectArrayElement(arr, i, env->NewStringUTF(nombres[i]));
+    }
+    return arr;
+}
 
 bool registrarNativos(const std::string& clasesDir, std::string& error) {
     JNIEnv* env = entorno();
@@ -1084,6 +1105,12 @@ bool registrarNativos(const std::string& clasesDir, std::string& error) {
          reinterpret_cast<void*>(&nativoAgregarColliderCubo)},
         {const_cast<char*>("agregarRigidBody"), const_cast<char*>("(JF)Z"),
          reinterpret_cast<void*>(&nativoAgregarRigidBody)},
+        {const_cast<char*>("instanciarPrefab"),
+         const_cast<char*>("(Ljava/lang/String;J)J"),
+         reinterpret_cast<void*>(&nativoInstanciarPrefab)},
+        {const_cast<char*>("listarPrefabs"),
+         const_cast<char*>("()[Ljava/lang/String;"),
+         reinterpret_cast<void*>(&nativoListarPrefabs)},
     };
     if (env->RegisterNatives(nativo, metodos,
                              sizeof(metodos) / sizeof(metodos[0])) != JNI_OK) {

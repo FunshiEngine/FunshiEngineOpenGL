@@ -19,15 +19,14 @@
 #ifndef SETTINGSLIGHT_H
 #define SETTINGSLIGHT_H
 #include "../SettingsComponent.h"
-class GameObject;
-class Light;
+#include "../../../Objetos/GameObject.h"
+#include "../../../Objetos/Componentes/Light.h"
 
 class SettingsLight : public SettingsComponent {
 	GameObject* gameObject;
 public:
-	SettingsLight(GameObject* gameObject);
-
+	explicit SettingsLight(GameObject* gameObject);
 	void showDataComponent() override;
-	Component* getComponent() override;
+	Component* getComponent() override { return gameObject ? gameObject->getComponent<Light>() : nullptr; }
 };
 #endif

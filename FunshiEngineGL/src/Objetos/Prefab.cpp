@@ -29,6 +29,7 @@
 #include "Scenes/EditorController.h"
 #include "ClonadorObjetos.h"
 #include "Configuracion/EditorConfig.h"
+#include "Objetos/Componentes/ComponentFactory.h"
 #include "Objetos/Componentes/Material.h"
 #include "Objetos/Componentes/Light.h"
 #include "Objetos/Componentes/Model.h"
@@ -37,6 +38,13 @@
 #include "Objetos/Componentes/InterfaceComponent.h"
 #include "Objetos/Componentes/CameraComponent.h"
 #include "Objetos/Componentes/Grid.h"
+#include "Objetos/Componentes/Transform.h"
+#include "Objetos/Componentes/Color.h"
+#include "Objetos/Componentes/Script.h"
+#include "Objetos/Componentes/Colliders/EsfereCollider.h"
+#include "Objetos/Componentes/Colliders/CubeCollider.h"
+#include "Objetos/Componentes/Colliders/MallaCollider.h"
+#include "Objetos/Componentes/RigidBody/RigidBody.h"
 
 namespace fs = std::filesystem;
 
@@ -54,7 +62,97 @@ namespace {
 constexpr std::uint32_t PREFAB_MAGIC = 0x42415250;
 constexpr std::uint32_t PREFAB_VERSION = 1;
 
+// Constantes para serializacion de tag (coinciden con GameObject.cpp)
+constexpr std::uint32_t TAG_MAGIC = 0x31474154;
+constexpr std::uint32_t TAG_VERSION = 1;
+constexpr std::size_t TAG_MAX_LENGTH = 1024;
+
+struct GameObjectProps {
+    bool state = true;
+    int id = 0;
+    int tam = 1;
+    char inputName[25] = "";
+    std::string tag = "Untagged";
+};
+
+void escribirGameObjectProps(GameObject* obj, std::ofstream& out) {
+    // state (bool)
+    bool state = obj->getState();
+    out.write(reinterpret_cast<const char*>(&state), sizeof(state));
+    // id (int)
+    int id = obj->getId();
+    out.write(reinterpret_cast<const char*>(&id), sizeof(id));
+    // tam (int)
+    int tam = obj->getTam();
+    out.write(reinterpret_cast<const char*>(&tam), sizeof(tam));
+    // inputName (char[25])
+    out.write(obj->inputName, sizeof(obj->inputName));
+    // tag (magic, version, length, data)
+    const std::string& tag = obj->getTag();
+    std::uint32_t length = static_cast<std::uint32_t>(tag.size());
+    out.write(reinterpret_cast<const char*>(&TAG_MAGIC), sizeof(TAG_MAGIC));
+    out.write(reinterpret_cast<const char*>(&TAG_VERSION), sizeof(TAG_VERSION));
+    out.write(reinterpret_cast<const char*>(&length), sizeof(length));
+    if (length > 0) {
+        out.write(tag.data(), static_cast<std::streamsize>(length));
+    }
+}
+
+GameObjectProps leerGameObjectProps(std::ifstream& in) {
+    GameObjectProps props;
+    in.read(reinterpret_cast<char*>(&props.state), sizeof(props.state));
+    in.read(reinterpret_cast<char*>(&props.id), sizeof(props.id));
+    in.read(reinterpret_cast<char*>(&props.tam), sizeof(props.tam));
+    in.read(props.inputName, sizeof(props.inputName));
+    // tag
+    std::uint32_t magic = 0, version = 0, length = 0;
+    in.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+    in.read(reinterpret_cast<char*>(&version), sizeof(version));
+    in.read(reinterpret_cast<char*>(&length), sizeof(length));
+    if (in && magic == TAG_MAGIC && version == TAG_VERSION && length > 0 && length <= TAG_MAX_LENGTH) {
+        props.tag.resize(length);
+        in.read(props.tag.data(), static_cast<std::streamsize>(length));
+    } else {
+        props.tag = "Untagged";
+        // Si el tag es invalido, intentar recuperar el stream
+        if (magic != TAG_MAGIC || version != TAG_VERSION) {
+            // Retroceder para no perder datos de componentes
+            in.seekg(-static_cast<std::streamoff>(sizeof(magic) + sizeof(version) + sizeof(length)), std::ios::cur);
+        }
+    }
+    return props;
+}
+
+// Obtiene el nombre de tipo demangleado del componente (consistente con ComponentFactory y serializaciÃ³n de escena)
+namespace {
+std::string obtenerNombreComponente(const Component* comp) {
+    const std::type_info& ti = typeid(*comp);
+    const char* name = ti.name();
+    // RTTI names (GCC/Clang): "N8Objetos10Componentes9TransformE", "N8Objetos10Componentes5ColorE", etc.
+    std::string typeName(name);
+    // Extraer nombre simple (despuÃ©s de :: final)
+    size_t pos = typeName.find_last_of(':');
+    if (pos != std::string::npos) typeName = typeName.substr(pos + 1);
+    // Eliminar prefijos de namespace comunes (GCC/Clang mangling)
+    if (typeName.rfind("N8Objetos10Componentes", 0) == 0) {
+        typeName = typeName.substr(21);
+    }
+    // Eliminar prefijo de longitud (dÃ­gitos iniciales que indican la longitud del nombre)
+    // Ej: "9TransformE" -> "TransformE"
+    while (!typeName.empty() && std::isdigit(typeName[0])) {
+        typeName = typeName.substr(1);
+    }
+    // Eliminar sufijos de template/size
+    size_t end = typeName.find('E');
+    if (end != std::string::npos) typeName = typeName.substr(0, end);
+    return typeName;
+}
+} // namespace
+
 void escribirArbol(GameObject* obj, std::ofstream& out) {
+    // Propiedades del GameObject (state, id, tam, inputName, tag)
+    escribirGameObjectProps(obj, out);
+
     // Componentes
     std::uint32_t numComp = 0;
     if (obj->getComponents() && !obj->getComponents()->isEmpty()) {
@@ -67,7 +165,15 @@ void escribirArbol(GameObject* obj, std::ofstream& out) {
     if (numComp > 0) {
         for (auto* n = obj->getComponents()->first(); n;
              n = (n != obj->getComponents()->last()) ? obj->getComponents()->next(n) : nullptr) {
-            if (Component* c = n->getElement()) c->saveComponent(&out);
+            if (Component* c = n->getElement()) {
+                // Escribir nombre de tipo (length + string) antes de sus datos
+                // Formato consistente con GameObject::serializeEntityComponents
+                std::string typeName = obtenerNombreComponente(c);
+                std::uint32_t length = static_cast<std::uint32_t>(typeName.size());
+                out.write(reinterpret_cast<const char*>(&length), sizeof(length));
+                out.write(typeName.c_str(), length);
+                c->saveComponent(&out);
+            }
         }
     }
     // Hijos
@@ -84,6 +190,11 @@ void escribirArbol(GameObject* obj, std::ofstream& out) {
 }
 
 GameObject* leerArbol(std::ifstream& in, EditorController* editor, GameObject* padre) {
+    // Leer propiedades del GameObject (state, id, tam, inputName, tag)
+    GameObjectProps props = leerGameObjectProps(in);
+    if (!in) return nullptr;
+
+    // Leer número de componentes
     std::uint32_t numComp = 0;
     in.read(reinterpret_cast<char*>(&numComp), sizeof(numComp));
     if (!in) return nullptr;
@@ -92,85 +203,47 @@ GameObject* leerArbol(std::ifstream& in, EditorController* editor, GameObject* p
     auto obj = std::make_unique<SimpleObject>();
     GameObject* crudo = obj.get();
 
+    // Aplicar propiedades del GameObject
+    crudo->setState(props.state);
+    // No preservar el ID original: al instanciar un prefab, el SceneRegistry
+    // asigna un ID nuevo unico. El ID guardado es solo para referencia.
+    crudo->setId(0);
+    crudo->setTam(props.tam);
+    std::snprintf(crudo->inputName, sizeof(crudo->inputName), "%s", props.inputName);
+    crudo->setTag(props.tag);
+
     // Leer componentes
     for (std::uint32_t i = 0; i < numComp; ++i) {
-        std::streampos antes = in.tellg();
-        uint32_t magic = 0;
-        in.read(reinterpret_cast<char*>(&magic), sizeof(magic));
-        in.seekg(antes);
-        if (!in) break;
-
-        // Usar ComponentFactory para crear por magic number
-        // Como no tenemos el nombre de tipo, mapeamos magic -> tipo.
-        // Cada componente serializa su magic number al inicio.
-        std::unique_ptr<Component> comp = nullptr;
-        switch (magic) {
-            case 0x544E5253: // Transform "SRNT"
-                comp = std::make_unique<Transform>();
-                break;
-            case 0x524F4C43: // Color "OLOR"
-                comp = std::make_unique<Color>();
-                break;
-            case 0x54534D4D: // Material "MATS"
-                comp = std::make_unique<Material>();
-                break;
-            case 0x5448474C: // Light "LGHT"
-                comp = std::make_unique<Light>();
-                break;
-            case 0x4D524143: // Camera "CAMR"
-                comp = std::make_unique<CameraComponent>();
-                break;
-            case 0x44495247: // Grid "GRID"
-                comp = std::make_unique<Grid>();
-                break;
-            case 0x52435345: // EsfereCollider "ESCR"
-                comp = std::make_unique<EsfereCollider>(1.0f, crudo->getComponent<Transform>(), crudo);
-                break;
-            case 0x45554243: // CubeCollider "CUBE"
-                comp = std::make_unique<CubeCollider>(1.0f, crudo->getComponent<Transform>(), crudo);
-                break;
-            case 0x414C4C4D: // MallaCollider "MLLA"
-                comp = std::make_unique<MallaCollider>(1.0f, crudo->getComponent<Transform>(), crudo);
-                break;
-            case 0x44425242: // RigidBody "BRBD"
-                if (Collider* col = crudo->getComponent<Collider>())
-                    comp = std::make_unique<RigidBody>(col, 1.0f);
-                break;
-            case 0x54504353: // Script "SCPT"
-                comp = std::make_unique<Script>();
-                break;
-            case 0x44454C4F: // Model "MODEL"
-                comp = std::make_unique<Model>();
-                break;
-            case 0x5842534B: // Skybox "SKYB"
-                comp = std::make_unique<Skybox>();
-                break;
-            case 0x45525541: // AudioSource "AUDS"
-                comp = std::make_unique<AudioSource>();
-                break;
-            case 0x4546414E: // InterfaceComponent "NFEI"
-                comp = std::make_unique<InterfaceComponent>();
-                break;
-            default:
-                break;
+        // Leer nombre de tipo (length + string)
+        std::uint32_t length = 0;
+        in.read(reinterpret_cast<char*>(&length), sizeof(length));
+        if (!in || length == 0 || length > 256) {
+            return nullptr;
         }
+        std::string typeName(length, '\0');
+        in.read(&typeName[0], static_cast<std::streamsize>(length));
+        if (!in) return nullptr;
 
-        if (comp) {
-            comp->loadComponent(&in);
-            crudo->addComponent(std::move(comp));
+        // Crear componente usando ComponentFactory (consistente con deserializaciÃ³n de escena)
+        std::unique_ptr<Component> comp = nullptr;
+
+        // Caso especial: Transform - el objeto ya tiene uno de Entity
+        if (typeName == "Transform") {
+            if (Transform* t = crudo->getComponent<Transform>()) {
+                t->loadComponent(&in);
+            }
         } else {
-            // Componente desconocido: saltar sus bytes (no sabemos su tamaño)
-            // En una implementación robusta cada componente debería escribir su tamaño
-            // Por ahora asumimos que no hay componentes desconocidos en prefabs válidos
+            // Usar ComponentFactory para los demÃ¡s
+            comp = ComponentFactory::create(typeName, *crudo);
+            if (comp) {
+                comp->loadComponent(&in);
+                crudo->addComponent(std::move(comp));
+            } else {
+                return nullptr;
+            }
         }
     }
 
-    // Leer tag, nombre, etc. del GameObject
-    // La serialización de GameObject guarda inputName, tag, id, state...
-    // Pero SimpleObject no sobrescribe saveComponent, así que usamos la de GameObject
-    // Para simplificar, guardamos/cargamos solo lo esencial:
-    // (En una versión completa, GameObject tendría savePrefab/loadPrefab)
-    
     // Insertar en la escena
     GameObject* insertado = editor->createGameObject(std::move(obj), padre);
     if (!insertado) return nullptr;
@@ -224,4 +297,23 @@ GameObject* Prefab::instanciar(EditorController* editor, GameObject* padre) {
 
 bool Prefab::existeArchivo() const noexcept {
     return fs::exists(rutaArchivo_);
+}
+
+bool Prefab::validarArchivo(const std::string& ruta) {
+    std::ifstream in(ruta, std::ios::binary);
+    if (!in) return false;
+
+    // Verificar magic number
+    std::uint32_t magic = 0, version = 0;
+    in.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+    in.read(reinterpret_cast<char*>(&version), sizeof(version));
+    if (!in) return false;
+    if (magic != PREFAB_MAGIC || version != PREFAB_VERSION) return false;
+
+    // Verificar que hay al menos un objeto (numObjetos > 0)
+    std::uint32_t numObjetos = 0;
+    in.read(reinterpret_cast<char*>(&numObjetos), sizeof(numObjetos));
+    if (!in || numObjetos == 0) return false;
+
+    return true;
 }

@@ -18,6 +18,7 @@
 */
 #ifndef SETTINGSCOMPONENT_H
 #define SETTINGSCOMPONENT_H
+#include <string>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -27,12 +28,15 @@ class Component;
 class SettingsComponent {
 protected:
 	bool mostrarVisualesDepuracion_ = true;
+	std::string tipoComponente_; // nombre del tipo (demangle) para validacion segura
 
 public:
-	SettingsComponent(){}
+	SettingsComponent() = default;
+	explicit SettingsComponent(const std::string& tipo) : tipoComponente_(tipo) {}
 	virtual ~SettingsComponent() = default;
 	virtual void showDataComponent() = 0;
 	virtual Component* getComponent() = 0;
+	const std::string& getTipoComponente() const noexcept { return tipoComponente_; }
 	void setMostrarVisualesDepuracion(bool mostrar) noexcept {
 		mostrarVisualesDepuracion_ = mostrar;
 	}

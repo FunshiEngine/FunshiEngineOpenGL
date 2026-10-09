@@ -279,6 +279,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── GameObject.h/.cpp         ← id, nombre, tag, estado, update y serialización binaria
         │   ├── TagRegistry.h             ← registro dinámico de tags para el Inspector
         │   ├── GameObjectFactory.h/.cpp
+        │   ├── Prefab.h/.cpp            ← formato .prefab (magic PREB, arbol recursivo con componentes/hijos)
+        │   ├── PrefabLibrary.h/.cpp     ← cache + escaneo Assets/Prefabs/, crear/obtener/listar/borrar/renombrar
         │   ├── ClonadorObjetos.h/.cpp   ← copia profunda por roundtrip de serializacion (scripts + Ctrl+C/V)
         │   ├── SimpleObject.h            ← GameObject sin geometría (Transform/Grid/Light...)
         │   ├── Modelos3D.h/.cpp          ← carga Assimp y datos de la malla (el dibujado
@@ -590,8 +592,8 @@ solo como orquestador de arranque y bucle.
   `renombrarProyecto`, `eliminarProyecto`) no se implementa en EditorConfig:
   son **delegaciones a `ProjectManager`**, único dueño del CRUD, las
   migraciones de estructura antigua y los fallbacks de copia entre
-  dispositivos. La política de qué proyecto queda abierto al arrancar (último
-  persistido vs. `--proyecto`, y si es primer arranque) vive aislada y sin
+  dispositivos. La política de qué proyecto queda abierto al arrancar (menú
+  salvo `--proyecto`, y si es primer arranque) vive aislada y sin
   disco ni UI en `Configuracion/ProyectoInicial.h`. La orquestación de todo el flujo de proyectos sobre esta
   fachada (qué hará al arrancar, entrar, guardar, renombrar, eliminar,
   exportar y cuál es el `imgui.ini` vigente) vive en
@@ -1130,7 +1132,7 @@ Los bugs de la Fase 2 (cámaras/vistas previas) y sus fixes están documentados 
 - [ ] Cuadro de log de errores en el editor.
 - [ ] Resolver IDs duplicados al crear objetos; limpiar binarios huérfanos al eliminar.
 - [ ] Terminar los popups del inspector.
-- [ ] Prefabs y duplicación de objetos.
+- [x] Prefabs y duplicación de objetos.
 - [ ] Portabilidad de rutas de assets (centralizar `HOME` / rutas de Windows).
 - [ ] Versionado y validación de la serialización binaria.
 - [ ] Extraer `SceneRenderer`, `PhysicsSystem` y `ScriptSystem` de `GameScene`.

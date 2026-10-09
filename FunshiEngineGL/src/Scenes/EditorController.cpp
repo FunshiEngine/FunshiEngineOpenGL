@@ -25,6 +25,8 @@
 #include "../Objetos/NombreUnico.h"
 #include "../Objetos/Modelos3D.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
+#include "../Objetos/PrefabLibrary.h"
+#include "../Objetos/Prefab.h"
 #include "../Events/EventBus.h"
 #include "../Comandos/GestorComandos.h"
 #include "../Comandos/CrearObjetoComando.h"
@@ -35,9 +37,14 @@
 #include "../Comandos/TransformComando.h"
 #include "../Comandos/LimpiarEscenaComando.h"
 
+void PrefabLibraryDeleter::operator()(PrefabLibrary* ptr) noexcept {
+    delete ptr;
+}
+
 EditorController::EditorController(SceneRegistry* value, PhysicsEngine* world,
-                                   EventBus* bus, AssetManager* assetsManager)
-    : scene(value), physics(world), events(bus), assets(assetsManager) {}
+                                    EventBus* bus, AssetManager* assetsManager)
+    : scene(value), physics(world), events(bus), assets(assetsManager),
+      prefabLibrary(new PrefabLibrary(), PrefabLibraryDeleter()) {}
 
 void EditorController::setScene(SceneRegistry* value) noexcept { scene = value; }
 void EditorController::setPhysics(PhysicsEngine* value) noexcept { physics = value; }

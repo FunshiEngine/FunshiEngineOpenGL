@@ -21,9 +21,8 @@
 
 #include "../SettingsComponent.h"
 #include "SelectorArchivoCubemap.h"
-
-class GameObject;
-class Skybox;
+#include "../../../Objetos/GameObject.h"
+#include "../../../Objetos/Componentes/Skybox.h"
 
 class SettingsSkybox : public SettingsComponent {
     GameObject* gameObject;
@@ -45,7 +44,7 @@ public:
     explicit SettingsSkybox(GameObject* gameObject);
 
     void showDataComponent() override;
-    Component* getComponent() override;
+    Component* getComponent() override { return gameObject ? gameObject->getComponent<Skybox>() : nullptr; }
 };
 
 #endif // SETTINGSSKYBOX_H

@@ -164,6 +164,7 @@ void GrillaRenderer::dibujar(const float model[16], const float colorGrilla[3],
     // El difuminado se funde con el fondo: hace falta blending durante la
     // grilla (y hay que restaurarlo, la pasada de objetos espera el estado base).
     auto& backend = Rendering::Backend::activeBackend();
+    if (!backend.available()) return;  // Guard: backend no disponible (contexto perdido, no inicializado, etc.)
     backend.setBlendEnabled(true);
 
     // Secundarias (1px), principales (2px) y ejes (3px): mismo color efectivo,

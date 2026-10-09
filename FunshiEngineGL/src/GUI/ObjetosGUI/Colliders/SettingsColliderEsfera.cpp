@@ -24,11 +24,12 @@
 #include "../../../Scenes/EditorController.h"
 #include <imgui.h>
 
-SettingsColliderEsfera::SettingsColliderEsfera(GameObject* objeto) {
-	myCollider = objeto->getComponent<EsfereCollider>();
+SettingsColliderEsfera::SettingsColliderEsfera(GameObject* objeto)
+    : SettingsComponent(demangle(typeid(EsfereCollider).name())),
+      myCollider(objeto ? objeto->getComponent<EsfereCollider>() : nullptr),
+      newRadio(myCollider ? myCollider->getRadio() : 0.0f) {
 	this->settingsTransform =
-	    new SettingsTransform(myCollider->getTransform(), objeto);
-	this->newRadio = myCollider->getRadio();
+	    new SettingsTransform(myCollider ? myCollider->getTransform() : nullptr, objeto);
 }
 
 SettingsColliderEsfera::~SettingsColliderEsfera() { delete settingsTransform; }
@@ -58,5 +59,3 @@ void SettingsColliderEsfera::showDataComponent() {
 	}
 	settingsTransform->showDataComponent();
 }
-
-Component* SettingsColliderEsfera::getComponent() { return myCollider; }

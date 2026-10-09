@@ -27,8 +27,8 @@ class SettingsTransform : public SettingsComponent {
 	Transform* componentTransform;
 	GameObject* ownerObject;
 public:
-	SettingsTransform(Transform* componentTransform, GameObject* ownerObject = nullptr);
+	explicit SettingsTransform(Transform* componentTransform, GameObject* ownerObject = nullptr);
 	virtual void showDataComponent() override;
-	virtual Component* getComponent();
+	virtual Component* getComponent() override { return componentTransform; }
 };
 #endif

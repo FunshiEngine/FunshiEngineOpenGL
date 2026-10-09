@@ -25,7 +25,7 @@
 #include <cstring>
 
 SettingsInterface::SettingsInterface(GameObject* gameObject)
-    : gameObject(gameObject) {}
+    : SettingsComponent(demangle(typeid(InterfaceComponent).name())), gameObject(gameObject) {}
 
 void SettingsInterface::showDataComponent() {
     InterfaceComponent* comp = gameObject->getComponent<InterfaceComponent>();
@@ -42,8 +42,4 @@ void SettingsInterface::showDataComponent() {
         comp->setInterfaz(buffer);
 
     ImGui::TextDisabled("Se muestra en modo play, a pantalla completa");
-}
-
-Component* SettingsInterface::getComponent() {
-    return gameObject->getComponent<InterfaceComponent>();
 }
