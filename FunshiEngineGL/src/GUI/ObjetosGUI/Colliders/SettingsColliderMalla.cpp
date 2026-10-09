@@ -24,11 +24,12 @@
 #include "../../../Scenes/EditorController.h"
 #include <imgui.h>
 
-SettingsColliderMalla::SettingsColliderMalla(GameObject* objeto) {
-	myCollider = objeto->getComponent<MallaCollider>();
+SettingsColliderMalla::SettingsColliderMalla(GameObject* objeto)
+    : SettingsComponent(demangle(typeid(MallaCollider).name())),
+      myCollider(objeto ? objeto->getComponent<MallaCollider>() : nullptr),
+      newRadio(myCollider ? myCollider->getRadio() : 0.0f) {
 	this->settingsTransform =
-	    new SettingsTransform(myCollider->getTransform(), objeto);
-	this->newRadio = myCollider->getRadio();
+	    new SettingsTransform(myCollider ? myCollider->getTransform() : nullptr, objeto);
 }
 
 SettingsColliderMalla::~SettingsColliderMalla() { delete settingsTransform; }
@@ -58,5 +59,3 @@ void SettingsColliderMalla::showDataComponent() {
 	}
 	settingsTransform->showDataComponent();
 }
-
-Component* SettingsColliderMalla::getComponent() { return myCollider; }

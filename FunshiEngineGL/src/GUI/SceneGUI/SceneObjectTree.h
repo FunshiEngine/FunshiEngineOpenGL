@@ -91,7 +91,7 @@ private:
     GameObject* objetoADesanidar = nullptr;
 
     // Estado de dialogos modales (click derecho -> Cambiar ID / Renombrar / Eliminar).
-    enum class DialogoTipo { Ninguno, CambiarID, Renombrar, Eliminar };
+    enum class DialogoTipo { Ninguno, CambiarID, Renombrar, Eliminar, CrearPrefab };
     DialogoTipo dialogoActivo = DialogoTipo::Ninguno;
     GameObject* objetoEnDialogo = nullptr;
     char bufferDialogo[256] = "";

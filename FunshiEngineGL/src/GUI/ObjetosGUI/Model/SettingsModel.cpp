@@ -25,9 +25,9 @@
 #include <iostream>
 #include <string>
 
-SettingsModel::SettingsModel(GameObject* objeto) {
-	myModel = objeto->getComponent<Model>();
-}
+SettingsModel::SettingsModel(GameObject* objeto)
+    : SettingsComponent(demangle(typeid(Model).name())),
+      myModel(objeto ? objeto->getComponent<Model>() : nullptr) {}
 
 void SettingsModel::showDataComponent() {
 	// 1. Obtener texto a mostrar
@@ -63,5 +63,3 @@ void SettingsModel::showDataComponent() {
 		ImGui::EndDragDropTarget();
 	}
 }
-
-Component* SettingsModel::getComponent() { return myModel; }

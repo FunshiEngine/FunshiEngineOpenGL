@@ -23,9 +23,9 @@
 #include "../../../Scenes/EditorController.h"
 #include <imgui.h>
 
-SettingsRigidBody::SettingsRigidBody(GameObject* objeto) {
-	myCollider = objeto->getComponent<RigidBody>();
-}
+SettingsRigidBody::SettingsRigidBody(GameObject* objeto)
+    : SettingsComponent(demangle(typeid(RigidBody).name())),
+      myCollider(objeto ? objeto->getComponent<RigidBody>() : nullptr) {}
 
 void SettingsRigidBody::setEditor(EditorController* editor) {
 	this->editor = editor;
@@ -83,5 +83,3 @@ void SettingsRigidBody::showDataComponent() {
 		ImGui::TreePop();
 	}
 }
-
-Component* SettingsRigidBody::getComponent() { return myCollider; }

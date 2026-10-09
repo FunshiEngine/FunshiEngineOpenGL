@@ -55,8 +55,8 @@ protected:
 public:
     // API publica historica (GUI existente de drag & drop)
     void setDllPath(std::string dllPath);
-    std::string getPath() { return dllPath; }
-    std::string getNameClass() { return nameClass; }
+    std::string getPath() const { return dllPath; }
+    const std::string& getNameClass() const { return nameClass; }
     const std::string& getNombreComponente() const noexcept {
         return nombreComponente_;
     }

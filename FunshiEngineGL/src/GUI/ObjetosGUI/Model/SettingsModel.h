@@ -19,17 +19,14 @@
 #ifndef SETTINGSMODEL_H
 #define SETTINGSMODEL_H
 #include "../SettingsComponent.h"
-class GameObject;
-class Model;
+#include "../../../Objetos/Componentes/Model.h"
 
 class SettingsModel : public SettingsComponent {
 protected:
 	Model* myModel;
 public:
-	SettingsModel(GameObject* objeto);
-
-	// CONFIGURAR EL SISTEMA PARA QUE AL ACTIVAR SEA UN GHOST BODY, FALSO UN COMUN BODY
+	explicit SettingsModel(GameObject* objeto);
 	void showDataComponent() override;
-	Component* getComponent() override;
+	Component* getComponent() override { return myModel; }
 };
 #endif

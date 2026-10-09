@@ -36,7 +36,7 @@ namespace MotorScript {
 // versionar la tabla; no promete compatibilidad binaria entre versiones del
 // motor. Incrementar esta version cuando cambie el contrato/API/runtime: el
 // cache la incorpora y recompila los scripts con el motor actualizado.
-constexpr int versionRuntimeScript = 9;
+constexpr int versionRuntimeScript = 10;
 struct ApiScriptGameObject {
     // --- v1 (original) ---
     const char* (*nombre)(const void* objeto);
@@ -175,6 +175,14 @@ struct ScriptServices {
     bool (*agregarColliderEsfera)(void* objeto, float radio);
     bool (*agregarColliderCubo)(void* objeto, float radio);
     bool (*agregarRigidBody)(void* objeto, float masa);
+
+    // --- v5: sistema de prefabs ---
+    // Instancia un prefab por nombre como hijo de `padre` (raiz si nulo).
+    // Devuelve el puntero a la raiz de la instancia (valido al final del frame).
+    void* (*instanciarPrefab)(const char* nombre, void* padre);
+    // Lista los nombres de prefabs disponibles en la biblioteca.
+    // Devuelve un array terminado en nullptr (el llamador no debe liberar).
+    const char** (*listarPrefabs)();
 
     // Version de la tabla (siempre al final).
     int version;

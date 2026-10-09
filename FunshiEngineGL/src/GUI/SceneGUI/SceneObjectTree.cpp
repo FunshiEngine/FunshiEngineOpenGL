@@ -26,6 +26,7 @@
 #include "../../Comandos/ReparentarComando.h"
 #include "../../Comandos/DuplicarObjetoComando.h"
 #include "../../Comandos/GestorComandos.h"
+#include "../../Objetos/PrefabLibrary.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/TypeUtils.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
@@ -191,38 +192,44 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
     if (hovered)
         ImGui::SetTooltip("ID: %d", object->getId());
 
-    // Menu contextual con 4 opciones: Cambiar ID, Renombrar, Desanidar a raiz, Eliminar
-    if (ImGui::BeginPopupContextItem("MenuObjeto")) {
-        ImGui::Text("%s", etiqueta.c_str());
-        ImGui::Separator();
-        if (ImGui::MenuItem("Cambiar ID")) {
-            dialogoActivo = DialogoTipo::CambiarID;
-            objetoEnDialogo = object;
-            std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%d", object->getId());
-            dialogoRecienAbierto = true;
-        }
-        if (ImGui::MenuItem("Renombrar")) {
-            dialogoActivo = DialogoTipo::Renombrar;
-            objetoEnDialogo = object;
-            std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
-            dialogoRecienAbierto = true;
-        }
-        // Desanidar a raiz: solo si cuelga de un padre intermedio (un hijo
-        // directo de la raiz ya esta al nivel superior).
-        if (esCandidatoADesanidar(object, scene ? scene->getRoot() : nullptr)) {
-            if (ImGui::MenuItem("Desanidar a raiz")) {
-                // Diferido: mutar el arbol tras el recorrido para no invalidar
-                // iteradores (patron igual que objetoAReParentar).
-                objetoADesanidar = object;
+// Menu contextual con 5 opciones: Cambiar ID, Renombrar, Desanidar a raiz, Crear Prefab, Eliminar
+        if (ImGui::BeginPopupContextItem("MenuObjeto")) {
+            ImGui::Text("%s", etiqueta.c_str());
+            ImGui::Separator();
+            if (ImGui::MenuItem("Cambiar ID")) {
+                dialogoActivo = DialogoTipo::CambiarID;
+                objetoEnDialogo = object;
+                std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%d", object->getId());
+                dialogoRecienAbierto = true;
             }
+            if (ImGui::MenuItem("Renombrar")) {
+                dialogoActivo = DialogoTipo::Renombrar;
+                objetoEnDialogo = object;
+                std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
+                dialogoRecienAbierto = true;
+            }
+            // Desanidar a raiz: solo si cuelga de un padre intermedio (un hijo
+            // directo de la raiz ya esta al nivel superior).
+            if (esCandidatoADesanidar(object, scene ? scene->getRoot() : nullptr)) {
+                if (ImGui::MenuItem("Desanidar a raiz")) {
+                    // Diferido: mutar el arbol tras el recorrido para no invalidar
+                    // iteradores (patron igual que objetoAReParentar).
+                    objetoADesanidar = object;
+                }
+            }
+            if (ImGui::MenuItem("Crear Prefab")) {
+                dialogoActivo = DialogoTipo::CrearPrefab;
+                objetoEnDialogo = object;
+                std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
+                dialogoRecienAbierto = true;
+            }
+            if (ImGui::MenuItem("Eliminar")) {
+                dialogoActivo = DialogoTipo::Eliminar;
+                objetoEnDialogo = object;
+                dialogoRecienAbierto = true;
+            }
+            ImGui::EndPopup();
         }
-        if (ImGui::MenuItem("Eliminar")) {
-            dialogoActivo = DialogoTipo::Eliminar;
-            objetoEnDialogo = object;
-            dialogoRecienAbierto = true;
-        }
-        ImGui::EndPopup();
-    }
 
     // Drag & drop...
     if (ImGui::BeginDragDropSource()) {
@@ -339,6 +346,36 @@ void SceneObjectTree::dibujarDialogosModales() {
                 if (editor) editor->clearSelection();
                 renombrando = nullptr;
                 objetoAEliminar = objetoEnDialogo;
+                dialogoActivo = DialogoTipo::Ninguno;
+                objetoEnDialogo = nullptr;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+                dialogoActivo = DialogoTipo::Ninguno;
+                objetoEnDialogo = nullptr;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+    }
+
+    // Dialogo Crear Prefab
+    if (dialogoActivo == DialogoTipo::CrearPrefab) {
+        if (dialogoRecienAbierto) {
+            ImGui::OpenPopup("DialogoCrearPrefab");
+            dialogoRecienAbierto = false;
+        }
+        if (ImGui::BeginPopupModal("DialogoCrearPrefab", nullptr,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Nombre del prefab:");
+            ImGui::InputText("##NombrePrefab", bufferDialogo, sizeof(bufferDialogo),
+                             ImGuiInputTextFlags_EnterReturnsTrue);
+            ImGui::Separator();
+            if (ImGui::Button("Crear", ImVec2(120, 0))) {
+                if (bufferDialogo[0] != '\0' && editor && editor->getPrefabLibrary()) {
+                    editor->getPrefabLibrary()->crearPrefab(bufferDialogo, objetoEnDialogo, editor);
+                }
                 dialogoActivo = DialogoTipo::Ninguno;
                 objetoEnDialogo = nullptr;
                 ImGui::CloseCurrentPopup();

@@ -19,8 +19,7 @@
 #ifndef SETTINGSSCRIPT_H
 #define SETTINGSSCRIPT_H
 #include "../SettingsComponent.h"
-class GameObject;
-class Script;
+#include "../../../Objetos/Componentes/Script.h"
 
 class SettingsScript : public SettingsComponent {
 protected:
@@ -38,6 +37,6 @@ public:
 
 	// CONFIGURAR EL SISTEMA PARA QUE AL ACTIVAR SEA UN GHOST BODY, FALSO UN COMUN BODY
 	void showDataComponent() override;
-	Component* getComponent() override;
+	Component* getComponent() override { return myScript; }
 };
 #endif

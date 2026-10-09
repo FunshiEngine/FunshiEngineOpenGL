@@ -26,7 +26,8 @@
 
 #include <imgui.h>
 
-SettingsSkybox::SettingsSkybox(GameObject* gameObject) : gameObject(gameObject) {}
+SettingsSkybox::SettingsSkybox(GameObject* gameObject)
+    : SettingsComponent(demangle(typeid(Skybox).name())), gameObject(gameObject) {}
 
 void SettingsSkybox::sondearDimensiones(
     const std::string rutas[SelectorArchivoCubemap::kCaras]) {
@@ -145,8 +146,4 @@ void SettingsSkybox::showDataComponent() {
         // La cara destino la fijo el boton ... que abrio el modal.
         (skybox->*caras[selector_.caraDestino()].setter)(resultado.ruta);
     }
-}
-
-Component* SettingsSkybox::getComponent() {
-    return gameObject ? gameObject->getComponent<Skybox>() : nullptr;
 }

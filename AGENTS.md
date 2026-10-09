@@ -180,6 +180,14 @@ cd FunshiEngineGL && ./build/FunshiEngineGL.exe   # Windows
   arquitectura en `PROJECT_STRUCTURE.md`.
 - **Bugs técnicos por limitaciones de herramientas**: documentar en
   `DocuTecnicoBugs.md` (patrón, síntomas, fix canónico, checklist de mitigación).
+- **Enums y switch-case**: evaluar de forma recurrente el uso de enumeraciones
+  (`enum class`) y `switch-case` para comparaciones y condicionales en lugar
+  de cadenas de `if-else` sobre valores enteros, strings o magic numbers.
+  Los `enum class` con `switch` exhaustivo (con `default` que lance o loguee)
+  permiten al compilador avisar de casos no cubiertos al agregar valores,
+  evitan errores de typo en strings, y el código resultante es más legible
+  y mantenible. Aplicar al agregar nuevos tipos de componentes, eventos,
+  estados de máquinas, tags, o cualquier conjunto cerrado de valores.
 
 ## Reglas de arquitectura
 

@@ -20,9 +20,10 @@
 #define SETTINGSAUDIOSOURCE_H
 
 #include "../SettingsComponent.h"
+#include "../../../Objetos/GameObject.h"
+#include "../../../Objetos/Componentes/AudioSource.h"
 
 class AudioEngine;
-class GameObject;
 
 // Inspector del componente AudioSource: nombre del clip (se completa con el
 // catalogo de clips del proyecto), volumen, loop, reproduccion automatica y
@@ -34,11 +35,9 @@ private:
 
 public:
 	explicit SettingsAudioSource(GameObject* gameObject);
-
 	void setAudioEngine(AudioEngine* motor) noexcept { this->motor = motor; }
-
 	void showDataComponent() override;
-	Component* getComponent() override;
+	Component* getComponent() override { return gameObject ? gameObject->getComponent<AudioSource>() : nullptr; }
 };
 
 #endif // SETTINGSAUDIOSOURCE_H

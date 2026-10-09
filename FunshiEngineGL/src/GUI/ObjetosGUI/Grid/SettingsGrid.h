@@ -20,18 +20,16 @@
 #define SETTINGSGRID_H
 
 #include "../SettingsComponent.h"
-
-class GameObject;
-class Grid;
+#include "../../../Objetos/GameObject.h"
+#include "../../../Objetos/Componentes/Grid.h"
 
 class SettingsGrid : public SettingsComponent {
     GameObject* gameObject;
 
 public:
     explicit SettingsGrid(GameObject* gameObject);
-
     void showDataComponent() override;
-    Component* getComponent() override;
+    Component* getComponent() override { return gameObject ? gameObject->getComponent<Grid>() : nullptr; }
 };
 
 #endif

@@ -19,15 +19,14 @@
 #ifndef SETTINGSCOLOR_H
 #define SETTINGSCOLOR_H
 #include "../SettingsComponent.h"
-class GameObject;
-class Color;
+#include "../../../Objetos/GameObject.h"
+#include "../../../Objetos/Componentes/Color.h"
 
 class SettingsColor : public SettingsComponent {
 	GameObject* gameObject;
 public:
-	SettingsColor(GameObject* gameObject);
-
+	explicit SettingsColor(GameObject* gameObject);
 	void showDataComponent() override;
-	Component* getComponent() override;
+	Component* getComponent() override { return gameObject ? gameObject->getComponent<Color>() : nullptr; }
 };
 #endif

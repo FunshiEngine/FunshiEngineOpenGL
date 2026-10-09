@@ -19,15 +19,14 @@
 #ifndef SETTINGSCAMERA_H
 #define SETTINGSCAMERA_H
 #include "../SettingsComponent.h"
-class GameObject;
-class CameraComponent;
+#include "../../../Objetos/GameObject.h"
+#include "../../../Objetos/Componentes/CameraComponent.h"
 
 class SettingsCamera : public SettingsComponent {
 	GameObject* gameObject;
 public:
-	SettingsCamera(GameObject* gameObject);
-
+	explicit SettingsCamera(GameObject* gameObject);
 	void showDataComponent() override;
-	Component* getComponent() override;
+	Component* getComponent() override { return gameObject ? gameObject->getComponent<CameraComponent>() : nullptr; }
 };
 #endif

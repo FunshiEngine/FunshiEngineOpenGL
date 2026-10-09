@@ -22,9 +22,8 @@
 #include "../../../Objetos/Componentes/CameraComponent.h"
 #include <imgui.h>
 
-SettingsCamera::SettingsCamera(GameObject* gameObject) {
-	this->gameObject = gameObject;
-}
+SettingsCamera::SettingsCamera(GameObject* gameObject)
+    : SettingsComponent(demangle(typeid(CameraComponent).name())), gameObject(gameObject) {}
 
 void SettingsCamera::showDataComponent() {
 	CameraComponent* camera = gameObject->getComponent<CameraComponent>();
@@ -51,8 +50,4 @@ void SettingsCamera::showDataComponent() {
 	bool pintar = camera->getPintar();
 	if (ImGui::Checkbox("Vista previa", &pintar))
 		camera->setPintar(pintar);
-}
-
-Component* SettingsCamera::getComponent() {
-	return gameObject->getComponent<CameraComponent>();
 }

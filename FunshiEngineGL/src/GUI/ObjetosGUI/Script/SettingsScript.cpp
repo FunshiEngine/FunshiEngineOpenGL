@@ -26,9 +26,11 @@
 #include "../../../Behaviour/Reflection/BehaviourReflection.h"
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/Script.h"
+#include "../../../Herramientas/TypeUtils.h"
 #include <imgui.h>
 
-SettingsScript::SettingsScript(Script* script) : myScript(script) {}
+SettingsScript::SettingsScript(Script* script)
+    : SettingsComponent(demangle(typeid(Script).name())), myScript(script) {}
 
 void SettingsScript::iniciarEdicionNombre() {
 	const std::string& nombre = myScript->getNombreComponente();
@@ -172,15 +174,20 @@ void SettingsScript::showDataComponent() {
 	float buttonWidth = textWidth + ImGui::GetStyle().FramePadding.x * 2;
 
 	ImGui::SetNextItemWidth(buttonWidth);
+	ImGui::PushID(myScript);
 	if (ImGui::Button(displayText)) {
 		// Recompilar manualmente (aplicar cambios editados del fuente).
 		myScript->recargar(nullptr);
 	}
 
 	if (ImGui::BeginDragDropTarget()) {
+		std::cout << "[DEBUG ScriptDragDrop] Target active for script: " 
+		          << className << " path: " << myScript->getPath() << std::endl;
 		if (const ImGuiPayload* payload =
 		        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
 			const char* path = (const char*)payload->Data;
+			std::cout << "[DEBUG ScriptDragDrop] Dropped file: " << path 
+			          << " onto script: " << className << std::endl;
 			// setDllPath invalida la carga previa y fija la nueva ruta.
 			// La compilacion/carga NO se hace aqui dentro (H-4): invocar
 			// cl.exe o javac sincronicamente bloquea el hilo varios segundos
@@ -191,6 +198,7 @@ void SettingsScript::showDataComponent() {
 		}
 		ImGui::EndDragDropTarget();
 	}
+	ImGui::PopID();
 
 	// Indicador de carga mientras se compila/carga el script
 	// Procesar la carga diferida al comienzo del siguiente frame (fuera de
@@ -487,8 +495,6 @@ void SettingsScript::showDataComponent() {
 			// lectura del bucle.
 			if (camb)
 				myScript->escribirCampo(i, valor); // sincroniza instancia viva
-			ImGui::PopID();
-		}
+ImGui::PopID();
+	}
 }
-
-Component* SettingsScript::getComponent() { return myScript; }
