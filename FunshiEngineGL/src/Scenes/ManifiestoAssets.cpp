@@ -86,6 +86,8 @@ int aplicarCampo(const std::string& persistida, const std::string& vigente,
 // los campos que cambiaron (guarda de recargas innecesarias de malla/script).
 int aplicarEnObjeto(GameObject& objeto, const EntradaAssets& entrada) {
     int cambios = 0;
+    // Contador local para indices de scripts: se reinicia a 0 por cada objeto
+    size_t scriptIndex = 0;
 
     if (auto* modelo = dynamic_cast<Modelos3D*>(&objeto)) {
         cambios += aplicarCampo(entrada.malla, modelo->getPath(),

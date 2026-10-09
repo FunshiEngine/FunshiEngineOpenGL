@@ -22,6 +22,7 @@
 #include <array>
 #include <map>
 #include <string>
+#include <vector>
 
 // Nucleo puro y HEADLESS del manifiesto de assets de la escena
 // (Memory/Binarios/SceneAssets.json). No conoce GameObject ni la escena:
@@ -41,7 +42,8 @@ struct EntradaAssets {
     std::string malla;
     // Cuatro slots de textura del Material (diffuse, specular, normal, emision).
     std::array<std::string, 4> texturas;
-    std::string script;
+    // Scripts del objeto: soporte para multiples scripts por objeto.
+    std::vector<std::string> scripts;
     // Skybox cubemap: 6 caras (+X, -X, +Y, -Y, +Z, -Z)
     std::string caraMasX;
     std::string caraMenosX;

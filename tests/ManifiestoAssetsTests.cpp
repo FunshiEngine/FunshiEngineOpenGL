@@ -58,7 +58,7 @@ EntradaAssets crearEntrada(const std::string& malla, const std::string& t0,
     e.texturas[1] = t1;
     e.texturas[2] = t2;
     e.texturas[3] = t3;
-    e.script = script;
+    e.scripts.push_back(script);
     return e;
 }
 
@@ -109,10 +109,10 @@ int main() {
               "round-trip de la textura specular");
         CHECK(leidas[3].texturas[2].empty(),
               "slot de textura vacio sigue vacio");
-        CHECK(leidas[3].script == "Scripts/mi_script.dll",
+        CHECK(leidas[3].scripts[0] == "Scripts/mi_script.dll",
               "round-trip del script");
         // Entrada sin malla ni script: solo la textura normal.
-        CHECK(leidas[7].malla.empty() && leidas[7].script.empty(),
+        CHECK(leidas[7].malla.empty() && leidas[7].scripts.empty(),
               "solo aporta los campos que tiene");
         CHECK(leidas[7].texturas[2] == "Texturas/solo_normal.png",
               "la textura del slot 2 se conserva");
@@ -126,7 +126,7 @@ int main() {
         CHECK(!ManifiestoAssetsCore::leerArchivo(archivo.string(), entradas),
               "leerArchivo devuelve false con archivo inexistente");
         CHECK(entradas.size() == 1 && entradas[1].malla == "vieja" &&
-                  entradas[1].script == "viejo",
+                  entradas[1].scripts[0] == "viejo",
               "el mapa queda intacto con archivo inexistente");
     }
 
@@ -173,7 +173,7 @@ int main() {
               "relativizarEntrada deja la malla relativa");
         CHECK(entrada.texturas[0] == "Texturas/dif.png",
               "relativizarEntrada deja la textura relativa");
-        CHECK(entrada.script == "Scripts/mi_script.dll",
+        CHECK(entrada.scripts[0] == "Scripts/mi_script.dll",
               "relativizarEntrada deja el script relativo");
 
         ManifiestoAssetsCore::absolutizarEntrada(entrada);
@@ -181,7 +181,7 @@ int main() {
               "absolutizarEntrada resuelve la malla a absoluta");
         CHECK(entrada.texturas[0] == raiz + "/Texturas/dif.png",
               "absolutizarEntrada resuelve la textura a absoluta");
-        CHECK(entrada.script == raiz + "/Scripts/mi_script.dll",
+        CHECK(entrada.scripts[0] == raiz + "/Scripts/mi_script.dll",
               "absolutizarEntrada resuelve el script a absoluto");
 
         EditorConfig::limpiarRaizAssets();
