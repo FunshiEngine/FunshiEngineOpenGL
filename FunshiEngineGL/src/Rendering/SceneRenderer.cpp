@@ -882,6 +882,7 @@ void SceneRenderer::dibujarViewportsPrevios(const FrameContext& ctx) {
                 target->bind();
 
                 auto& backend = Rendering::Backend::activeBackend();
+                if (!backend.available()) continue;  // Guard: backend no disponible
                 backend.setViewport(0, 0, kPreviewW, kPreviewH);
                 // El FBO hereda el estado GL; se fija el fondo del perfil para
                 // que la vista previa use el mismo color que la pasada principal.
@@ -903,7 +904,7 @@ void SceneRenderer::dibujarViewportsPrevios(const FrameContext& ctx) {
                 dibujarEscena(ctx, view, projection, objeto, kPreviewW,
                               kPreviewH, false);
 
-                backend.bindDefaultFramebuffer();
+                if (backend.available()) backend.bindDefaultFramebuffer();
 
                 nuevos.push_back(std::move(target));
                 nuevosObjetos.push_back(objeto);
