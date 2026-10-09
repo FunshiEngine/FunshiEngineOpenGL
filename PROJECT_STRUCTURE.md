@@ -592,8 +592,8 @@ solo como orquestador de arranque y bucle.
   `renombrarProyecto`, `eliminarProyecto`) no se implementa en EditorConfig:
   son **delegaciones a `ProjectManager`**, único dueño del CRUD, las
   migraciones de estructura antigua y los fallbacks de copia entre
-  dispositivos. La política de qué proyecto queda abierto al arrancar (último
-  persistido vs. `--proyecto`, y si es primer arranque) vive aislada y sin
+  dispositivos. La política de qué proyecto queda abierto al arrancar (menú
+  salvo `--proyecto`, y si es primer arranque) vive aislada y sin
   disco ni UI en `Configuracion/ProyectoInicial.h`. La orquestación de todo el flujo de proyectos sobre esta
   fachada (qué hará al arrancar, entrar, guardar, renombrar, eliminar,
   exportar y cuál es el `imgui.ini` vigente) vive en

@@ -585,18 +585,22 @@ void OpenGL3Backend::destroyRenderTarget(Handle target) {
     if (target == kInvalidHandle) return;
     const auto it = targets_.find(target);
     if (it == targets_.end()) return;
-    const GpuTarget& t = it->second;
+
+    // Copiar valores ANTES de borrar: el erase destruye el GpuTarget
+    // y la referencia 't' quedaría colgando (use-after-free).
+    const GLuint fbo = it->second.fbo;
+    const GLuint rbo = it->second.rbo;
+    const GLuint colorTex = it->second.colorTex;
+
+    targets_.erase(it);
+
     if (pfnDeleteFramebuffers) {
-        GLuint fbo = t.fbo;
         pfnDeleteFramebuffers(1, &fbo);
-        targets_.erase(it);
     }
     if (pfnDeleteRenderbuffers) {
-        GLuint rbo = t.rbo;
         pfnDeleteRenderbuffers(1, &rbo);
     }
-    if (t.colorTex) {
-        GLuint colorTex = t.colorTex;
+    if (colorTex) {
         glDeleteTextures(1, &colorTex);
     }
 }
