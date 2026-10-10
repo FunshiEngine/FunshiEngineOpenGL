@@ -60,9 +60,15 @@ void SceneMenuBarInterface::initGUI() {
     ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
     ImGui::PushID(this);
 
-    // Actualizar dialogo de exportación si está abierto
+    // El dialogo de exportacion se renderiza aqui y el dueno lo destruye
+    // DESPUES de render(), nunca dentro: hacerlo dentro dejaria el frame
+    // corriendo sobre el objeto liberado.
     if (mostrarExportDialog_ && exportDialog_) {
         exportDialog_->render();
+        if (exportDialog_->debeCerrarse()) {
+            mostrarExportDialog_ = false;
+            exportDialog_.reset();
+        }
     }
 }
 // Etiqueta en espanol por WindowName para el menu "Ventanas"; nullptr para las
@@ -97,10 +103,7 @@ void SceneMenuBarInterface::contentGUI() {
     if (ImGui::BeginMenu("Archivo")) {
         if (ImGui::MenuItem("Exportar juego")) {
             if (!exportDialog_) {
-                exportDialog_ = std::make_unique<ExportDialog>([this](const ExportDialog::Resultado& r) {
-                    mostrarExportDialog_ = false;
-                    exportDialog_.reset();
-                }, proyectoActual_);
+                exportDialog_ = std::make_unique<ExportDialog>(proyectoActual_);
             }
             mostrarExportDialog_ = true;
         }

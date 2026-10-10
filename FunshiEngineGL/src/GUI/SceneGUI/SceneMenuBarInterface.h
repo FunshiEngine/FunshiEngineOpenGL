@@ -25,7 +25,6 @@
 #include <memory>
 #include "../ObjetosGUI/SettingsObjectInterface.h"
 #include "../../Events/EditorEventBus.h"
-#include "../../Exportador/GameExporter.h"
 #include "../Export/ExportDialog.h"
 #include <imgui.h>
 

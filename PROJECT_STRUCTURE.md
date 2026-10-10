@@ -30,7 +30,9 @@
   reload (`ScriptRuntime` + backends C++/Java) sobre `IScriptBehaviour`.
 - Estructuras de datos genéricas propias y jerarquía de excepciones.
 
-El punto de entrada es `FunshiEngineGL/src/main.cpp`. La configuración de compilación
+El punto de entrada del **editor** es `FunshiEngineGL/src/main.cpp`. El punto de
+entrada de los **juegos exportados** es `FunshiEngineGL/src/Runtime/main_juego.cpp`
+(sin código del editor: GUIManager, MenuGUI, paneles). La configuración de compilación
 está en `FunshiEngineGL/CMakeLists.txt`, que es el único build soportado: CMake
 genera la solución de Visual Studio dentro del directorio de build que elijas
 (por ejemplo `FunshiEngineGL/build-win/FunshiEngineGL.sln`), así que no hay
@@ -157,9 +159,12 @@ FunshiEngineGL/                          ← raíz del repo
         ├── ExcepcionesCPP/              ← Throwable, RuntimeException, excepciones de
         │                                  contenedores (ExcepcionesEstructuras/)
         ├── Exportador/
-        │   └── GameExporter.h/.cpp      ← exporta el juego standalone: proyecto CMake temporal,
-        │                                  compila el juego (recompilando scripts), empaqueta
-        │                                  ejecutable + assets + dependencias en Linux/Windows
+        │   ├── GameExporter.h/.cpp      ← exporta el juego standalone: proyecto CMake temporal,
+        │   │                              compila el runtime (sin editor), empaqueta ejecutable +
+        │   │                              scenes/scripts/assets en estructura simplificada
+        │   ├── ConfigJuegoExportado.h   ← manifiesto JuegoExportado.json (header-only)
+        │   ├── RaizEngine.h             ← búsqueda de la raíz del engine para add_subdirectory
+        │   └── RutasExportacion.h       ← helpers de rutas del proyecto (header-only)
         ├── Fisicas/
         │   ├── IPhysicsBackend.h        ← contrato Strategy del backend de física
         │   ├── ContactoFisico.h           ← transiciones de contacto entre colliders
@@ -310,6 +315,10 @@ FunshiEngineGL/                          ← raíz del repo
         │   └── GestorDeProyectos.h/.cpp  ← ciclo de vida del proyecto activo (entrar,
         │                                  guardar estado y escena Ctrl+S, renombrar, eliminar,
         │                                  exportar, imgui.ini); extraído de main.cpp
+        ├── Runtime/
+        │   └── main_juego.cpp            ← punto de entrada de juegos exportados (sin editor:
+        │                                  GUIManager, MenuGUI, paneles). ImGui básico para runtime,
+        │                                  carga escenas desde estructura simplificada (scenes/)
         ├── Comandos/
         │   ├── IComando.h              ← interfaz Command: ejecutar(), deshacer(), descripcion()
         │   ├── GestorComandos.h/.cpp   ← pilas undo/redo (máx 50), ejecuta/deshace/rehace

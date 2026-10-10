@@ -20,7 +20,6 @@
 #define EXPORTDIALOG_H
 
 #include <string>
-#include <functional>
 #include <queue>
 #include <mutex>
 #include "Exportador/GameExporter.h"
@@ -28,28 +27,26 @@
 
 class ExportDialog {
 public:
-    struct Resultado {
-        bool exportar = false;
-        GameExporter::Config config;
-    };
-
-    using Callback = std::function<void(const Resultado&)>;
-
-    explicit ExportDialog(Callback onCerrar, const std::string& proyectoActual = "");
+    explicit ExportDialog(const std::string& proyectoActual = "");
     ~ExportDialog();
 
     void render();
 
     void setProyectoActual(const std::string& proyecto) { proyectoActual_ = proyecto; }
 
+    // El dueno lo consulta INMEDIATAMENTE despues de render() y recien ahi
+    // destruye el dialogo: destruirlo dentro de render() (por ejemplo desde un
+    // callback) dejaria el frame corriendo sobre memoria liberada.
+    bool debeCerrarse() const noexcept { return cerrado_; }
+
 private:
     struct LogMsg { std::string msg; };
     struct ProgresoMsg { float p; std::string etapa; };
     struct FinalizadoMsg { bool exito; std::string msg; };
 
-    Callback onCerrar_;
     std::string proyectoActual_;
     bool abierto_ = true;
+    bool cerrado_ = false;
     char nombreEjecutable_[256] = "MiJuego";
     char nombreProyectoExportado_[256] = "Exportacion";
     int plataformaIdx_ = 0; // 0 = Linux, 1 = Windows

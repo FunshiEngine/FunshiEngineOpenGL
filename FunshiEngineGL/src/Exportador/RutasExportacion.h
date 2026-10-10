@@ -31,22 +31,31 @@
 #include "../Configuracion/EditorConfig.h"
 #include "../Herramientas/PathUtils.h"
 
-// Pares (origen en el proyecto, destino en Data/ del juego exportado).
+// Carpetas/archivos SOLO del editor que NO deben ir en la exportacion del juego.
+inline bool esSoloEditor(const std::string& rutaRelativa) {
+    // Memory/Interfaces/ - estado UI del editor (dock, ventanas)
+    if (rutaRelativa.rfind("Memory/Interfaces/", 0) == 0) return true;
+    if (rutaRelativa == "Memory/Interfaces") return true;
+    // Memory/ConfiguracionProyecto.json - config del editor (ultimo proyecto, etc.)
+    if (rutaRelativa == "Memory/ConfiguracionProyecto.json") return true;
+    // Memory/imgui.ini - layout ImGui del editor
+    if (rutaRelativa == "Memory/imgui.ini") return true;
+    return false;
+}
+
+// Par (origen en el editor, destino en la distribucion del juego).
 //
-// La disposicion la decide ProjectPaths, no el exportador: sonos y scripts
-// viven bajo src<nombre>/ y la configuracion del proyecto dentro de Memory/.
-// Con las rutas armadas a mano desde la carpeta del proyecto, cada copia se
-// saltaba en silencio (el origen no existia) y el juego exportado salia sin
-// sonidos, sin scripts del usuario y sin su configuracion, sin avisar.
+// El juego exportado conserva la disposicion del motor: su binario resuelve
+// MotorGrafico/ junto a si mismo (ProjectPaths::directorioBase), asi que el
+// proyecto viaja a <salida>/MotorGrafico/Proyects/<nombre>/ y el
+// juego encuentra escenas, Memory/Binarios y src<nombre>/ igual que el editor.
+// Se EXCLUYEN carpetas/archivos solo del editor (Memory/Interfaces/, imgui.ini,
+// ConfiguracionProyecto.json).
 inline std::vector<std::pair<std::string, std::string>> rutasDatosProyecto(
     const std::string& nombreProyecto, const std::string& directorioSalida) {
     return {
-        {EditorConfig::directorioMemory(nombreProyecto),
-         directorioSalida + "/Data/Memory"},
-        {EditorConfig::directorioSonidos(nombreProyecto),
-         directorioSalida + "/Data/Sonidos"},
-        {EditorConfig::rutaConfiguracionProyecto(nombreProyecto),
-         directorioSalida + "/Data/ConfiguracionProyecto.json"}
+        {EditorConfig::directorioProyecto(nombreProyecto),
+         directorioSalida + "/MotorGrafico/Proyects/" + nombreProyecto},
     };
 }
 

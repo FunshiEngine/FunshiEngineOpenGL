@@ -32,6 +32,7 @@
 #include "../src/Configuracion/ProjectPaths.h"
 #include "../src/Configuracion/ProyectoInicial.h"
 #include "../src/Configuracion/RutasLog.h"
+#include "../src/Exportador/ConfigJuegoExportado.h"
 #include "../src/GUI/WindowNames.h"
 #include "../src/GUI/Tema/TemaEditor.h"
 #include <imgui.h>
@@ -194,14 +195,33 @@ static int EjecutarMotor(int argc, char* argv[])
 {
     // Parseo simple de --proyecto <nombre> para arrancar directo en editor
     // (skip menu). Usado para ejecutar un juego exportado: FunshiEngineGL
-    // --proyecto MiJuego.
+    // --proyecto MiJuego. --juego fuerza el modo juego, que es como arranca
+    // una exportacion (tambien via JuegoExportado.json, ver mas abajo).
     std::string proyectoCLI;
+    bool modoJuegoExportado = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--proyecto" && i + 1 < argc) {
             proyectoCLI = argv[++i];
         } else if (arg.rfind("--proyecto=", 0) == 0) {
             proyectoCLI = arg.substr(11);
+        } else if (arg == "--juego") {
+            modoJuegoExportado = true;
+        }
+    }
+
+    // Manifiesto de arranque de una exportacion: si JuegoExportado.json existe
+    // junto al binario, el juego arranca directo en modo juego sin argumentos
+    // (doble clic). Un --proyecto explicito tiene prioridad sobre el nombre.
+    {
+        std::string proyectoManifiesto;
+        bool modoManifiesto = false;
+        if (ConfigJuegoExportado::leer(
+                ConfigJuegoExportado::rutaPorDefecto(
+                    ProjectPaths::directorioEjecutable()),
+                proyectoManifiesto, modoManifiesto)) {
+            if (proyectoCLI.empty()) proyectoCLI = proyectoManifiesto;
+            modoJuegoExportado = modoJuegoExportado || modoManifiesto;
         }
     }
 
@@ -336,9 +356,18 @@ static int EjecutarMotor(int argc, char* argv[])
     bool menuReflejadoEnFachada = appStateMachine.is(ApplicationState::MainMenu);
 
     // --proyecto: forzar modo editor y mostrar paneles sin pasar por el menu.
-    if (!proyectoCLI.empty()) {
+    if (!proyectoCLI.empty() && !modoJuegoExportado) {
         appStateMachine.transitionTo(ApplicationState::Editing);
         scene->setMenuActivo(true);
+    }
+
+    // Juego exportado: arrancar directo en modo juego sobre la escena cargada,
+    // por el mismo camino que el boton Iniciar Juego del menu de escena.
+    if (modoJuegoExportado && !proyectoCLI.empty()) {
+        // El proyecto ya se cargara via gestor.prepararProyectoAlArrancar()
+        // al entrar en el bucle principal. Forzamos modo Playing.
+        appStateMachine.transitionTo(ApplicationState::Playing);
+        scene->setModoJuego(true);
     }
 
     
@@ -489,14 +518,6 @@ static int EjecutarMotor(int argc, char* argv[])
         eventosGUI->subscribe([&gestor](const EditorEvent& ev) {
             if (ev.type != EditorEventType::ArchivosReubicados) return;
             gestor.manejarArchivosReubicados(ev.rutaAnterior, ev.rutaNueva);
-        });
-        // Exportar juego: copia la carpeta del proyecto a
-        // <directorioBase>/Exportaciones/<proyecto> para distribucion junto
-        // al ejecutable. El usuario lanza el juego con: FunshiEngineGL
-        // --proyecto <nombre>.
-        eventosGUI->subscribe([&gestor](const EditorEvent& ev) {
-            if (ev.type != EditorEventType::ExportarJuego) return;
-            gestor.exportarProyecto();
         });
     }
 

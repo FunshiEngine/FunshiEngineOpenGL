@@ -24,9 +24,16 @@
 #include <cmath>
 #include <filesystem>
 
-ExportDialog::ExportDialog(Callback onCerrar, const std::string& proyectoActual) : onCerrar_(std::move(onCerrar)), proyectoActual_(proyectoActual) {}
+ExportDialog::ExportDialog(const std::string& proyectoActual)
+    : proyectoActual_(proyectoActual) {}
 
-ExportDialog::~ExportDialog() = default;
+ExportDialog::~ExportDialog() {
+    // Unir el hilo de exportacion ANTES de que se destruyan el mutex y las
+    // colas (van declarados despues de exporter_, asi que sus destructores
+    // correrian primero): mientras el hilo siga encolando, esa memoria tiene
+    // que seguir viva.
+    exporter_.reset();
+}
 
 void ExportDialog::render() {
     if (!abierto_) return;
@@ -38,7 +45,11 @@ void ExportDialog::render() {
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
-    if (ImGui::BeginPopupModal("Exportar Juego", &abierto_, ImGuiWindowFlags_AlwaysAutoResize)) {
+    // El boton X del titulo solo esta disponible fuera de una exportacion:
+    // cerrar a mitad uniria el hilo en el destructor y congelaria el editor.
+    if (ImGui::BeginPopupModal("Exportar Juego",
+                               exportando_ ? nullptr : &abierto_,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
         if (!exportando_) {
             ImGui::Text("Configuración de exportación");
             ImGui::Separator();
@@ -82,21 +93,24 @@ void ExportDialog::render() {
 
             ImGui::Spacing();
             ImGui::Separator();
+            ImGui::BeginDisabled(exportando_);
             if (ImGui::Button("Cerrar", ImVec2(120, 0))) {
-                if (exporter_ && !exporter_->haTerminado()) {
-                    // Esperar o cancelar - por simplicidad esperamos
-                }
                 abierto_ = false;
             }
+            ImGui::EndDisabled();
+            if (exportando_ &&
+                ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::SetTooltip("La exportacion en curso debe terminar antes de cerrar");
+            }
         }
+        // Cerrar el popup de ImGui junto con el dialogo: sin esto, el estado
+        // del popup quedaria abierto en el contexto de ImGui aunque el
+        // dialogo deje de renderizarse.
+        if (!abierto_) ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
 
-    if (!abierto_ && onCerrar_) {
-        Resultado r;
-        r.exportar = false;
-        onCerrar_(r);
-    }
+    if (!abierto_) cerrado_ = true;
 }
 
 void ExportDialog::iniciarExportacion() {
@@ -146,13 +160,8 @@ void ExportDialog::finalizarExportacion(bool exito, const std::string& msg) {
     progreso_ = exito ? 1.0f : 0.0f;
     etapaActual_ = exito ? "Completado" : "Error";
     agregarLog(msg);
-
-    if (onCerrar_) {
-        Resultado r;
-        r.exportar = exito;
-        r.config = exporter_ ? GameExporter::Config() : GameExporter::Config();
-        onCerrar_(r);
-    }
+    // El dialogo queda abierto con el resultado; lo cierra el usuario y el
+    // dueno lo destruye fuera de render() (debeCerrarse).
 }
 
 void ExportDialog::agregarLog(const std::string& msg) {
