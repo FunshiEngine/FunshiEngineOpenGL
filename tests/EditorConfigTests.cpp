@@ -440,31 +440,38 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               memDir + "/ConfiguracionProyecto.json",
               "rutaConfiguracionProyecto dentro de Memory");
 
-    // 5b. Rutas que el exportador copia al Data/ del juego standalone. Salen de
-    // la disposicion real del proyecto: los sonidos y los fuentes de script
-    // viven bajo src<nombre>/ y la configuracion del proyecto dentro de Memory.
+    // 5b. Rutas que el exportador copia a la distribucion del juego standalone.
+    // El proyecto viaja COMPLETO con la disposicion del motor: el binario del
+    // juego resuelve MotorGrafico/ junto a si mismo, asi que escenas, Memory,
+    // Sonidos y src<nombre>/ tienen que quedar bajo Proyects/<nombre>/.
     {
         const std::string nombre = "JuegoExport";
         const std::string salida = EditorConfig::directorioExportacion("JuegoExportado");
         const std::vector<std::pair<std::string, std::string>> rutas =
             rutasDatosProyecto(nombre, salida);
 
-        auto origenDe = [&rutas, &salida](const std::string& destinoEnData) {
+        auto destinoDe = [&rutas](const std::string& origen) {
             for (const auto& par : rutas)
-                if (par.second == salida + destinoEnData) return par.first;
+                if (par.first == origen) return par.second;
             return std::string();
         };
 
-        CHECK(origenDe("/Data/Memory") == EditorConfig::directorioMemory(nombre),
-              "el exportador copia Memory desde la ruta real");
-        CHECK(origenDe("/Data/Sonidos") == EditorConfig::directorioSonidos(nombre),
-              "los sonidos se copian desde src<nombre>/Sonidos");
-        CHECK(origenDe("/Data/ConfiguracionProyecto.json") ==
-                  EditorConfig::rutaConfiguracionProyecto(nombre),
-              "la configuracion del proyecto se copia desde Memory/");
+        CHECK(destinoDe(EditorConfig::directorioProyecto(nombre)) ==
+                  salida + "/MotorGrafico/Proyects/" + nombre,
+              "el proyecto se copia completo bajo Proyects/ del juego");
+        // El material clave del juego queda cubierto por esa copia: todos sus
+        // origenes son subcarpetas del proyecto.
+        const std::string prefijo = EditorConfig::directorioProyecto(nombre) + "/";
+        for (const std::string clave :
+             {EditorConfig::directorioMemory(nombre),
+              EditorConfig::directorioSonidos(nombre),
+              EditorConfig::rutaConfiguracionProyecto(nombre)}) {
+            CHECK(clave.rfind(prefijo, 0) == 0,
+                  "el origen vive dentro del proyecto: " + clave);
+        }
         CHECK(directorioScriptsProyecto(nombre) ==
                   EditorConfig::directorioSrc(nombre) + "/Scripts",
-              "los fuentes de script se compilan desde src<nombre>/Scripts");
+              "los fuentes de script estan en src<nombre>/Scripts");
         CHECK(nombreProyectoDesdeRuta(EditorConfig::directorioProyecto(nombre)) ==
                   nombre,
               "el nombre del proyecto es el de su carpeta");

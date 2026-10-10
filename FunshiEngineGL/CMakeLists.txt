@@ -31,8 +31,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 set(FUNSHI_CXX_RUNTIME_FLAG "$<IF:$<CONFIG:Debug>,/MDd,/MD>")
 
-# Configuración de rutas
-set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
+# Configuración de rutas. CMAKE_CURRENT_SOURCE_DIR, no CMAKE_SOURCE_DIR: la
+# raiz del engine se consumio tambien via add_subdirectory (el exportador de
+# juegos), y ahi CMAKE_SOURCE_DIR es el proyecto temporal, no este directorio.
+set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Búsqueda de archivos fuente
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS ${SRC_DIR}/*.cpp ${SRC_DIR}/*.c)
@@ -54,12 +56,25 @@ option(FUNSHI_JAVA "Soporte de scripts Java via JNI (requiere JDK en build)" ON)
 option(BUILD_RUNTIME "Construir solo la libreria del motor (sin editor ni pruebas)" OFF)
 
 if(BUILD_ENGINE)
-    # main.cpp es el punto de entrada del ejecutable, no parte de la libreria.
+    # main.cpp y main_juego.cpp son puntos de entrada, no parte de la libreria.
     list(REMOVE_ITEM SOURCES ${SRC_DIR}/main.cpp)
+    list(REMOVE_ITEM SOURCES ${SRC_DIR}/Runtime/main_juego.cpp)
 
-    # El backend Java solo se compila con FUNSHI_JAVA=ON: necesita jni.h del
-    # JDK en tiempo de build. Igual en runtime el JVM es dinamico/opcional.
-    list(REMOVE_ITEM SOURCES ${SRC_DIR}/Behaviour/Backends/BackendJava.cpp)
+    # El backend Java se compila cuando FUNSHI_JAVA=ON y hay JDK disponible.
+    # Debe ir en la libreria principal (funshi_engine) para que los juegos
+    # exportados tengan soporte de scripts Java. El target scripts-java-tests
+    # lo compila aparte solo para los tests de CI.
+    if(FUNSHI_JAVA)
+        if(NOT Java_JAVAC_EXECUTABLE)
+            # Sin JDK: quitamos BackendJava.cpp para que no falle la
+            # compilacion (no hay jni.h).
+            list(REMOVE_ITEM SOURCES ${SRC_DIR}/Behaviour/Backends/BackendJava.cpp)
+        endif()
+    else()
+        # FUNSHI_JAVA=OFF: BackendJava.cpp no es necesario en la libreria
+        # del motor.
+        list(REMOVE_ITEM SOURCES ${SRC_DIR}/Behaviour/Backends/BackendJava.cpp)
+    endif()
 
     add_library(funshi_engine STATIC ${SOURCES} ${HEADERS})
 
@@ -259,13 +274,13 @@ target_sources(funshi_engine PRIVATE ${IMGUI_SRC})
 target_include_directories(funshi_engine PUBLIC ${SRC_DIR}/ImGui ${SRC_DIR}/ImGui/backends)
 
 # ImGuizmo (fuera de src)
-file(GLOB IMGUZIMO_SRC ${CMAKE_SOURCE_DIR}/ImGuizmo/*.cpp)
+file(GLOB IMGUZIMO_SRC ${CMAKE_CURRENT_SOURCE_DIR}/ImGuizmo/*.cpp)
 target_sources(funshi_engine PRIVATE ${IMGUZIMO_SRC})
-target_include_directories(funshi_engine PUBLIC ${CMAKE_SOURCE_DIR}/ImGuizmo)
+target_include_directories(funshi_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ImGuizmo)
 
 # nlohmann/json (vendoriado en External/nlohmann) para la configuracion del
 # editor (EditorConfig). Mismamente el nombre .hpp cuelga de External/.
-target_include_directories(funshi_engine PUBLIC ${CMAKE_SOURCE_DIR}/External)
+target_include_directories(funshi_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/External)
 
 # Assimp
 option(USE_ASSIMP "Enable Assimp model loading" ON)
@@ -277,7 +292,7 @@ endif()
 
 # GLM: se usa el directorio embebido si existe en el repo; si no (p. ej. en CI
 # sin External/), se busca la copia del sistema (libglm-dev en Ubuntu).
-set(GLM_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/External/glm")
+set(GLM_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/External/glm")
 if(EXISTS "${GLM_INCLUDE_DIR}/glm/glm.hpp")
     target_include_directories(funshi_engine PUBLIC ${GLM_INCLUDE_DIR})
 else()
