@@ -48,6 +48,10 @@ option(BUILD_ENGINE "Build engine library and executable" ON)
 # Por defecto ON: si el build encuentra el JDK se habilita solo, si no, el
 # backend Java se omite sin romper la compilacion de nada.
 option(FUNSHI_JAVA "Soporte de scripts Java via JNI (requiere JDK en build)" ON)
+# Build runtime-only: solo la libreria del motor, sin ejecutable del editor ni
+# objetivos de prueba. Lo usa el exportador de juegos para compilar el binario
+# standalone (add_subdirectory de la raiz del engine con esta opcion FORZADA).
+option(BUILD_RUNTIME "Construir solo la libreria del motor (sin editor ni pruebas)" OFF)
 
 if(BUILD_ENGINE)
     # main.cpp es el punto de entrada del ejecutable, no parte de la libreria.
@@ -59,6 +63,7 @@ if(BUILD_ENGINE)
 
     add_library(funshi_engine STATIC ${SOURCES} ${HEADERS})
 
+    if(NOT BUILD_RUNTIME)
     # Ejecutable principal (solo el entry point).
     add_executable(${PROJECT_NAME} ${SRC_DIR}/main.cpp)
     target_link_libraries(${PROJECT_NAME} PRIVATE funshi_engine)
@@ -82,6 +87,7 @@ if(BUILD_ENGINE)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         WIN32_EXECUTABLE TRUE
     )
+    endif() # NOT BUILD_RUNTIME (sin ejecutable del editor)
     target_include_directories(funshi_engine PUBLIC ${SRC_DIR})
     target_compile_definitions(funshi_engine PUBLIC GLM_ENABLE_EXPERIMENTAL)
 
@@ -147,6 +153,11 @@ if(BUILD_ENGINE)
         PUBLIC FUNSHI_SRC_DIR="${FUNSHI_SRC_DIR_RELATIVO}"
                FUNSHI_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
                FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
+    # Raiz de los fuentes del engine, horneada: el exportador de juegos la usa
+    # para el add_subdirectory del proyecto de exportacion sin deducirla de
+    # rutas relativas al proyecto (que apuntan a MotorGrafico/, no al engine).
+    target_compile_definitions(funshi_engine
+        PUBLIC FUNSHI_ENGINE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 # 1. Configuración de GLFW
 find_package(glfw3 REQUIRED)
@@ -274,6 +285,7 @@ else()
     target_link_libraries(funshi_engine PRIVATE glm::glm)
 endif()
 
+if(NOT BUILD_RUNTIME)
 # Comandos (sistema undo/redo): se enlaza con funshi_engine que provee todas las
 # dependencias del motor (ImGui, componentes, EditorController, SceneRegistry).
 # Solo se compila el archivo de test; las fuentes del motor vienen del engine.
@@ -416,8 +428,11 @@ if(WIN32)
     target_compile_definitions(tema-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
 
+endif() # NOT BUILD_RUNTIME (sin pruebas del bloque editor)
+
 endif()
 
+if(NOT BUILD_RUNTIME)
 # --- Pruebas headless del subsistema FileManager (sin pila gráfica) ---------
 # Compilan en cualquier plataforma (solo std C++17 + los headers de ImGui para
 # TreeGUI.h) y ejercitan GestorDeArchivos/FileManager/FileSystemWatcher contra
@@ -767,3 +782,5 @@ if(WIN32)
     target_compile_definitions(audio-tests PRIVATE _HAS_STD_BYTE=0)
     target_compile_definitions(userinterface-tests PRIVATE _HAS_STD_BYTE=0)
 endif()
+
+endif() # NOT BUILD_RUNTIME (sin pruebas headless en el build runtime)
