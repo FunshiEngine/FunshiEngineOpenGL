@@ -295,6 +295,10 @@ editor, spinner indeterminado en el dialogo):
    - Carpeta `lib/` con dependencias bundleadas (`.dll` / `.so`: Bullet,
      miniaudio, GLFW, runtime C++).
 
+Mientras la exportacion corre, el dialogo **no se puede cerrar** (ni con la X
+ni con Cerrar); al terminar queda abierto mostrando el resultado hasta que el
+usuario lo cierre.
+
 **Requisitos para cross-compile Windows:** toolchain MinGW instalado
 (`x86_64-w64-mingw32-g++`, `x86_64-w64-mingw32-gcc`, `windres`).
 

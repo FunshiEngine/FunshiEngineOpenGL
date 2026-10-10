@@ -655,7 +655,9 @@ Al pulsar **Exportar**, el motor:
    - Carpeta `lib/` con dependencias bundleadas (`.dll` / `.so`).
 
 El dialogo muestra un **spinner indeterminado** (barra de progreso falsa) mientras
-se ejecuta la compilacion; el proceso no bloquea el editor.
+se ejecuta la compilacion; el proceso no bloquea el editor. Mientras la
+exportacion corre el dialogo **no se puede cerrar** (ni con la X ni con Cerrar);
+al terminar queda abierto mostrando el resultado hasta que el usuario lo cierre.
 
 **Requisitos para cross-compile Windows:** toolchain MinGW instalado
 (`x86_64-w64-mingw32-g++`, `x86_64-w64-mingw32-gcc`, `windres`).
