@@ -123,12 +123,12 @@ MotorGrafico/
 └── Exportaciones/
     └── <nombreExportacion>/          ← juegos exportados (ver seccion 10.1)
         ├── <Juego>.exe / <Juego>     ← ejecutable standalone
+        ├── Assets/                   ← recursos del proyecto (modelos, texturas, etc.)
         ├── scenes/                   ← escenas del juego
         │   ├── Scene.db
         │   └── SceneDir/
         ├── scripts/                  ← fuentes de usuario (C++, Java)
         ├── cache/                    ← binarios compilados de scripts
-        ├── assets/                   ← recursos del proyecto (mallas, texturas, etc.)
         ├── include/                  ← cabeceras del motor (para scripts en runtime)
         ├── lib/                      ← dependencias runtime (.so Linux)
         └── JuegoExportado.json       ← metadatos del proyecto
@@ -660,10 +660,10 @@ Al pulsar **Exportar**, el motor:
 3. Empaqueta en `MotorGrafico/Exportaciones/<nombre>/` con estructura
    **simplificada** (sin replicar la jerarquía del editor):
    - Ejecutable (`<nombre>.exe` en Windows, `<nombre>` en Linux).
+   - `Assets/` directamente en la raíz (modelos, texturas, etc.).
    - `scenes/` con la escena del proyecto (`Scene.db` y `SceneDir/`).
    - `scripts/` con los fuentes de usuario (C++ y Java).
    - `cache/` con binarios compilados de scripts (si existen).
-   - `assets/` con recursos del proyecto (`src<proyecto>/`: mallas, texturas, etc.).
    - `include/` con las cabeceras del motor para compilar scripts en runtime.
    - `lib/` con las `.so` de sistema en Linux; en Windows las DLL quedan
      junto al `.exe`.

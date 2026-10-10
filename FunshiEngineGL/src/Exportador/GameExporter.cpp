@@ -340,19 +340,26 @@ bool GameExporter::copiarAssetsYDependencias(const std::string& buildDir) {
         }
     }
 
-    // 5. Copiar assets generales del proyecto (si los hay)
-    const std::string assetsOrigen = EditorConfig::directorioSrc(cfg_.nombreProyecto);
-    const std::string assetsDestino = cfg_.directorioSalida + "/assets";
+    // 5. Copiar contenido de assets del proyecto (srcTest/Assets/ -> raíz del juego)
+    // Las rutas en Scene.db son relativas a Assets/ (ej: "Assets/Modelos/Cube.obj")
+    // Para que funcionen en el juego exportado, Assets/ debe estar en la raíz
+    const std::string srcProyecto = EditorConfig::directorioSrc(cfg_.nombreProyecto);
     
-    if (fs::exists(assetsOrigen, ec)) {
-        fs::create_directories(assetsDestino, ec);
-        fs::copy(assetsOrigen, assetsDestino,
-                 fs::copy_options::recursive | fs::copy_options::overwrite_existing,
-                 ec);
-        if (ec) {
-            log("Error copiando assets: " + ec.message());
-            return false;
+    if (fs::exists(srcProyecto, ec)) {
+        // Copiar el contenido completo de srcTest/ a la raíz del juego exportado
+        // Esto incluye Assets/ y cualquier otra carpeta que tenga el proyecto
+        for (const auto& entry : fs::directory_iterator(srcProyecto, ec)) {
+            if (ec) continue;
+            const std::string destino = cfg_.directorioSalida + "/" + entry.path().filename().string();
+            fs::copy(entry.path(), destino,
+                     fs::copy_options::recursive | fs::copy_options::overwrite_existing,
+                     ec);
+            if (ec) {
+                log("Error copiando " + entry.path().string() + ": " + ec.message());
+                return false;
+            }
         }
+        log("Assets del proyecto copiados a la raíz");
     }
 
     // 6. Dependencias de sistema (.so/.dll) que el binario necesita para arrancar

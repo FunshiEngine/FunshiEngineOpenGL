@@ -22,12 +22,12 @@ MotorGrafico/
 └── Exportaciones/
     └── <nombreExportacion>/
         ├── <Juego>.exe / <Juego>
+        ├── Assets/                ← recursos del proyecto (en la raíz)
         ├── scenes/                ← escenas del juego
         │   ├── Scene.db
         │   └── SceneDir/
         ├── scripts/               ← fuentes de usuario (C++, Java)
         ├── cache/                 ← binarios compilados de scripts
-        ├── assets/                ← recursos del proyecto
         ├── include/               ← cabeceras del motor (scripts en runtime)
         ├── lib/                   ← deps runtime (.so Linux)
         └── JuegoExportado.json    ← metadatos del proyecto
@@ -301,10 +301,10 @@ editor, spinner indeterminado en el dialogo):
 3. Empaqueta en `MotorGrafico/Exportaciones/<nombre>/` con estructura
    **simplificada** (sin replicar la jerarquía del editor):
    - Ejecutable (`<nombre>.exe` en Windows, `<nombre>` en Linux).
+   - `Assets/` directamente en la raíz (modelos, texturas, etc. del proyecto).
    - `scenes/` con la escena del proyecto (`Scene.db` y `SceneDir/`).
    - `scripts/` con los fuentes de usuario (C++ y Java).
    - `cache/` con binarios compilados de scripts (si existen).
-   - `assets/` con recursos del proyecto (`src<proyecto>/`: mallas, texturas, etc.).
    - `include/` con las cabeceras del motor que `BackendCpp` usa al compilar
      los scripts C++ en la primera ejecucion.
    - `lib/` con las `.so` de sistema en Linux (Bullet, miniaudio, GLFW); en
