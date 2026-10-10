@@ -95,22 +95,29 @@ GameScene::GameScene(GUIManager* manager)
       // devuelven -1), sin romper nada: los clips existen pero no suenan.
       audioEngine(
           std::make_unique<AudioEngine>(std::make_unique<MiniAudioBackend>())) {
-    selecteableGUI = managerGUI->getSelecteableGUI();
-    gizmoController_ = std::make_unique<GizmoController>(editorController.get(),
-                                                         sceneRegistry.get(),
-                                                         selecteableGUI);
-    managerGUI->bindScene(sceneRegistry.get(), editorController.get(), &events);
-    managerGUI->setAudioEngine(audioEngine.get());
+    // En modo runtime (exportación de juego) managerGUI es nullptr: no hay
+    // selecteableGUI, menuBarGUI ni gizmo. Solo se inicializa lo necesario
+    // para el juego: física, render, scripts, audio.
+    if (managerGUI) {
+        selecteableGUI = managerGUI->getSelecteableGUI();
+        gizmoController_ = std::make_unique<GizmoController>(editorController.get(),
+                                                             sceneRegistry.get(),
+                                                             selecteableGUI);
+        managerGUI->bindScene(sceneRegistry.get(), editorController.get(), &events);
+        managerGUI->setAudioEngine(audioEngine.get());
+    }
     asegurarGrilla();
     configurarResolverObjetosScripts();
-    menuBarGUI = managerGUI->getMenuBarGUI(&start);
-    if (menuBarGUI) {
-        menuBarGUI->setPausa(&simulacionPausada);
-        menuBarGUI->setModoJuego(&modoJuego);
+    if (managerGUI) {
+        menuBarGUI = managerGUI->getMenuBarGUI(&start);
+        if (menuBarGUI) {
+            menuBarGUI->setPausa(&simulacionPausada);
+            menuBarGUI->setModoJuego(&modoJuego);
+        }
+        // El menu del editor alterna LOCAL/GLOBAL del gizmo editando este mismo
+        // bool (mismo patron que el boton play/stop con toggleBool).
+        if (menuBarGUI) menuBarGUI->setGizmoGlobal(gizmoController_->direccionGizmoGlobal());
     }
-    // El menu del editor alterna LOCAL/GLOBAL del gizmo editando este mismo
-    // bool (mismo patron que el boton play/stop con toggleBool).
-    if (menuBarGUI) menuBarGUI->setGizmoGlobal(gizmoController_->direccionGizmoGlobal());
     // El renderer resuelve la textura de cada Material con el cache de imagenes
     // de la escena (un solo decode por archivo, imagen compartida).
     sceneRenderer->setTextureManager(textureManager.get());
@@ -655,6 +662,9 @@ GameObject* GameScene::agregarCamaraEnVistaActiva() {
 }
 
 void GameScene::GUI() {
+    // En modo runtime (juego exportado sin editor), no hay GUI del editor
+    if (!managerGUI) return;
+    
     auto* gameObjects = getGameObjectsScene();
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, menuActivo ? 1.0f : 0.0f);
     ImGui::BeginDisabled(!menuActivo);
@@ -1267,14 +1277,14 @@ void GameScene::gameScene() {
 
     // La seleccion y el gizmo son herramientas de Depuracion, independientes
     // de la visibilidad de los paneles y ausentes en Juego.
-    if (!modoJuego)
+    if (!modoJuego && gizmoController_)
         gizmoController_->procesarSeleccion(io, camara, getGameObjectsScene());
 
     /*
      * Navegación libre (sin E y sin objeto seleccionado): el sistema de
      * ventanas y el gizmo no se dibujan, solo la escena 3D.
      */
-    if (modoJuego) {
+    if (modoJuego && gizmoController_) {
         gizmoController_->apagar();
     }
 
@@ -1287,11 +1297,11 @@ void GameScene::gameScene() {
         camara = getActiveCamera();
     }
     if (!camara) {
-        gizmoController_->apagar();
+        if (gizmoController_) gizmoController_->apagar();
         return;
     }
 
-    if (!modoJuego)
+    if (!modoJuego && gizmoController_)
         gizmoController_->dibujarYRastrear(io, camara);
 }
 

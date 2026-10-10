@@ -66,13 +66,11 @@ private:
     void runExportacion();
     bool generarProyectoCMake(const std::string& buildDir);
     bool compilarEngineRuntime(const std::string& buildDir);
-    bool compilarScriptsUsuario(const std::string& buildDir);
     bool compilarJuego(const std::string& buildDir);
     bool copiarAssetsYDependencias(const std::string& buildDir);
     bool copiarDependenciasRuntime(const std::string& buildDir);
     bool empaquetarDistribucion(const std::string& buildDir);
     std::string obtenerExtensionEjecutable() const;
-    std::string obtenerToolchainCMake() const;
     void log(const std::string& msg);
     void progreso(float p, const std::string& etapa);
     void finalizar(bool ok, const std::string& msg);

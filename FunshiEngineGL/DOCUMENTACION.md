@@ -22,11 +22,15 @@ MotorGrafico/
 └── Exportaciones/
     └── <nombreExportacion>/
         ├── <Juego>.exe / <Juego>
-        ├── Data/
-        │   ├── Memory/
-        │   ├── Sonidos/
-        │   └── ConfiguracionProyecto.json
-        └── lib/                   ← deps runtime (Bullet, miniaudio, GLFW, etc.)
+        ├── scenes/                ← escenas del juego
+        │   ├── Scene.db
+        │   └── SceneDir/
+        ├── scripts/               ← fuentes de usuario (C++, Java)
+        ├── cache/                 ← binarios compilados de scripts
+        ├── assets/                ← recursos del proyecto
+        ├── include/               ← cabeceras del motor (scripts en runtime)
+        ├── lib/                   ← deps runtime (.so Linux)
+        └── JuegoExportado.json    ← metadatos del proyecto
 ```
 
 Al arrancar, `EditorConfig::asegurarEstructuraProyecto()` crea la estructura
@@ -284,23 +288,50 @@ Abre un dialogo modal con configuracion:
 Al pulsar **Exportar**, el motor ejecuta en hilo separado (no bloquea el
 editor, spinner indeterminado en el dialogo):
 
-1. Genera un proyecto CMake temporal que compila el **engine runtime-only**
-   (`funshi_runtime`: sin ImGui, editor, Assimp; solo GLFW, OpenGL, Bullet,
-   miniaudio, nlohmann/json, GLM). Definicion `BUILD_RUNTIME=ON` en CMake.
-2. Recompila los scripts de usuario (BackendCpp) en el build de exportacion.
-3. Compila el ejecutable del juego linkando contra `funshi_runtime`.
-4. Empaqueta en `MotorGrafico/Exportaciones/<nombre>/`:
+1. Genera un proyecto CMake temporal con `BUILD_RUNTIME=ON`: la raiz del
+   engine construye **solo su libreria** (sin ejecutable del editor ni
+   pruebas) y `FUNSHI_JAVA=ON` incluye soporte de scripts Java via JNI (los
+   scripts `.java` del proyecto viajan y se ejecutan en tiempo de ejecucion).
+2. Compila la libreria y el ejecutable del juego. El binario usa un punto de
+   entrada dedicado (`main_juego.cpp`) que **NO incluye código del editor**
+   (GUIManager, MenuGUI, paneles): solo el runtime del juego (escena, física,
+   scripts, render, input). Al arrancar lee `JuegoExportado.json` junto a si
+   mismo y entra directo en modo juego. ImGui se inicializa para el runtime
+   (contexto básico), sin la infraestructura GUI del editor.
+3. Empaqueta en `MotorGrafico/Exportaciones/<nombre>/` con estructura
+   **simplificada** (sin replicar la jerarquía del editor):
    - Ejecutable (`<nombre>.exe` en Windows, `<nombre>` en Linux).
-   - Carpeta `Data/` con `Memory/`, `Sonidos/`, `ConfiguracionProyecto.json`.
-   - Carpeta `lib/` con dependencias bundleadas (`.dll` / `.so`: Bullet,
-     miniaudio, GLFW, runtime C++).
+   - `scenes/` con la escena del proyecto (`Scene.db` y `SceneDir/`).
+   - `scripts/` con los fuentes de usuario (C++ y Java).
+   - `cache/` con binarios compilados de scripts (si existen).
+   - `assets/` con recursos del proyecto (`src<proyecto>/`: mallas, texturas, etc.).
+   - `include/` con las cabeceras del motor que `BackendCpp` usa al compilar
+     los scripts C++ en la primera ejecucion.
+   - `lib/` con las `.so` de sistema en Linux (Bullet, miniaudio, GLFW); en
+     Windows las DLL van junto al `.exe`, que es donde las busca el loader.
+   - `JuegoExportado.json` con metadatos del proyecto.
+   
+   **NO se incluyen** archivos del editor: `Memory/Interfaces/`,
+   `ConfiguracionProyecto.json`, `imgui.ini` ni la estructura
+   `MotorGrafico/Proyects/`.
 
 Mientras la exportacion corre, el dialogo **no se puede cerrar** (ni con la X
 ni con Cerrar); al terminar queda abierto mostrando el resultado hasta que el
 usuario lo cierre.
 
-**Requisitos para cross-compile Windows:** toolchain MinGW instalado
-(`x86_64-w64-mingw32-g++`, `x86_64-w64-mingw32-gcc`, `windres`).
+**Scripts C++ del juego exportado:** los fuentes viajan con el proyecto y
+`BackendCpp` los compila en la **primera ejecucion** en la maquina que corre
+el juego, con la clase que declara la escena. Hace falta un compilador C++ en
+esa maquina (`g++`/`cl` en el PATH o la variable `FUNSHI_CXX`); las cabeceras
+del motor estan en `include/`. Las ejecuciones siguientes reutilizan el
+artefacto ya compilado.
+
+**Requisitos para cross-compile Windows:** toolchain MinGW
+(`x86_64-w64-mingw32-g++`, `x86_64-w64-mingw32-gcc`, `windres`) y las
+dependencias del motor (GLFW, Bullet, Assimp, ncurses) construidas para MinGW
+y alcanzables por `find_package`. El exportador escribe el toolchain
+(`toolchain-mingw.cmake`) y lo pasa al configure con
+`-DCMAKE_TOOLCHAIN_FILE`.
 
 **Lanzar el juego exportado:**
 ```bash
@@ -311,6 +342,7 @@ usuario lo cierre.
 MotorGrafico\Exportaciones\MiJuego\MiJuego.exe
 ```
 
-El binario exportado es standalone: **no requiere el editor ni dependencias
-de desarrollo**. El flag `--proyecto` del binario del editor sigue disponible
-para desarrollo (salta el menu y abre el proyecto en modo editor).
+El binario exportado arranca directo en modo juego (doble clic, sin
+argumentos). En un binario del motor tambien valen los flags de siempre:
+`--proyecto <nombre>` abre el proyecto en modo editor y `--juego` fuerza el
+modo juego sin manifiesto.
