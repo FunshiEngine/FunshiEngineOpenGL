@@ -490,14 +490,6 @@ static int EjecutarMotor(int argc, char* argv[])
             if (ev.type != EditorEventType::ArchivosReubicados) return;
             gestor.manejarArchivosReubicados(ev.rutaAnterior, ev.rutaNueva);
         });
-        // Exportar juego: copia la carpeta del proyecto a
-        // <directorioBase>/Exportaciones/<proyecto> para distribucion junto
-        // al ejecutable. El usuario lanza el juego con: FunshiEngineGL
-        // --proyecto <nombre>.
-        eventosGUI->subscribe([&gestor](const EditorEvent& ev) {
-            if (ev.type != EditorEventType::ExportarJuego) return;
-            gestor.exportarProyecto();
-        });
     }
 
     const std::string sceneBBDD = EditorConfig::rutaSceneBBDD(gestor.proyectoActual());

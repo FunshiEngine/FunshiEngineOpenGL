@@ -188,36 +188,6 @@ void GestorDeProyectos::reflejarProyectoEnMenuBar() const {
         menuBar->setProyectoActual(proyectoActual_);
 }
 
-void GestorDeProyectos::exportarProyecto() {
-    // Copia la carpeta del proyecto a <directorioBase>/Exportaciones/<proyecto>
-    // para distribucion junto al ejecutable. El usuario lanza el juego con:
-    // FunshiEngineGL --proyecto <nombre>.
-    if (proyectoActual_.empty()) {
-        if (auto* status = gui_->getStatusBarGUI())
-            status->mostrarMensaje("Error: no hay proyecto abierto");
-        return;
-    }
-    const std::string base = EditorConfig::directorioBaseMotorGrafico();
-    const std::string origen = EditorConfig::directorioProyecto(proyectoActual_);
-    const std::string destino = base + "/Exportaciones/" + proyectoActual_;
-    std::error_code ec;
-    fs::create_directories(fs::path(destino).parent_path(), ec);
-    fs::copy(origen, destino,
-                     fs::copy_options::recursive |
-                         fs::copy_options::overwrite_existing,
-                     ec);
-    std::string msg;
-    if (ec) {
-        msg = "Error exportando: " + ec.message();
-        std::cerr << msg << '\n';
-    } else {
-        msg = "Juego exportado a: " + destino;
-        std::cout << msg << '\n';
-    }
-    if (auto* status = gui_->getStatusBarGUI())
-        status->mostrarMensaje(msg);
-}
-
 void GestorDeProyectos::manejarArchivosReubicados(
     const std::string& rutaAnterior, const std::string& rutaNueva) {
     // Archivos/carpetas movidos o renombrados en el explorador (arbol o grid):

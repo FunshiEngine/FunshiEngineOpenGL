@@ -86,11 +86,6 @@ public:
     // no toca nada (el enunciado "no hay proyecto" queda vacio).
     void reflejarProyectoEnMenuBar() const;
 
-    // Copia el proyecto activo a <base>/Exportaciones para distribucion junto al
-    // ejecutable (FunshiEngineGL --proyecto <nombre>). Informa por la barra de
-    // estado el resultado.
-    void exportarProyecto();
-
     // Reescribe en memoria las referencias de la escena cuya ruta cayo bajo el
     // path movido (mallas/texturas/fuentes) y persiste al instante.
     void manejarArchivosReubicados(const std::string& rutaAnterior,

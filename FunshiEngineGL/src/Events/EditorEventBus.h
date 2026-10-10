@@ -48,7 +48,6 @@ enum class EditorEventType {
     ReiniciarConfiguracion, // "Restablecer configuracion" -> main reaplica defaults
     VentanaActivaCambio,  // reservado: ventana con foco ImGui (Settings futuro)
     ArchivosReubicados,   // archivo/carpeta movido o renombrado en el explorador -> Reescribir referencias
-    ExportarJuego,        // solicitud de exportar el proyecto (main copia carpeta)
 };
 
 // Datos declarativos segun el tipo (punteros NO propietarios; cadenas por
@@ -87,10 +86,6 @@ struct EditorEvent {
     // reescribe las referencias de la escena que cayan bajo rutaAnterior.
     std::string rutaAnterior;
     std::string rutaNueva;
-
-    // Para ExportarJuego: mensaje de resultado (exito/error) para feedback
-    // visual (status bar / toast).
-    std::string mensaje;
 };
 
 // Bus pub/sub 1:1 con el patron de EventBus (SceneEvent) pero con EditorEvent.
