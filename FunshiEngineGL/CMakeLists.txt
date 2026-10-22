@@ -672,6 +672,26 @@ set_target_properties(particulas-textura-tests PROPERTIES
 )
 add_test(NAME particulas-textura-tests COMMAND particulas-textura-tests)
 
+# Perfiles de efecto de particulas: escritor JSON + flujo hasta el emisor. El
+# escritor valida las mismas invariantes que la carga, y el emisor lee el
+# perfil por ruta (el mismo camino que recorre el drag & drop del inspector).
+add_executable(particulas-perfil-tests
+    ${SRC_DIR}/Objetos/Componentes/EmisorParticulas.cpp
+    ${SRC_DIR}/Particulas/SistemaParticulas.cpp
+    ${SRC_DIR}/Particulas/LectorPerfil.cpp
+    ${SRC_DIR}/Particulas/EscritorPerfil.cpp
+    ${SRC_DIR}/Particulas/PerfilParticula.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ParticulasPerfilTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/EditorConfigStubs.cpp
+)
+target_include_directories(particulas-perfil-tests PRIVATE ${SRC_DIR} ${CMAKE_SOURCE_DIR}/External)
+set_target_properties(particulas-perfil-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME particulas-perfil-tests COMMAND particulas-perfil-tests)
+
 # --- Pruebas headless de la lectura de datos serializados ---------------------
 # Las longitudes y las etiquetas las controla el archivo: si estan corruptas,
 # la lectura se corta con un error limpio en vez de reservar una memoria
