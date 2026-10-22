@@ -24,6 +24,8 @@
 
 #include <cstdio>
 
+#include "../../../Assets/StbImageLoader.h"
+
 SettingsEmisorParticulas::SettingsEmisorParticulas(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(EmisorParticulas).name())),
       gameObject(gameObject) {}
@@ -94,8 +96,39 @@ void SettingsEmisorParticulas::showDataComponent() {
     }
     if (!emisor->errorPerfil().empty()) {
         ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s",
-                           emisor->errorPerfil().c_str());
+                            emisor->errorPerfil().c_str());
     } else if (emisor->perfil()) {
         ImGui::Text("Perfil: %s", emisor->perfil()->nombre.c_str());
     }
+
+    // Textura de particula: se puede asignar arrastrando una imagen desde el
+    // explorador de contenido (showfolder). Sobreescribe la textura del perfil.
+    ImGui::Separator();
+    ImGui::Text("Textura de particula");
+    const std::string& textura = emisor->texturaParticula();
+    const char* textoBoton = textura.empty() ? "[Arrastra una imagen]"
+                                               : textura.c_str();
+    ImGui::PushID(emisor);
+    ImGui::Button(textoBoton);
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload =
+                ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+            const char* rutaSoltada = static_cast<const char*>(payload->Data);
+            int ancho = 0, alto = 0;
+            if (rutaSoltada && *rutaSoltada &&
+                StbImageLoader::dimensiones(rutaSoltada, ancho, alto)) {
+                emisor->setTexturaParticula(rutaSoltada);
+            } else if (rutaSoltada && *rutaSoltada) {
+                std::cerr << "[Particulas] el archivo arrastrado no es una "
+                             "imagen valida: "
+                          << rutaSoltada << std::endl;
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Quitar")) {
+        emisor->setTexturaParticula(std::string());
+    }
+    ImGui::PopID();
 }

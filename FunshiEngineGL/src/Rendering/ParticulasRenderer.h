@@ -71,9 +71,11 @@ private:
     std::vector<std::string> texturasFallidas_;
 
     bool inicializar();
-    // Enlaza la textura del perfil (o ninguna si el perfil no tiene). Devuelve
+    // Enlaza la textura del perfil (o ninguna si el perfil no tiene). Si
+    // texturaOverride no esta vacia, la usa en vez de la del perfil. Devuelve
     // false si hay que dibujar el lote sin textura.
-    bool enlazarTextura(const PerfilParticula* perfil);
+    bool enlazarTextura(const PerfilParticula* perfil,
+                        const std::string& texturaOverride = std::string());
 
 public:
     // El constructor y el destructor estan en el .cpp: TextureGL esta

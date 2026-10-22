@@ -108,7 +108,8 @@ void SistemaParticulas::direccionAleatoria(const float direccion[3],
 
 void SistemaParticulas::emitir(const ParametrosEmisor& parametros,
                                const float origen[3],
-                               const std::shared_ptr<const PerfilParticula>& perfil) {
+                               const std::shared_ptr<const PerfilParticula>& perfil,
+                               const std::string& texturaOverride) {
     if (presupuesto_ == 0) return;
     if (particulas_.size() >= presupuesto_) particulas_.pop_front();
 
@@ -126,6 +127,7 @@ void SistemaParticulas::emitir(const ParametrosEmisor& parametros,
     nueva.tamano = nueva.tamanoBase;
     nueva.rozamiento = parametros.rozamiento;
     nueva.perfil = perfil;
+    nueva.texturaOverride = texturaOverride;
     nueva.rotacion = parametros.rotacionInicial;
     nueva.velocidadRotacion = parametros.velocidadRotacion;
 

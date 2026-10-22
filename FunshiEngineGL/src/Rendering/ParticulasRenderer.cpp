@@ -46,14 +46,17 @@ bool ParticulasRenderer::inicializar() {
     return true;
 }
 
-bool ParticulasRenderer::enlazarTextura(const PerfilParticula* perfil) {
-    if (!perfil || perfil->textura.empty()) return false;
+bool ParticulasRenderer::enlazarTextura(const PerfilParticula* perfil,
+                                        const std::string& texturaOverride) {
+    const std::string& ruta = !texturaOverride.empty() ? texturaOverride
+                                                        : (perfil ? perfil->textura : std::string());
+    if (ruta.empty()) return false;
     if (!textureManager_) return false;
     if (std::find(texturasFallidas_.begin(), texturasFallidas_.end(),
-                  perfil->textura) != texturasFallidas_.end())
+                  ruta) != texturasFallidas_.end())
         return false;
     try {
-        std::shared_ptr<const Image> imagen = textureManager_->getTexture(perfil->textura);
+        std::shared_ptr<const Image> imagen = textureManager_->getTexture(ruta);
         const auto it = texturas_.find(imagen.get());
         if (it == texturas_.end()) {
             if (!backend_) return false;
@@ -67,9 +70,9 @@ bool ParticulasRenderer::enlazarTextura(const PerfilParticula* perfil) {
     } catch (const std::exception& excepcion) {
         // La textura que falla no se reintenta cada frame: quedaria el log
         // lleno del mismo error.
-        texturasFallidas_.push_back(perfil->textura);
+        texturasFallidas_.push_back(ruta);
         std::cerr << "[particulas] no se pudo cargar la textura '"
-                  << perfil->textura << "': " << excepcion.what() << std::endl;
+                  << ruta << "': " << excepcion.what() << std::endl;
         return false;
     }
 }
@@ -79,15 +82,20 @@ void ParticulasRenderer::dibujar(const SistemaParticulas& sistema,
     if (sistema.particulas().empty()) return;
     if (!inicializar()) return;
 
-    // Agrupar por perfil: las particulas de un perfil comparten textura.
-    std::map<const PerfilParticula*, std::vector<const Particula*>> grupos;
+    // Agrupar por (perfil, texturaOverride): las particulas de un perfil
+    // comparten textura a menos que tengan un override por particula.
+    std::map<std::pair<const PerfilParticula*, std::string>,
+             std::vector<const Particula*>>
+        grupos;
     for (const Particula& particula : sistema.particulas()) {
-        grupos[particula.perfil.get()].push_back(&particula);
+        grupos[{particula.perfil.get(), particula.texturaOverride}]
+            .push_back(&particula);
     }
 
     const float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
     for (auto& grupo : grupos) {
-        const PerfilParticula* perfil = grupo.first;
+        const PerfilParticula* perfil = grupo.first.first;
+        const std::string& texturaOverride = grupo.first.second;
         builder_.limpiar();
         for (const Particula* particula : grupo.second)
             builder_.agregarParticula(*particula, uvRect);
@@ -107,7 +115,7 @@ void ParticulasRenderer::dibujar(const SistemaParticulas& sistema,
         shader_->use();
         shader_->setMat4("uView", glm::make_mat4(view));
         shader_->setMat4("uProjection", glm::make_mat4(projection));
-        const bool conTextura = enlazarTextura(perfil);
+        const bool conTextura = enlazarTextura(perfil, texturaOverride);
         shader_->setInt("uUseTexture", conTextura ? 1 : 0);
 
         backend_->setBlendEnabled(true);

@@ -57,6 +57,9 @@ struct Particula {
     // comparte con el emisor: si el emisor desaparece, la particula sigue
     // viva con su perfil.
     std::shared_ptr<const PerfilParticula> perfil;
+    // Ruta opcional de la textura de particula que sobreescribe la del perfil.
+    // Vacia = usar la del perfil.
+    std::string texturaOverride;
 
     bool viva() const noexcept { return vida > 0.0f; }
 

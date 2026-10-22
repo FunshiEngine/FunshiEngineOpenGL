@@ -655,6 +655,23 @@ set_target_properties(emisor-particulas-tests PROPERTIES
 )
 add_test(NAME emisor-particulas-tests COMMAND emisor-particulas-tests)
 
+# --- Prueba headless del campo texturaParticula del emisor -------------------
+add_executable(particulas-textura-tests
+    ${SRC_DIR}/Objetos/Componentes/EmisorParticulas.cpp
+    ${SRC_DIR}/Particulas/SistemaParticulas.cpp
+    ${SRC_DIR}/Particulas/LectorPerfil.cpp
+    ${SRC_DIR}/Particulas/PerfilParticula.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ParticulasTexturaTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/EditorConfigStubs.cpp
+)
+target_include_directories(particulas-textura-tests PRIVATE ${SRC_DIR} ${CMAKE_SOURCE_DIR}/External)
+set_target_properties(particulas-textura-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME particulas-textura-tests COMMAND particulas-textura-tests)
+
 # --- Pruebas headless de la lectura de datos serializados ---------------------
 # Las longitudes y las etiquetas las controla el archivo: si estan corruptas,
 # la lectura se corta con un error limpio en vez de reservar una memoria

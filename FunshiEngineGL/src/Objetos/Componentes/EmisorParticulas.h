@@ -51,6 +51,11 @@ public:
     // el emisor se queda sin perfil y el motivo queda en 'errorPerfil'.
     void setRutaPerfil(const std::string& ruta);
 
+    // Ruta opcional de la textura de particula, relativa al proyecto. Si no
+    // esta vacia, sobreescribe la textura del perfil al renderizar.
+    const std::string& texturaParticula() const noexcept { return texturaParticula_; }
+    void setTexturaParticula(const std::string& ruta) noexcept { texturaParticula_ = ruta; }
+
     // Perfil cargado (nulo si el emisor no tiene o si no se pudo leer).
     const std::shared_ptr<const PerfilParticula>& perfil() const noexcept {
         return perfil_;
@@ -76,6 +81,7 @@ private:
 
     ParametrosEmisor parametros_;
     std::string rutaPerfil_;
+    std::string texturaParticula_;
     bool activa_ = true;
     // Estado de ejecucion: no se serializa.
     float acumulador_ = 0.0f;
