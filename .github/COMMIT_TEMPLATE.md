@@ -2,7 +2,7 @@
 
 GitHub no ofrece plantillas de mensaje de commit (esa función se retiró), así
 que este archivo es la referencia de la convención. La regla completa vive en
-`AGENTS.md`; este resumen es para tenerla a mano al commitear.
+`Skills/`; este resumen es para tenerla a mano al commitear.
 
 ## Formato
 

@@ -10,7 +10,7 @@
 Guia practica para usuarios del editor: como montar una escena, asignar assets
 por arrastre y escribir scripts con la API exacta que expone el motor.
 
-> Documentacion complementaria: [README.md](README.md) (caracteristicas y
+> Documentacion complementaria: [README.md](../README.md) (caracteristicas y
 > compilacion), [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) (arquitectura),
 > [CAMARAS_VISTAS_PREVIAS.md](CAMARAS_VISTAS_PREVIAS.md) (camaras) y
 > [FunshiEngineGL/DOCUMENTACION.md](FunshiEngineGL/DOCUMENTACION.md) (notas

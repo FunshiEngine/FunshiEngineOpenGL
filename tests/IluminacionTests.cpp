@@ -25,7 +25,7 @@
 // (uShadowLightIndex). Si las dos listas se desalinearan, la sombra de una luz
 // oscureceria la contribucion de otra, sin que nada fallara de forma visible.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo y salida
+// Patron de autoria (ver Skills): CHECK definido en este archivo y salida
 // final "OK/FALLOS: N comprobaciones".
 
 #include <cmath>

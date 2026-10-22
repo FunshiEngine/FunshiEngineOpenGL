@@ -97,11 +97,18 @@ dependencias de terceros.
 ```text
 FunshiEngineGL/                          ← raíz del repo
 ├── README.md                            ← visión general, build, ejecución y enlaces a la documentación
-├── PROJECT_STRUCTURE.md                 ← este documento
-├── MANUAL_DE_USO.md                     ← manual de usuario (editor + scripting C++/Java)
-├── CAMARAS_VISTAS_PREVIAS.md            ← Fase 2: cámaras componente + vistas previas
-├── ARQUITECTURA_ESTADOS_GUI.md          ← estados/menú/GUI internas (diseño + Fases 1-3)
-├── FLUJO_DE_RAMAS.md                    ← convención de ramas (develop/test/staging/release)
+├── doc/                                 ← documentación del proyecto
+│   ├── PROJECT_STRUCTURE.md             ← este documento
+│   ├── MANUAL_DE_USO.md                 ← manual de usuario (editor + scripting C++/Java)
+│   ├── CAMARAS_VISTAS_PREVIAS.md        ← cámaras componente + vistas previas
+│   ├── ARQUITECTURA_ESTADOS_GUI.md      ← estados/menú/GUI internas (diseño + Fases 1-3)
+│   ├── DocuTecnicoBugs.md               ← registro técnico de bugs (patrón, síntomas, fix)
+│   └── FLUJO_DE_RAMAS.md                ← convención de ramas (develop/test/staging/release)
+├── Skills/                              ← convenciones para agentes de código
+│   ├── Arquitectura/Arquitectura.md     ← reglas de arquitectura y memoria de trabajo
+│   ├── Plan/Plan_De_Trabajo.md          ← convenciones del código y flujo de trabajo
+│   ├── Plan/Depuracion.md               ← pruebas, depuración y orden por dependencia
+│   └── Repositorio/Repositorio.md       ← comandos esenciales y ejecución del editor
 ├── .github/workflows/ci.yml             ← CI: engine en Ubuntu y en Windows (MSVC) + pruebas headless
 ├── .github/workflows/release.yml        ← instaladores Qt IFW (.run) e Inno (.exe) por tag
 ├── .github/workflows/windows-release.yml← build+release específico de Windows

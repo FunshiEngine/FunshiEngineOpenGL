@@ -24,7 +24,7 @@
 // las normales sean unitarias, que las UVs esten en [0,1] y que no haya
 // triangulos degenerados (un vertice repetido haria invisible un trozo).
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
+// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
 // dependencias de GUI, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <cmath>

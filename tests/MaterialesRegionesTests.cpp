@@ -28,7 +28,7 @@
 //   - el resolvedor devuelve el material de la region, el material unico del
 //     objeto o nada, segun lo que tenga el objeto.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
+// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
 // dependencias de GUI, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <fstream>

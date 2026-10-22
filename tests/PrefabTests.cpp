@@ -19,7 +19,7 @@
 // Pruebas headless del sistema de Prefabs: round-trip completo (guardar -> instanciar ->
 // conservar nombre, tag, jerarquia, componentes, Transform) y validacion de archivos.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo,
+// Patron de autoria (ver Skills): CHECK definido en este archivo,
 // TempPruebas::CarpetaPrueba para la carpeta temporal que se limpia sola, y
 // salida final "OK/FALLOS: N comprobaciones" saliendo con 0 o 1.
 

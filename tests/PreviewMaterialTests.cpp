@@ -27,7 +27,7 @@
 //   - el material editado llega al shader (el color difuso se sube),
 //   - al invalidarla queda sucia y se vuelve a dibujar.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
+// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
 // dependencias de GUI, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <cmath>

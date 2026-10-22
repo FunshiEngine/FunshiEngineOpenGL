@@ -20,7 +20,7 @@ cd FunshiEngineGL && ./build/FunshiEngineGL
 
 ## Documentación
 
-- [MANUAL_DE_USO.md](MANUAL_DE_USO.md) – Guía de uso del editor y scripting
-- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) – Arquitectura y estructura del proyecto
-- [FLUJO_DE_RAMAS.md](FLUJO_DE_RAMAS.md) – Convención de ramas
-- [DocuTecnicoBugs.md](DocuTecnicoBugs.md) – Registro técnico de bugs
+- [doc/MANUAL_DE_USO.md](doc/MANUAL_DE_USO.md) – Guía de uso del editor y scripting
+- [doc/PROJECT_STRUCTURE.md](doc/PROJECT_STRUCTURE.md) – Arquitectura y estructura del proyecto
+- [doc/FLUJO_DE_RAMAS.md](doc/FLUJO_DE_RAMAS.md) – Convención de ramas
+- [doc/DocuTecnicoBugs.md](doc/DocuTecnicoBugs.md) – Registro técnico de bugs
