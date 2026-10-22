@@ -38,6 +38,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
+#include "../FunshiEngineGL/src/Configuracion/ProjectManager.h"
 #include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
 #include "../FunshiEngineGL/src/Exportador/RutasExportacion.h"
 #include "../FunshiEngineGL/src/Configuracion/ProyectoInicial.h"
@@ -1095,6 +1096,38 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "'logs' no es un proyecto: queda reservada en la raiz de datos");
         CHECK(ProjectPaths::esNombreValido("Loges del Pueblo"),
               "un nombre de proyecto corriente sigue siendo valido");
+    }
+
+    // 11. La carpeta global de mods del motor NO es un proyecto legacy: la raiz
+    //     de datos la crea en cada arranque (asegurarEstructuraBase) y la
+    //     migracion de proyectos antiguos la movia a Proyects/, de modo que el
+    //     listado mostraba un proyecto falso llamado "Mods" y la carpeta real
+    //     de mods volvia a aparecer vacia en la raiz.
+    {
+        CHECK(!ProjectPaths::esNombreValido("Mods"),
+              "'Mods' no es un proyecto: queda reservada en la raiz de datos");
+        CHECK(ProjectPaths::esNombreValido("Mods del Juego"),
+              "un proyecto del usuario puede llamarse parecido sin chocar");
+
+        // Migracion con rutas inyectadas: la carpeta reservada se queda en la
+        // raiz y el proyecto legacy de verdad sigue migrando a Proyects/.
+        TempPruebas::CarpetaPrueba carpetaMigracion("funshi_migracion_reservados");
+        const fs::path raizMigracion = carpetaMigracion.ruta();
+        fs::create_directories(raizMigracion / "Mods");
+        fs::create_directories(raizMigracion / "MiJuego" / "Memory");
+        fs::create_directories(raizMigracion / "MiJuego" / "srcMiJuego");
+
+        ProjectManager::migrarProyectosAntiguosEn(
+            raizMigracion.string(), (raizMigracion / "Proyects").string());
+
+        CHECK(fs::is_directory(raizMigracion / "Mods"),
+              "la carpeta global de mods se queda en la raiz de datos");
+        CHECK(!fs::is_directory(raizMigracion / "Proyects" / "Mods"),
+              "la migracion no crea un proyecto llamado Mods");
+        CHECK(fs::is_directory(raizMigracion / "Proyects" / "MiJuego"),
+              "el proyecto legacy de verdad si migra a Proyects/");
+        CHECK(!fs::exists(raizMigracion / "MiJuego"),
+              "el proyecto legacy sale de la raiz de datos");
     }
 
     fs::remove_all(base);

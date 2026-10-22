@@ -67,7 +67,12 @@ bool esReservado(const std::string& nombre) {
     static const char* reservados[] = {
         "Proyects", "Configuraciones", "Exportaciones",
         "Binarios", "Memory", "Interfaces", "Sonidos",
-        "Configuracion.json", "imgui.ini", "logs"
+        "Configuracion.json", "imgui.ini", "logs",
+        // Carpeta global de mods del motor: asegurarEstructuraBase la crea en
+        // cada arranque; si no estuviera reservada, la migracion de proyectos
+        // legacy la movia a Proyects/ y el listado mostraba un proyecto falso
+        // llamado "Mods".
+        "Mods"
     };
     for (const char* r : reservados) {
         if (nombre == r) return true;

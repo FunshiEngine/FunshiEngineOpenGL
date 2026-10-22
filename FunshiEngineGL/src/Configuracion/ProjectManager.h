@@ -69,6 +69,13 @@ public:
     // Verifica si un proyecto tiene estructura mínima válida.
     static bool esProyectoValido(const std::string& nombre);
 
+    // El recorrido y el renombrado de la migración legacy, con las rutas
+    // inyectadas. Igual que ProjectPaths::copiarArbolSiDestinoVacio, se expone
+    // para ejercitar la migración headless con carpetas de verdad, sin depender
+    // de dónde viva el ejecutable (la raíz es una decisión de proceso, cacheada).
+    static void migrarProyectosAntiguosEn(const std::string& base,
+                                          const std::string& destino);
+
 private:
     // Migración interna: mueve carpetas sueltas bajo FunshiEngine-DATA/ a Proyects/
     static void migrarProyectosAntiguos();
