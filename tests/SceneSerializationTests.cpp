@@ -980,7 +980,7 @@ static void escribirRutaPersistida(std::ostream& out, const std::string& s) {
 
 void rutasDeCarasDeSkybox() {
     EditorConfig::limpiarRaizAssets();
-    const std::string raiz = "/motor/MotorGrafico/Juego/srcJuego";
+    const std::string raiz = "/motor/FunshiEngine-DATA/Juego/srcJuego";
     EditorConfig::fijarRaizAssets(raiz);
 
     const std::string relativaPX = "Cielo/cielo_px.png";
@@ -1084,7 +1084,7 @@ void rutasDeCarasDeSkybox() {
 // en silencio y dejar los .db apuntando al lugar viejo.
 void reescrituraDeReferencias() {
     EditorConfig::limpiarRaizAssets();
-    const std::string raiz = "C:\\base\\MotorGrafico/Proyects/JuegoX/srcJuegoX";
+    const std::string raiz = "C:\\base\\FunshiEngine-DATA/Proyects/JuegoX/srcJuegoX";
     EditorConfig::fijarRaizAssets(raiz);
 
     // Rutas en memoria tal como quedan al cargar la escena (absolutizar

@@ -40,9 +40,9 @@ namespace ProjectPaths {
 // Directorio del ejecutable (ancla portable: config/proyectos junto al binario)
 std::string directorioEjecutable();
 
-// Raiz MotorGrafico, donde viven los proyectos, las escenas y la configuracion.
+// Raiz FunshiEngine-DATA, donde viven los proyectos, las escenas y la configuracion.
 //
-// Antes vivia SIEMPRE en <exeDir>/MotorGrafico, lo que solo funciona si el motor
+// Antes vivia SIEMPRE en <exeDir>/FunshiEngine-DATA, lo que solo funciona si el motor
 // esta en una carpeta escribible. Instalado en "C:\Program Files" no lo esta:
 // el ejecutable corre sin elevar y la carpeta la creo el instalador (que si es
 // admin) con los ACL de Program Files, asi que todas las escrituras fallaban en
@@ -51,7 +51,7 @@ std::string directorioEjecutable();
 // Windows, ~/.local/share en Linux). La decision se cachea por proceso.
 std::string directorioBase();
 
-// La ubicacion historica (<exeDir>/MotorGrafico) este o no sea la elegida. Se
+// La ubicacion historica (<exeDir>/FunshiEngine-DATA) este o no sea la elegida. Se
 // expone para poder informar al usuario y para la migracion de la linea de abajo.
 std::string directorioBaseOriginal();
 
@@ -75,7 +75,7 @@ bool copiarArbolSiDestinoVacio(const std::string& origen,
                                const std::string& destino,
                                std::string& error);
 
-// Carpetas de primer nivel bajo MotorGrafico/
+// Carpetas de primer nivel bajo FunshiEngine-DATA/
 std::string directorioProyects();
 std::string directorioConfiguraciones();
 std::string directorioExportaciones();

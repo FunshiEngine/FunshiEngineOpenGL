@@ -198,7 +198,7 @@ int EjecutarJuego(int argc, char* argv[]) {
                                      Rendering::Backend::activeBackend());
 
     // 6. Leer manifiesto JuegoExportado.json junto al binario para obtener metadatos
-    // El juego exportado NO replica la estructura MotorGrafico/Proyects: las escenas
+    // El juego exportado NO replica la estructura FunshiEngine-DATA/Proyects: las escenas
     // y assets están directamente en scenes/ y assets/ junto al ejecutable.
     std::string dirEjecutable = ProjectPaths::directorioEjecutable();
     std::string nombreProyecto;
@@ -219,7 +219,7 @@ int EjecutarJuego(int argc, char* argv[]) {
     fs::create_directories(cacheDir, ec);
 
     // 8. Cargar escena desde la estructura simplificada del juego exportado
-    // Las escenas están en scenes/ junto al ejecutable, NO en MotorGrafico/Proyects.
+    // Las escenas están en scenes/ junto al ejecutable, NO en FunshiEngine-DATA/Proyects.
     // Las rutas de assets de la escena se guardan RELATIVAS a la raiz del
     // juego (p. ej. "Assets/Modelos/Cube.obj"): se fija esa raiz ANTES de
     // cargar, para que se resuelvan contra el directorio del juego y no

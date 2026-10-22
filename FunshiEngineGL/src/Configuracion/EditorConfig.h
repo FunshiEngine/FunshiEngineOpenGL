@@ -79,14 +79,14 @@ public:
     // resuelve una vez al arrancar: junto al binario si ahi se puede escribir y
     // si no en la carpeta de datos del usuario (ver ProjectPaths).
     //   Linux y Windows: <raizDeDatos>/Configuraciones/Configuracion.json
-    // Directorio base de MotorGrafico donde viven todos los proyectos:
-    //   Linux y Windows: <raizDeDatos>  (raizDeDatos + "MotorGrafico")
-    static std::string directorioBaseMotorGrafico();
+    // Directorio base de FunshiEngine-DATA donde viven todos los proyectos:
+    //   Linux y Windows: <raizDeDatos>  (raizDeDatos + "FunshiEngine-DATA")
+    static std::string directorioBaseDatos();
 
     // Directorio raiz de un proyecto especifico: <directorioBase>/<nombreProyecto>
     static std::string directorioProyecto(const std::string& nombreProyecto = "Nuevo Proyecto");
 
-    // Directorio Memory del proyecto (contiene lo que antes se guardaba en MotorGrafico):
+    // Directorio Memory del proyecto (contiene lo que antes se guardaba en FunshiEngine-DATA):
     // <directorioProyecto>/Memory
     static std::string directorioMemory(const std::string& nombreProyecto = "Nuevo Proyecto");
 
@@ -97,7 +97,7 @@ public:
     // Nombre de la raiz del explorador de archivos: "src" + nombreProyecto
     static std::string nombreRaizSrc(const std::string& nombreProyecto = "Nuevo Proyecto");
 
-    // Ruta de la configuracion general en la raiz de MotorGrafico (hermana de los proyectos):
+    // Ruta de la configuracion general en la raiz de FunshiEngine-DATA (hermana de los proyectos):
     // <directorioBase>/Configuracion.json
     static std::string rutaConfiguracionGeneral();
 
@@ -144,8 +144,8 @@ public:
     //   <directorioBase>/Configuraciones/Configuracion.json
     //   <directorioBase>/Exportaciones/
     // Las carpetas de assets (sonidos, scripts, mods) las crea el usuario.
-    // Migra proyectos previos de la estructura antigua (directamente bajo MotorGrafico/)
-    // a la nueva estructura MotorGrafico/Proyects/
+    // Migra proyectos previos de la estructura antigua (directamente bajo FunshiEngine-DATA/)
+    // a la nueva estructura FunshiEngine-DATA/Proyects/
     static void asegurarEstructuraProyecto(const std::string& nombreProyecto = "Nuevo Proyecto");
 
     // Asegura la estructura base de datos del motor (Proyects/,
@@ -195,7 +195,7 @@ public:
                                              const std::string& anterior,
                                              const std::string& reemplazo);
 
-    // Ruta por defecto: apunta a Configuracion.json en la raiz de MotorGrafico
+    // Ruta por defecto: apunta a Configuracion.json en la raiz de FunshiEngine-DATA
     static std::string rutaPorDefecto();
 
     // Directorio base por defecto (compatibilidad): directorio Memory de Nuevo Proyecto

@@ -408,7 +408,7 @@ if(BUILD_ENGINE)
                FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
     # Raiz de los fuentes del engine, horneada: el exportador de juegos la usa
     # para el add_subdirectory del proyecto de exportacion sin deducirla de
-    # rutas relativas al proyecto (que apuntan a MotorGrafico/, no al engine).
+    # rutas relativas al proyecto (que apuntan a FunshiEngine-DATA/, no al engine).
     target_compile_definitions(funshi_engine
         PUBLIC FUNSHI_ENGINE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 

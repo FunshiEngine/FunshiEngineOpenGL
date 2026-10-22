@@ -84,7 +84,7 @@ public:
     const std::string& getNombreProyecto() const noexcept;
     void setNombreProyecto(const std::string& nombre);
 
-    // Proyectos disponibles: las carpetas de <directorioBase>/MotorGrafico
+    // Proyectos disponibles: las carpetas de <directorioBase>/FunshiEngine-DATA
     // (los proyectos SON carpetas). La lista la rellena la fachada
     // (MenuGUI::actualizarProyectos) desde el disco; la vista solo la muestra.
     const std::vector<std::string>& getProyectosDisponibles() const noexcept;

@@ -64,7 +64,7 @@ cmake --build FunshiEngineGL/build -j$(nproc)
 **Primeros pasos:**
 
 1. En el menu de inicio elegi idioma y sensibilidad de camara. Abri **Config Proyect**: a la izquierda se lista la
-   carpeta de proyectos (cada carpeta de `MotorGrafico/` es un proyecto);
+   carpeta de proyectos (cada carpeta de `FunshiEngine-DATA/` es un proyecto);
    elegi uno con click o crea uno escribiendo su nombre en el campo de la
    derecha y pulsando **Confirmar**. Con boton derecho sobre un proyecto se
    abre **Editar nombre**: escribi el nuevo nombre y el modal lo confirma,
@@ -82,7 +82,7 @@ cmake --build FunshiEngineGL/build -j$(nproc)
 ## 2. Proyectos y estructura de carpetas
 
 Al crear un proyecto, el motor genera la estructura bajo
-`{app}/MotorGrafico/Proyects/<proyecto>/`:
+`{app}/FunshiEngine-DATA/Proyects/<proyecto>/`:
 
 > **Dónde quedan los datos.** `{app}` es la carpeta del ejecutable cuando el
 > motor está en una carpeta donde puede escribir: el build de desarrollo y
@@ -91,9 +91,9 @@ Al crear un proyecto, el motor genera la estructura bajo
 > administrador). Si el motor está en una carpeta donde no puede escribir —una
 > copia en `Program Files`, una carpeta montada en solo lectura, el motor
 > lanzado como administrador—, usa en su lugar
-> `%APPDATA%\FunshiEngineGL\MotorGrafico` (Windows) o
-> `$XDG_DATA_HOME/FunshiEngineGL/MotorGrafico`, con respaldo en
-> `~/.local/share/FunshiEngineGL/MotorGrafico` (Linux y macOS). La ruta
+> `%APPDATA%\FunshiEngineGL\FunshiEngine-DATA` (Windows) o
+> `$XDG_DATA_HOME/FunshiEngineGL/FunshiEngine-DATA`, con respaldo en
+> `~/.local/share/FunshiEngineGL/FunshiEngine-DATA` (Linux y macOS). La ruta
 > efectiva se imprime por consola al arrancar y la migración de la carpeta
 > anterior, si había algo, se avisa en la barra de estado. Los proyectos que
 > migran siguen funcionando: las rutas de assets se guardan relativas al
@@ -107,7 +107,7 @@ Al crear un proyecto, el motor genera la estructura bajo
 > opciones fallan se queda sin archivo de log y escribe en la consola.
 
 ```
-MotorGrafico/
+FunshiEngine-DATA/
 ├── logs/
 │   └── FunshiEngineGL_<AAAAMMDD_HHMMSS>.log   ← log de arranque (UTC), uno por ejecucion
 ├── Proyects/
@@ -826,7 +826,7 @@ exporta (el proyecto activo en ese momento):
 | Campo | Descripcion |
 |---|---|
 | **Nombre del ejecutable** | Nombre del binario final (sin extension). |
-| **Nombre del proyecto exportado** | Nombre de la carpeta bajo `MotorGrafico/Exportaciones/`. |
+| **Nombre del proyecto exportado** | Nombre de la carpeta bajo `FunshiEngine-DATA/Exportaciones/`. |
 | **Plataforma objetivo** | La que admita la maquina: en Windows, **Windows (nativo)** (sale un `.exe` con sus DLL al lado); en Linux, **Linux (nativo)** o **Windows (cross-compile MinGW)** (si esta instalado el toolchain cruzado). |
 
 Al pulsar **Exportar**, el motor:
@@ -840,7 +840,7 @@ Al pulsar **Exportar**, el motor:
    (GUIManager, MenuGUI, paneles): solo el runtime del juego (escena, física,
    scripts, render, input). Al arrancar lee `JuegoExportado.json` junto a si
    mismo y entra directo en modo juego.
-3. Empaqueta en `MotorGrafico/Exportaciones/<nombre>/` con estructura
+3. Empaqueta en `FunshiEngine-DATA/Exportaciones/<nombre>/` con estructura
    **simplificada** (sin replicar la jerarquía del editor):
    - Ejecutable (`<nombre>.exe` en Windows, `<nombre>` en Linux).
    - `Assets/` directamente en la raíz (modelos, texturas, etc.).
@@ -860,7 +860,7 @@ Al pulsar **Exportar**, el motor:
    
    **NO se incluyen** archivos del editor:
    `ConfiguracionProyecto.json`, `imgui.ini` ni la estructura
-   `MotorGrafico/Proyects/`.
+   `FunshiEngine-DATA/Proyects/`.
 
 El dialogo muestra un **spinner indeterminado** (barra de progreso falsa) mientras
 se ejecuta la compilacion; el proceso no bloquea el editor. Mientras la
@@ -882,7 +882,7 @@ al terminar queda abierto mostrando el resultado hasta que el usuario lo cierre.
 > desde el que exportar: elige o abre un proyecto antes de exportar.
 
 **Traza de la exportacion:** cada exportacion deja su propio archivo de log
-en la carpeta `logs/` del motor (`MotorGrafico/logs/Exportacion_<AAAAMMDD_HHMMSS>.log`,
+en la carpeta `logs/` del motor (`FunshiEngine-DATA/logs/Exportacion_<AAAAMMDD_HHMMSS>.log`,
 timestamp en UTC). Ahi queda **todo lo que se imprimio en la terminal durante
 la compilacion** (el configure de CMake, el progreso de la compilacion, los
 avisos del compilador y del enlazador) junto con la bitacora de la
@@ -907,10 +907,10 @@ dependencias del motor construidas para MinGW (GLFW, Bullet, Assimp).
 **Lanzar el juego exportado:**
 ```bash
 # Linux
-./MotorGrafico/Exportaciones/MiJuego/MiJuego
+./FunshiEngine-DATA/Exportaciones/MiJuego/MiJuego
 
 # Windows
-MotorGrafico\Exportaciones\MiJuego\MiJuego.exe
+FunshiEngine-DATA\Exportaciones\MiJuego\MiJuego.exe
 ```
 
 > El binario exportado arranca directo en modo juego (doble clic, sin
@@ -990,7 +990,7 @@ azul clasico.
 
 - Persistencia: la **apariencia**, el idioma y las dos sensibilidades se guardan
   en la configuracion general, en la raiz de datos del motor
-  (`MotorGrafico/Configuraciones/Configuracion.json` —junto al binario si el
+  (`FunshiEngine-DATA/Configuraciones/Configuracion.json` —junto al binario si el
   motor puede escribir ahi, o en la carpeta de datos del usuario si no (ver
   "Donde quedan los datos" en la seccion 2)—). El **gizmo** (operacion y sistema
   de coordenadas), la **ventana de camaras**, la **visibilidad de las ventanas**

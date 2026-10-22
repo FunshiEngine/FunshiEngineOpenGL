@@ -41,7 +41,7 @@
 // vive en ProjectPaths.
 // ============================================================================
 
-std::string EditorConfig::directorioBaseMotorGrafico() {
+std::string EditorConfig::directorioBaseDatos() {
     return ProjectPaths::directorioBase();
 }
 
@@ -126,7 +126,7 @@ void EditorConfig::asegurarEstructuraProyecto(const std::string& nombreProyecto)
 
 std::string EditorConfig::rutaPorDefecto() {
     // La "ruta por defecto" al arrancar sin argumento es la config general,
-    // que vive en la raiz de MotorGrafico junto a las carpetas de proyecto.
+    // que vive en la raiz de FunshiEngine-DATA junto a las carpetas de proyecto.
     // Desde ahi se lee el ultimo proyecto abierto para saber que proyecto cargar.
     return rutaConfiguracionGeneral();
 }

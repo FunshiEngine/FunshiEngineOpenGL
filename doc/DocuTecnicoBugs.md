@@ -152,8 +152,8 @@ Windows combinado con un instalador que corre elevado y un ejecutable que no.
 ### 6.1 Descripción del problema
 
 El motor guardaba **todos** sus datos de usuario (proyectos, escenas,
-configuraciones, `imgui.ini`) en `<directorioEjecutable>/MotorGrafico`. Con el
-instalador de Windows eso resuelve a `C:\Program Files\FunshiEngineGL\MotorGrafico`,
+configuraciones, `imgui.ini`) en `<directorioEjecutable>/FunshiEngine-DATA`. Con el
+instalador de Windows eso resuelve a `C:\Program Files\FunshiEngineGL\FunshiEngine-DATA`,
 donde el proceso **no puede escribir**.
 
 ### 6.2 Síntomas
@@ -176,7 +176,7 @@ Eran tres hechos que por separado parecían inocuos y juntos cerraban la puerta:
 | # | Hecho | Consecuencia |
 |---|-------|--------------|
 | 1 | `PrivilegesRequired=admin` en el `.iss` | El instalador corre como administrador e instala en `Program Files`. |
-| 2 | El `.iss` crea `{app}\MotorGrafico` **sin directiva `Permissions:`** | La carpeta hereda los ACL de `Program Files`: `Users` tiene lectura y ejecución, **no** escritura. |
+| 2 | El `.iss` crea `{app}\FunshiEngine-DATA` **sin directiva `Permissions:`** | La carpeta hereda los ACL de `Program Files`: `Users` tiene lectura y ejecución, **no** escritura. |
 | 3 | El `.exe` no lleva manifiesto `requestedExecutionLevel` | El motor corre como usuario normal, sin elevar, y por tanto sin esos permisos. |
 
 El agravante: **ningún llamador comprobaba el retorno de las escrituras**
@@ -626,7 +626,7 @@ segundos más tarde, código del propio motor que reorganiza la carpeta de datos
 
 ### 11.1 Descripción del problema
 
-La raíz de datos (`MotorGrafico/`) comparte sitio con dos cosas a la vez: los
+La raíz de datos (`FunshiEngine-DATA/`) comparte sitio con dos cosas a la vez: los
 proyectos del usuario y las carpetas del motor (`Proyects`, `Configuraciones`,
 `Exportaciones`, `logs`). Para migrar los proyectos de una estructura antigua,
 `migrarProyectosAntiguos()` recorre **todo** lo que hay en la raíz y mueve a

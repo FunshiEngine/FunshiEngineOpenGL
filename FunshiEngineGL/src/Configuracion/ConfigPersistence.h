@@ -71,7 +71,7 @@ public:
     // Lee JSON de disco; retorna object vacío si falla.
     static nlohmann::json leerJson(const std::string& ruta);
 
-    // CONFIGURACIÓN GENERAL (MotorGrafico/Configuraciones/Configuracion.json)
+    // CONFIGURACIÓN GENERAL (FunshiEngine-DATA/Configuraciones/Configuracion.json)
 
     // Carga configuración general. Tolera archivo ausente/corrupto -> defaults.
     static General cargarGeneral(const std::string& ruta = "");

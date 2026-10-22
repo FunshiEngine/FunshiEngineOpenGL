@@ -1085,7 +1085,7 @@ solo como orquestador de arranque y bucle.
   `Proyectos/GestorDeProyectos` (extraído de `main.cpp`). Guarda dos archivos
   junto al binario (Linux y Windows), y cada campo va a uno u otro según si es
   una preferencia de la máquina o del proyecto abierto:
-  `<directorioEjecutable>/MotorGrafico/Configuraciones/Configuracion.json`
+  `<directorioEjecutable>/FunshiEngine-DATA/Configuraciones/Configuracion.json`
   (**general**: último proyecto, idioma, sensibilidad de cámara, sensibilidad de
   movimiento y perfil de apariencia) y
   `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` (**por proyecto**:
@@ -1093,7 +1093,7 @@ solo como orquestador de arranque y bucle.
   abierto/cerrado de las ventanas de `GUIManager` y cámara activa por id).
   Tolerante a archivos ausentes o corruptos: los defaults
   viven en `EditorConfig.h`/`ConfigPersistence.h`.
-  La raíz `MotorGrafico` no es siempre `<directorioEjecutable>/MotorGrafico`:
+  La raíz `FunshiEngine-DATA` no es siempre `<directorioEjecutable>/FunshiEngine-DATA`:
   `ProjectPaths::directorioBase()` la resuelve probando si puede escribirse y, si
   no, cae a la carpeta de datos del usuario (`%APPDATA%` en Windows,
   `$XDG_DATA_HOME` o `~/.local/share` en Linux). Ver "Resolución de la raíz de
@@ -1646,11 +1646,11 @@ No están implementados todavía:
 ### 8.1 Resolución de la raíz de datos
 
 Todos los datos del usuario (proyectos, escenas, configuraciones, `imgui.ini`)
-cuelgan de una única raíz, `MotorGrafico`, y toda la jerarquía de rutas sale de
+cuelgan de una única raíz, `FunshiEngine-DATA`, y toda la jerarquía de rutas sale de
 `ProjectPaths::directorioBase()`. Esa función **resuelve** la raíz en vez de
 calcularla:
 
-1. Parte de `<directorioEjecutable>/MotorGrafico`, la ubicación histórica.
+1. Parte de `<directorioEjecutable>/FunshiEngine-DATA`, la ubicación histórica.
 2. Comprueba si puede **escribir** ahí. No basta con que el directorio exista y
    sea legible: se abre y se cierra un archivo de prueba, porque en
    `C:\Program Files` la carpeta es legible y aun así el proceso no puede crear
@@ -1709,7 +1709,7 @@ cargar, así que mover la raíz no invalida las escenas existentes.
 - La manipulación del gizmo pausa `stepSimulation` mientras el usuario arrastra y
   la física solo corre en Depuración o Juego; el sync collider↔rigidbody↔objeto usa la matriz
   global compuesta del dueño, de modo que mover un collider no desincroniza el cuerpo.
-- Las rutas de usuario (`<directorioEjecutable>/MotorGrafico`) están
+- Las rutas de usuario (`<directorioEjecutable>/FunshiEngine-DATA`) están
   centralizadas en `EditorConfig` para la configuración y el layout, y las del
   proyecto en `ProjectPaths` (que es la única fuente de verdad: `directorioSrc`,
   `directorioScripts` y el resto); `PathUtils.h` comparte el separador

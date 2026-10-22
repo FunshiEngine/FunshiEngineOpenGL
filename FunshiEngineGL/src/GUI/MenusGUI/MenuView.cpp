@@ -463,7 +463,7 @@ void MenuView::renderizarSeccionProyectos() {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Los proyectos son las carpetas de <directorioBase>/MotorGrafico. Elegir
+    // Los proyectos son las carpetas de <directorioBase>/FunshiEngine-DATA. Elegir
     // una carpeta la vuelve el proyecto activo con la intencion Abrir (el
     // gestor de proyectos decide crear vs abrir mirando la existencia real de
     // la carpeta; la intencion solo redacta los mensajes).

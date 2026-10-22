@@ -821,7 +821,7 @@ static int EjecutarMotor(int argc, char* argv[])
             gestor.eliminarProyectoDesdeMenu();
 
             if (mainMenu->ConsultarMenu()) {
-                // Refresca el listado de proyectos (carpetas de MotorGrafico):
+                // Refresca el listado de proyectos (carpetas de FunshiEngine-DATA):
                 // recoge proyectos creados/borrados mientras el menu esta abierto.
                 mainMenu->actualizarProyectos();
                 mainMenu->Renderizar();             // la vista dibuja la vista activa del modelo

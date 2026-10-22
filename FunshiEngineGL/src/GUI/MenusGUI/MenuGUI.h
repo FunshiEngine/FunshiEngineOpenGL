@@ -151,7 +151,7 @@ public:
     void setDimensionProyecto(DimensionProyecto dimension) noexcept;
 
     // Refresca el listado de proyectos disponibles mostrado en el menu: los
-    // proyectos SON las carpetas del directorio base de MotorGrafico. La
+    // proyectos SON las carpetas del directorio base de FunshiEngine-DATA. La
     // fachada lo lee del disco y lo vuelca al modelo (nunca la vista); main lo
     // invoca mientras el menu esta visible para reflejar carpetas creadas o
     // borradas externamente.

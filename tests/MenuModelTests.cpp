@@ -173,7 +173,7 @@ int main() {
               "sensibilidad de movimiento cero se ignora");
     }
 
-    // 7. Listado de proyectos disponibles (carpetas de MotorGrafico): se guarda
+    // 7. Listado de proyectos disponibles (carpetas de FunshiEngine-DATA): se guarda
     //    tal cual lo rellena la fachada y se devuelve en el mismo orden.
     {
         MenuModel m;

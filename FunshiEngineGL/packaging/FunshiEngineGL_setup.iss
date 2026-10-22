@@ -45,7 +45,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 ; Instalacion POR USUARIO, sin UAC: el motor no necesita escribir junto al
 ; ejecutable para funcionar. Toda escritura cuelga de la raiz que resuelve el
-; propio motor (ProjectPaths::directorioBase): {app}\MotorGrafico si ahi se
+; propio motor (ProjectPaths::directorioBase): {app}\FunshiEngine-DATA si ahi se
 ; puede escribir y, si no, la carpeta del usuario. Con lowest, Inno mapea
 ; {autopf} a la version de usuario (%LOCALAPPDATA%\Programs), de modo que la
 ; carpeta de datos tambien queda en el perfil y nunca en Program Files.
@@ -74,7 +74,7 @@ Source: "..\..\..\NOTICE"; DestDir: "{app}\licencia"; Flags: ignoreversion
 Source: "..\..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\licencia"; Flags: ignoreversion
 
 ; ============================================================================
-; MotorGrafico solo contiene lo que el usuario crea: sus proyectos
+; FunshiEngine-DATA solo contiene lo que el usuario crea: sus proyectos
 ; (<nombre>\Memory\Binarios\Scene y <nombre>\src<nombre>) y la configuracion
 ; (Configuracion.json + imgui.ini). No se pre-crean Modelos/Texturas/Imagenes:
 ; eso lo decide el editor al crear cada proyecto (EditorConfig.cpp).
@@ -82,11 +82,11 @@ Source: "..\..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}\licencia"; Flags: ign
 ; Configuracion.json (SceneSerializer NO crea directorios por su cuenta).
 ; ============================================================================
 [Dirs]
-Name: "{app}\MotorGrafico"
+Name: "{app}\FunshiEngine-DATA"
 
 [Icons]
 Name: "{group}\{#MiNombre} {#MiVersion} ({#MiCanal})"; Filename: "{app}\{#MiExe}"; WorkingDir: "{app}"
-Name: "{group}\Carpeta del proyecto (MotorGrafico)"; Filename: "{app}\MotorGrafico"; WorkingDir: "{app}"
+Name: "{group}\Carpeta del proyecto (FunshiEngine-DATA)"; Filename: "{app}\FunshiEngine-DATA"; WorkingDir: "{app}"
 Name: "{autodesktop}\{#MiNombre} {#MiVersion} ({#MiCanal})"; Filename: "{app}\{#MiExe}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]

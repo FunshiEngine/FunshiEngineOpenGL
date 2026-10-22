@@ -70,7 +70,7 @@ public:
     static bool esProyectoValido(const std::string& nombre);
 
 private:
-    // Migración interna: mueve carpetas sueltas bajo MotorGrafico/ a Proyects/
+    // Migración interna: mueve carpetas sueltas bajo FunshiEngine-DATA/ a Proyects/
     static void migrarProyectosAntiguos();
 
     // Migración interna: mueve Configuracion.json raíz a Configuraciones/

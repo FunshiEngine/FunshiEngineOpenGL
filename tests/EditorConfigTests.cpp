@@ -505,12 +505,12 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
     }
 
     // 5. Nuevo sistema de guardado por proyecto:
-    // Cada proyecto genera su carpeta en MotorGrafico, con Memory (escena, config, imgui)
+    // Cada proyecto genera su carpeta en FunshiEngine-DATA, con Memory (escena, config, imgui)
     // y su hermano srcProyectName como raiz del explorador de archivos.
-    // La config general vive en la raiz de MotorGrafico (hermana de los proyectos).
+    // La config general vive en la raiz de FunshiEngine-DATA (hermana de los proyectos).
     {
-        const std::string baseMotor = EditorConfig::directorioBaseMotorGrafico();
-        CHECK(!baseMotor.empty(), "directorioBaseMotorGrafico no vacio");
+        const std::string baseMotor = EditorConfig::directorioBaseDatos();
+        CHECK(!baseMotor.empty(), "directorioBaseDatos no vacio");
 
         const std::string proyNombre = "JuegoPrueba";
         const std::string proyDir  = EditorConfig::directorioProyecto(proyNombre);
@@ -533,7 +533,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
 
     // 5b. Rutas que el exportador copia a la distribucion del juego standalone.
     // El proyecto viaja COMPLETO con la disposicion del motor: el binario del
-    // juego resuelve MotorGrafico/ junto a si mismo, asi que escenas, Memory y
+    // juego resuelve FunshiEngine-DATA/ junto a si mismo, asi que escenas, Memory y
     // src<nombre>/ tienen que quedar bajo Proyects/<nombre>/.
     {
         const std::string nombre = "JuegoExport";
@@ -548,7 +548,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         };
 
         CHECK(destinoDe(EditorConfig::directorioProyecto(nombre)) ==
-                  salida + "/MotorGrafico/Proyects/" + nombre,
+                  salida + "/FunshiEngine-DATA/Proyects/" + nombre,
               "el proyecto se copia completo bajo Proyects/ del juego");
         // El material clave del juego queda cubierto por esa copia: todos sus
         // origenes son subcarpetas del proyecto.
@@ -689,7 +689,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
     //     rutas de la escena se guardan relativas y se resuelven al cargar.
     //     Las escenas legacy (absolutas) se dejan intactas.
     {
-        const std::string raiz = "/dato/MotorGrafico/JuegoX/srcJuegoX";
+        const std::string raiz = "/dato/FunshiEngine-DATA/JuegoX/srcJuegoX";
         EditorConfig::fijarRaizAssets(raiz);
         CHECK(EditorConfig::hayRaizAssets(), "con proyecto hay raiz de assets");
 
@@ -734,7 +734,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
     {
         EditorConfig::limpiarRaizAssets();
         const std::string raiz =
-            "C:\\base\\MotorGrafico/Proyects/JuegoX/srcJuegoX";
+            "C:\\base\\FunshiEngine-DATA/Proyects/JuegoX/srcJuegoX";
         EditorConfig::fijarRaizAssets(raiz);
 
         // Ruta en memoria tal como queda al cargar la escena.
@@ -906,16 +906,16 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
 
         CHECK(!raizDatos.empty(), "directorioBase no vacio");
         CHECK(!original.empty(), "directorioBaseOriginal no vacio");
-        // Termina en MotorGrafico: las dos son la MISMA raiz, solo cambia donde
+        // Termina en FunshiEngine-DATA: las dos son la MISMA raiz, solo cambia donde
         // esta. Si esto se cumpliera, el resto de la comprobacion es coherente.
-        const std::string sufijo = "MotorGrafico";
+        const std::string sufijo = "FunshiEngine-DATA";
         auto terminaEn = [&sufijo](const std::string& ruta) {
             return ruta.size() >= sufijo.size() &&
                    ruta.compare(ruta.size() - sufijo.size(), sufijo.size(),
                                 sufijo) == 0;
         };
-        CHECK(terminaEn(raizDatos), "directorioBase termina en MotorGrafico");
-        CHECK(terminaEn(original), "directorioBaseOriginal termina en MotorGrafico");
+        CHECK(terminaEn(raizDatos), "directorioBase termina en FunshiEngine-DATA");
+        CHECK(terminaEn(original), "directorioBaseOriginal termina en FunshiEngine-DATA");
 
         // Coherencia de datosEnRutaDeUsuario con las dos rutas: solo puede ser
         // true si resolvio a OTRO sitio, y ese otro no puede ser el de siempre.
@@ -1056,7 +1056,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
     //    Program Files el motor se queda sin log ni consola que lo muestre.
     {
         const std::string exe = "/opt/FunshiEngineGL";
-        const std::string datosUsuario = "/home/usuario/.local/share/FunshiEngineGL/MotorGrafico";
+        const std::string datosUsuario = "/home/usuario/.local/share/FunshiEngineGL/FunshiEngine-DATA";
         const std::string temp = "/tmp";
 
         const std::vector<std::string> rutas = RutasLog::candidatas(

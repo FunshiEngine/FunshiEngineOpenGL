@@ -150,7 +150,7 @@ void MenuGUI::setDimensionProyecto(DimensionProyecto dimension) noexcept {
 }
 
 void MenuGUI::actualizarProyectos() {
-    // Los proyectos son carpetas de MotorGrafico/Proyects/ (una por
+    // Los proyectos son carpetas de FunshiEngine-DATA/Proyects/ (una por
     // proyecto: Memory + src<Nombre>). Vista unica, sin duplicar la logica;
     // los accesos fallidos se toleran silenciosamente (no hay proyectos).
     std::vector<std::string> proyectos;

@@ -49,13 +49,13 @@ public:
     static const char* etiquetaPlataforma(Plataforma plataforma);
 
     struct Config {
-        std::string proyectoOrigen;       // ruta al proyecto en MotorGrafico/Proyects/
+        std::string proyectoOrigen;       // ruta al proyecto en FunshiEngine-DATA/Proyects/
         std::string nombreProyecto;       // nombre de la carpeta del proyecto; si
                                           // viene vacio se deduce de proyectoOrigen
         std::string nombreEjecutable;     // nombre del .exe / binario (sin extensión)
         std::string nombreProyectoExportado; // nombre de la carpeta de exportación
         Plataforma plataforma = Plataforma::Linux;
-        std::string directorioSalida;     // MotorGrafico/Exportaciones/<nombre>/
+        std::string directorioSalida;     // FunshiEngine-DATA/Exportaciones/<nombre>/
         // Callbacks de progreso (se ejecutan en hilo del editor)
         std::function<void(const std::string& mensaje)> onLog;
         std::function<void(float progreso, const std::string& etapa)> onProgreso;

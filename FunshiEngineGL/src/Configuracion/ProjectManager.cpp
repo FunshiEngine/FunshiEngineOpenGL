@@ -73,7 +73,7 @@ bool ProjectManager::crearEstructuraProyecto(const std::string& nombre) {
     const std::string binScene = ProjectPaths::rutaSceneDir(nombre);
 
     // Migracion de proyectos legacy que guardaban el descriptor y la escena
-    // directamente en la raiz de MotorGrafico/Binarios (estructura anterior a
+    // directamente en la raiz de FunshiEngine-DATA/Binarios (estructura anterior a
     // Proyects/).
     const std::string base = ProjectPaths::directorioBase();
     const std::string oldBBDD = base + "/Binarios/SceneBBDDObjetos.txt";
