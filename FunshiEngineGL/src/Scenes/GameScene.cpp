@@ -795,6 +795,11 @@ void GameScene::GUI() {
     menuBarGUI->printGUI();
     if (TerminalInterface* terminal = managerGUI->getTerminalGUI())
         terminal->printGUI();
+    // Taller de efectos (animaciones y particulas): como el terminal, queda
+    // disponible mientras la GUI del editor este activa.
+    if (AnimacionesParticulasInterface* tallerEfectos =
+            managerGUI->getAnimacionesParticulasGUI())
+        tallerEfectos->printGUI();
     // El overlay de las interfaces de juego (HUD) se dibuja aparte en
     // pintarInterfacesJuego(), porque tambien corre en el juego exportado,
     // donde no existe la GUI del editor.

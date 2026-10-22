@@ -82,6 +82,11 @@ GUIManager::GUIManager(GLFWwindow* window)
     registrarVentana(statusBarGUI.get());
     registrarVentana(terminalGUI.get());
     panelesModsGUI = std::make_unique<PanelesModsInterface>();
+    // El taller de efectos se registra igual que el resto: su estado se
+    // persiste con el nombre de la ventana y el menu Ventanas la lista solo.
+    animacionesParticulasGUI =
+        std::make_unique<AnimacionesParticulasInterface>();
+    registrarVentana(animacionesParticulasGUI.get());
     // El estado de la interfaz y la barra de la orbita son piezas de la GUI:
     // las usa el input (que consulta el estado) y main (que dibuja la barra).
     estadoInterfaz = std::make_unique<EstadoInterfazImGui>();
