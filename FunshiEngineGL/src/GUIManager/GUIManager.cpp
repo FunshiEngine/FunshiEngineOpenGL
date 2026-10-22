@@ -127,6 +127,9 @@ void GUIManager::bindScene(SceneRegistry* scene, EditorController* editor,
     settingGUI->setEditor(editor);
     settingGUI->setAudioEngine(audioMotor);
     settingGUI->setEventBus(events);
+    // El taller de efectos usa la seleccion del editor para "Guardar la
+    // seleccion como prefab" y la biblioteca para instanciar.
+    if (animacionesParticulasGUI) animacionesParticulasGUI->setEditor(editor);
     if (dimensionProvider) settingGUI->setDimensionProvider(dimensionProvider);
 }
 MenuGUI* GUIManager::getMenuGUI() { return menuGUI.get(); }
