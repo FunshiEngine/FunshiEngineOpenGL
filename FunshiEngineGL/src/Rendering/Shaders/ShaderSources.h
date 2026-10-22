@@ -98,21 +98,30 @@ uniform float uSpotCutoffCos[MAX_LIGHTS];
 // Sombras: un mapa de profundidad por luz que proyecta. MAX_SHADOWS tiene que
 // coincidir con el limite de proyectores del motor (kMaxProyectoresSombra).
 //
-// Cada mapa tiene su propio sampler (uShadowMap0..3) y no un array: GLSL 3.30
-// no deja indexar un array de samplers con una variable, asi que el mapa que
-// se consulta se elige con una cadena de if.
+// Cada mapa 2D (direccional/spot) tiene su propio sampler (uShadowMap0..3) y
+// no un array: GLSL 3.30 no deja indexar un array de samplers con una variable.
+// Las luces puntuales usan un cubemap de profundidad (samplerCube uShadowCube0..3)
+// y sus 6 matrices viven en el array plano uShadowMatrixCubo[] (indice = luz*6 + cara).
 // uShadowLightIndex dice a que luz de las de arriba pertenece cada mapa: la
 // sombra oscurece solo la contribucion de esa luz, no la de las demas.
 // uShadowTexel es 1/resolucion del mapa (el PCF necesita el tamano del texel).
+// uShadowDistancia es el alcance de la luz (para puntuales).
 const int MAX_SHADOWS = 4;
+const int kCarasCubemap = 6;
 uniform sampler2DShadow uShadowMap0;
 uniform sampler2DShadow uShadowMap1;
 uniform sampler2DShadow uShadowMap2;
 uniform sampler2DShadow uShadowMap3;
+uniform samplerCube uShadowCube0;
+uniform samplerCube uShadowCube1;
+uniform samplerCube uShadowCube2;
+uniform samplerCube uShadowCube3;
 uniform mat4 uShadowMatrix[MAX_SHADOWS];
+uniform mat4 uShadowMatrixCubo[MAX_SHADOWS * kCarasCubemap];
 uniform float uShadowBias[MAX_SHADOWS];
 uniform float uShadowStrength[MAX_SHADOWS];
 uniform float uShadowTexel[MAX_SHADOWS];
+uniform float uShadowDistancia[MAX_SHADOWS];
 uniform int uShadowLightIndex[MAX_SHADOWS];
 uniform int uShadowCount;
 
@@ -164,13 +173,42 @@ float coberturaSombra(int indice, vec2 uv, float ref, float texel) {
 
 // Factor de sombra de una luz: 1.0 = iluminado, 0.0 = en sombra.
 //
-// El mapa es una sampler2DShadow en modo de comparacion: el hardware compara
-// la profundidad del fragmento con la del mapa y devuelve el porcentaje de
-// cobertura.
-//
-// Si el fragmento cae fuera del mapa, o detras del plano lejano, no hay nada
-// que compare y se queda iluminado: la sombra no se repite en el borde.
+// Las luces direccionales y spot usan un mapa 2D (sampler2DShadow) con
+// comparacion por hardware y PCF. Las luces puntuales usan un cubemap de
+// profundidad (samplerCube): se lee la profundidad almacenada en la direccion
+// desde la luz al fragmento y se compara contra la distancia del fragmento.
 float factorSombra(int indiceLuz, vec3 fragPos) {
+    // --- Luz puntual: cubemap de profundidad -------------------------------
+    if (uLightTypes[indiceLuz] == 1) {
+        for (int s = 0; s < MAX_SHADOWS; ++s) {
+            if (s >= uShadowCount) break;
+            if (uShadowLightIndex[s] != indiceLuz) continue;
+            vec3 dir = fragPos - uLightWorldPos[indiceLuz];
+            float distancia = length(dir);
+            if (distancia > uShadowDistancia[indiceLuz]) return 1.0;
+            vec3 dirNorm = normalize(dir);
+            samplerCube cubo;
+            if (indiceLuz == 0) cubo = uShadowCube0;
+            else if (indiceLuz == 1) cubo = uShadowCube1;
+            else if (indiceLuz == 2) cubo = uShadowCube2;
+            else cubo = uShadowCube3;
+            // ref en [0,1]: distancia relativa al alcance de la luz.
+            float ref = distancia / uShadowDistancia[indiceLuz];
+            float profundidadCubemap = texture(cubo, dirNorm).r;
+            float cobertura = (profundidadCubemap < ref) ? 0.0 : 1.0;
+            return mix(1.0, cobertura, uShadowStrength[s]);
+        }
+        return 1.0;
+    }
+
+    // --- Luz direccional/spot: mapa 2D con comparacion por hardware --------
+    //
+    // El mapa es una sampler2DShadow en modo de comparacion: el hardware compara
+    // la profundidad del fragmento con la del mapa y devuelve el porcentaje de
+    // cobertura.
+    //
+    // Si el fragmento cae fuera del mapa, o detras del plano lejano, no hay nada
+    // que compare y se queda iluminado: la sombra no se repite en el borde.
     for (int s = 0; s < MAX_SHADOWS; ++s) {
         if (s >= uShadowCount) break;
         if (uShadowLightIndex[s] != indiceLuz) continue;

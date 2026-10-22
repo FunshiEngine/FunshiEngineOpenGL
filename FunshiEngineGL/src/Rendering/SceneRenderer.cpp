@@ -764,7 +764,8 @@ void SceneRenderer::prepararSombras(const FrameContext& ctx,
     for (int i = 0; i < seleccion.elegidos; ++i) {
         Rendering::ProyectorSombra& proyector =
             proyectoresSombra_[static_cast<std::size_t>(i)];
-        if (!mapaSombras_.preparar(i, proyector.resolucion)) {
+        if (!mapaSombras_.preparar(i, proyector.resolucion,
+                                   proyector.esCubemap)) {
             // El backend no pudo crear el objetivo: esa luz se dibuja sin
             // sombra y el motor sigue.
             std::cerr << "[Sombras] No se pudo crear el mapa de sombra ("
@@ -774,14 +775,28 @@ void SceneRenderer::prepararSombras(const FrameContext& ctx,
         const Rendering::MapaSombras::Mapa& mapa = mapaSombras_.mapa(i);
         proyector.textura = mapa.textura;
 
-        backend.bindDepthTarget(mapa.target);
-        backend.setDepthTestEnabled(true);
-        backend.setDepthMask(true);
-        backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
-        // El destino no tiene color: limpiar el bit de color no hace nada.
-        backend.clearScreen(nullptr);
-
-        dibujarGeometriaParaSombra(ctx, proyector.matrizLuz);
+        if (proyector.esCubemap) {
+            // Luz puntual: dibujar la geometria una vez por cara del cubemap
+            // (+X, -X, +Y, -Y, +Z, -Z), cada una con su propia matriz de luz.
+            for (int cara = 0; cara < Rendering::kCarasCubemap; ++cara) {
+                backend.bindDepthTargetCuboFace(mapa.target, cara, mapa.textura);
+                backend.setDepthTestEnabled(true);
+                backend.setDepthMask(true);
+                backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
+                backend.clearScreen(nullptr);
+                dibujarGeometriaParaSombra(ctx,
+                                           proyector.matricesLuz[cara]);
+            }
+        } else {
+            // Luz direccional/spot: un solo mapa 2D.
+            backend.bindDepthTarget(mapa.target);
+            backend.setDepthTestEnabled(true);
+            backend.setDepthMask(true);
+            backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
+            // El destino no tiene color: limpiar el bit de color no hace nada.
+            backend.clearScreen(nullptr);
+            dibujarGeometriaParaSombra(ctx, proyector.matrizLuz);
+        }
 
         proyectoresConMapa_.push_back(proyector);
     }

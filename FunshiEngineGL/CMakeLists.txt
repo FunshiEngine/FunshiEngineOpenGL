@@ -1655,6 +1655,7 @@ add_executable(audio-tests
     ${SRC_DIR}/Audio/AudioEngine.cpp
     ${SRC_DIR}/Audio/GestorMusica.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/AudioEngineTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/EditorConfigStubs.cpp
 )
 target_include_directories(audio-tests PRIVATE ${SRC_DIR})
 set_target_properties(audio-tests PROPERTIES

@@ -814,20 +814,96 @@ Handle OpenGL3Backend::createDepthTarget(int size) {
     return handle;
 }
 
+Handle OpenGL3Backend::createDepthTargetCubo(int size) {
+    if (size <= 0) return kInvalidHandle;
+    if (!fboFuncionesCargadas()) {
+        std::cerr << "[Sombras] FBO no disponible en este GPU.\n";
+        return kInvalidHandle;
+    }
+
+    GLuint fbo = 0, cuboTex = 0;
+    pfnGenFramebuffers(1, &fbo);
+    glGenTextures(1, &cuboTex);
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cuboTex);
+    for (int cara = 0; cara < 6; ++cara) {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + cara, 0,
+                     GL_DEPTH_COMPONENT24, size, size, 0,
+                     GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
+    }
+    // El modo de comparacion es lo que permite leer la textura con
+    // samplerCubeShadow: el hardware compara la profundidad del fragmento con
+    // la del mapa y devuelve el porcentaje de cobertura.
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_COMPARE_MODE,
+                    GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    const float borde[4] = {1.f, 1.f, 1.f, 1.f};
+    glTexParameterfv(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_BORDER_COLOR, borde);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+    pfnBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    // Attach la cara +X para que el FBO sea completo desde el arranque; las
+    // demas caras se attachan por cara en bindDepthTargetCuboFace.
+    pfnFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                            GL_TEXTURE_CUBE_MAP_POSITIVE_X, cuboTex, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    const GLenum estado = pfnCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (estado != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "[Sombras] Framebuffer de profundidad cubemap incompleto: "
+                  << estado << "\n";
+        pfnBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (pfnDeleteFramebuffers) pfnDeleteFramebuffers(1, &fbo);
+        glDeleteTextures(1, &cuboTex);
+        return kInvalidHandle;
+    }
+    pfnBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    const Handle handle = static_cast<Handle>(fbo);
+    depthCuboTargets_[handle] = GpuDepthCuboTarget{fbo, cuboTex, size};
+    return handle;
+}
+
+void OpenGL3Backend::bindDepthTargetCuboFace(Handle fbo, int cara,
+                                             Handle cubemapTex) {
+    if (fbo == kInvalidHandle || !pfnBindFramebuffer) return;
+    const auto it = depthCuboTargets_.find(static_cast<unsigned int>(fbo));
+    if (it == depthCuboTargets_.end()) return;
+    pfnBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fbo));
+    pfnFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                            GL_TEXTURE_CUBE_MAP_POSITIVE_X + cara,
+                            static_cast<GLuint>(cubemapTex), 0);
+    glViewport(0, 0, it->second.size, it->second.size);
+}
+
 void OpenGL3Backend::destroyDepthTarget(Handle target) {
     if (target == kInvalidHandle) return;
-    const auto it = depthTargets_.find(target);
-    if (it == depthTargets_.end()) return;
+    // Puede ser un target de profundidad 2D o un cubemap: buscamos en ambos
+    // mapas.
+    auto it2d = depthTargets_.find(target);
+    auto itCubo = depthCuboTargets_.find(target);
+    if (it2d == depthTargets_.end() && itCubo == depthCuboTargets_.end()) return;
 
-    // Los valores se copian antes de borrar la entrada del mapa: el erase
-    // destruye el GpuDepthTarget y las referencias quedarian colgando.
-    const GLuint fbo = it->second.fbo;
-    const GLuint depthTex = it->second.depthTex;
-
-    depthTargets_.erase(it);
-
-    if (pfnDeleteFramebuffers) pfnDeleteFramebuffers(1, &fbo);
-    if (depthTex) glDeleteTextures(1, &depthTex);
+    if (it2d != depthTargets_.end()) {
+        const GLuint fbo = it2d->second.fbo;
+        const GLuint depthTex = it2d->second.depthTex;
+        depthTargets_.erase(it2d);
+        if (pfnDeleteFramebuffers) pfnDeleteFramebuffers(1, &fbo);
+        if (depthTex) glDeleteTextures(1, &depthTex);
+    }
+    if (itCubo != depthCuboTargets_.end()) {
+        const GLuint fbo = itCubo->second.fbo;
+        const GLuint cuboTex = itCubo->second.depthCuboTex;
+        depthCuboTargets_.erase(itCubo);
+        if (pfnDeleteFramebuffers) pfnDeleteFramebuffers(1, &fbo);
+        if (cuboTex) glDeleteTextures(1, &cuboTex);
+    }
 }
 
 void OpenGL3Backend::bindDepthTarget(Handle target) {

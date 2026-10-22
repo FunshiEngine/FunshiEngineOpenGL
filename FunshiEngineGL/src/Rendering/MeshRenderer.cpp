@@ -222,6 +222,24 @@ void MeshRenderer::aplicarSombras() {
         std::snprintf(name, sizeof(name), "uShadowLightIndex[%d]", i);
         shader_->setInt(name, proyector.indiceLuz);
     }
+
+    // Luces puntuales (cubemap): subir las 6 matrices por luz, la distancia
+    // de alcance y vincular el sampler de cubemap a su unidad de textura.
+    for (int i = 0; i < count; ++i) {
+        const Rendering::ProyectorSombra& proyector =
+            sombras_[static_cast<std::size_t>(i)];
+        if (!proyector.esCubemap) continue;
+        char name[48];
+        const int base = proyector.indiceLuz * Rendering::kCarasCubemap;
+        for (int cara = 0; cara < Rendering::kCarasCubemap; ++cara) {
+            std::snprintf(name, sizeof(name), "uShadowMatrixCubo[%d]", base + cara);
+            shader_->setMat4(name, proyector.matricesLuz[cara]);
+        }
+        std::snprintf(name, sizeof(name), "uShadowDistancia[%d]", proyector.indiceLuz);
+        shader_->setFloat(name, proyector.distancia);
+        std::snprintf(name, sizeof(name), "uShadowCube%d", proyector.indiceLuz);
+        shader_->setInt(name, kUnidadTexturaSombra + Rendering::kMaxProyectoresSombra + proyector.indiceLuz);
+    }
 }
 
 void MeshRenderer::aplicarMaterial(GameObject* objeto, const IMaterial* material) {
@@ -493,7 +511,13 @@ void MeshRenderer::enlazarTexturasSombra() {
         const Rendering::Backend::Handle textura =
             sombras_[static_cast<std::size_t>(i)].textura;
         if (textura == Rendering::Backend::kInvalidHandle) continue;
-        backend.bindTexture2D(textura, kUnidadTexturaSombra + i);
+        if (sombras_[static_cast<std::size_t>(i)].esCubemap) {
+            backend.bindTextureCube(textura,
+                kUnidadTexturaSombra + Rendering::kMaxProyectoresSombra +
+                sombras_[static_cast<std::size_t>(i)].indiceLuz);
+        } else {
+            backend.bindTexture2D(textura, kUnidadTexturaSombra + i);
+        }
     }
 }
 
