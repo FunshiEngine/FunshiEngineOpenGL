@@ -6,7 +6,9 @@
 cmake -S FunshiEngineGL -B FunshiEngineGL/build
 cmake --build FunshiEngineGL/build -j$(nproc)
 
-# Ejecutar la suite de tests (19 targets headless + scripts-java si hay JDK)
+# Ejecutar la suite de tests (los targets headless registrados en CMakeLists;
+# la CI lista los suyos en .github/workflows/ci.yml: agregar ahi cualquier
+# target de test nuevo)
 cd FunshiEngineGL/build && ctest --output-on-failure
 ```
 

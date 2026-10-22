@@ -294,32 +294,38 @@ seleccion).
 ### Prefabs: reutilizar jerarquías completas
 
 Un **prefab** guarda un objeto (raiz) con todos sus hijos, componentes y
-propiedades (nombre, tag, Transform) en un archivo `.prefab` bajo
-`Assets/Prefabs/`. Al instanciarlo se crea una copia profunda en la escena con
-IDs nuevos; el original no se toca.
+propiedades (nombre, tag, Transform) en un archivo `.prefab` bajo la carpeta
+`Prefabs/` de los assets del proyecto (`src<Proyecto>/Prefabs/`, visible en el
+explorador de contenido). Al instanciarlo se crea una copia profunda en la
+escena con IDs nuevos; el original no se toca.
 
 **Crear un prefab**
 
 1. Selecciona el objeto raiz en la jerarquía.
-2. Abre el panel **Prefab** del Inspector (pestaña/panel "Prefab").
-3. Escribe un nombre en el campo "Nombre del prefab" y pulsa **Guardar**.
-   El archivo aparece en `Assets/Prefabs/<nombre>.prefab`.
+2. Abre la ventana **Animaciones y Particulas** (menú **Ventanas**) y entra en
+   la pestaña **Prefabs**.
+3. Pulsa **Guardar la seleccion como prefab**, escribe el nombre y confirma.
+   El archivo aparece en `Prefabs/<nombre>.prefab` dentro de los assets del
+   proyecto y se lista en el explorador de contenido.
 
 **Instanciar un prefab**
 
-1. En el panel Prefab, la lista "Prefabs guardados" muestra todos los `.prefab`
-   disponibles.
-2. Selecciona uno y pulsa **Instanciar**.
-   - Si hay un objeto seleccionado en la jerarquía, la instancia entra como
-     hijo de ese objeto.
-   - Si no hay selección, la instancia entra en la raíz de la escena.
-3. La instancia conserva **nombre, tag, Transform (posición global), jerarquía
-   completa y todos los componentes** del prefab original.
+De cualquiera de las dos formas:
+
+- En la pestaña **Prefabs**, elige el prefab en la lista y pulsa
+  **Instanciar**.
+- Arrastra el `.prefab` desde el explorador de contenido hasta la zona de
+  arrastre de la misma pestaña.
+
+La instancia entra en la raíz de la escena y queda seleccionada para moverla
+con el gizmo. Conserva **nombre, tag, Transform, jerarquía completa y todos
+los componentes** del prefab original.
 
 **Biblioteca de prefabs (`PrefabLibrary`)**
 
-- Escanea `Assets/Prefabs/` al arrancar y cada vez que se pulsa "Recargar"
-  en el panel Prefab.
+- Escanea la carpeta `Prefabs/` de los assets del proyecto al abrir la
+  pestaña, después de cada operación (guardar, renombrar, borrar) y con el
+  botón **Refrescar**.
 - Mantiene un **caché en memoria** (`std::unordered_map<string, Prefab>`) para
   que instanciar sea instantáneo tras la primera vez.
 - **Validación automática** antes de cachear: rechaza archivos con magic number
@@ -342,7 +348,7 @@ IDs nuevos; el original no se toca.
 | Aspecto | Copiar/pegar | Prefab |
 |---|---|---|
 | **Alcance** | Solo el objeto seleccionado (no hijos) | Raiz + **todos los descendientes** |
-| **Persistencia** | Solo en sesión actual (portapapeles) | **Archivo en disco** (`Assets/Prefabs/`) |
+| **Persistencia** | Solo en sesión actual (portapapeles) | **Archivo en disco** (`src<Proyecto>/Prefabs/`) |
 | **Reutilización** | Una vez por pegado | **Ilimitada** (múltiples instancias) |
 | **IDs** | Nuevos en cada pegado | **Nuevos en cada instanciación** (SceneRegistry) |
 | **Workflow** | Rápido, ad-hoc | **Predefinido**, versionable, compartible |
@@ -350,10 +356,11 @@ IDs nuevos; el original no se toca.
 **Buenas prácticas**
 
 - Usa nombres descriptivos: `Enemigo_Base`, `Arbol_Pino`, `Item_Medkit`.
-- El panel Prefab muestra la **ruta absoluta** del archivo al guardar, útil para
-  depurar rutas.
-- Si mueves o renombras `Assets/Prefabs/` desde el explorador, los archivos
-  `.prefab` se mueven con él; el panel "Recargar" actualiza la lista.
+- **Renombrar** y **Borrar** están junto a la lista del prefab elegido; borrar
+  pide confirmación porque elimina el archivo del disco.
+- Si mueves o renombras la carpeta `Prefabs/` desde el explorador, los
+  archivos `.prefab` se mueven con ella; el botón **Refrescar** actualiza la
+  lista.
 - Los IDs se regeneran al instanciar: no colisionan con el original ni entre
   instancias.
 
@@ -617,12 +624,14 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
    Interfaz).
 3. La escena guarda el path; al recargar se resuelve de nuevo.
 
-**Instanciar prefab por drag & drop (nuevo):**
-1. En el explorador, localiza un archivo `.prefab` en `Assets/Prefabs/`.
-2. Arrástralo y suéltalo sobre el **panel Prefab del Inspector** (donde está el
-   botón "Guardar como prefab" / "Instanciar prefab").
-3. La instancia se crea como hijo del objeto seleccionado (o en la raíz si no
-    hay selección) y se selecciona automáticamente.
+**Instanciar prefab por drag & drop:**
+1. En el explorador, localiza un archivo `.prefab` en la carpeta `Prefabs/`
+   de los assets del proyecto.
+2. Arrástralo hasta la pestaña **Prefabs** de la ventana **Animaciones y
+   Particulas** (menú **Ventanas**): la zona "Arrastra aqui un .prefab para
+   instanciarlo" lo recibe.
+3. La instancia se crea en la raíz de la escena y se selecciona
+   automáticamente.
 
  **Crear y pintar un Tilemap:**
 
@@ -1961,7 +1970,8 @@ El panel del emisor tiene:
 | Gravedad | La aceleracion constante que se les aplica |
 | Rozamiento | La fraccion de velocidad que pierden por segundo |
 | Rotacion / Velocidad de rotacion | El giro del quad |
-| Ruta (perfil de efecto) | El JSON del efecto (opcional) |
+| Ruta (perfil de efecto) | El JSON del efecto (opcional): escrito a mano o asignado arrastrando el `.json` desde el explorador de contenido; **Quitar** lo limpia |
+| Textura de particula | Imagen que sobreescribe la textura del perfil al dibujar (se asigna arrastrándola desde el explorador; opcional) |
 
 Las particulas se dibujan despues de los sprites, con mezcla aditiva, y no
 escriben profundidad: el orden de dibujo decide el solapamiento.
@@ -2004,7 +2014,30 @@ perfil y el panel muestra el motivo.
 La ruta del perfil se guarda **relativa a la carpeta de assets** del proyecto,
 igual que las texturas de los materiales.
 
-### 20.3 Como se ejecuta
+### 20.3 La ventana Animaciones y Particulas
+
+La ventana **Animaciones y Particulas** (menú **Ventanas**) es el taller de
+los efectos: configura el perfil sin necesidad de tener un objeto delante y
+genera el archivo que después se arrastra sobre un emisor.
+
+- **Pestaña Particulas**: edita el perfil en curso (nombre, vida, velocidad,
+  aceleración, rozamiento, textura y las curvas de tamaño y color, un punto
+  por fila). El botón **Generar perfil** lo escribe como
+  `Particulas/<nombre>.json` dentro de los assets del proyecto: aparece en el
+  explorador de contenido y desde ahí se arrastra sobre el campo de perfil de
+  un `EmisorParticulas`. Generar exige nombre válido y no pisa un efecto
+  existente.
+- Arrastrar un `.json` de perfil sobre la zona de carga de la pestaña lo trae
+  de vuelta al editor para retocarlo y regenerarlo.
+- **Pestaña Prefabs**: la biblioteca de prefabs del proyecto (guardar la
+  selección, instanciar por lista o por arrastre, renombrar y borrar). El
+  flujo completo está en la sección de prefabs (capítulo 4, "Prefabs:
+  reutilizar jerarquías completas").
+- **Pestaña Animaciones**: referencia a dónde se configura una animación 2D
+  (el inspector del componente `Animador2D`); el taller propio de animaciones
+  llegará con un formato de asset para ellas.
+
+### 20.4 Como se ejecuta
 
 La simulacion corre en el editor y en juego: un efecto se ve mientras se
 edita. El numero de particulas vivas esta acotado (4000 por defecto), asi que
@@ -2014,7 +2047,7 @@ limite, se descarta la particula mas vieja.
 Las particulas son **cinematicas**: no chocan con la fisica. Si un efecto
 necesita rebotar, habria que consultarlo contra el mundo.
 
-### 20.4 Desde la consola
+### 20.5 Desde la consola
 
 El emisor es un componente mas, asi que la API de inspeccion (seccion 19) lo
 altera como a cualquier otro: `scene.component.create` con el tipo

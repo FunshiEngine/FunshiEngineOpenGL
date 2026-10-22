@@ -342,6 +342,14 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   └── PanelesModsInterface.h/.cpp ← colección de esos paneles; se sincroniza con
         │   │                                  Mods/RegistroPanelesMods cada frame (los mods
         │   │                                  pueden registrar paneles en caliente)
+        │   ├── EfectosGUI/                 ← taller de efectos: la ventana dedicada
+        │   │   └── AnimacionesParticulasInterface.h/.cpp ← pestañas Particulas (editor y
+        │   │                                  generación de perfiles de efecto a los assets,
+        │   │                                  con carga por arrastre), Animaciones
+        │   │                                  (referencia al inspector de Animador2D) y
+        │   │                                  Prefabs (biblioteca: guardar selección,
+        │   │                                  instanciar por lista o arrastre, renombrar,
+        │   │                                  borrar)
         │   ├── Tema/
         │   │   └── TemaEditor.h/.cpp      ← aplica el perfil Apariencia al estilo ImGui en vivo
         │   │                                  (tema claro/oscuro, acento RGB en TODOS los roles de ImGui
@@ -493,7 +501,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                dibujo de líneas (VBO/VAO + shader de líneas
         │   │                                gruesas; el glLineWidth quedó eliminado)
         │   ├── ParticulasRenderer.h/.cpp   ← dibuja el lote de particulas: agrupa por
-        │   │                                perfil (cada perfil tiene su textura) y
+        │   │                                perfil y textura (la textura de particula
+        │   │                                del emisor sobreescribe la del perfil) y
         │   │                                sube un lote por grupo
         │   ├── UIRenderer.h/.cpp          ← dibuja la interfaz de juego nativa con el
         │   │                                draw list de ImGui (el unico punto del sistema
@@ -642,6 +651,9 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── ParametrosEmisor.h      ← los datos que edita el inspector
         │   ├── PerfilParticula.h/.cpp  ← perfil de efecto: curvas de tamano y color
         │   ├── LectorPerfil.h/.cpp     ← carga del perfil de efecto (JSON)
+        │   ├── EscritorPerfil.h/.cpp   ← escritura del perfil de efecto (JSON): misma
+        │   │                              invariante que la carga, para que un perfil
+        │   │                              guardado nunca sea uno que la carga rechace
         │   ├── SistemaParticulas.h/.cpp ← simulacion: emision, integracion, muerte
         │   │                              y presupuesto de particulas vivas
         │   └── ParticulasBuilder.h/.cpp← expansion de cada particula a un quad
@@ -1077,7 +1089,10 @@ solo como orquestador de arranque y bucle.
   `renombrarProyecto`, `eliminarProyecto`) no se implementa en EditorConfig:
   son **delegaciones a `ProjectManager`**, único dueño del CRUD, las
   migraciones de estructura antigua y los fallbacks de copia entre
-  dispositivos. La política de qué proyecto queda abierto al arrancar (menú
+  dispositivos (la migración mueve a `Proyects/` las carpetas sueltas de la
+  raíz de datos; las carpetas reservadas del motor — `Proyects`,
+  `Configuraciones`, `Exportaciones`, `Mods`, `logs`, entre otras — quedan
+  excluidas por `ProjectPaths::esReservado`). La política de qué proyecto queda abierto al arrancar (menú
   salvo `--proyecto`, y si es primer arranque) vive aislada y sin
   disco ni UI en `Configuracion/ProyectoInicial.h`. La orquestación de todo el flujo de proyectos sobre esta
   fachada (qué hará al arrancar, entrar, guardar, renombrar, eliminar,
@@ -1110,7 +1125,9 @@ solo como orquestador de arranque y bucle.
 - Carpeta de un proyecto: `Proyects/<proyecto>/` con `Memory/` (escena,
   configuración del proyecto e `imgui.ini`) y la raíz de
   assets `src<proyecto>/` (meshes, texturas, materiales y las carpetas de
-  assets que cree el usuario). Esas rutas salen de `ProjectPaths`
+  assets que cree el usuario: los perfiles de efecto generados desde la
+  ventana de efectos quedan en `src<proyecto>/Particulas/` y los prefabs en
+  `src<proyecto>/Prefabs/`). Esas rutas salen de `ProjectPaths`
   (`directorioSrc`, `directorioScripts`), incluido el
   exportador del juego standalone, que las pide ahí mediante
   `Exportador/RutasExportacion.h` (lógica pura, header-only) en vez de
@@ -1532,6 +1549,11 @@ restantes compilan también con `BUILD_ENGINE=OFF`):
   conservando nombre, tag, jerarquía, componentes y `Transform`, más la caché de
   `PrefabLibrary` y la validación de archivos corruptos; la API de scripts
   `listarPrefabs` con storage estable (válido hasta la llamada siguiente).
+- `particulas-perfil-tests` (38): el escritor de perfiles de efecto (`EscritorPerfil`)
+  y el ciclo completo hasta el emisor: ida y vuelta archivo↔memoria campo por
+  campo, rechazo de las mismas invariantes que impone la carga, carga por
+  `setRutaPerfil` (el camino del drag & drop del inspector) y conservación de
+  la ruta del perfil en la serialización binaria.
 - `terminal-emulator-tests` (24): cuadrícula VT del `TerminalEmulator`: CR/LF,
   posicionamiento y consulta del cursor (`H`/`DSR`), secuencias SGR (color,
   negrita, fondo) y borrado; CSI 1K con cursor en wrap pendiente, rejilla
