@@ -332,6 +332,39 @@ Reglas:
   nuevo o cambia el alcance, la lista se ajusta en el momento. Esto sirve para
   que el usuario vea el avance real del trabajo y para que el agente no cierre
   una tarea dando por hecho algo que quedó sin hacer.
+
+## Fragmentación de tareas y validación de arquitectura
+
+Antes de escribir código nuevo, la tarea general se reduce en la mínima
+cantidad de subtareas que, en conjunto, generan la implementación buscada. Cada
+subtarea debe ser lo bastante pequeña para que compila por sí sola y tenga su
+propia validación (build, test headless o validación manual del usuario).
+
+El ciclo por subtarea es:
+
+1. **Validar la arquitectura preexistente**: leer los archivos, contratos,
+   patrones de diseño y convenciones del área que se va a tocar. No se asume
+   cómo funciona algo; se verifica archivo:línea (clases, métodos, señales,
+   registros en catálogos, inyecciones de dependencia, serialización).
+2. **Analizar cambios necesarios**: determinar qué archivos se tocan, qué se
+   agrega, qué se modifica y cómo se integra de forma homogénea con lo existente
+   (clean code: nombres en español, PascalCase para tipos, camelCase para
+   métodos, 4 espacios, llaves en la línea siguiente, sin referencias de
+   gestión en textos del proyecto).
+3. **Implementar la subtarea**: escribir solo lo necesario para esa subtarea,
+   respetando las convenciones del código y las reglas de `AGENTS.md`.
+4. **Validar**: build completo + `ctest` en verde. Si la subtarea toca
+   `ShaderSources.h`, ejecutar `.github/scripts/validar-glsl.py`. Si es un fix
+   de memoria, build con ASan+UBSan. Si es un bug, test rojo→verde.
+5. **Pausa por bug o hallazgo**: si al analizar el código se encuentra un bug
+   o un problema sin implementar que bloquea la subtarea en curso, se pausa
+   esa subtarea y se abre una subtarea nueva que resuelva el problema
+   siguiendo los mismos pasos (validar arquitectura → implementar → validar).
+   Una vez cerrada la subtarea de resolución, se retiene la subtarea pausada.
+6. **Commitear**: al terminar cada subtarea, hacer un commit atómico con solo
+   los archivos propios de esa subtarea (`git add <archivos>`, nunca
+   `git add -A` ni `git add .`).
+
 - **Una tarea, una rama**: al comenzar una tarea de un tema distinto al actual,
   primero commitear los cambios pendientes de la rama actual y luego cambiar de
   rama. Nunca mezclar temas distintos en una misma rama.
