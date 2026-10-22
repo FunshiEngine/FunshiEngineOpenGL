@@ -301,6 +301,18 @@ void ContentFolderInterface::recorrer(const std::string& path) {
 
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
             ImGui::SetDragDropPayload("ARCHIVO_PATH", fullPath.c_str(), fullPath.size() + 1);
+            // Payloads semanticos segun la extension: los destinos pueden
+            // aceptar solo el tipo que les interesa (p. ej. una textura de
+            // particulas acepta TEXTURA_ASSET, un campo de prefab acepta
+            // PREFAB_ASSET) sin confundirse con el arrastre de carpetas.
+            std::filesystem::path p(fullPath);
+            std::string ext = p.extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (ext == ".prefab")
+                ImGui::SetDragDropPayload("PREFAB_ASSET", fullPath.c_str(), fullPath.size() + 1);
+            else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" || ext == ".bmp")
+                ImGui::SetDragDropPayload("TEXTURA_ASSET", fullPath.c_str(), fullPath.size() + 1);
             ImGui::Text("Soltar en zona de destino");
             ImGui::Text("%s", nombre.c_str());
             ImGui::EndDragDropSource();
