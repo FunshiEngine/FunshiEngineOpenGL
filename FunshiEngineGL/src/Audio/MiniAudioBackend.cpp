@@ -25,6 +25,7 @@
 #include "miniaudio.h"
 
 #include <utility>
+#include <iostream>
 
 struct MiniAudioBackend::Impl {
     ma_engine motor;
