@@ -1668,6 +1668,29 @@ if(Threads_FOUND)
 endif()
 add_test(NAME audio-tests COMMAND audio-tests)
 
+# AudioSource (componente de fuente de sonido): testa que reproducir() sin
+# motor inyectado no hace nada, y que con motor y archivo existente encole
+# el comando y pase a estado sonando. Usa stubs de EditorConfig para evitar
+# arrastrar la cadena completa de configuracion del proyecto.
+add_executable(audio-source-tests
+    ${SRC_DIR}/Audio/AudioEngine.cpp
+    ${SRC_DIR}/Audio/GestorMusica.cpp
+    ${SRC_DIR}/Objetos/Componentes/AudioSource.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/AudioSourceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/EditorConfigStubs.cpp
+)
+target_include_directories(audio-source-tests PRIVATE ${SRC_DIR})
+set_target_properties(audio-source-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+find_package(Threads QUIET)
+if(Threads_FOUND)
+    target_link_libraries(audio-source-tests PRIVATE Threads::Threads)
+endif()
+add_test(NAME audio-source-tests COMMAND audio-source-tests)
+
 # Reproductor de musica (GestorMusica) headless y portatil: la maquina de
 # estados del fundido cruzado, el paso automatico a la pista siguiente y el
 # bus se prueban con un backend de musica FALSO (sin audio ni hilo de trabajo).

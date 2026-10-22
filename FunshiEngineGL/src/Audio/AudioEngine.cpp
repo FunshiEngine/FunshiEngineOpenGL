@@ -23,6 +23,8 @@
 #include "IMusicaBackend.h"
 #include "NullAudioBackend.h"
 
+#include "Configuracion/EditorConfig.h"
+
 #include <chrono>
 #include <condition_variable>
 #include <filesystem>
@@ -225,11 +227,16 @@ AudioEngine::~AudioEngine() {
 
 int AudioEngine::reproducir(const std::string& ruta, float volumen, bool bucle) {
     if (ruta.empty()) return -1; // sin archivo asignado
+    // Ruta relativa: resolver contra la raiz de assets del proyecto (si hay)
+    // para que el check de existencia funcione desde cualquier cwd.
+    std::string rutaResuelta = ruta;
+    if (!std::filesystem::path(ruta).is_absolute() && !EditorConfig::raizAssetsFijada().empty())
+        rutaResuelta = EditorConfig::absolutizarRuta(ruta);
     // El archivo se comprueba aqui (hilo de juego) para poder avisar al que
     // lo pidio: el backend solo puede fallar en su hilo, y entonces el que
     // reproduce creeria que el sonido salio.
     std::error_code ec;
-    if (!std::filesystem::is_regular_file(ruta, ec)) {
+    if (!std::filesystem::is_regular_file(rutaResuelta, ec)) {
         std::cerr << "[Audio] No se reproduce '" << ruta
                   << "': el archivo no existe\n";
         return -1;
@@ -238,7 +245,7 @@ int AudioEngine::reproducir(const std::string& ruta, float volumen, bool bucle) 
     c.tipo = TipoComando::Reproducir;
     c.volumen = volumen;
     c.bucle = bucle;
-    c.ruta = ruta;
+    c.ruta = rutaResuelta;
     int handle = -1;
     {
         std::lock_guard<std::mutex> lock(impl_->mtx);

@@ -68,7 +68,11 @@ void AudioSource::deserializeComponent(std::ifstream* file) {
 }
 
 void AudioSource::reproducir() {
-    if (!motor) return;
+    if (!motor) {
+        std::cerr << "[Audio] AudioSource::reproducir: motor no inyectado; "
+                     "no se encola comando para ruta '" << rutaClip << "'\n";
+        return;
+    }
     detener(); // no apilar probabilidades: un clip, una reproduccion
     const int handle = motor->reproducir(rutaClip, volume, loop);
     handleActual = handle;

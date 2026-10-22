@@ -93,7 +93,12 @@ void MiniAudioBackend::cerrar() {
 
 int MiniAudioBackend::reproducirArchivo(const std::string& ruta, float volumen,
                                         bool bucle) {
-    if (!impl_->inicializado || ruta.empty()) return 0;
+    if (ruta.empty()) return 0;
+    // El comando Iniciar se encola de forma asincronica en el ctor de
+    // AudioEngine; si el hilo de audio aun no lo ha procesado, inicializar
+    // de forma sincronica aqui evita que el primer Reproducir se pierda por
+    // condicion de carrera (impl_->inicializado == false).
+    if (!impl_->inicializado && !iniciar()) return 0;
 
     ma_sound sonido;
     // MA_SOUND_FLAG_DECODE: decodifica el archivo completo a memoria, ideal
@@ -102,12 +107,16 @@ int MiniAudioBackend::reproducirArchivo(const std::string& ruta, float volumen,
     if (ma_sound_init_from_file(&impl_->motor, ruta.c_str(),
                                 MA_SOUND_FLAG_DECODE, nullptr, nullptr,
                                 &sonido) != MA_SUCCESS) {
+        std::cerr << "[Audio] MiniAudioBackend::reproducirArchivo: no se pudo "
+                     "inicializar sonido desde '" << ruta << "'\n";
         return 0;
     }
     ma_sound_set_volume(&sonido, volumen);
     ma_sound_set_looping(&sonido, bucle ? MA_TRUE : MA_FALSE);
     if (ma_sound_start(&sonido) != MA_SUCCESS) {
         ma_sound_uninit(&sonido);
+        std::cerr << "[Audio] MiniAudioBackend::reproducirArchivo: ma_sound_start "
+                     "fallo para '" << ruta << "'\n";
         return 0;
     }
 
