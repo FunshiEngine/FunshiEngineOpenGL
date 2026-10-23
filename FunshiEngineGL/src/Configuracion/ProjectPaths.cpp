@@ -72,7 +72,11 @@ bool esReservado(const std::string& nombre) {
         // cada arranque; si no estuviera reservada, la migracion de proyectos
         // legacy la movia a Proyects/ y el listado mostraba un proyecto falso
         // llamado "Mods".
-        "Mods"
+        "Mods",
+        // Cache de los mods (CargadorMods::directorioCacheMods): se crea al
+        // cargar mods, tambien en la raiz de datos; sin reserva, la migracion
+        // la movia a Proyects/ como un proyecto falso llamado "cache".
+        "cache"
     };
     for (const char* r : reservados) {
         if (nombre == r) return true;

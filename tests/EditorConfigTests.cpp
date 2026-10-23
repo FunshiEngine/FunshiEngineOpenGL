@@ -1108,12 +1108,19 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "'Mods' no es un proyecto: queda reservada en la raiz de datos");
         CHECK(ProjectPaths::esNombreValido("Mods del Juego"),
               "un proyecto del usuario puede llamarse parecido sin chocar");
+        // La cache de mods (CargadorMods::directorioCacheMods) tambien vive en
+        // la raiz de datos y se crea al cargar mods, antes de elegir proyecto:
+        // sin reserva, la misma migracion la movia a Proyects/ como un
+        // proyecto falso llamado "cache".
+        CHECK(!ProjectPaths::esNombreValido("cache"),
+              "'cache' no es un proyecto: es la cache de mods, reservada");
 
         // Migracion con rutas inyectadas: la carpeta reservada se queda en la
         // raiz y el proyecto legacy de verdad sigue migrando a Proyects/.
         TempPruebas::CarpetaPrueba carpetaMigracion("funshi_migracion_reservados");
         const fs::path raizMigracion = carpetaMigracion.ruta();
         fs::create_directories(raizMigracion / "Mods");
+        fs::create_directories(raizMigracion / "cache" / "mods");
         fs::create_directories(raizMigracion / "MiJuego" / "Memory");
         fs::create_directories(raizMigracion / "MiJuego" / "srcMiJuego");
 
@@ -1124,6 +1131,10 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "la carpeta global de mods se queda en la raiz de datos");
         CHECK(!fs::is_directory(raizMigracion / "Proyects" / "Mods"),
               "la migracion no crea un proyecto llamado Mods");
+        CHECK(fs::is_directory(raizMigracion / "cache" / "mods"),
+              "la cache de mods se queda en la raiz de datos");
+        CHECK(!fs::is_directory(raizMigracion / "Proyects" / "cache"),
+              "la migracion no crea un proyecto llamado cache");
         CHECK(fs::is_directory(raizMigracion / "Proyects" / "MiJuego"),
               "el proyecto legacy de verdad si migra a Proyects/");
         CHECK(!fs::exists(raizMigracion / "MiJuego"),
