@@ -536,6 +536,53 @@ bool serviciosAgregarRigidBody(void* objeto, float masa) {
                              std::make_unique<RigidBody>(collider, masa));
 }
 
+// --- v5: colisiones y raycast ---
+
+void* serviciosObjetoDeCollider(const void* collider) {
+    const Collider* c = static_cast<const Collider*>(collider);
+    return c ? c->getOwner() : nullptr;
+}
+
+// Ultimo resultado de raycast (almacenado para consultas posteriores).
+namespace {
+ResultadoRaycast g_ultimoRaycast;
+}
+
+bool serviciosRaycast(float ox, float oy, float oz,
+                      float dx, float dy, float dz,
+                      float alcance,
+                      float* distancia, float* px, float* py, float* pz,
+                      float* nx, float* ny, float* nz,
+                      void** collider) {
+    g_ultimoRaycast = ResultadoRaycast{};
+    if (!g_fisica) return false;
+
+    ResultadoRaycast r = g_fisica->raycast(ox, oy, oz, dx, dy, dz, alcance);
+    g_ultimoRaycast = r;
+
+    if (!r.impacto) return false;
+
+    if (distancia) *distancia = r.distancia;
+    if (px) *px = r.puntoX;
+    if (py) *py = r.puntoY;
+    if (pz) *pz = r.puntoZ;
+    if (nx) *nx = r.normalX;
+    if (ny) *ny = r.normalY;
+    if (nz) *nz = r.normalZ;
+    if (collider) *collider = r.collider;
+    return true;
+}
+
+float serviciosPuntoImpactoX() { return g_ultimoRaycast.puntoX; }
+float serviciosPuntoImpactoY() { return g_ultimoRaycast.puntoY; }
+float serviciosPuntoImpactoZ() { return g_ultimoRaycast.puntoZ; }
+
+float serviciosNormalImpactoX() { return g_ultimoRaycast.normalX; }
+float serviciosNormalImpactoY() { return g_ultimoRaycast.normalY; }
+float serviciosNormalImpactoZ() { return g_ultimoRaycast.normalZ; }
+
+float serviciosDistanciaImpacto() { return g_ultimoRaycast.distancia; }
+
 void* serviciosInstanciarPrefab(const char* nombre, void* padre) {
     if (!g_editor || !g_escena || !nombre || !*nombre) return nullptr;
     GameObject* padreObj = static_cast<GameObject*>(padre);
@@ -683,6 +730,15 @@ const ScriptServices* tablaServicios() {
         /* .agregarColliderEsfera = */ serviciosAgregarColliderEsfera,
         /* .agregarColliderCubo = */ serviciosAgregarColliderCubo,
         /* .agregarRigidBody  = */ serviciosAgregarRigidBody,
+        /* .objetoDeCollider  = */ serviciosObjetoDeCollider,
+        /* .raycast           = */ serviciosRaycast,
+        /* .puntoImpactoX     = */ serviciosPuntoImpactoX,
+        /* .puntoImpactoY     = */ serviciosPuntoImpactoY,
+        /* .puntoImpactoZ     = */ serviciosPuntoImpactoZ,
+        /* .normalImpactoX    = */ serviciosNormalImpactoX,
+        /* .normalImpactoY    = */ serviciosNormalImpactoY,
+        /* .normalImpactoZ    = */ serviciosNormalImpactoZ,
+        /* .distanciaImpacto  = */ serviciosDistanciaImpacto,
         /* .instanciarPrefab  = */ serviciosInstanciarPrefab,
         /* .listarPrefabs     = */ serviciosListarPrefabs,
         /* .interfazDeObjeto  = */ serviciosInterfazDeObjeto,
@@ -704,7 +760,7 @@ const ScriptServices* tablaServicios() {
         serviciosInterfazNativaEstablecerVisibleWidget,
         /* .interfazNativaBotonPulsado = */
         serviciosInterfazNativaBotonPulsado,
-        /* .version           = */ 9,
+        /* .version           = */ 10,
     };
     return &tabla;
 }

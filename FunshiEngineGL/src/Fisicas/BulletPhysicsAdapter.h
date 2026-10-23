@@ -49,6 +49,9 @@ public:
     std::vector<EventoContacto> tomarEventosContacto() override;
     void fijarGravedad(float x, float y, float z) override;
     void gravedad(float& x, float& y, float& z) const override;
+    ResultadoRaycast raycast(float ox, float oy, float oz,
+                             float dx, float dy, float dz,
+                             float alcance) override;
 
 private:
     static ParColliders ordenarPar(Collider* a, Collider* b);

@@ -20,6 +20,7 @@
 
 #include "../../Audio/AudioEngine.h"
 #include "../../Configuracion/EditorConfig.h"
+#include "../../Objetos/GameObject.h"
 #include "Herramientas/LimitesSerializacion.h"
 
 #include <iostream>
@@ -38,6 +39,7 @@ void AudioSource::serializeComponent(std::ofstream* file) {
     file->write(reinterpret_cast<const char*>(&loop), sizeof(bool));
     file->write(reinterpret_cast<const char*>(&reproduccionAutomatica),
                 sizeof(bool));
+    file->write(reinterpret_cast<const char*>(&espacial), sizeof(bool));
 }
 
 void AudioSource::deserializeComponent(std::ifstream* file) {
@@ -65,6 +67,16 @@ void AudioSource::deserializeComponent(std::ifstream* file) {
     file->read(reinterpret_cast<char*>(&volume), sizeof(float));
     file->read(reinterpret_cast<char*>(&loop), sizeof(bool));
     file->read(reinterpret_cast<char*>(&reproduccionAutomatica), sizeof(bool));
+    // `espacial` se agrego despues: las escenas viejas no lo traen, y en ese
+    // caso se conserva el comportamiento historico (sonido global/2D).
+    bool e = false;
+    file->read(reinterpret_cast<char*>(&e), sizeof(bool));
+    if (file->fail()) {
+        espacial = false;
+        file->clear();
+    } else {
+        espacial = e;
+    }
 }
 
 void AudioSource::reproducir() {
@@ -74,7 +86,9 @@ void AudioSource::reproducir() {
         return;
     }
     detener(); // no apilar probabilidades: un clip, una reproduccion
-    const int handle = motor->reproducir(rutaClip, volume, loop);
+    // El sonido espacial se reposiciona en la siguiente actualizacion de
+    // frame (onUpdate) sobre la posicion real del objeto.
+    const int handle = motor->reproducir(rutaClip, volume, loop, nullptr);
     handleActual = handle;
     sonando = (handle >= 0);
 }
@@ -83,4 +97,13 @@ void AudioSource::detener() {
     if (motor && handleActual >= 0) motor->detener(handleActual);
     handleActual = -1;
     sonando = false;
+}
+
+void AudioSource::onUpdate(GameObject& owner, float deltaTime) {
+    (void)deltaTime;
+    if (!motor || !sonando || !espacial || handleActual < 0) return;
+    if (Transform* t = owner.getGlobalTransform()) {
+        const float* p = t->getTranslatef();
+        motor->setPosicionSonido(handleActual, p[0], p[1], p[2]);
+    }
 }

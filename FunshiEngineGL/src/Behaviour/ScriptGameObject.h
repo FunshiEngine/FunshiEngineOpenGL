@@ -182,7 +182,31 @@ struct ScriptServices {
     bool (*agregarColliderCubo)(void* objeto, float radio);
     bool (*agregarRigidBody)(void* objeto, float masa);
 
-    // --- v5: sistema de prefabs ---
+    // --- v5: colisiones y raycast (hitscan) ---
+    // Resuelve un Collider* a su GameObject duenio. Util en
+    // onCollisionEnter/onCollisionStay/onCollisionExit para saber qué objeto
+    // recibio el golpe.
+    void* (*objetoDeCollider)(const void* collider);
+    // Dispara un rayo (hitscan) desde origen en direccion con alcance dado.
+    // Llena punto/normal/distancia/collider si hubo impacto.
+    bool (*raycast)(float ox, float oy, float oz,
+                    float dx, float dy, float dz,
+                    float alcance,
+                    float* distancia, float* px, float* py, float* pz,
+                    float* nx, float* ny, float* nz,
+                    void** collider);
+    // Ultimo punto de impacto del rayo (valido tras raycast con impacto).
+    float (*puntoImpactoX)();
+    float (*puntoImpactoY)();
+    float (*puntoImpactoZ)();
+    // Ultima normal de impacto del rayo.
+    float (*normalImpactoX)();
+    float (*normalImpactoY)();
+    float (*normalImpactoZ)();
+    // Distancia al ultimo impacto.
+    float (*distanciaImpacto)();
+
+    // --- v6: sistema de prefabs ---
     // Instancia un prefab por nombre como hijo de `padre` (raiz si nulo).
     // Devuelve el puntero a la raiz de la instancia (valido al final del frame).
     void* (*instanciarPrefab)(const char* nombre, void* padre);
@@ -192,7 +216,7 @@ struct ScriptServices {
     // siguiente: copiarlos en el acto si deben retenerse.
     const char** (*listarPrefabs)();
 
-    // --- v6: interfaces web (HUD) ---
+    // --- v7: interfaces web (HUD) ---
     // Manipulacion de las interfaces de la escena desde los scripts. El handle
     // (`interfaz`) es opaco: un puntero al InterfaceComponent del objeto que la
     // tiene. En C++ se obtiene con un campo REFLECT_COMPONENTE (arrastrando el
