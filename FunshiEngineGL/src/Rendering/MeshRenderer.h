@@ -152,6 +152,9 @@ private:
     // Programa del pase de profundidad (mapa de sombras). Es aparte del de
     // las mallas: escribe profundidad y nada mas.
     std::shared_ptr<ShaderProgram> shaderSombra_;
+    // Compilacion determinista: si el shader embebido fallo una vez, queda
+    // marcado y inicializar() no vuelve a intentarlo (ni a loguearlo) por frame.
+    bool falloShader_ = false;
     Rendering::GestorShaders* gestorShaders_ = nullptr;
     TextureManager* textureManager_ = nullptr;
     // Resolvedor de materiales por region (inyectado).

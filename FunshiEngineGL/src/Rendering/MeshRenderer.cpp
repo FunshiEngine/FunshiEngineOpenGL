@@ -65,6 +65,12 @@ MeshRenderer::~MeshRenderer() = default;
 
 bool MeshRenderer::inicializar() {
     if (shader_) return true;
+    // El fuente del shader va embebido: si el driver no lo compilo una vez, no
+    // lo compila nunca. Recordar el fallo evita reintentar la compilacion y
+    // releer el error en cada pasada de dibujo (el reintento por frame llego a
+    // escribir 319.030 lineas de log en una sesion y compilar el programa una
+    // vez por frame).
+    if (falloShader_) return false;
     if (!backend_ || !backend_->init()) return false;
     // Sin gestor de shaders no hay de donde pedir el programa.
     if (!gestorShaders_) return false;
@@ -95,6 +101,7 @@ bool MeshRenderer::inicializar() {
         std::cerr << "[MeshRenderer] Shader por defecto no disponible: "
                   << e.what() << '\n';
         shader_.reset();
+        falloShader_ = true;
     }
     return shader_ != nullptr;
 }

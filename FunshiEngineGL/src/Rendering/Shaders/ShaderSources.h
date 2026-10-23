@@ -171,6 +171,14 @@ float coberturaSombra(int indice, vec2 uv, float ref, float texel) {
     return pcf3x3(uShadowMap3, uv, ref, texel);
 }
 
+// Profundidad guardada en el cubemap de una luz puntual, leida en la direccion
+// desde la luz al fragmento. El sampler va como parametro: GLSL 3.30 no deja
+// elegir el sampler con un if y guardarlo en una variable local (los samplers
+// no son asignables ni declarables fuera de uniforms o parametros).
+float profundidadCubemap(samplerCube cubo, vec3 direccion) {
+    return texture(cubo, direccion).r;
+}
+
 // Factor de sombra de una luz: 1.0 = iluminado, 0.0 = en sombra.
 //
 // Las luces direccionales y spot usan un mapa 2D (sampler2DShadow) con
@@ -187,15 +195,14 @@ float factorSombra(int indiceLuz, vec3 fragPos) {
             float distancia = length(dir);
             if (distancia > uShadowDistancia[indiceLuz]) return 1.0;
             vec3 dirNorm = normalize(dir);
-            samplerCube cubo;
-            if (indiceLuz == 0) cubo = uShadowCube0;
-            else if (indiceLuz == 1) cubo = uShadowCube1;
-            else if (indiceLuz == 2) cubo = uShadowCube2;
-            else cubo = uShadowCube3;
             // ref en [0,1]: distancia relativa al alcance de la luz.
             float ref = distancia / uShadowDistancia[indiceLuz];
-            float profundidadCubemap = texture(cubo, dirNorm).r;
-            float cobertura = (profundidadCubemap < ref) ? 0.0 : 1.0;
+            float profundidad;
+            if (indiceLuz == 0) profundidad = profundidadCubemap(uShadowCube0, dirNorm);
+            else if (indiceLuz == 1) profundidad = profundidadCubemap(uShadowCube1, dirNorm);
+            else if (indiceLuz == 2) profundidad = profundidadCubemap(uShadowCube2, dirNorm);
+            else profundidad = profundidadCubemap(uShadowCube3, dirNorm);
+            float cobertura = (profundidad < ref) ? 0.0 : 1.0;
             return mix(1.0, cobertura, uShadowStrength[s]);
         }
         return 1.0;
