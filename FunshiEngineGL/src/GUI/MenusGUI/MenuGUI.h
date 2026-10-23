@@ -101,6 +101,11 @@ public:
     float getSensibilidadMovimientoCamara() const noexcept;
     void setSensibilidadMovimientoCamara(float sensibilidad);
 
+    // Volumen maestro de efectos de sonido (vista Opciones). Se propaga a la
+    // escena por VolumenCambio -> AudioEngine::setVolumenMaestro.
+    float getVolumenMaestro() const noexcept;
+    void setVolumenMaestro(float volumen);
+
     // Perfil de apariencia del editor editado en la vista Opciones. Se aplica
     // a ImGui (TemaEditor) y a la escena (fondo y grilla) por AparienciaCambio.
     const Apariencia& getApariencia() const noexcept;

@@ -170,6 +170,15 @@ void MenuModel::setSensibilidadMovimientoCamara(float sensibilidad) {
     }
 }
 
+float MenuModel::getVolumenMaestro() const noexcept { return volumenMaestro; }
+
+void MenuModel::setVolumenMaestro(float volumen) {
+    if (volumen >= 0.0f && volumen <= 1.0f) {
+        volumenMaestro = volumen;
+        if (onCampoCambio) onCampoCambio(Campo::VolumenMaestro);
+    }
+}
+
 const Apariencia& MenuModel::getApariencia() const noexcept {
     return apariencia;
 }
@@ -190,6 +199,7 @@ void MenuModel::restablecerConfiguracion() {
     idioma = "Espanol";
     sensibilidadCamara = 0.15f;
     sensibilidadMovimientoCamara = 1.0f;
+    volumenMaestro = 1.0f;
     apariencia.restablecer();
     if (onCampoCambio) onCampoCambio(Campo::Reiniciar);
 }
@@ -256,6 +266,9 @@ std::string MenuModel::traducir(const std::string& clave) const {
         {"sensibilidad_movimiento",
          {"Sensibilidad de movimiento", "Movement sensitivity"}},
         {"apariencia", {"Apariencia", "Appearance"}},
+        {"audio", {"Audio", "Audio"}},
+        {"controles", {"Controles", "Controls"}},
+        {"volumen_maestro", {"Volumen maestro", "Master volume"}},
         {"tema_claro", {"Tema claro de la interfaz", "Light UI theme"}},
         {"modo_bn",
          {"Modo blanco y negro (interfaz y viewport)",

@@ -246,6 +246,7 @@ void EditorConfig::cargarGeneral(const std::string& ruta) {
     datos_.idioma = g.idioma;
     datos_.sensibilidadCamara = g.sensibilidadCamara;
     datos_.sensibilidadMovimientoCamara = g.sensibilidadMovimientoCamara;
+    datos_.volumenMaestro = g.volumenMaestro;
     datos_.apariencia = g.apariencia;
     datos_.modsMotor = g.mods;
 }
@@ -289,6 +290,7 @@ void EditorConfig::guardarGeneral(const std::string& ruta) {
     g.idioma = datos_.idioma;
     g.sensibilidadCamara = datos_.sensibilidadCamara;
     g.sensibilidadMovimientoCamara = datos_.sensibilidadMovimientoCamara;
+    g.volumenMaestro = datos_.volumenMaestro;
     g.apariencia = datos_.apariencia;
     g.mods = datos_.modsMotor;
 

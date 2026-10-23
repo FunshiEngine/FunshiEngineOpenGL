@@ -51,6 +51,9 @@ public:
         // (vista Opciones del menu), como sensibilidadCamara; se aplica a la
         // escena por SensibilidadMovimientoCambio.
         float sensibilidadMovimientoCamara = 1.0f;
+        // Volumen maestro de efectos de sonido (0.0 silenciado, 1.0 maxima).
+        // Se aplica al bus de efectos por AudioEngine::setVolumenMaestro.
+        float volumenMaestro = 1.0f;
         // Seccion "editor": estado de interfaz (GameScene).
         bool ventanaCamarasAbierta = true;
         int gizmoOperacion = 7;

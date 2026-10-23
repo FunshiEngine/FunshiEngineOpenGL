@@ -38,6 +38,7 @@ public:
         std::string idioma = "Espanol";
         float sensibilidadCamara = 0.15f;
         float sensibilidadMovimientoCamara = 1.0f;
+        float volumenMaestro = 1.0f; // volumen general de efectos (0.0 - 1.0)
         Apariencia apariencia;
         // Mods del motor activos (id -> habilitado). Los mods del proyecto
         // viven en ConfigPersistence::Proyecto, porque el ambito decide que

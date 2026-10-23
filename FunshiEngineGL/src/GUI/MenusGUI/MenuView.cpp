@@ -252,8 +252,7 @@ void MenuView::renderizarPrincipal() {
 }
 
 void MenuView::renderizarOpciones() {
-    // Columna centrada con scroll: la vista crecio con las opciones de
-    // apariencia y ya no entra en las filas fijas del menu principal.
+    // Columna centrada con scroll.
     const ImVec2 win = ImGui::GetWindowSize();
     constexpr float kAncho = 460.0f;
     constexpr float kAltoInferior = 90.0f; // deja lugar al boton "Volver"
@@ -265,92 +264,117 @@ void MenuView::renderizarOpciones() {
     ImGui::TextUnformatted(model->traducir("opciones").c_str());
     ImGui::Separator();
 
-    ImGui::SeparatorText(model->traducir("juego").c_str());
-    ImGui::TextUnformatted(model->traducir("idioma").c_str());
-    const std::vector<std::string>& idiomas = model->getIdiomas();
-    const std::string& actual = model->getIdioma();
-    ImGui::SetNextItemWidth(-1.0f);
-    if (ImGui::BeginCombo("##idioma", actual.c_str())) {
-        for (const std::string& opcion : idiomas) {
-            const bool seleccionada = (opcion == actual);
-            if (ImGui::Selectable(opcion.c_str(), seleccionada)) {
-                model->setIdioma(opcion);
-            }
-            if (seleccionada) ImGui::SetItemDefaultFocus();
-        }
-        ImGui::EndCombo();
-    }
-
-    ImGui::TextUnformatted(model->traducir("radio_difuminado").c_str());
-    // Radio del circulo-horizonte de la grilla y de la guia de eje, en unidades
-    // de mundo: por debajo del slider, el piso se ve mas cerca y con menos lineas
-    // (mas performant); por encima, llega mas lejos. Se edita sobre una copia
-    // del perfil y se delega al modelo UNA vez, como el resto de apariencia.
+    // Idioma: afecta a todas las pestañas, por eso vive fuera de ellas.
     {
-        Apariencia apRadio = model->getApariencia();
-        float radio = apRadio.radioDifuminado;
+        ImGui::TextUnformatted(model->traducir("idioma").c_str());
+        const std::vector<std::string>& idiomas = model->getIdiomas();
+        const std::string& actual = model->getIdioma();
         ImGui::SetNextItemWidth(-1.0f);
-        if (ImGui::SliderFloat("##radioDifuminado", &radio,
-                               AparienciaUtil::kRadioDifuminadoMinimo,
-                               AparienciaUtil::kRadioDifuminadoMaximo, "%.0f")) {
-            apRadio.radioDifuminado = radio;
-            model->setApariencia(apRadio);
+        if (ImGui::BeginCombo("##idioma", actual.c_str())) {
+            for (const std::string& opcion : idiomas) {
+                const bool seleccionada = (opcion == actual);
+                if (ImGui::Selectable(opcion.c_str(), seleccionada)) {
+                    model->setIdioma(opcion);
+                }
+                if (seleccionada) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
         }
     }
 
-    ImGui::TextUnformatted(model->traducir("sensibilidad_camara").c_str());
-    float sensibilidad = model->getSensibilidadCamara();
-    ImGui::SetNextItemWidth(-1.0f);
-    if (ImGui::SliderFloat("##sensibilidad", &sensibilidad, 0.02f, 5.0f,
-                           "%.2f")) {
-        model->setSensibilidadCamara(sensibilidad);
+    ImGui::Spacing();
+
+    if (ImGui::BeginTabBar("##pestanasOpciones")) {
+        // ---- Audio: volumen maestro de efectos de sonido. ----
+        if (ImGui::BeginTabItem(model->traducir("audio").c_str())) {
+            float volumen = model->getVolumenMaestro();
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::SliderFloat("##volumenMaestro", &volumen, 0.0f, 1.0f,
+                                   "%.2f")) {
+                model->setVolumenMaestro(volumen);
+            }
+            ImGui::TextDisabled(
+                "Afecta a todos los efectos de sonido de la escena.");
+            ImGui::EndTabItem();
+        }
+
+        // ---- Apariencia: tema, B/N, acento y fondos de cielo. ----
+        if (ImGui::BeginTabItem(model->traducir("apariencia").c_str())) {
+            ImGui::TextUnformatted(model->traducir("radio_difuminado").c_str());
+            // Radio del circulo-horizonte de la grilla y de la guia de eje,
+            // en unidades de mundo: por debajo del slider el piso se ve mas
+            // cerca y con menos lineas (mas performant); por encima llega mas
+            // lejos. Se edita sobre una copia y se delega al modelo UNA vez,
+            // como el resto de apariencia.
+            {
+                Apariencia apRadio = model->getApariencia();
+                float radio = apRadio.radioDifuminado;
+                ImGui::SetNextItemWidth(-1.0f);
+                if (ImGui::SliderFloat("##radioDifuminado", &radio,
+                                       AparienciaUtil::kRadioDifuminadoMinimo,
+                                       AparienciaUtil::kRadioDifuminadoMaximo,
+                                       "%.0f")) {
+                    apRadio.radioDifuminado = radio;
+                    model->setApariencia(apRadio);
+                }
+            }
+
+            // Se edita una copia y se delega al modelo UNA vez si hubo
+            // cambios; asi el modelo sigue siendo la unica fuente de verdad
+            // (patron MVP).
+            Apariencia ap = model->getApariencia();
+            bool cambio = false;
+
+            cambio |= ImGui::Checkbox(etiqueta(model, "tema_claro").c_str(),
+                                      &ap.temaClaro);
+            cambio |= ImGui::Checkbox(etiqueta(model, "modo_bn").c_str(),
+                                      &ap.blancoYNegro);
+            ImGui::TextUnformatted(model->traducir("color_acento").c_str());
+            // Acento solo RGB (ColorEdit3 = ColorEdit4 + NoAlpha): el alpha
+            // del perfil no participa del tema (cada rol aporta su propia
+            // transparencia, ver TemaEditor::acento), asi que no se expone la
+            // barra de alpha que podia apagar los checks, los grabs y los
+            // enlaces de la interfaz. ColorEdit3 preserva acento[3] tal como
+            // estaba guardado.
+            cambio |= ImGui::ColorEdit3("##acento", ap.acento);
+            ImGui::TextUnformatted(model->traducir("color_cielo_superior").c_str());
+            cambio |= ImGui::ColorEdit3("##cieloSuperior", ap.fondoSuperior);
+            ImGui::TextUnformatted(model->traducir("color_cielo_inferior").c_str());
+            cambio |= ImGui::ColorEdit3("##cieloInferior", ap.fondoInferior);
+            ImGui::TextDisabled("%s", model->traducir("ayuda_bn").c_str());
+
+            if (ImGui::Button(etiqueta(model, "restablecer_apariencia").c_str(),
+                              ImVec2(-1.0f, 0.0f))) {
+                ap.restablecer();
+                cambio = true;
+            }
+
+            if (cambio) model->setApariencia(ap);
+            ImGui::EndTabItem();
+        }
+
+        // ---- Controles: sensibilidad de camara y de movimiento. ----
+        if (ImGui::BeginTabItem(model->traducir("controles").c_str())) {
+            ImGui::TextUnformatted(model->traducir("sensibilidad_camara").c_str());
+            float sensibilidad = model->getSensibilidadCamara();
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::SliderFloat("##sensibilidad", &sensibilidad, 0.02f,
+                                   5.0f, "%.2f")) {
+                model->setSensibilidadCamara(sensibilidad);
+            }
+
+            ImGui::TextUnformatted(model->traducir("sensibilidad_movimiento").c_str());
+            float movimiento = model->getSensibilidadMovimientoCamara();
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::SliderFloat("##sensibilidadMovimiento", &movimiento,
+                                   0.1f, 5.0f, "%.2f")) {
+                model->setSensibilidadMovimientoCamara(movimiento);
+            }
+            ImGui::EndTabItem();
+        }
+
+        ImGui::EndTabBar();
     }
-
-    ImGui::TextUnformatted(model->traducir("sensibilidad_movimiento").c_str());
-    float movimiento = model->getSensibilidadMovimientoCamara();
-    ImGui::SetNextItemWidth(-1.0f);
-    if (ImGui::SliderFloat("##sensibilidadMovimiento", &movimiento, 0.1f,
-                           5.0f, "%.2f")) {
-        model->setSensibilidadMovimientoCamara(movimiento);
-    }
-
-    ImGui::SeparatorText(model->traducir("apariencia").c_str());
-    // Se edita una copia y se delega al modelo UNA vez si hubo cambios; asi
-    // el modelo sigue siendo la unica fuente de verdad (patron MVP).
-    Apariencia ap = model->getApariencia();
-    bool cambio = false;
-
-    cambio |= ImGui::Checkbox(etiqueta(model, "tema_claro").c_str(),
-                              &ap.temaClaro);
-    cambio |= ImGui::Checkbox(etiqueta(model, "modo_bn").c_str(),
-                              &ap.blancoYNegro);
-    ImGui::TextUnformatted(model->traducir("color_acento").c_str());
-    // Acento solo RGB (ColorEdit3 = ColorEdit4 + NoAlpha): el alpha del perfil
-    // no participa del tema (cada rol aporta su propia transparencia, ver
-    // TemaEditor::acento), asi que no se expone la barra de alpha que podia
-    // apagar los checks, los grabs y los enlaces de la interfaz. ColorEdit3
-    // preserva acento[3] tal como estaba guardado.
-    cambio |= ImGui::ColorEdit3("##acento", ap.acento);
-    ImGui::TextUnformatted(model->traducir("color_cielo_superior").c_str());
-    cambio |= ImGui::ColorEdit3("##cieloSuperior", ap.fondoSuperior);
-    ImGui::TextUnformatted(model->traducir("color_cielo_inferior").c_str());
-    cambio |= ImGui::ColorEdit3("##cieloInferior", ap.fondoInferior);
-    ImGui::TextDisabled("%s", model->traducir("ayuda_bn").c_str());
-
-    if (ImGui::Button(etiqueta(model, "restablecer_apariencia").c_str(),
-                      ImVec2(-1.0f, 0.0f))) {
-        ap.restablecer();
-        cambio = true;
-    }
-
-    if (cambio) model->setApariencia(ap);
-
-    ImGui::SeparatorText(model->traducir("configuracion").c_str());
-    if (ImGui::Button(etiqueta(model, "restablecer_configuracion").c_str(),
-                      ImVec2(-1.0f, 0.0f))) {
-        model->restablecerConfiguracion();
-    }
-    ImGui::TextDisabled("%s", model->traducir("ayuda_reset").c_str());
 
     ImGui::EndChild();
 
