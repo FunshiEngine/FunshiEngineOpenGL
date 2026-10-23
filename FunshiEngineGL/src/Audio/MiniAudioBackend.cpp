@@ -101,13 +101,20 @@ int MiniAudioBackend::reproducirArchivo(const std::string& ruta, float volumen,
     // condicion de carrera (impl_->inicializado == false).
     if (!impl_->inicializado && !iniciar()) return 0;
 
-    ma_sound sonido;
+    // El ma_sound se construye directo en su slot del mapa: copiar un ma_sound
+    // no es valido (su nodo interno queda enlazado al grafo del engine
+    // apuntando al objeto original; al salir de la funcion ese original muere y
+    // el callback de audio termina leyendo un nodo colgado, SEGV en
+    // ma_engine_node_process_pcm_frames__sound).
+    const int id = impl_->proximoId++;
+    ma_sound& sonido = impl_->activas[id];
     // MA_SOUND_FLAG_DECODE: decodifica el archivo completo a memoria, ideal
     // para efectos cortos: el stream no depende de que el archivo siga
     // abierto en disco y el loop/volumen responden al instante.
     if (ma_sound_init_from_file(&impl_->motor, ruta.c_str(),
                                 MA_SOUND_FLAG_DECODE, nullptr, nullptr,
                                 &sonido) != MA_SUCCESS) {
+        impl_->activas.erase(id);
         std::cerr << "[Audio] MiniAudioBackend::reproducirArchivo: no se pudo "
                      "inicializar sonido desde '" << ruta << "'\n";
         return 0;
@@ -116,13 +123,11 @@ int MiniAudioBackend::reproducirArchivo(const std::string& ruta, float volumen,
     ma_sound_set_looping(&sonido, bucle ? MA_TRUE : MA_FALSE);
     if (ma_sound_start(&sonido) != MA_SUCCESS) {
         ma_sound_uninit(&sonido);
+        impl_->activas.erase(id);
         std::cerr << "[Audio] MiniAudioBackend::reproducirArchivo: ma_sound_start "
                      "fallo para '" << ruta << "'\n";
         return 0;
     }
-
-    const int id = impl_->proximoId++;
-    impl_->activas.emplace(id, sonido);
     return id;
 }
 
@@ -165,7 +170,11 @@ void MiniAudioBackend::despachar(float) {
 int MiniAudioBackend::abrirPista(const std::string& ruta) {
     if (!impl_->inicializado || !impl_->busInicializado || ruta.empty()) return 0;
 
-    ma_sound pista;
+    // Mismo motivo que reproducirArchivo: la pista se inicializa directo en el
+    // mapa (copiar un ma_sound deja el nodo del grafo apuntando al original,
+    // que muere al salir de la funcion).
+    const int id = impl_->proximoIdPista++;
+    ma_sound& pista = impl_->pistas[id];
     // MA_SOUND_FLAG_STREAM: la pista se decodifica sobre la marcha. Los
     // efectos usan MA_SOUND_FLAG_DECODE (todo a memoria) porque son cortos;
     // una pista de musica puede durar minutos y no caben en memoria
@@ -173,10 +182,9 @@ int MiniAudioBackend::abrirPista(const std::string& ruta) {
     if (ma_sound_init_from_file(&impl_->motor, ruta.c_str(),
                                 MA_SOUND_FLAG_STREAM, &impl_->bus, nullptr,
                                 &pista) != MA_SUCCESS) {
+        impl_->pistas.erase(id);
         return 0;
     }
-    const int id = impl_->proximoIdPista++;
-    impl_->pistas.emplace(id, pista);
     return id;
 }
 
