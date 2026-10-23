@@ -43,18 +43,29 @@ DibujoModelo resolverDibujoModelo(GameObject* objeto, AssetManager& assets) {
     Transform* transform = objeto->getGlobalTransform();
     if (!transform) return resultado;
 
-    try {
-        const std::shared_ptr<const Mesh> mesh = assets.getMesh(path);
-        if (!mesh) return resultado;
-        resultado.malla = mesh.get();
-    } catch (const std::exception& e) {
-        // Una ruta que no se puede importar (script asignado por error, archivo
-        // movido) no debe tumbar el editor: se avisa y el objeto no se dibuja.
-        registrarExcepcionDiagnostica("Rendering/DibujoModelo", e,
-                                      NivelDiagnostico::Error);
-        std::cerr << "[Model] no se pudo cargar la malla '" << path
-                  << "': " << e.what() << std::endl;
-        return resultado;
+    // Primero intentar la malla ya cargada en el componente Model (puede
+    // haberse cargado directamente via AssimpMeshLoader si el AssetManager
+    // aun no se habia inyectado en setPath()/cargarMalla()).
+    const Mesh* meshComp = model->getMesh();
+    if (meshComp) {
+        resultado.malla = meshComp;
+    } else {
+        // Si no hay malla en el componente, consultar el AssetManager del
+        // contexto (compartido entre objetos).
+        try {
+            const std::shared_ptr<const Mesh> mesh = assets.getMesh(path);
+            if (!mesh) return resultado;
+            resultado.malla = mesh.get();
+        } catch (const std::exception& e) {
+            // Una ruta que no se puede importar (script asignado por error,
+            // archivo movido) no debe tumbar el editor: se avisa y el objeto
+            // no se dibuja.
+            registrarExcepcionDiagnostica("Rendering/DibujoModelo", e,
+                                          NivelDiagnostico::Error);
+            std::cerr << "[Model] no se pudo cargar la malla '" << path
+                      << "': " << e.what() << std::endl;
+            return resultado;
+        }
     }
 
     buildMatrixFromTransform(transform, resultado.modelo);
