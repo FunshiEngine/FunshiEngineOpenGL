@@ -24,19 +24,14 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
-#include <vector>
 
 #include <imgui.h>
 
 #include "../../Assets/StbImageLoader.h"
 #include "../../Configuracion/EditorConfig.h"
 #include "../../Configuracion/ProjectPaths.h"
-#include "../../Objetos/GameObject.h"
-#include "../../Objetos/Prefab.h"
-#include "../../Objetos/PrefabLibrary.h"
 #include "../../Particulas/EscritorPerfil.h"
 #include "../../Particulas/LectorPerfil.h"
-#include "../../Scenes/EditorController.h"
 #include "../WindowNames.h"
 
 namespace {
@@ -46,13 +41,6 @@ bool esJson(const char* ruta) {
     std::transform(extension.begin(), extension.end(), extension.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return extension == ".json";
-}
-
-bool esPrefab(const char* ruta) {
-    std::string extension = std::filesystem::path(ruta).extension().string();
-    std::transform(extension.begin(), extension.end(), extension.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return extension == ".prefab";
 }
 
 }  // namespace
@@ -75,10 +63,6 @@ void AnimacionesParticulasInterface::contentGUI() {
         }
         if (ImGui::BeginTabItem("Animaciones")) {
             pestanaAnimaciones();
-            ImGui::EndTabItem();
-        }
-        if (ImGui::BeginTabItem("Prefabs")) {
-            pestanaPrefabs();
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -111,195 +95,6 @@ void AnimacionesParticulasInterface::pestanaAnimaciones() {
     ImGui::TextWrapped("La configuracion de las animaciones 2D se hace en el "
                        "inspector del componente Animador2D: grilla de la "
                        "planilla, rango de fotogramas y fps.");
-}
-
-void AnimacionesParticulasInterface::pestanaPrefabs() {
-    if (!editor_) {
-        ImGui::TextDisabled("Abre una escena para trabajar con prefabs.");
-        return;
-    }
-    PrefabLibrary* biblioteca = editor_->getPrefabLibrary();
-    if (!biblioteca) {
-        ImGui::TextDisabled("La escena no tiene biblioteca de prefabs.");
-        return;
-    }
-    if (primeraVezPrefabs_) {
-        biblioteca->recargar();
-        primeraVezPrefabs_ = false;
-    }
-
-    // Instanciar arrastrando un .prefab desde el explorador de contenido. El
-    // payload semantico llega solo para archivos .prefab; se acepta tambien
-    // ARCHIVO_PATH con verificacion de extension por compatibilidad.
-    ImGui::Button("Arrastra aqui un .prefab para instanciarlo");
-    if (ImGui::BeginDragDropTarget()) {
-        const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("PREFAB_ASSET");
-        if (!payload) payload = ImGui::AcceptDragDropPayload("ARCHIVO_PATH");
-        if (payload) {
-            const char* rutaSoltada = static_cast<const char*>(payload->Data);
-            if (rutaSoltada && *rutaSoltada && esPrefab(rutaSoltada))
-                instanciarDesdeRuta(rutaSoltada);
-            else if (rutaSoltada && *rutaSoltada)
-                std::cerr << "[Efectos] el archivo arrastrado no es un prefab: "
-                          << rutaSoltada << std::endl;
-        }
-        ImGui::EndDragDropTarget();
-    }
-
-    // Guardar el objeto seleccionado como prefab: su subarbol completo se
-    // serializa a <raiz de assets>/Prefabs/<nombre>.prefab.
-    ImGui::Separator();
-    if (!editor_->getSelectedObject()) ImGui::BeginDisabled();
-    if (ImGui::Button("Guardar la seleccion como prefab")) {
-        std::snprintf(nombrePrefabBuf_, sizeof(nombrePrefabBuf_), "%s",
-                      editor_->getSelectedObject()->inputName);
-        ImGui::OpenPopup("GuardarPrefabPopup");
-    }
-    if (!editor_->getSelectedObject()) ImGui::EndDisabled();
-    if (ImGui::BeginPopupModal("GuardarPrefabPopup", nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::InputText("Nombre", nombrePrefabBuf_, sizeof(nombrePrefabBuf_));
-        if (ImGui::Button("Guardar", ImVec2(120, 0))) {
-            const std::string nombre = nombrePrefabBuf_;
-            if (!nombre.empty() && ProjectPaths::esNombreValido(nombre)) {
-                biblioteca->crearPrefab(nombre, editor_->getSelectedObject(),
-                                        editor_);
-                biblioteca->recargar();
-                mensaje_ = "Prefab guardado: " + nombre;
-                mensajeError_ = false;
-                ImGui::CloseCurrentPopup();
-            } else {
-                mensaje_ = "Nombre de prefab vacio o con caracteres no permitidos.";
-                mensajeError_ = true;
-            }
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) ImGui::CloseCurrentPopup();
-        ImGui::EndPopup();
-    }
-
-    // Listado con las acciones sobre el prefab elegido.
-    ImGui::Separator();
-    ImGui::Text("Prefabs del proyecto");
-    ImGui::SameLine();
-    if (ImGui::SmallButton("Refrescar")) biblioteca->recargar();
-
-    std::vector<std::string> nombres = biblioteca->listarNombres();
-    std::sort(nombres.begin(), nombres.end());
-    if (nombres.empty()) {
-        ImGui::TextDisabled("No hay prefabs todavia.");
-        prefabSeleccionado_.clear();
-        return;
-    }
-    for (const std::string& nombre : nombres) {
-        if (ImGui::Selectable(nombre.c_str(), prefabSeleccionado_ == nombre))
-            prefabSeleccionado_ = nombre;
-    }
-    dibujarAccionesPrefab();
-}
-
-void AnimacionesParticulasInterface::dibujarAccionesPrefab() {
-    if (prefabSeleccionado_.empty()) return;
-    PrefabLibrary* biblioteca = editor_->getPrefabLibrary();
-    if (!biblioteca) return;
-
-    if (ImGui::Button("Instanciar")) instanciarPrefab(prefabSeleccionado_);
-
-    ImGui::SameLine();
-    ImGui::PushID("RenombrarPrefab");
-    if (ImGui::Button("Renombrar")) {
-        std::snprintf(nombrePrefabBuf_, sizeof(nombrePrefabBuf_), "%s",
-                      prefabSeleccionado_.c_str());
-        ImGui::OpenPopup("RenombrarPrefabPopup");
-    }
-    ImGui::PopID();
-    if (ImGui::BeginPopupModal("RenombrarPrefabPopup", nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::InputText("Nuevo nombre", nombrePrefabBuf_,
-                         sizeof(nombrePrefabBuf_));
-        if (ImGui::Button("Renombrar", ImVec2(120, 0))) {
-            const std::string nuevo = nombrePrefabBuf_;
-            if (!nuevo.empty() && ProjectPaths::esNombreValido(nuevo) &&
-                biblioteca->renombrar(prefabSeleccionado_, nuevo)) {
-                prefabSeleccionado_ = nuevo;
-                mensaje_ = "Prefab renombrado a " + nuevo;
-                mensajeError_ = false;
-                ImGui::CloseCurrentPopup();
-            } else {
-                mensaje_ = "No se pudo renombrar: nombre vacio, invalido o "
-                           "ya en uso.";
-                mensajeError_ = true;
-            }
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) ImGui::CloseCurrentPopup();
-        ImGui::EndPopup();
-    }
-
-    ImGui::SameLine();
-    ImGui::PushID("BorrarPrefab");
-    if (ImGui::Button("Borrar")) ImGui::OpenPopup("BorrarPrefabPopup");
-    ImGui::PopID();
-    if (ImGui::BeginPopupModal("BorrarPrefabPopup", nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
-        // Borrar quita el archivo .prefab del disco: la confirmacion evita
-        // perder el efecto con un clic equivocado.
-        ImGui::Text("Borrar '%s'? Se elimina el archivo del disco.",
-                    prefabSeleccionado_.c_str());
-        if (ImGui::Button("Borrar", ImVec2(120, 0))) {
-            if (biblioteca->borrar(prefabSeleccionado_)) {
-                mensaje_ = "Prefab borrado: " + prefabSeleccionado_;
-                prefabSeleccionado_.clear();
-                mensajeError_ = false;
-            } else {
-                mensaje_ = "No se pudo borrar el prefab.";
-                mensajeError_ = true;
-            }
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) ImGui::CloseCurrentPopup();
-        ImGui::EndPopup();
-    }
-}
-
-void AnimacionesParticulasInterface::instanciarPrefab(
-    const std::string& nombre) {
-    PrefabLibrary* biblioteca = editor_->getPrefabLibrary();
-    if (!biblioteca) return;
-    Prefab* prefab = biblioteca->obtener(nombre);
-    if (!prefab) {
-        mensaje_ = "No se encontro el prefab '" + nombre + "'.";
-        mensajeError_ = true;
-        return;
-    }
-    // La instancia nace en la raiz de la escena; el usuario la mueve donde
-    // quiera (el gizmo y el inspector la dejan a tiro al seleccionarla).
-    GameObject* instancia = prefab->instanciar(editor_, nullptr);
-    if (!instancia) {
-        mensaje_ = "No se pudo instanciar el prefab '" + nombre + "'.";
-        mensajeError_ = true;
-        return;
-    }
-    editor_->selectObject(instancia);
-    mensaje_ = "Prefab instanciado: " + nombre;
-    mensajeError_ = false;
-}
-
-void AnimacionesParticulasInterface::instanciarDesdeRuta(
-    const std::string& ruta) {
-    // Del archivo arrastrado se toma el nombre sin extension: es la clave con
-    // la que la biblioteca carga y cachea los prefabs.
-    const std::string archivo =
-        std::filesystem::path(ruta).filename().string();
-    if (archivo.size() <= 7) return;  // sin ".prefab" no hay nombre
-    const std::string nombre = archivo.substr(0, archivo.size() - 7);
-    if (nombre.empty()) {
-        mensaje_ = "El nombre del prefab arrastrado esta vacio.";
-        mensajeError_ = true;
-        return;
-    }
-    instanciarPrefab(nombre);
 }
 
 void AnimacionesParticulasInterface::dibujarDatosGenerales() {

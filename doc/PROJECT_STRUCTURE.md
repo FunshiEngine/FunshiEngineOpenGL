@@ -345,11 +345,10 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── EfectosGUI/                 ← taller de efectos: la ventana dedicada
         │   │   └── AnimacionesParticulasInterface.h/.cpp ← pestañas Particulas (editor y
         │   │                                  generación de perfiles de efecto a los assets,
-        │   │                                  con carga por arrastre), Animaciones
-        │   │                                  (referencia al inspector de Animador2D) y
-        │   │                                  Prefabs (biblioteca: guardar selección,
-        │   │                                  instanciar por lista o arrastre, renombrar,
-        │   │                                  borrar)
+        │   │                                  con carga por arrastre) y Animaciones
+        │   │                                  (referencia al inspector de Animador2D). Los
+        │   │                                  prefabs no tienen panel: se instancian
+        │   │                                  arrastrando el .prefab sobre SelectedObjects
         │   ├── Tema/
         │   │   └── TemaEditor.h/.cpp      ← aplica el perfil Apariencia al estilo ImGui en vivo
         │   │                                  (tema claro/oscuro, acento RGB en TODOS los roles de ImGui
@@ -417,7 +416,9 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                      estado vive en EstadoExportacion)
         │   └── SceneGUI/
         │       ├── SceneSelectedInterface.h/.cpp  ← jerarquía y selección; usa EditorController
-        │       ├── SceneObjectTree.h/.cpp         ← árbol de objetos (con drag & drop)
+        │       ├── SceneObjectTree.h/.cpp         ← árbol de objetos (drag & drop para reparentar;
+        │       │                                  soltar un .prefab instancia en la raíz y
+        │       │                                  Crear Prefab guarda la selección)
         │       └── SceneMenuBarInterface.h/.cpp   ← controles Depuración/Juego/Pausa/Reset/Terminar
         ├── GUIManager/
         │   └── GUIManager.h/.cpp         ← fábrica de ventanas y su registro (cada
@@ -547,7 +548,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── TagRegistry.h             ← registro dinámico de tags para el Inspector
         │   ├── GameObjectFactory.h/.cpp
         │   ├── Prefab.h/.cpp            ← formato .prefab (magic PREB, arbol recursivo con componentes/hijos)
-        │   ├── PrefabLibrary.h/.cpp     ← cache + escaneo Assets/Prefabs/, crear/obtener/listar/borrar/renombrar
+        │   ├── PrefabLibrary.h/.cpp     ← cache + escaneo (solo lectura) de Prefabs/ en la
+        │   │                              raíz de assets, crear/obtener/listar/borrar/renombrar
         │   ├── ClonadorObjetos.h/.cpp   ← copia profunda por roundtrip de serializacion (scripts + Ctrl+C/V)
         │   ├── SimpleObject.h            ← GameObject sin geometría (Transform/Grid/Light...)
         │   ├── Modelos3D.h/.cpp          ← carga Assimp y datos de la malla (el dibujado
@@ -1091,8 +1093,8 @@ solo como orquestador de arranque y bucle.
   migraciones de estructura antigua y los fallbacks de copia entre
   dispositivos (la migración mueve a `Proyects/` las carpetas sueltas de la
   raíz de datos; las carpetas reservadas del motor — `Proyects`,
-  `Configuraciones`, `Exportaciones`, `Mods`, `logs`, entre otras — quedan
-  excluidas por `ProjectPaths::esReservado`). La política de qué proyecto queda abierto al arrancar (menú
+  `Configuraciones`, `Exportaciones`, `Mods`, `cache` (caché de mods), `logs`,
+  entre otras — quedan excluidas por `ProjectPaths::esReservado`). La política de qué proyecto queda abierto al arrancar (menú
   salvo `--proyecto`, y si es primer arranque) vive aislada y sin
   disco ni UI en `Configuracion/ProyectoInicial.h`. La orquestación de todo el flujo de proyectos sobre esta
   fachada (qué hará al arrancar, entrar, guardar, renombrar, eliminar,
@@ -1545,10 +1547,12 @@ restantes compilan también con `BUILD_ENGINE=OFF`):
   (lista nula o vacía sin resultados, objetos sin `InterfaceComponent` que no
   aportan, una escena con varias interfaces que las devuelve TODAS ordenadas por
   z y las interfaces sin ruta o inactivas omitidas sin cortar el recorrido).
-- `prefab-tests` (82): sistema de Prefabs: round-trip guardar → instanciar
+- `prefab-tests` (103): sistema de Prefabs: round-trip guardar → instanciar
   conservando nombre, tag, jerarquía, componentes y `Transform`, más la caché de
-  `PrefabLibrary` y la validación de archivos corruptos; la API de scripts
-  `listarPrefabs` con storage estable (válido hasta la llamada siguiente).
+  `PrefabLibrary`, la validación de archivos corruptos y el refresco como
+  escaneo de solo lectura (sin carpeta `Prefabs/` no se crea nada); la API de
+  scripts `listarPrefabs` con storage estable (válido hasta la llamada
+  siguiente).
 - `particulas-perfil-tests` (38): el escritor de perfiles de efecto (`EscritorPerfil`)
   y el ciclo completo hasta el emisor: ida y vuelta archivo↔memoria campo por
   campo, rechazo de las mismas invariantes que impone la carga, carga por

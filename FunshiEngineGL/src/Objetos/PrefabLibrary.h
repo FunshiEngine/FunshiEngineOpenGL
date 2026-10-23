@@ -35,7 +35,9 @@ public:
     explicit PrefabLibrary() = default;
     ~PrefabLibrary() = default;
 
-    // Escanea Assets/Prefabs/ y carga todos los .prefab en memoria.
+    // Escanea la carpeta Prefabs/ de la raiz de assets y carga todos los
+    // .prefab en memoria. Es un escaneo de solo lectura: si la carpeta no
+    // existe deja la cache vacia sin crearla.
     void recargar();
 
     // Crea un prefab nuevo a partir de un objeto de la escena.

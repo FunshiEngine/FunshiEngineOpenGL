@@ -53,6 +53,11 @@ public:
     void setIconosGUI(IconosGUI* iconos);
     void draw();
 
+    // Instanciar un prefab al soltar su .prefab desde el explorador de
+    // contenido sobre cualquier fila del arbol: la instancia nace en la raiz
+    // de la escena y queda seleccionada.
+    bool instanciarPrefabDesdeRuta(const char* ruta);
+
 private:
     TreeIG::RowResult drawRow(GameObject* object, bool wasOpen);
     void applyDeferredOperations();

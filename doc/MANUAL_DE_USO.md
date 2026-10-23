@@ -301,31 +301,24 @@ escena con IDs nuevos; el original no se toca.
 
 **Crear un prefab**
 
-1. Selecciona el objeto raiz en la jerarquía.
-2. Abre la ventana **Animaciones y Particulas** (menú **Ventanas**) y entra en
-   la pestaña **Prefabs**.
-3. Pulsa **Guardar la seleccion como prefab**, escribe el nombre y confirma.
-   El archivo aparece en `Prefabs/<nombre>.prefab` dentro de los assets del
-   proyecto y se lista en el explorador de contenido.
+1. Selecciona el objeto raiz en la jerarquía (**SelectedObjects**).
+2. Clic derecho sobre el objeto y elige **Crear Prefab**.
+3. Escribe el nombre y confirma. El archivo aparece en
+   `Prefabs/<nombre>.prefab` dentro de los assets del proyecto y se lista en
+   el explorador de contenido.
 
 **Instanciar un prefab**
 
-De cualquiera de las dos formas:
-
-- En la pestaña **Prefabs**, elige el prefab en la lista y pulsa
-  **Instanciar**.
-- Arrastra el `.prefab` desde el explorador de contenido hasta la zona de
-  arrastre de la misma pestaña.
-
-La instancia entra en la raíz de la escena y queda seleccionada para moverla
-con el gizmo. Conserva **nombre, tag, Transform, jerarquía completa y todos
-los componentes** del prefab original.
+Arrastra el `.prefab` desde el explorador de contenido y suéltalo sobre
+cualquier fila del panel **SelectedObjects**: la instancia entra en la raíz de
+la escena y queda seleccionada para moverla con el gizmo. Conserva **nombre, tag, Transform,
+jerarquía completa y todos los componentes** del prefab original.
 
 **Biblioteca de prefabs (`PrefabLibrary`)**
 
-- Escanea la carpeta `Prefabs/` de los assets del proyecto al abrir la
-  pestaña, después de cada operación (guardar, renombrar, borrar) y con el
-  botón **Refrescar**.
+- Al soltar un `.prefab`, la biblioteca lo carga del disco en ese momento (no
+  hace falta refrescar nada a mano): el explorador de contenido ya muestra lo
+  que hay en `Prefabs/`.
 - Mantiene un **caché en memoria** (`std::unordered_map<string, Prefab>`) para
   que instanciar sea instantáneo tras la primera vez.
 - **Validación automática** antes de cachear: rechaza archivos con magic number
@@ -356,11 +349,11 @@ los componentes** del prefab original.
 **Buenas prácticas**
 
 - Usa nombres descriptivos: `Enemigo_Base`, `Arbol_Pino`, `Item_Medkit`.
-- **Renombrar** y **Borrar** están junto a la lista del prefab elegido; borrar
-  pide confirmación porque elimina el archivo del disco.
+- Para renombrar o borrar un prefab, hazlo desde el explorador de contenido
+  (como cualquier otro archivo): la biblioteca valida el archivo antes de
+  cachearlo y descarta los corruptos.
 - Si mueves o renombras la carpeta `Prefabs/` desde el explorador, los
-  archivos `.prefab` se mueven con ella; el botón **Refrescar** actualiza la
-  lista.
+  archivos `.prefab` se mueven con ella.
 - Los IDs se regeneran al instanciar: no colisionan con el original ni entre
   instancias.
 
@@ -627,9 +620,8 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 **Instanciar prefab por drag & drop:**
 1. En el explorador, localiza un archivo `.prefab` en la carpeta `Prefabs/`
    de los assets del proyecto.
-2. Arrástralo hasta la pestaña **Prefabs** de la ventana **Animaciones y
-   Particulas** (menú **Ventanas**): la zona "Arrastra aqui un .prefab para
-   instanciarlo" lo recibe.
+2. Arrástralo y suéltalo sobre cualquier objeto del panel **SelectedObjects**
+   (la jerarquía de la escena).
 3. La instancia se crea en la raíz de la escena y se selecciona
    automáticamente.
 
@@ -2029,10 +2021,10 @@ genera el archivo que después se arrastra sobre un emisor.
   existente.
 - Arrastrar un `.json` de perfil sobre la zona de carga de la pestaña lo trae
   de vuelta al editor para retocarlo y regenerarlo.
-- **Pestaña Prefabs**: la biblioteca de prefabs del proyecto (guardar la
-  selección, instanciar por lista o por arrastre, renombrar y borrar). El
-  flujo completo está en la sección de prefabs (capítulo 4, "Prefabs:
-  reutilizar jerarquías completas").
+- Los **prefabs** se manejan desde **SelectedObjects**: se instancian
+  arrastrando su `.prefab` sobre el panel y se guardan con clic derecho sobre
+  el objeto (**Crear Prefab**). El flujo completo está en el capítulo 4,
+  "Prefabs: reutilizar jerarquías completas".
 - **Pestaña Animaciones**: referencia a dónde se configura una animación 2D
   (el inspector del componente `Animador2D`); el taller propio de animaciones
   llegará con un formato de asset para ellas.

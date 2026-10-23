@@ -35,10 +35,11 @@ std::string PrefabLibrary::directorioPrefabs() const {
 void PrefabLibrary::recargar() {
     cache_.clear();
     fs::path dir = directorioPrefabs();
-    if (!fs::exists(dir)) {
-        fs::create_directories(dir);
-        return;
-    }
+    // Escaneo de solo lectura: si la carpeta no existe no hay nada que
+    // listar, pero tampoco se crea. Refrescar no debe tirar carpetas (y con
+    // la raiz de assets sin fijar, create_directories creaba una "Prefabs"
+    // relativa en el directorio corriente del proceso).
+    if (!fs::exists(dir)) return;
     for (const auto& entry : fs::directory_iterator(dir)) {
         if (entry.path().extension() == ".prefab") {
             std::string nombre = entry.path().stem().string();
