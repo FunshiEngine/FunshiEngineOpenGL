@@ -52,7 +52,7 @@
 class SceneRegistry;
 class EditorController;
 class EventBus;
-class Modelos3D;
+class GameObject;
 class AudioEngine;
 class IPreviewMaterial;
 
@@ -69,7 +69,7 @@ private:
 	std::unique_ptr<MenuGUI> menuGUI;
 	// Objeto de inspeccion por defecto del inspector: dueno de la instancia
 	// que se le pasa a SettingsObjectInterface en el ctor (evita leak).
-	std::unique_ptr<Modelos3D> modeloSettings;
+	std::unique_ptr<GameObject> modeloSettings;
 	std::unique_ptr<SettingsObjectInterface> settingGUI;
 	std::unique_ptr<SceneSelectedInterface> selecteableGUI;
 	std::unique_ptr<SceneMenuBarInterface> menuBarGUI;

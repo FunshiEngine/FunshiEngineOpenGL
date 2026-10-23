@@ -19,7 +19,8 @@
 #include "GUIManager.h"
 #include "../Configuracion/EditorConfig.h"
 #include "../Configuracion/ProjectPaths.h"
-#include "../Objetos/Modelos3D.h"
+#include "../Objetos/GameObject.h"
+#include "../Objetos/Componentes/Model.h"
 #include "../Scenes/EditorController.h"
 #include "../Scenes/SceneRegistry.h"
 #include "../Mods/RegistroPanelesMods.h"
@@ -29,7 +30,7 @@
 
 GUIManager::GUIManager(GLFWwindow* window)
     : menuGUI(new MenuGUI(window)),
-      modeloSettings(std::make_unique<Modelos3D>()),
+      modeloSettings(std::make_unique<GameObject>()),
       settingGUI(new SettingsObjectInterface(modeloSettings.get(), false)),
       selecteableGUI(new SceneSelectedInterface(true)),
       menuBarGUI(std::make_unique<SceneMenuBarInterface>(true)),

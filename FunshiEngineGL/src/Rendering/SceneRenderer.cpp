@@ -62,7 +62,6 @@
 #include "../Objetos/Componentes/Sombras/Sombras.h"
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
 #include "../Objetos/Componentes/Material.h"
 #include "../Assets/AssetManager.h"
 
@@ -204,7 +203,7 @@ void SceneRenderer::render(const FrameContext& ctx, GameObject* activeCameraObje
                 GameObject* o = pos->getElement();
                 ++diagObjs;
                 if (o->getComponent<Light>()) ++diagLuces;
-                auto* m = dynamic_cast<Modelos3D*>(o);
+                auto* m = o->getComponent<Model>();
                 if (m && m->getMesh() && !m->getMesh()->isEmpty()) {
                     ++diagConMalla;
                     if (m->getMesh()->hasNormals()) ++diagConMallaYNormales;
@@ -827,28 +826,15 @@ void SceneRenderer::dibujarGeometriaParaSombra(const FrameContext& ctx,
         GameObject* objeto = pos->getElement();
         if (static_cast<Transform*>(
                 objeto->getComponentByName("Transform"))) {
-            auto* modelo = dynamic_cast<Modelos3D*>(objeto);
-            if (modelo) {
-                // El componente Model (path) manda sobre el path actual: se
-                // sincroniza igual que en la pasada normal, para que la malla
-                // que se sombrea sea la que se ve.
-                if (Model* model = objeto->getComponent<Model>();
-                    model && model->getPath() != modelo->getPath())
-                    modelo->setPath(model->getPath());
-
-                const Mesh* malla = modelo->getMesh();
-                Transform* transform = modelo->getGlobalTransform();
+            auto* modeloComp = objeto->getComponent<Model>();
+            if (modeloComp) {
+                const Mesh* malla = modeloComp->getMesh();
+                Transform* transform = objeto->getGlobalTransform();
                 if (malla && !malla->isEmpty() && transform) {
                     float matriz[16];
                     buildMatrixFromTransform(transform, matriz);
                     meshRenderer_->intentarRenderSombra(malla, matriz, matrizLuz);
                 }
-            } else if (objeto->getComponent<Model>() && ctx.assetManager) {
-                const DibujoModelo dibujo =
-                    resolverDibujoModelo(objeto, *ctx.assetManager);
-                if (dibujo.valido)
-                    meshRenderer_->intentarRenderSombra(dibujo.malla, dibujo.modelo,
-                                                        matrizLuz);
             }
         }
         pos = (pos != ctx.gameObjects->last()) ? ctx.gameObjects->next(pos)
@@ -881,25 +867,16 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
         // El dibujado va siempre por el pipeline moderno (MeshRenderer: VBO/VAO
         // + shader). Si el objeto no tiene malla con normales, simplemente no
         // se dibuja (MeshRenderer lo avisa una vez por malla).
-        auto* modelo = dynamic_cast<Modelos3D*>(object);
-        if (modelo && meshRenderer_) {
-            meshRenderer_->intentarRender(modelo, view, projection,
-                                          ctx.deltaTime);
-        } else {
-            // Tambien renderizar GameObjects con componente Model (no Modelos3D)
-            if (object->getComponent<Model>() && meshRenderer_ && ctx.assetManager) {
-                // El componente Model no es un Modelos3D: se resuelve la malla
-                // y la matriz mundo del propio objeto (jerarquia incluida) y se
-                // dibuja con la sobrecarga que recibe ambas ya calculadas. Antes
-                // se fabricaba un Modelos3D temporal, que duplicaba el Transform
-                // y dejaba el modelo pegado al origen.
-                const DibujoModelo dibujo =
-                    resolverDibujoModelo(object, *ctx.assetManager);
-                if (dibujo.valido) {
-                    meshRenderer_->intentarRenderMesh(
-                        object, dibujo.malla, dibujo.modelo, view, projection,
-                        ctx.deltaTime);
-                }
+        // Todos los objetos con malla usan el componente Model; la malla se
+        // resuelve via resolverDibujoModelo (que usa getGlobalTransform para
+        // respetar la jerarquia padre/hijo).
+        if (object->getComponent<Model>() && meshRenderer_ && ctx.assetManager) {
+            const DibujoModelo dibujo =
+                resolverDibujoModelo(object, *ctx.assetManager);
+            if (dibujo.valido) {
+                meshRenderer_->intentarRenderMesh(
+                    object, dibujo.malla, dibujo.modelo, view, projection,
+                    ctx.deltaTime);
             }
         }
     }

@@ -25,7 +25,7 @@
 #include <typeinfo>
 
 #include "GameObject.h"
-#include "Modelos3D.h"
+#include "Componentes/Model.h"
 #include "SimpleObject.h"
 #include "Componentes/ComponentFactory.h"
 #include "Componentes/Transform.h"
@@ -80,11 +80,7 @@ bool copiarComponente(GameObject* destino, Component* origen) {
 void clonarNodo(GameObject* original, GameObject* padre,
                 std::vector<std::string>& tomados,
                 std::vector<std::pair<std::unique_ptr<GameObject>, GameObject*>>& salida) {
-    std::unique_ptr<GameObject> copia;
-    if (dynamic_cast<Modelos3D*>(original))
-        copia = std::make_unique<Modelos3D>();
-    else
-        copia = std::make_unique<SimpleObject>();
+    std::unique_ptr<GameObject> copia = std::make_unique<GameObject>();
     copia->setTag(original->getTag());
     copia->setState(original->getState());
     const std::string unico =

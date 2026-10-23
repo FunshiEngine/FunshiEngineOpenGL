@@ -33,7 +33,6 @@
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/Componentes/EmisorParticulas.h"
 #include "../Objetos/Componentes/Grid.h"
-#include "../Objetos/Modelos3D.h"
 #include "../Objetos/SimpleObject.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../Objetos/Componentes/Colliders/Collider.h"

@@ -40,7 +40,7 @@
 #include "EngineTime.h"
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-#include "../src/Objetos/Modelos3D.h"
+#include "../src/Objetos/GameObject.h"
 #include "../src/Objetos/Componentes/CameraComponent.h"
 #include "../src/Proyectos/GestorDeProyectos.h"
 #include "../src/States/ApplicationStateMachine.h"

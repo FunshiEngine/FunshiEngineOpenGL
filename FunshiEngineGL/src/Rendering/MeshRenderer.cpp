@@ -35,7 +35,6 @@
 #include "../Objetos/Componentes/Material.h"
 #include "../Objetos/Componentes/Model.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
 #include "MeshGPU.h"
 #include "Shaders/ShaderProgram.h"
 #include "Shaders/GestorShaders.h"
@@ -348,28 +347,6 @@ void MeshRenderer::aplicarTexturas(const IMaterial* material, const Mesh* mesh) 
                         : 0);
 }
 
-bool MeshRenderer::intentarRender(Modelos3D* objeto, const float view[16],
-                                  const float projection[16],
-                                  float deltaTime) {
-    if (!objeto) return false;
-
-    // El componente Model (path) manda sobre el path actual. Se toma el
-    // puntero a la malla DESPUES de este paso, porque setPath() puede
-    // reemplazar la malla compartida (y el AssetManager eviccionar la
-    // anterior).
-    if (Model* model = objeto->getComponent<Model>();
-        model && model->getPath() != objeto->getPath())
-        objeto->setPath(model->getPath());
-
-    Transform* transform = objeto->getGlobalTransform();
-    if (!transform) return false;
-
-    float modelo[16];
-    buildMatrixFromTransform(transform, modelo);
-    return intentarRenderMesh(objeto, objeto->getMesh(), modelo, view,
-                              projection, deltaTime);
-}
-
 bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
                                       const float modelo[16],
                                       const float view[16],
@@ -426,6 +403,9 @@ bool MeshRenderer::renderMesh(GameObject* contexto, const Mesh* mesh,
     }
 
     const glm::mat4 model = glm::make_mat4(modelo);
+    const glm::mat4 viewMat = glm::make_mat4(view);
+    const glm::mat4 proj = glm::make_mat4(projection);
+    const glm::mat4 modelView = viewMat * model;
 
     // Deja la matriz normal como transpose(inverse(model)) pero identidad si la
     // inversa degenero (fracciones no finitas); evita NaN en el shader.
@@ -435,11 +415,12 @@ bool MeshRenderer::renderMesh(GameObject* contexto, const Mesh* mesh,
 
     shader_->use();
     shader_->setMat4("uModel", model);
-    shader_->setMat4("uView", glm::make_mat4(view));
-    shader_->setMat4("uProjection", glm::make_mat4(projection));
+    shader_->setMat4("uView", viewMat);
+    shader_->setMat4("uProjection", proj);
+    shader_->setMat4("uModelView", modelView);
     shader_->setMat3("uNormalMatrix", normalMatrix);
 
-    const glm::mat4 invView = glm::inverse(glm::make_mat4(view));
+    const glm::mat4 invView = glm::inverse(viewMat);
     shader_->setVec3("uCameraPosition",
                      glm::vec3(invView[3][0], invView[3][1], invView[3][2]));
     shader_->setFloat("uDistanceFadeStart", horizonteInicio_);
@@ -539,12 +520,15 @@ bool MeshRenderer::intentarRenderSombra(const Mesh* mesh, const float modelo[16]
     const glm::mat4 model = glm::make_mat4(modelo);
     if (!matrizFinita(glm::mat3(model))) return false;
 
+    const glm::mat4 modelLight = matrizLuz * model;
+
     const MeshGPU* gpu = obtenerGpu(mesh);
     if (!gpu) return false;
 
     shaderSombra_->use();
     shaderSombra_->setMat4("uModel", model);
     shaderSombra_->setMat4("uLightMatrix", matrizLuz);
+    shaderSombra_->setMat4("uModelLight", modelLight);
 
     // El pase de profundidad no escribe color: el blend se apaga.
     if (!backend_) return false;

@@ -41,13 +41,11 @@ class TextureGL;
 struct Mesh;
 struct Image;
 class TextureManager;
-class Modelos3D;
 class GameObject;
 class IMaterial;
 class IResolutorMateriales;
 
-// Renderer de objetos con el pipeline moderno (VBO/VAO + shader). Sustituyo al
-// dibujado de Modelos3D que vivia en glBegin/glEnd, que ya no existe. Replica
+// Renderer de objetos con el pipeline moderno (VBO/VAO + shader). Replica
 // la iluminacion que antes daba el estado fijo (LightSystem + Material) con
 // uniforms, para que el pasaje no sea una regresion visual; la grilla y los
 // gizmos van por LineRenderer, su propio batch en GPU.
@@ -99,18 +97,11 @@ public:
         horizonteFin_ = fin;
     }
 
-    // Dibuja el modelo con el pipeline moderno (update + material + malla).
-    // Devuelve false si no se drew: shader/VAO no disponible, o malla vacía o
-    // sin normales por vertice (en ese caso avisa una vez por malla). No hay
-    // pipeline de respaldo:false significa "esta pasada no dibujo nada".
-    bool intentarRender(Modelos3D* objeto, const float view[16],
-                        const float projection[16], float deltaTime);
-
     // Dibuja una malla ya resuelta con su matriz mundo ya calculada. Es el
-    // camino que debe usar un GameObject con componente Model (no es un
-    // Modelos3D): el contexto solo aporta Material/Color para la iluminacion, y
-    // la transformacion viene del Transform global del objeto, de modo que la
-    // jerarquia padre/hijo se respeta sin fabricar un objeto temporal.
+    // camino que usa un GameObject con componente Model: el contexto solo
+    // aporta Material/Color para la iluminacion, y la transformacion viene
+    // del Transform global del objeto, de modo que la jerarquia padre/hijo se
+    // respeta sin fabricar un objeto temporal.
     bool intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
                             const float modelo[16], const float view[16],
                             const float projection[16], float deltaTime);

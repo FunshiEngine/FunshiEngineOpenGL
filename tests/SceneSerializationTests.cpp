@@ -74,7 +74,7 @@
 #include "../FunshiEngineGL/src/Herramientas/PathUtils.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
-#include "../FunshiEngineGL/src/Objetos/Modelos3D.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
 #include "../FunshiEngineGL/src/Objetos/TagRegistry.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Color.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/AudioSource.h"
@@ -744,36 +744,38 @@ void diagnosticosCargaMalla() {
     auto loader = std::make_unique<LoaderDiagnostico>();
     LoaderDiagnostico* loaderRaw = loader.get();
     AssetManager assets(std::move(loader));
-    Modelos3D modelo;
-    modelo.setAssetManager(&assets);
-    modelo.setRegistroDiagnosticos(&diagnosticos);
+    GameObject modeloObj;
+    Model* modelo = new Model();
+    modeloObj.addComponent(modelo);
+    modelo->setAssetManager(&assets);
+    modelo->setRegistroDiagnosticos(&diagnosticos);
 
     loaderRaw->falla = false;
-    modelo.setPath("Assets/valido.obj");
-    CHECK(modelo.getMesh() != nullptr && diagnosticos.ultimos().empty(),
+    modelo->setPath("Assets/valido.obj");
+    CHECK(modelo->getMesh() != nullptr && diagnosticos.ultimos().empty(),
           "cargar una malla válida no publica un diagnóstico");
     CHECK(loaderRaw->cargas == 1, "el loader recibe la carga válida");
 
     loaderRaw->falla = true;
-    modelo.setPath("Assets/modelo.obj");
-    CHECK(modelo.getMesh() == nullptr && assets.hasFailedMesh("Assets/modelo.obj"),
+    modelo->setPath("Assets/modelo.obj");
+    CHECK(modelo->getMesh() == nullptr && assets.hasFailedMesh("Assets/modelo.obj"),
           "el fallo del loader deja el modelo vacío y cacheado");
     CHECK(loaderRaw->cargas == 2, "el loader intenta cargar el modelo fallido");
 
-    modelo.setPath("Assets/modelo.obj");
+    modelo->setPath("Assets/modelo.obj");
     CHECK(loaderRaw->cargas == 2,
           "la repetición del fallo usa el error cacheado");
     auto eventos = diagnosticos.ultimos(10);
     CHECK(eventos.size() == 1 &&
               eventos[0].tipoExcepcion == "AssetLoadException" &&
-              eventos[0].modulo == "Objetos/Modelos3D" &&
+              eventos[0].modulo == "Objetos/Model" &&
               eventos[0].nivel == NivelDiagnostico::Error,
           "RuntimeException de assets llega una sola vez al registro común");
 
     loaderRaw->falla = false;
     assets.clearFailedMeshes();
-    modelo.setPath("Assets/modelo.obj");
-    CHECK(modelo.getMesh() != nullptr && loaderRaw->cargas == 3,
+    modelo->setPath("Assets/modelo.obj");
+    CHECK(modelo->getMesh() != nullptr && loaderRaw->cargas == 3,
           "limpiar el fallo permite que el modelo se recupere");
     CHECK(diagnosticos.ultimos(10).size() == 1,
           "la recuperación exitosa no duplica el diagnóstico histórico");

@@ -28,7 +28,7 @@
 #include "SceneRegistry.h"
 #include "../Diagnosticos/RegistroDiagnosticos.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
+#include "../Objetos/Componentes/Model.h"
 #include "../Objetos/ObjetoEscena.h"
 
 
@@ -466,19 +466,22 @@ void SceneSerializer::loadPreOrder(
          *
          * La raiz (sin padre) es el GameObject "Scene": un contenedor sin
          * geometria (ObjetoEscena) que agrupa a todas las entidades. El resto
-         * de los nodos se cargan como Modelos3D con la fuente de mallas
-         * inyectada ANTES de loadEntity(): la deserializacion lee el path del
-         * modelo y carga la geometria; con el manager ya asignado se comparte
-         * el asset cacheado.
+         * de los nodos se cargan como GameObject con un componente Model, a
+         * quien se le inyecta el AssetManager antes de loadEntity(): la
+         * deserializacion lee el path del modelo y el componente Model carga
+         * la geometria; con el manager ya asignado se comparte el asset
+         * cacheado.
          */
         std::unique_ptr<GameObject> object;
         if (!parent) {
             object = std::make_unique<ObjetoEscena>();
         } else {
-            auto modelo = std::make_unique<Modelos3D>();
-            modelo->setAssetManager(assets);
-            modelo->setRegistroDiagnosticos(diagnosticos);
-            object = std::move(modelo);
+            auto objeto = std::make_unique<GameObject>();
+            auto* model = new Model();
+            model->setAssetManager(assets);
+            model->setRegistroDiagnosticos(diagnosticos);
+            objeto->addComponent(std::unique_ptr<Component>(model));
+            object = std::move(objeto);
         }
 
         /*

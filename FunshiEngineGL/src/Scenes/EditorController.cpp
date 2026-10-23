@@ -23,7 +23,7 @@
 #include "../Objetos/ClonadorObjetos.h"
 #include "../Objetos/GameObject.h"
 #include "../Objetos/NombreUnico.h"
-#include "../Objetos/Modelos3D.h"
+#include "../Objetos/Componentes/Model.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../Objetos/PrefabLibrary.h"
 #include "../Objetos/Prefab.h"
@@ -65,11 +65,12 @@ bool EditorController::proyectoEs2D() const {
 
 GameObject* EditorController::createGameObject(std::unique_ptr<GameObject> object,
                                                GameObject* parent) {
-    // Propagar el AssetManager a los modelos creados desde la GUI: el objeto
-    // recien construido todavia es nuestro (antes del std::move) y es el unico
-    // momento en que podemos inyectarle la fuente de mallas compartidas.
-    if (Modelos3D* modelo = dynamic_cast<Modelos3D*>(object.get()))
-        modelo->setAssetManager(assets);
+    // Propagar el AssetManager al componente Model del objeto creado desde la
+    // GUI: el objeto recien construido todavia es nuestro (antes del
+    // std::move) y es el unico momento en que podemos inyectarle la fuente de
+    // mallas compartidas.
+    if (Model* model = object->getComponent<Model>())
+        model->setAssetManager(assets);
     GameObject* created = scene ? scene->createObject(std::move(object), parent) : nullptr;
     if (created && events)
         events->publish({SceneEventType::ObjectCreated, created, parent});

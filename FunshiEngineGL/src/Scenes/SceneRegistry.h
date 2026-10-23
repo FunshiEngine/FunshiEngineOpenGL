@@ -26,7 +26,6 @@
 #include "../Estructuras/Trees/ArbolesEnlazados/ArbolEnlazado.h"
 
 class GameObject;
-class Modelos3D;
 template <typename E> class Position;
 
 /**

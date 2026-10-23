@@ -43,6 +43,7 @@ layout(location = 4) in vec3 aBitangent;
 uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProjection;
+uniform mat4 uModelView;
 uniform mat3 uNormalMatrix;
 
 out vec3 vNormalWorld;
@@ -67,7 +68,7 @@ void main() {
     if (dot(cross(n, t), uNormalMatrix * aBitangent) < 0.0) b = -b;
     vTbn = mat3(t, b, n);
 
-    gl_Position = uProjection * uView * world;
+    gl_Position = uProjection * uModelView * vec4(aPosition, 1.0);
 }
 )";
 
@@ -576,20 +577,21 @@ void main() {
 
 // Pases de profundidad del mapa de sombras.
 //
-// El vertex shader solo proyecta la geometria con la matriz de la luz: la
-// posicion del vertice en el mapa es lo que se guarda en la textura de
-// profundidad. No hay colores ni materiales, asi que solo usa el atributo de
-// posicion (el resto del VAO queda sin usar).
-inline const char* const kDepthVertexShader = R"(#version 330 core
-layout(location = 0) in vec3 aPosition;
+ // El vertex shader solo proyecta la geometria con la matriz de la luz: la
+ // posicion del vertice en el mapa es lo que se guarda en la textura de
+ // profundidad. No hay colores ni materiales, asi que solo usa el atributo de
+ // posicion (el resto del VAO queda sin usar).
+ inline const char* const kDepthVertexShader = R"(#version 330 core
+ layout(location = 0) in vec3 aPosition;
 
-uniform mat4 uModel;
-uniform mat4 uLightMatrix;
+ uniform mat4 uModel;
+ uniform mat4 uLightMatrix;
+ uniform mat4 uModelLight;
 
-void main() {
-    gl_Position = uLightMatrix * uModel * vec4(aPosition, 1.0);
-}
-)";
+ void main() {
+     gl_Position = uModelLight * vec4(aPosition, 1.0);
+ }
+ )";
 
 // El fragment shader no escribe nada util: el mapa es solo de profundidad y el
 // destino de dibujo no tiene buffer de color (glDrawBuffer(GL_NONE)). Se

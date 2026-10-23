@@ -56,9 +56,19 @@ struct Mesh {
 
     bool isEmpty() const { return vertices.empty(); }
 
-    // Las normales valen solo si hay una por vertice.
+    // Las normales valen solo si hay una por vertice (compatibilidad con tests:
+    // computeNormals puede devolver true aunque las normales queden en cero).
     bool hasNormals() const {
         return !normals.empty() && normals.size() == vertices.size();
+    }
+
+    // Normales validas: hay una por vertice Y al menos una es no-nula.
+    bool hasValidNormals() const {
+        if (!hasNormals()) return false;
+        for (const vec3& n : normals) {
+            if (n.magnitude() > 1e-6f) return true;
+        }
+        return false;
     }
 
     // El marco tangente vale solo si hay tangente Y bitangente por vertice.

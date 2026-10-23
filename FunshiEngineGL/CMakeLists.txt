@@ -775,6 +775,45 @@ set_target_properties(malla-regiones-tests PROPERTIES
 )
 add_test(NAME malla-regiones-tests COMMAND malla-regiones-tests)
 
+# --- Pruebas headless del dibujado de mallas por regiones --------------------
+# Con un backend falso (sin GPU) se comprueba que MeshRenderer invoca
+# drawMesh(handle, firstIndex, indexCount) una vez por region, con el rango
+# de indices exacto de cada una, y que una malla sin regiones se dibuja entera.
+add_executable(render-regiones-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/RenderRegionesTests.cpp
+)
+target_include_directories(render-regiones-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+    ${CMAKE_SOURCE_DIR}/External/imgui
+)
+target_link_libraries(render-regiones-tests PRIVATE funshi_engine)
+set_target_properties(render-regiones-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME render-regiones-tests COMMAND render-regiones-tests)
+
+
+# --- Pruebas headless del camino completo del componente Model (drag&drop) ---
+# AssetManager -> resolverDibujoModelo -> intentarRenderMesh -> regiones.
+add_executable(modelo-component-render-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ModeloModelComponentTests.cpp
+)
+target_include_directories(modelo-component-render-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+    ${CMAKE_SOURCE_DIR}/External/imgui
+)
+target_link_libraries(modelo-component-render-tests PRIVATE funshi_engine)
+set_target_properties(modelo-component-render-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME modelo-component-render-tests COMMAND modelo-component-render-tests)
+
 # --- Pruebas headless de los materiales por region ---------------------------
 # El componente Materiales guarda una region por parte de la malla con su
 # material, y el resolvedor decide que material se dibuja en cada region.
@@ -1454,7 +1493,7 @@ add_executable(model-serialization-tests
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ModelSerializationTests.cpp
 )
-target_link_libraries(model-serialization-tests PRIVATE funshi_diagnostics_core)
+target_link_libraries(model-serialization-tests PRIVATE funshi_engine)
 target_include_directories(model-serialization-tests PRIVATE
     ${SRC_DIR}
     ${CMAKE_SOURCE_DIR}/External
