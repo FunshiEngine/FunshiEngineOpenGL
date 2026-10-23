@@ -33,11 +33,16 @@ class NullAudioBackend : public IAudioBackend, public IMusicaBackend {
 public:
     bool iniciar() override { return false; }
     void cerrar() override {}
-    int reproducirArchivo(const std::string&, float, bool) override { return 0; }
+    int reproducirArchivo(const std::string&, float, bool,
+                          const float* = nullptr) override {
+        return 0;
+    }
     void detener(int) override {}
     void detenerTodo() override {}
     void setVolumenMaestro(float) override {}
     void despachar(float) override {}
+    void setPosicionSonido(int, float, float, float) override {}
+    void setListenerPosition(float, float, float) override {}
 
     IMusicaBackend* backendMusica() override { return this; }
 

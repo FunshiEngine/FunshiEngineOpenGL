@@ -45,6 +45,8 @@ enum class TipoComando {
     Detener,      // handle
     DetenerTodo,
     Volumen,      // volumen maestro
+    PosicionSonido, // reposiciona un sonido activo (handle, x, y, z)
+    PosicionListener, // reposiciona el listener (camara) para el audio 3D
     Cierre,       // apaga el hilo
     // --- musica (se ejecutan en el hilo de audio, sobre el reproductor) ---
     EstablecerMusicas, // lista de rutas (en orden) y si se repite
@@ -64,6 +66,8 @@ struct Comando {
     float duracionFundido = 0.0f;
     float deltaTime = 0.0f;
     bool bucle = false;
+    bool tienePosicion = false;
+    float posicion[3] = {0.f, 0.f, 0.f};
     bool silenciado = false;
     bool repetirLista = true;
 };
@@ -114,9 +118,20 @@ void ejecutarComando(AudioEngine::Impl* imp, const Comando& c) {
             // (que puede fallar con 0 si el archivo no existe o no hay driver).
             if (c.handle >= 0) {
                 const int id = imp->backend->reproducirArchivo(
-                    c.ruta, c.volumen, c.bucle);
+                    c.ruta, c.volumen, c.bucle,
+                    c.tienePosicion ? c.posicion : nullptr);
                 imp->handleAId[c.handle] = id;
             }
+            break;
+        case TipoComando::PosicionSonido:
+            if (c.handle >= 0)
+                imp->backend->setPosicionSonido(c.handle,
+                                                c.posicion[0], c.posicion[1],
+                                                c.posicion[2]);
+            break;
+        case TipoComando::PosicionListener:
+            imp->backend->setListenerPosition(c.posicion[0], c.posicion[1],
+                                              c.posicion[2]);
             break;
         case TipoComando::Detener:
             if (c.handle >= 0) {
@@ -225,7 +240,8 @@ AudioEngine::~AudioEngine() {
     if (impl_->hilo.joinable()) impl_->hilo.join();
 }
 
-int AudioEngine::reproducir(const std::string& ruta, float volumen, bool bucle) {
+int AudioEngine::reproducir(const std::string& ruta, float volumen, bool bucle,
+                            const float* posicion) {
     if (ruta.empty()) return -1; // sin archivo asignado
     // Ruta relativa: resolver contra la raiz de assets del proyecto (si hay)
     // para que el check de existencia funcione desde cualquier cwd.
@@ -246,6 +262,12 @@ int AudioEngine::reproducir(const std::string& ruta, float volumen, bool bucle) 
     c.volumen = volumen;
     c.bucle = bucle;
     c.ruta = rutaResuelta;
+    if (posicion) {
+        c.tienePosicion = true;
+        c.posicion[0] = posicion[0];
+        c.posicion[1] = posicion[1];
+        c.posicion[2] = posicion[2];
+    }
     int handle = -1;
     {
         std::lock_guard<std::mutex> lock(impl_->mtx);
@@ -282,6 +304,33 @@ void AudioEngine::setVolumenMaestro(float volumen) {
     Comando c;
     c.tipo = TipoComando::Volumen;
     c.volumen = volumen;
+    {
+        std::lock_guard<std::mutex> lock(impl_->mtx);
+        impl_->pila.push(std::move(c));
+    }
+    impl_->cv.notify_one();
+}
+
+void AudioEngine::setPosicionSonido(int handle, float x, float y, float z) {
+    Comando c;
+    c.tipo = TipoComando::PosicionSonido;
+    c.handle = handle;
+    c.posicion[0] = x;
+    c.posicion[1] = y;
+    c.posicion[2] = z;
+    {
+        std::lock_guard<std::mutex> lock(impl_->mtx);
+        impl_->pila.push(std::move(c));
+    }
+    impl_->cv.notify_one();
+}
+
+void AudioEngine::setListenerPosition(float x, float y, float z) {
+    Comando c;
+    c.tipo = TipoComando::PosicionListener;
+    c.posicion[0] = x;
+    c.posicion[1] = y;
+    c.posicion[2] = z;
     {
         std::lock_guard<std::mutex> lock(impl_->mtx);
         impl_->pila.push(std::move(c));

@@ -24,6 +24,7 @@
 #include <string>
 #include <utility>
 
+class GameObject;
 class AudioEngine;
 
 // Fuente de sonido como Component: se adjunta a un GameObject y reproduce un
@@ -33,12 +34,17 @@ class AudioEngine;
 // inyecta la escena (solo en modo play). La reproduccion real corre en el
 // hilo de audio del motor; aqui solo se guarda la ruta, el volumen, el loop y
 // el estado del playback.
+//
+// Por defecto el sonido es global (2D): suena igual sin importar donde este el
+// objeto. Con `espacial = true` el sonido es local (3D): se sitúa en la
+// posicion del objeto y se escucha segun la distancia a la camara activa.
 class AudioSource : public Component {
 private:
     std::string rutaClip;           // ruta del archivo de audio
     float volume = 1.0f;
     bool loop = false;
     bool reproduccionAutomatica = false; // se reproduce al entrar en play
+    bool espacial = false;        // false = global (2D); true = local (3D)
     int handleActual = -1;         // handle de AudioEngine::reproducir
     bool sonando = false;
     AudioEngine* motor = nullptr;  // inyectado por GameScene
@@ -67,6 +73,14 @@ public:
 
     bool isReproduccionAutomatica() const noexcept { return reproduccionAutomatica; }
     void setReproduccionAutomatica(bool b) noexcept { reproduccionAutomatica = b; }
+
+    // Modo espacial (3D) o global (2D).
+    bool isEspacial() const noexcept { return espacial; }
+    void setEspacial(bool b) noexcept { espacial = b; }
+
+    // Reposiciona el sonido en la posicion actual del objeto (se llama cada
+    // frame desde GameObject::update mientras suena).
+    void onUpdate(GameObject& owner, float deltaTime) override;
 
     // Reprograma el handle si el clip cambio y el motor ya no tiene el anterior.
     void reproducir();

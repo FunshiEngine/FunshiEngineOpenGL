@@ -81,6 +81,12 @@ void SettingsAudioSource::showDataComponent() {
 	if (ImGui::SliderFloat("Volumen", &volume, 0.f, 1.f))
 		source->setVolume(volume);
 
+	bool espacial = source->isEspacial();
+	ImGui::Checkbox("Espacial (3D)", &espacial);
+	source->setEspacial(espacial);
+	ImGui::SameLine();
+	ImGui::TextDisabled("cuando esta desactivado suena global (2D)");
+
 	bool loop = source->isLoop();
 	if (ImGui::Checkbox("Bucle", &loop))
 		source->setLoop(loop);

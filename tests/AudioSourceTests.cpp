@@ -104,6 +104,40 @@ void probarConMotorArchivoInexistente() {
           "con archivo inexistente, reproducir() no pone en estado sonando");
 }
 
+void probarBanderaEspacial() {
+    AudioSource source;
+    CHECK(!source.isEspacial(),
+          "por defecto el sonido es global (2D), no espacial");
+    source.setEspacial(true);
+    CHECK(source.isEspacial(),
+          "setEspacial(true) se lee con isEspacial()");
+    source.setEspacial(false);
+    CHECK(!source.isEspacial(),
+          "setEspacial(false) vuelve al comportamiento global (2D)");
+}
+
+void probarAudioEngineConPosicion() {
+    TempPruebas::CarpetaPrueba carpeta("funshi_audio_engine_posicion");
+    const std::string archivo = (carpeta.ruta() / "clip.wav").string();
+    std::ofstream(archivo) << "contenido";
+
+    AudioEngine motor;
+    motor.esperarPilaVacia();
+
+    // Listener y posicion de un sonido inexistente: no fallan.
+    motor.setListenerPosition(1.f, 2.f, 3.f);
+    motor.setPosicionSonido(999, 4.f, 5.f, 6.f);
+
+    // Reproducir con posicion: el motor copia la posicion en el comando y
+    // devuelve handle.
+    float pos[3] = {7.f, 8.f, 9.f};
+    const int handle = motor.reproducir(archivo, 0.5f, true, pos);
+    CHECK(handle >= 0, "reproducir() con posicion devuelve handle");
+    motor.detener(handle);
+    motor.esperarPilaVacia();
+    CHECK(motor.pendientes() == 0, "la cola de comando de audio queda vacia");
+}
+
 }  // namespace
 
 int main() {
@@ -111,6 +145,8 @@ int main() {
     probarSinMotor();
     probarConMotorArchivoExistente();
     probarConMotorArchivoInexistente();
+    probarBanderaEspacial();
+    probarAudioEngineConPosicion();
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;
     if (fallos == 0) std::cout << "AUDIO SOURCE TESTS OK" << std::endl;
     return fallos == 0 ? 0 : 1;

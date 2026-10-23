@@ -40,12 +40,20 @@ public:
     virtual void cerrar() = 0;
 
     // Reproduce un archivo de audio; devuelve un id > 0 si arranco, 0 si fallo.
-    // El resultado se consulta con detener()/recolectando reproducciones.
+    // `posicion` (opcional): si se pasa, el sonido es espacial (3D) y se situa
+    // en esa coordenada del mundo; si es nullptr, el sonido es global (2D) y
+    // suena igual desde cualquier punto.
     virtual int reproducirArchivo(const std::string& ruta, float volumen,
-                                  bool bucle) = 0;
+                                  bool bucle,
+                                  const float* posicion = nullptr) = 0;
     virtual void detener(int id) = 0;
     virtual void detenerTodo() = 0;
     virtual void setVolumenMaestro(float volumen) = 0;
+
+    // Reposiciona un sonido activo (para que siga a su objeto cada frame).
+    virtual void setPosicionSonido(int id, float x, float y, float z) = 0;
+    // Posiciona el listener (camara) para la spatializacion 3D.
+    virtual void setListenerPosition(float x, float y, float z) = 0;
 
     // Recolecta las reproducciones que terminaron solas (free resources).
     // deltaTime: segundos desde la ultima llamada.

@@ -1574,6 +1574,15 @@ void GameScene::gameScene() {
     ctx.modo2D = dimensionProyecto == DimensionProyecto::DosD;
     ctx.sistemaParticulas = &sistemaParticulas;
 
+    // Audio 3D: el listener vive en la camara activa, así su posición se
+    // refresca cada frame (tanto en el editor como en el juego).
+    if (audioEngine && activeCameraObject) {
+        if (Transform* t = activeCameraObject->getGlobalTransform()) {
+            const float* p = t->getTranslatef();
+            audioEngine->setListenerPosition(p[0], p[1], p[2]);
+        }
+    }
+
     // Pasada de la escena (vistas previas + pasada principal + diag) en la
     // capa de Rendering.
     sceneRenderer->render(ctx, activeCameraObject, camara);

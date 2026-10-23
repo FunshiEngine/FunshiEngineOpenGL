@@ -34,7 +34,12 @@ struct MiniAudioBackend::Impl {
     // id del backend -> sonido activo. miniaudio mezcla en el hilo de su
     // device; los accesos a esta estructura ocurren solo desde el hilo de
     // trabajo del AudioEngine (serializados por su cola).
-    std::unordered_map<int, ma_sound> activas;
+    struct SonidoActivo {
+        ma_sound sonido;
+        bool tienePosicion = false;
+        float px = 0.f, py = 0.f, pz = 0.f;
+    };
+    std::unordered_map<int, SonidoActivo> activas;
 
     // Musica: el bus es un grupo de miniaudio (un "sonido" sin fuente de
     // datos) con volumen propio. Las pistas se cuelgan de el, asi que el bus
@@ -93,7 +98,7 @@ void MiniAudioBackend::cerrar() {
 }
 
 int MiniAudioBackend::reproducirArchivo(const std::string& ruta, float volumen,
-                                        bool bucle) {
+                                        bool bucle, const float* posicion) {
     if (ruta.empty()) return 0;
     // El comando Iniciar se encola de forma asincronica en el ctor de
     // AudioEngine; si el hilo de audio aun no lo ha procesado, inicializar
@@ -107,7 +112,8 @@ int MiniAudioBackend::reproducirArchivo(const std::string& ruta, float volumen,
     // el callback de audio termina leyendo un nodo colgado, SEGV en
     // ma_engine_node_process_pcm_frames__sound).
     const int id = impl_->proximoId++;
-    ma_sound& sonido = impl_->activas[id];
+    auto& activo = impl_->activas[id];
+    ma_sound& sonido = activo.sonido;
     // MA_SOUND_FLAG_DECODE: decodifica el archivo completo a memoria, ideal
     // para efectos cortos: el stream no depende de que el archivo siga
     // abierto en disco y el loop/volumen responden al instante.
@@ -121,6 +127,19 @@ int MiniAudioBackend::reproducirArchivo(const std::string& ruta, float volumen,
     }
     ma_sound_set_volume(&sonido, volumen);
     ma_sound_set_looping(&sonido, bucle ? MA_TRUE : MA_FALSE);
+    if (posicion) {
+        // Sonido espacial (3D): se ubica en el mundo y se atenuara segun la
+        // distancia al listener (la camara activa).
+        ma_sound_set_position(&sonido, posicion[0], posicion[1], posicion[2]);
+        activo.tienePosicion = true;
+        activo.px = posicion[0];
+        activo.py = posicion[1];
+        activo.pz = posicion[2];
+    } else {
+        // Sonido global (2D): sin spatializacion, suena igual desde cualquier
+        // punto de la escena.
+        ma_sound_set_spatialization_enabled(&sonido, MA_FALSE);
+    }
     if (ma_sound_start(&sonido) != MA_SUCCESS) {
         ma_sound_uninit(&sonido);
         impl_->activas.erase(id);
@@ -134,15 +153,15 @@ int MiniAudioBackend::reproducirArchivo(const std::string& ruta, float volumen,
 void MiniAudioBackend::detener(int id) {
     const auto it = impl_->activas.find(id);
     if (it == impl_->activas.end()) return;
-    ma_sound_stop(&it->second);
-    ma_sound_uninit(&it->second);
+    ma_sound_stop(&it->second.sonido);
+    ma_sound_uninit(&it->second.sonido);
     impl_->activas.erase(it);
 }
 
 void MiniAudioBackend::detenerTodo() {
-    for (auto& [id, sonido] : impl_->activas) {
-        ma_sound_stop(&sonido);
-        ma_sound_uninit(&sonido);
+    for (auto& [id, activo] : impl_->activas) {
+        ma_sound_stop(&activo.sonido);
+        ma_sound_uninit(&activo.sonido);
     }
     impl_->activas.clear();
 }
@@ -154,8 +173,8 @@ void MiniAudioBackend::setVolumenMaestro(float volumen) {
 void MiniAudioBackend::despachar(float) {
     if (impl_->activas.empty()) return;
     for (auto it = impl_->activas.begin(); it != impl_->activas.end();) {
-        if (ma_sound_at_end(&it->second)) {
-            ma_sound_uninit(&it->second);
+        if (ma_sound_at_end(&it->second.sonido)) {
+            ma_sound_uninit(&it->second.sonido);
             it = impl_->activas.erase(it);
         } else {
             ++it;
@@ -264,4 +283,19 @@ float MiniAudioBackend::duracionPista(int id) {
     const ma_uint32 tasa = ma_engine_get_sample_rate(&impl_->motor);
     if (tasa == 0) return 0.0f;
     return static_cast<float>(largo) / static_cast<float>(tasa);
+}
+
+void MiniAudioBackend::setPosicionSonido(int id, float x, float y, float z) {
+    const auto it = impl_->activas.find(id);
+    if (it == impl_->activas.end()) return;
+    it->second.tienePosicion = true;
+    it->second.px = x;
+    it->second.py = y;
+    it->second.pz = z;
+    ma_sound_set_position(&it->second.sonido, x, y, z);
+}
+
+void MiniAudioBackend::setListenerPosition(float x, float y, float z) {
+    if (impl_->inicializado)
+        ma_engine_listener_set_position(&impl_->motor, 0, x, y, z);
 }
