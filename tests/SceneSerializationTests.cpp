@@ -1803,6 +1803,11 @@ public:
         y = -1.0f;
         z = 0.0f;
     }
+    // Sin impacto por defecto: el test no ejerce raycast.
+    ResultadoRaycast raycast(float, float, float, float, float, float,
+                             float) override {
+        return {};
+    }
 };
 
 void reparentarPreservaLaPoseYRefrescaElCuerpo() {

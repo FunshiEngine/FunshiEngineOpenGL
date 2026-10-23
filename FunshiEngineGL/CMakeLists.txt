@@ -1767,6 +1767,11 @@ if(FUNSHI_JAVA)
         PRIVATE ${SRC_DIR} ${JNI_INCLUDE_DIRS})
     target_link_libraries(scripts-java-tests PRIVATE funshi_diagnostics_core)
     target_compile_definitions(scripts-java-tests PRIVATE FUNSHI_JAVA)
+# GCC/Clang rechazan lambdas que capturan como punteros a funcion
+# (tablaServicios()); MSVC no necesita esta marca.
+    if(UNIX)
+        target_compile_options(scripts-java-tests PRIVATE -fpermissive)
+    endif()
     if(Java_JAVAC_EXECUTABLE)
         target_compile_definitions(scripts-java-tests
             PRIVATE FUNSHI_JAVAC_DEFAULT="${Java_JAVAC_EXECUTABLE}")
