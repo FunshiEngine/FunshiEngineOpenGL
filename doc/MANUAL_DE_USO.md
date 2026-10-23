@@ -617,6 +617,23 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
    Interfaz).
 3. La escena guarda el path; al recargar se resuelve de nuevo.
 
+**Modelos 3D (.obj/.fbx/... que admita Assimp):**
+
+1. En la jerarquia (**SelectedObjects**), selecciona el objeto que llevara el
+   modelo o crealo (clic derecho → **New GameObject**).
+2. **Add Component → Model**: aparece el panel **Model** del Inspector con el
+   boton "[Arrastra modelo]".
+3. Arrastra el archivo `.obj` desde el explorador y suelta sobre ese boton: el
+   panel guarda la ruta y el modelo se dibuja en la escena con el transform del
+   objeto.
+4. Si no se ve, revisa que la camara apunte hacia el objeto y que el objeto
+   tenga un **Transform** con la escala/posicion esperadas.
+
+Importante: soltar un `.obj` (o cualquier asset) sobre **Vista de contenido**
+solo lo mueve o copia entre carpetas del proyecto; **no lo coloca en la
+escena**. Para instanciarlo como modelo 3D usa el panel **Model** del objeto en
+**SelectedObjects** (arriba).
+
 **Instanciar prefab por drag & drop:**
 1. En el explorador, localiza un archivo `.prefab` en la carpeta `Prefabs/`
    de los assets del proyecto.
@@ -724,8 +741,11 @@ Detalles que conviene saber:
   explorador de archivos al panel del componente, igual que se hace con los
   scripts. El panel muestra la ruta asignada; si el archivo arrastrado no es
   un formato de audio, el motor lo dice en el log y no lo asigna.
-- Ajusta volumen, loop y "reproduccion automatica". En Depuración y Juego, el
-  `AudioEngine` reproduce el archivo en su hilo de audio.
+- Ajusta volumen, loop, "reproduccion automatica" y **Espacial (3D)**:
+  marcado, el sonido suena desde la posicion del objeto y se atenua con la
+  distancia a la camara activa; desmarcado, suena global (2D) igual en toda la
+  escena. En Depuracion y Juego, el `AudioEngine` reproduce el archivo en su
+  hilo de audio.
 - La ruta se guarda en la escena **relativa** a `src<proyecto>/`: al mover o
   renombrar el proyecto entero, la escena sigue funcionando. En el juego
   exportado se resuelve contra la carpeta del juego (allí se copia todo
@@ -922,11 +942,11 @@ FunshiEngine-DATA\Exportaciones\MiJuego\MiJuego.exe
 
 ## 12. Apariencia y configuración del editor
 
-La vista **Opciones** del menú de inicio tiene tres bloques:
+La vista **Opciones** del menú de inicio tiene tres pestañas:
 
-- **Juego:** idioma (Espanol / English), *Radio de difuminado* (20 a 600
-  unidades), *Sensibilidad de camara* (mouse-look, 0.02 a 5.0) y
-  *Sensibilidad de movimiento* (velocidad de `WASD`, 0.1 a 5.0).
+- **Audio:** *Volumen maestro* (0.0 silenciado, 1.0 maxima): afecta a todos los
+  efectos de sonido de la escena (`AudioSource`). Se aplica al instante y se
+  conserva al cerrar el editor.
 - **Apariencia:**
   - *Tema claro de la interfaz* — arranca en **oscuro**.
   - *Modo blanco y negro (interfaz y viewport)* — desatura la interfaz completa y
@@ -940,11 +960,18 @@ La vista **Opciones** del menú de inicio tiene tres bloques:
     alta del viewport (por defecto gris oscuro).
   - *Color de la parte inferior del cielo* — color del degradado en la zona
     baja del viewport (por defecto gris oscuro).
+  - *Radio de difuminado* (20 a 600 unidades): radio del circulo-horizonte del
+    piso; la grilla se dibuja hasta ahi y se difumina hacia su borde.
   - *Restablecer apariencia* — vuelve el perfil completo a los valores de
     fabrica (tema oscuro, sin modo blanco y negro, acento azul, cielo gris
     oscuro).
-- **Configuracion:** *Restablecer configuracion* — vuelve **toda** la
-  configuracion a los defaults, conservando el nombre del proyecto.
+- **Controles:** idioma (Espanol / English), *Sensibilidad de camara*
+  (mouse-look, 0.02 a 5.0) y *Sensibilidad de movimiento* (velocidad de
+  `WASD`, 0.1 a 5.0).
+
+Ademas hay un boton **Restablecer configuracion** (fuera de las pestañas) que
+vuelve **toda** la configuracion a los defaults, conservando el nombre del
+proyecto.
 
 *Radio de difuminado* es el radio del circulo-horizonte del piso, en unidades de
 mundo: la grilla se dibuja hasta ahi y se difumina hacia su borde, y la guia de
