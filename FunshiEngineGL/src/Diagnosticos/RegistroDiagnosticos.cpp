@@ -141,6 +141,54 @@ std::vector<EventoDiagnostico> RegistroDiagnosticos::ultimos(
                                           eventos_.end());
 }
 
+std::vector<EventoDiagnostico> RegistroDiagnosticos::todos() const {
+    std::lock_guard<std::mutex> bloqueo(mutex_);
+    return eventos_;
+}
+
+bool RegistroDiagnosticos::limpiarTodo() {
+    std::lock_guard<std::mutex> bloqueo(mutex_);
+    eventos_.clear();
+
+    std::error_code error;
+    if (!archivo_.parent_path().empty()) {
+        std::filesystem::create_directories(archivo_.parent_path(), error);
+        if (error) return false;
+    }
+    std::ofstream salida(archivo_, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!salida) return false;
+    salida.flush();
+    return static_cast<bool>(salida);
+}
+
+bool RegistroDiagnosticos::insertarAntes(std::vector<EventoDiagnostico> eventos) {
+    std::lock_guard<std::mutex> bloqueo(mutex_);
+    eventos.insert(eventos.end(), eventos_.begin(), eventos_.end());
+    eventos_ = std::move(eventos);
+    if (eventos_.size() > maximoEnMemoria_) {
+        eventos_.erase(eventos_.begin(),
+                       eventos_.begin() +
+                           static_cast<std::ptrdiff_t>(eventos_.size() -
+                                                       maximoEnMemoria_));
+    }
+
+    std::error_code error;
+    if (!archivo_.parent_path().empty()) {
+        std::filesystem::create_directories(archivo_.parent_path(), error);
+        if (error) return false;
+    }
+    std::ofstream salida(archivo_, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!salida) return false;
+    for (const auto& e : eventos_) {
+        const std::string linea =
+            serializar(e).dump(-1, ' ', false, json::error_handler_t::replace) +
+            "\n";
+        salida.write(linea.data(), static_cast<std::streamsize>(linea.size()));
+    }
+    salida.flush();
+    return static_cast<bool>(salida);
+}
+
 std::filesystem::path RegistroDiagnosticos::archivo() const {
     return archivo_;
 }

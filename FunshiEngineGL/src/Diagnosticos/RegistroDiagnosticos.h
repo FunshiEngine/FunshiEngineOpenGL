@@ -58,7 +58,10 @@ public:
                          std::chrono::milliseconds intervaloMinimo =
                              std::chrono::seconds(3));
     std::vector<EventoDiagnostico> ultimos(std::size_t limite = 100) const;
+    std::vector<EventoDiagnostico> todos() const;
     std::filesystem::path archivo() const;
+    bool limpiarTodo();
+    bool insertarAntes(std::vector<EventoDiagnostico> eventos);
 
     static RegistroDiagnosticos& global();
 
