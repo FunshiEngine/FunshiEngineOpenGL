@@ -96,7 +96,7 @@ public:
 
     Handle createDepthTarget(int) override { return 7; }
     Handle createDepthTargetCubo(int) override { return 8; }
-    void bindDepthTargetCuboFace(Handle, int, Handle) override {}
+    void bindDepthTargetCuboFace(Handle, int) override {}
     void destroyDepthTarget(Handle) override {}
     void bindDepthTarget(Handle) override {}
     Handle depthTargetTexture(Handle) const override { return 7; }

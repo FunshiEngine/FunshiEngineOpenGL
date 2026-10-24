@@ -416,7 +416,7 @@ public:
         ultimoTamano = size;
         return 200 + static_cast<Handle>(creados);
     }
-    void bindDepthTargetCuboFace(Handle, int, Handle) override {}
+    void bindDepthTargetCuboFace(Handle, int) override {}
     void destroyDepthTarget(Handle) override { ++destruidos; }
     void bindDepthTarget(Handle) override {}
     Handle depthTargetTexture(Handle target) const override {

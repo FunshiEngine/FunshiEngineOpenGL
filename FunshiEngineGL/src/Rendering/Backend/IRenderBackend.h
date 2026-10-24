@@ -188,9 +188,9 @@ public:
     virtual Handle createDepthTargetCubo(int size) = 0;
     // Liga el FBO del cubemap y configura el attachment de profundidad para
     // la cara indicada (0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z) antes de dibujar
-    // la geometria vista desde esa cara.
-    virtual void bindDepthTargetCuboFace(Handle fbo, int cara,
-                                         Handle cubemapTex) = 0;
+    // la geometria vista desde esa cara. La textura de cubemap ya se conoce
+    // por el FBO.
+    virtual void bindDepthTargetCuboFace(Handle fbo, int cara) = 0;
     virtual void destroyDepthTarget(Handle target) = 0;
     // Liga el target como framebuffer de destino y ajusta el viewport a su
     // lado (el mapa de sombras es cuadrado).

@@ -778,7 +778,7 @@ void SceneRenderer::prepararSombras(const FrameContext& ctx,
             // Luz puntual: dibujar la geometria una vez por cara del cubemap
             // (+X, -X, +Y, -Y, +Z, -Z), cada una con su propia matriz de luz.
             for (int cara = 0; cara < Rendering::kCarasCubemap; ++cara) {
-                backend.bindDepthTargetCuboFace(mapa.target, cara, mapa.textura);
+                backend.bindDepthTargetCuboFace(mapa.target, cara);
                 backend.setDepthTestEnabled(true);
                 backend.setDepthMask(true);
                 backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);

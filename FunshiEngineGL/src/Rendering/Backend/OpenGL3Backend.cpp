@@ -834,16 +834,13 @@ Handle OpenGL3Backend::createDepthTargetCubo(int size) {
     // El modo de comparacion es lo que permite leer la textura con
     // samplerCubeShadow: el hardware compara la profundidad del fragmento con
     // la del mapa y devuelve el porcentaje de cobertura.
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_COMPARE_MODE,
-                    GL_COMPARE_REF_TO_TEXTURE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+    // Sin modo de comparacion: el shader usa samplerCube y compara manualmente
+    // la profundidad almacenada (normalized [0,1]) contra la distancia relativa.
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    const float borde[4] = {1.f, 1.f, 1.f, 1.f};
-    glTexParameterfv(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_BORDER_COLOR, borde);
     glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
     pfnBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -870,11 +867,11 @@ Handle OpenGL3Backend::createDepthTargetCubo(int size) {
     return handle;
 }
 
-void OpenGL3Backend::bindDepthTargetCuboFace(Handle fbo, int cara,
-                                             Handle cubemapTex) {
+void OpenGL3Backend::bindDepthTargetCuboFace(Handle fbo, int cara) {
     if (fbo == kInvalidHandle || !pfnBindFramebuffer) return;
     const auto it = depthCuboTargets_.find(static_cast<unsigned int>(fbo));
     if (it == depthCuboTargets_.end()) return;
+    Handle cubemapTex = static_cast<Handle>(it->second.depthCuboTex);
     pfnBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fbo));
     pfnFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                             GL_TEXTURE_CUBE_MAP_POSITIVE_X + cara,
@@ -917,9 +914,11 @@ void OpenGL3Backend::bindDepthTarget(Handle target) {
 }
 
 Handle OpenGL3Backend::depthTargetTexture(Handle target) const {
-    const auto it = depthTargets_.find(target);
-    if (it == depthTargets_.end()) return kInvalidHandle;
-    return static_cast<Handle>(it->second.depthTex);
+    auto it2d = depthTargets_.find(target);
+    if (it2d != depthTargets_.end()) return static_cast<Handle>(it2d->second.depthTex);
+    auto itCubo = depthCuboTargets_.find(target);
+    if (itCubo != depthCuboTargets_.end()) return static_cast<Handle>(itCubo->second.depthCuboTex);
+    return kInvalidHandle;
 }
 
 // ---------------------------------------------------------------------------

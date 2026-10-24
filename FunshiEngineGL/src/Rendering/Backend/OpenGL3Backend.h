@@ -95,7 +95,7 @@ public:
     // --- Objetivo de profundidad (mapa de sombras) ---
     Handle createDepthTarget(int size) override;
     Handle createDepthTargetCubo(int size) override;
-    void bindDepthTargetCuboFace(Handle fbo, int cara, Handle cubemapTex) override;
+    void bindDepthTargetCuboFace(Handle fbo, int cara) override;
     void destroyDepthTarget(Handle target) override;
     void bindDepthTarget(Handle target) override;
     Handle depthTargetTexture(Handle target) const override;
