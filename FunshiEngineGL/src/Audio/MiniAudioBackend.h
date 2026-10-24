@@ -44,11 +44,15 @@ public:
     bool iniciar() override;
     void cerrar() override;
     int reproducirArchivo(const std::string& ruta, float volumen,
-                          bool bucle) override;
+                          bool bucle,
+                          const float* posicion = nullptr) override;
     void detener(int id) override;
     void detenerTodo() override;
     void setVolumenMaestro(float volumen) override;
     void despachar(float deltaTime) override;
+
+    void setPosicionSonido(int id, float x, float y, float z) override;
+    void setListenerPosition(float x, float y, float z) override;
 
     IMusicaBackend* backendMusica() override { return this; }
 

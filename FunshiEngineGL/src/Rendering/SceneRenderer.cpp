@@ -62,7 +62,6 @@
 #include "../Objetos/Componentes/Sombras/Sombras.h"
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
 #include "../Objetos/Componentes/Material.h"
 #include "../Assets/AssetManager.h"
 
@@ -170,65 +169,8 @@ void SceneRenderer::render(const FrameContext& ctx, GameObject* activeCameraObje
             static_cast<float>(ctx.framebufferHeight),
         radioDifuminado(ctx));
 
-    static bool diagMatricesPendiente = true;
-    if (diagMatricesPendiente) {
-        diagMatricesPendiente = false;
-        bool noFinita = false;
-        for (int i = 0; i < 16; ++i) {
-            if (!std::isfinite(view[i]) || !std::isfinite(projection[i])) {
-                noFinita = true;
-                break;
-            }
-        }
-        const float* diagPos = camara->getPosition();
-        const float fwd[3] = {-view[2], -view[6], -view[10]};
-        std::cout << "[diag] matrices camara finitas: "
-                  << (noFinita ? "NO (NaN/Inf)" : "si") << "; pos camara = ("
-                  << diagPos[0] << ", " << diagPos[1] << ", " << diagPos[2]
-                  << ") fwd=(" << fwd[0] << ", " << fwd[1] << ", " << fwd[2]
-                  << ") fov=" << camara->getFov()
-                  << " near=" << camara->getNearPlane()
-                  << " far=" << camara->getFarPlane() << std::endl;
-
-        // Inventario de la escena: cuantas luces y cuantas mallas dibujables
-        // (con normales) hay, para contrastar con lo que se ve en pantalla.
-        std::cout << "[diag] luces_en_escena=";
-        auto* diagObjects = ctx.gameObjects;
-        int diagLuces = 0;
-        int diagObjs = 0;
-        int diagConMalla = 0;
-        int diagConMallaYNormales = 0;
-        if (diagObjects && !diagObjects->isEmpty()) {
-            Position<GameObject*>* pos = diagObjects->first();
-            while (pos && pos->getElement()) {
-                GameObject* o = pos->getElement();
-                ++diagObjs;
-                if (o->getComponent<Light>()) ++diagLuces;
-                auto* m = dynamic_cast<Modelos3D*>(o);
-                if (m && m->getMesh() && !m->getMesh()->isEmpty()) {
-                    ++diagConMalla;
-                    if (m->getMesh()->hasNormals()) ++diagConMallaYNormales;
-                }
-                pos = (pos != diagObjects->last()) ? diagObjects->next(pos)
-                                                   : nullptr;
-            }
-        }
-        std::cout << diagLuces << " objetos=" << diagObjs
-                  << " conMalla=" << diagConMalla
-                  << " conMallaYNormales=" << diagConMallaYNormales
-                  << std::endl;
-    }
-
     dibujarEscena(ctx, view, projection, activeCameraObject, ctx.framebufferWidth,
                   ctx.framebufferHeight, true);
-
-    static bool diagPostPassPendiente = true;
-    if (diagPostPassPendiente) {
-        diagPostPassPendiente = false;
-        std::cout << "[diag] MeshRenderer moderno disponible="
-                  << (meshRenderer_ && meshRenderer_->available() ? "si" : "no")
-                  << std::endl;
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -566,6 +508,7 @@ bool SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
 
     backend.bindTextureCube(skyboxCubemap_, 0);
     backend.drawMesh(skyboxCuboMalla_, 0, 36);
+    backend.bindTextureCube(Rendering::Backend::kInvalidHandle, 0);
 
     // Restaurar estado.
     backend.setDepthMask(true);
@@ -764,7 +707,8 @@ void SceneRenderer::prepararSombras(const FrameContext& ctx,
     for (int i = 0; i < seleccion.elegidos; ++i) {
         Rendering::ProyectorSombra& proyector =
             proyectoresSombra_[static_cast<std::size_t>(i)];
-        if (!mapaSombras_.preparar(i, proyector.resolucion)) {
+        if (!mapaSombras_.preparar(i, proyector.resolucion,
+                                   proyector.esCubemap)) {
             // El backend no pudo crear el objetivo: esa luz se dibuja sin
             // sombra y el motor sigue.
             std::cerr << "[Sombras] No se pudo crear el mapa de sombra ("
@@ -774,14 +718,28 @@ void SceneRenderer::prepararSombras(const FrameContext& ctx,
         const Rendering::MapaSombras::Mapa& mapa = mapaSombras_.mapa(i);
         proyector.textura = mapa.textura;
 
-        backend.bindDepthTarget(mapa.target);
-        backend.setDepthTestEnabled(true);
-        backend.setDepthMask(true);
-        backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
-        // El destino no tiene color: limpiar el bit de color no hace nada.
-        backend.clearScreen(nullptr);
-
-        dibujarGeometriaParaSombra(ctx, proyector.matrizLuz);
+        if (proyector.esCubemap) {
+            // Luz puntual: dibujar la geometria una vez por cara del cubemap
+            // (+X, -X, +Y, -Y, +Z, -Z), cada una con su propia matriz de luz.
+            for (int cara = 0; cara < Rendering::kCarasCubemap; ++cara) {
+                backend.bindDepthTargetCuboFace(mapa.target, cara);
+                backend.setDepthTestEnabled(true);
+                backend.setDepthMask(true);
+                backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
+                backend.clearScreen(nullptr);
+                dibujarGeometriaParaSombra(ctx,
+                                           proyector.matricesLuz[cara]);
+            }
+        } else {
+            // Luz direccional/spot: un solo mapa 2D.
+            backend.bindDepthTarget(mapa.target);
+            backend.setDepthTestEnabled(true);
+            backend.setDepthMask(true);
+            backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
+            // El destino no tiene color: limpiar el bit de color no hace nada.
+            backend.clearScreen(nullptr);
+            dibujarGeometriaParaSombra(ctx, proyector.matrizLuz);
+        }
 
         proyectoresConMapa_.push_back(proyector);
     }
@@ -812,28 +770,15 @@ void SceneRenderer::dibujarGeometriaParaSombra(const FrameContext& ctx,
         GameObject* objeto = pos->getElement();
         if (static_cast<Transform*>(
                 objeto->getComponentByName("Transform"))) {
-            auto* modelo = dynamic_cast<Modelos3D*>(objeto);
-            if (modelo) {
-                // El componente Model (path) manda sobre el path actual: se
-                // sincroniza igual que en la pasada normal, para que la malla
-                // que se sombrea sea la que se ve.
-                if (Model* model = objeto->getComponent<Model>();
-                    model && model->getPath() != modelo->getPath())
-                    modelo->setPath(model->getPath());
-
-                const Mesh* malla = modelo->getMesh();
-                Transform* transform = modelo->getGlobalTransform();
+            auto* modeloComp = objeto->getComponent<Model>();
+            if (modeloComp) {
+                const Mesh* malla = modeloComp->getMesh();
+                Transform* transform = objeto->getGlobalTransform();
                 if (malla && !malla->isEmpty() && transform) {
                     float matriz[16];
                     buildMatrixFromTransform(transform, matriz);
                     meshRenderer_->intentarRenderSombra(malla, matriz, matrizLuz);
                 }
-            } else if (objeto->getComponent<Model>() && ctx.assetManager) {
-                const DibujoModelo dibujo =
-                    resolverDibujoModelo(objeto, *ctx.assetManager);
-                if (dibujo.valido)
-                    meshRenderer_->intentarRenderSombra(dibujo.malla, dibujo.modelo,
-                                                        matrizLuz);
             }
         }
         pos = (pos != ctx.gameObjects->last()) ? ctx.gameObjects->next(pos)
@@ -866,25 +811,16 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
         // El dibujado va siempre por el pipeline moderno (MeshRenderer: VBO/VAO
         // + shader). Si el objeto no tiene malla con normales, simplemente no
         // se dibuja (MeshRenderer lo avisa una vez por malla).
-        auto* modelo = dynamic_cast<Modelos3D*>(object);
-        if (modelo && meshRenderer_) {
-            meshRenderer_->intentarRender(modelo, view, projection,
-                                          ctx.deltaTime);
-        } else {
-            // Tambien renderizar GameObjects con componente Model (no Modelos3D)
-            if (object->getComponent<Model>() && meshRenderer_ && ctx.assetManager) {
-                // El componente Model no es un Modelos3D: se resuelve la malla
-                // y la matriz mundo del propio objeto (jerarquia incluida) y se
-                // dibuja con la sobrecarga que recibe ambas ya calculadas. Antes
-                // se fabricaba un Modelos3D temporal, que duplicaba el Transform
-                // y dejaba el modelo pegado al origen.
-                const DibujoModelo dibujo =
-                    resolverDibujoModelo(object, *ctx.assetManager);
-                if (dibujo.valido) {
-                    meshRenderer_->intentarRenderMesh(
-                        object, dibujo.malla, dibujo.modelo, view, projection,
-                        ctx.deltaTime);
-                }
+        // Todos los objetos con malla usan el componente Model; la malla se
+        // resuelve via resolverDibujoModelo (que usa getGlobalTransform para
+        // respetar la jerarquia padre/hijo).
+        if (object->getComponent<Model>() && meshRenderer_ && ctx.assetManager) {
+            const DibujoModelo dibujo =
+                resolverDibujoModelo(object, *ctx.assetManager);
+            if (dibujo.valido) {
+                meshRenderer_->intentarRenderMesh(
+                    object, dibujo.malla, dibujo.modelo, view, projection,
+                    ctx.deltaTime);
             }
         }
     }

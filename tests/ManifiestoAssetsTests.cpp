@@ -161,7 +161,7 @@ int main() {
 
     // 5. Relativizar/absolutizar contra la raiz de assets fijada.
     {
-        const std::string raiz = "/motor/MotorGrafico/MiJuego/srcMiJuego";
+        const std::string raiz = "/motor/FunshiEngine-DATA/MiJuego/srcMiJuego";
         EditorConfig::fijarRaizAssets(raiz);
 
         EntradaAssets entrada =
@@ -190,7 +190,7 @@ int main() {
     // 6. Path absoluto legacy (formato viejo): absolutizar lo conserva (la
     //    heuristica no lo reconvierte contra una raiz distinta).
     {
-        const std::string raiz = "/motor/MotorGrafico/Otro/srcOtro";
+        const std::string raiz = "/motor/FunshiEngine-DATA/Otro/srcOtro";
         EditorConfig::fijarRaizAssets(raiz);
         EntradaAssets entrada = crearEntrada("/legacy/Absoluto/cubo.obj", "",
                                              "", "", "", "");
@@ -249,7 +249,7 @@ int main() {
         // Con la raiz de assets fijada, las caras se relativizan y absolutizan
         // igual que la malla: si no, al mover el proyecto el .db era el unico que
         // conservaba de donde venian.
-        const std::string raiz = "/motor/MotorGrafico/MiJuego/srcMiJuego";
+        const std::string raiz = "/motor/FunshiEngine-DATA/MiJuego/srcMiJuego";
         EditorConfig::fijarRaizAssets(raiz);
         EntradaAssets entrada = crearEntradaSkybox(
             raiz + "/Cielo/px.png", "", raiz + "/Cielo/py.png", "",

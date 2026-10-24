@@ -38,6 +38,7 @@
 #include "../GUI/Navegacion/SidebarOrbitaGUI.h"
 #include "../GUI/Terminal/TerminalInterface.h"
 #include "../GUI/ModsGUI/PanelesModsInterface.h"
+#include "../GUI/EfectosGUI/AnimacionesParticulasInterface.h"
 #include "../Herramientas/IconosGUI/IconosGUI.h"
 #include "../Herramientas/IconosGUI/CatalogoIconos.h"
 #include "../Herramientas/IconosGUI/ReglaIconoCatalogo.h"
@@ -51,7 +52,7 @@
 class SceneRegistry;
 class EditorController;
 class EventBus;
-class Modelos3D;
+class GameObject;
 class AudioEngine;
 class IPreviewMaterial;
 
@@ -68,7 +69,7 @@ private:
 	std::unique_ptr<MenuGUI> menuGUI;
 	// Objeto de inspeccion por defecto del inspector: dueno de la instancia
 	// que se le pasa a SettingsObjectInterface en el ctor (evita leak).
-	std::unique_ptr<Modelos3D> modeloSettings;
+	std::unique_ptr<GameObject> modeloSettings;
 	std::unique_ptr<SettingsObjectInterface> settingGUI;
 	std::unique_ptr<SceneSelectedInterface> selecteableGUI;
 	std::unique_ptr<SceneMenuBarInterface> menuBarGUI;
@@ -86,6 +87,9 @@ private:
 	// Paneles que aportan los mods cargados. Cada uno es una ventana propia
 	// que dibuja el motor alrededor del callback que entrego el mod.
 	std::unique_ptr<PanelesModsInterface> panelesModsGUI;
+	// Taller de efectos: perfil de particulas configurado en la ventana y
+	// generado como archivo de assets (el explorador lo ofrece al arrastre).
+	std::unique_ptr<AnimacionesParticulasInterface> animacionesParticulasGUI;
 	// Estado de la interfaz (la captura de teclado y mouse de ImGui): el
 	// input lo consulta para saber si una tecla es de un widget.
 	std::unique_ptr<EstadoInterfazImGui> estadoInterfaz;
@@ -142,6 +146,10 @@ public:
 	TerminalInterface* getTerminalGUI() noexcept { return terminalGUI.get(); }
 	PanelesModsInterface* getPanelesModsGUI() noexcept {
 		return panelesModsGUI.get();
+	}
+	// Taller de efectos: la ventana dedicada de animaciones y particulas.
+	AnimacionesParticulasInterface* getAnimacionesParticulasGUI() noexcept {
+		return animacionesParticulasGUI.get();
 	}
 	// Estado de la interfaz: el input lo consulta para saber si el teclado o
 	// el mouse pertenecen a un widget.

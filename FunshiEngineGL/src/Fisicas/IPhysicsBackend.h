@@ -25,6 +25,14 @@
 
 class RigidBody;
 
+struct ResultadoRaycast {
+    bool  impacto = false;
+    float distancia = 0.0f;
+    float puntoX = 0.0f, puntoY = 0.0f, puntoZ = 0.0f;
+    float normalX = 0.0f, normalY = 1.0f, normalZ = 0.0f;
+    Collider* collider = nullptr;
+};
+
 class IPhysicsBackend {
 public:
     virtual ~IPhysicsBackend() = default;
@@ -38,6 +46,12 @@ public:
     // Gravedad global del mundo (el backend fija su valor inicial).
     virtual void fijarGravedad(float x, float y, float z) = 0;
     virtual void gravedad(float& x, float& y, float& z) const = 0;
+    // Raycast / hitscan: dispara un rayo desde origen hacia direccion con
+    // un alcance dado. Devuelve si hubo impacto, su distancia, punto y
+    // normal, y el collider golpeado. Default: sin impacto.
+    virtual ResultadoRaycast raycast(float ox, float oy, float oz,
+                                     float dx, float dy, float dz,
+                                     float alcance) = 0;
 };
 
 #endif

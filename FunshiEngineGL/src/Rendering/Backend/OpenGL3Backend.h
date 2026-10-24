@@ -94,6 +94,8 @@ public:
 
     // --- Objetivo de profundidad (mapa de sombras) ---
     Handle createDepthTarget(int size) override;
+    Handle createDepthTargetCubo(int size) override;
+    void bindDepthTargetCuboFace(Handle fbo, int cara) override;
     void destroyDepthTarget(Handle target) override;
     void bindDepthTarget(Handle target) override;
     Handle depthTargetTexture(Handle target) const override;
@@ -139,12 +141,22 @@ private:
         int size;
     };
 
+    // Mapa de sombras de cubemap (luz puntual): un FBO compartido por las 6
+    // caras y una textura de profundidad de cubemap. Antes de dibujar cada cara
+    // se reconfigura el attachment de profundidad con bindDepthTargetCuboFace.
+    struct GpuDepthCuboTarget {
+        unsigned int fbo;
+        unsigned int depthCuboTex;
+        int size;
+    };
+
     bool fboFuncionesCargadas();
     std::unordered_map<Handle, GpuMesh> meshes_;
     std::unordered_map<Handle, GpuLineBatch> lineBatches_;
     std::unordered_map<Handle, GpuParticulasBatch> particulasBatches_;
     std::unordered_map<Handle, GpuTarget> targets_;
     std::unordered_map<Handle, GpuDepthTarget> depthTargets_;
+    std::unordered_map<Handle, GpuDepthCuboTarget> depthCuboTargets_;
     // Dimensiones vigentes de cada textura 2D creada: updateTexture2D las
     // consulta para decidir entre glTexSubImage2D (mismo tamano) y reasignar
     // (tamano distinto). Sin este registro no se puede saber el tamano actual

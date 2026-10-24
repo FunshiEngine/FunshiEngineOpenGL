@@ -26,7 +26,7 @@
 // Ademas cubre exit codes, truncado del log, cwd, entorno extra y — en
 // Windows — la receta cruda de cmd.exe que usa el harvest de vcvars.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo,
+// Patron de autoria (ver Skills): CHECK definido en este archivo,
 // TempPruebas::CarpetaPrueba para la carpeta temporal que se limpia sola, y
 // salida final "OK/FALLOS: N comprobaciones" saliendo con 0 o 1.
 

@@ -35,7 +35,6 @@
 #include "../Objetos/Componentes/Material.h"
 #include "../Objetos/Componentes/Model.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
 #include "MeshGPU.h"
 #include "Shaders/ShaderProgram.h"
 #include "Shaders/GestorShaders.h"
@@ -52,10 +51,15 @@ bool matrizFinita(const glm::mat3& m) {
     return true;
 }
 
-// Unidades de textura reservadas para los mapas de sombra. Las del material
-// ocupan las cuatro primeras (difusa, especular, emision y normal), asi que
-// los mapas de sombra arrancan en la quinta.
-constexpr int kUnidadTexturaSombra = 4;
+// Unidades fijas de textura para cada tipo de sampler: evita colisiones de
+// tipo en la misma unidad de textura (lo cual causa GL_INVALID_OPERATION 1282
+// en glDrawElements al mezclar sampler2D, sampler2DShadow y samplerCube en unidad 0).
+constexpr int kUnidadTexturaDifusa = 0;
+constexpr int kUnidadTexturaEspecular = 1;
+constexpr int kUnidadTexturaEmision = 2;
+constexpr int kUnidadTexturaNormal = 3;
+constexpr int kUnidadTexturaSombra = 4;      // 4..7 para sampler2DShadow (kMaxProyectoresSombra = 4)
+constexpr int kUnidadTexturaSombraCubo = 8;  // 8..11 para samplerCube (kMaxProyectoresSombra = 4)
 
 } // namespace
 
@@ -65,6 +69,12 @@ MeshRenderer::~MeshRenderer() = default;
 
 bool MeshRenderer::inicializar() {
     if (shader_) return true;
+    // El fuente del shader va embebido: si el driver no lo compilo una vez, no
+    // lo compila nunca. Recordar el fallo evita reintentar la compilacion y
+    // releer el error en cada pasada de dibujo (el reintento por frame llego a
+    // escribir 319.030 lineas de log en una sesion y compilar el programa una
+    // vez por frame).
+    if (falloShader_) return false;
     if (!backend_ || !backend_->init()) return false;
     // Sin gestor de shaders no hay de donde pedir el programa.
     if (!gestorShaders_) return false;
@@ -81,6 +91,7 @@ bool MeshRenderer::inicializar() {
                       << e.what() << '\n';
             shaderSombra_.reset();
         }
+        configurarSamplers();
         aplicarLuces();
         // Los mapas de sombra tambien se suben aqui: el programa puede
         // aparecer despues de que la escena ya tuviera proyectores (el
@@ -95,6 +106,7 @@ bool MeshRenderer::inicializar() {
         std::cerr << "[MeshRenderer] Shader por defecto no disponible: "
                   << e.what() << '\n';
         shader_.reset();
+        falloShader_ = true;
     }
     return shader_ != nullptr;
 }
@@ -188,6 +200,31 @@ void MeshRenderer::setSombras(const Rendering::ProyectorSombra* proyectores,
     if (shader_) aplicarSombras();
 }
 
+void MeshRenderer::configurarSamplers() {
+    if (!shader_) return;
+    shader_->use();
+
+    // 1. Texturas 2D del material (unidades 0..3)
+    shader_->setInt("uDiffuseTex", kUnidadTexturaDifusa);
+    shader_->setInt("uSpecularTex", kUnidadTexturaEspecular);
+    shader_->setInt("uEmissionTex", kUnidadTexturaEmision);
+    shader_->setInt("uNormalTex", kUnidadTexturaNormal);
+
+    // 2. Mapas de sombra 2D (sampler2DShadow, unidades 4..7)
+    for (int i = 0; i < Rendering::kMaxProyectoresSombra; ++i) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "uShadowMap%d", i);
+        shader_->setInt(name, kUnidadTexturaSombra + i);
+    }
+
+    // 3. Mapas de sombra puntuales (samplerCube, unidades 8..11)
+    for (int i = 0; i < Rendering::kMaxProyectoresSombra; ++i) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "uShadowCube%d", i);
+        shader_->setInt(name, kUnidadTexturaSombraCubo + i);
+    }
+}
+
 void MeshRenderer::aplicarSombras() {
     if (!shader_) return;
     // Los uniforms se suben con el programa activo: sin use() se descartan.
@@ -221,6 +258,25 @@ void MeshRenderer::aplicarSombras() {
                                                        : 1));
         std::snprintf(name, sizeof(name), "uShadowLightIndex[%d]", i);
         shader_->setInt(name, proyector.indiceLuz);
+    }
+
+    // Luces puntuales (cubemap): subir las 6 matrices por luz, la distancia
+    // de alcance y vincular el sampler de cubemap a su unidad de textura.
+    for (int i = 0; i < count; ++i) {
+        const Rendering::ProyectorSombra& proyector =
+            sombras_[static_cast<std::size_t>(i)];
+        if (!proyector.esCubemap) continue;
+        char name[48];
+        const int base = proyector.indiceLuz * Rendering::kCarasCubemap;
+        for (int cara = 0; cara < Rendering::kCarasCubemap; ++cara) {
+            std::snprintf(name, sizeof(name), "uShadowMatrixCubo[%d]", base + cara);
+            shader_->setMat4(name, proyector.matricesLuz[cara]);
+        }
+        std::snprintf(name, sizeof(name), "uShadowDistancia[%d]", proyector.indiceLuz);
+        shader_->setFloat(name, proyector.distancia);
+        const int idxCubo = std::min(proyector.indiceLuz, Rendering::kMaxProyectoresSombra - 1);
+        std::snprintf(name, sizeof(name), "uShadowCube%d", idxCubo);
+        shader_->setInt(name, kUnidadTexturaSombraCubo + idxCubo);
     }
 }
 
@@ -298,51 +354,30 @@ void MeshRenderer::aplicarTexturas(const IMaterial* material, const Mesh* mesh) 
     if (!material) return;
 
     shader_->setInt("uUseTexture",
-                    enlazarSlotTextura(material->getDiffuseMapPath(), 0,
-                                       "uDiffuseTex")
+                    enlazarSlotTextura(material->getDiffuseMapPath(),
+                                       kUnidadTexturaDifusa, "uDiffuseTex")
                         ? 1
                         : 0);
     shader_->setInt("uUseSpecularMap",
-                    enlazarSlotTextura(material->getSpecularMapPath(), 1,
-                                       "uSpecularTex")
+                    enlazarSlotTextura(material->getSpecularMapPath(),
+                                       kUnidadTexturaEspecular, "uSpecularTex")
                         ? 1
                         : 0);
     shader_->setInt("uUseEmissionMap",
-                    enlazarSlotTextura(material->getEmissionMapPath(), 2,
-                                       "uEmissionTex")
+                    enlazarSlotTextura(material->getEmissionMapPath(),
+                                       kUnidadTexturaEmision, "uEmissionTex")
                         ? 1
                         : 0);
 
     // El normal map ademas exige el marco tangente de la malla.
     shader_->setInt("uUseNormalMap",
                     mesh->hasTangents()
-                        ? (enlazarSlotTextura(material->getNormalMapPath(), 3,
+                        ? (enlazarSlotTextura(material->getNormalMapPath(),
+                                              kUnidadTexturaNormal,
                                               "uNormalTex")
                                ? 1
                                : 0)
                         : 0);
-}
-
-bool MeshRenderer::intentarRender(Modelos3D* objeto, const float view[16],
-                                  const float projection[16],
-                                  float deltaTime) {
-    if (!objeto) return false;
-
-    // El componente Model (path) manda sobre el path actual. Se toma el
-    // puntero a la malla DESPUES de este paso, porque setPath() puede
-    // reemplazar la malla compartida (y el AssetManager eviccionar la
-    // anterior).
-    if (Model* model = objeto->getComponent<Model>();
-        model && model->getPath() != objeto->getPath())
-        objeto->setPath(model->getPath());
-
-    Transform* transform = objeto->getGlobalTransform();
-    if (!transform) return false;
-
-    float modelo[16];
-    buildMatrixFromTransform(transform, modelo);
-    return intentarRenderMesh(objeto, objeto->getMesh(), modelo, view,
-                              projection, deltaTime);
 }
 
 bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
@@ -401,6 +436,9 @@ bool MeshRenderer::renderMesh(GameObject* contexto, const Mesh* mesh,
     }
 
     const glm::mat4 model = glm::make_mat4(modelo);
+    const glm::mat4 viewMat = glm::make_mat4(view);
+    const glm::mat4 proj = glm::make_mat4(projection);
+    const glm::mat4 modelView = viewMat * model;
 
     // Deja la matriz normal como transpose(inverse(model)) pero identidad si la
     // inversa degenero (fracciones no finitas); evita NaN en el shader.
@@ -410,11 +448,12 @@ bool MeshRenderer::renderMesh(GameObject* contexto, const Mesh* mesh,
 
     shader_->use();
     shader_->setMat4("uModel", model);
-    shader_->setMat4("uView", glm::make_mat4(view));
-    shader_->setMat4("uProjection", glm::make_mat4(projection));
+    shader_->setMat4("uView", viewMat);
+    shader_->setMat4("uProjection", proj);
+    shader_->setMat4("uModelView", modelView);
     shader_->setMat3("uNormalMatrix", normalMatrix);
 
-    const glm::mat4 invView = glm::inverse(glm::make_mat4(view));
+    const glm::mat4 invView = glm::inverse(viewMat);
     shader_->setVec3("uCameraPosition",
                      glm::vec3(invView[3][0], invView[3][1], invView[3][2]));
     shader_->setFloat("uDistanceFadeStart", horizonteInicio_);
@@ -493,7 +532,13 @@ void MeshRenderer::enlazarTexturasSombra() {
         const Rendering::Backend::Handle textura =
             sombras_[static_cast<std::size_t>(i)].textura;
         if (textura == Rendering::Backend::kInvalidHandle) continue;
-        backend.bindTexture2D(textura, kUnidadTexturaSombra + i);
+        if (sombras_[static_cast<std::size_t>(i)].esCubemap) {
+            const int idxCubo = std::min(sombras_[static_cast<std::size_t>(i)].indiceLuz,
+                                         Rendering::kMaxProyectoresSombra - 1);
+            backend.bindTextureCube(textura, kUnidadTexturaSombraCubo + idxCubo);
+        } else {
+            backend.bindTexture2D(textura, kUnidadTexturaSombra + i);
+        }
     }
 }
 
@@ -508,12 +553,15 @@ bool MeshRenderer::intentarRenderSombra(const Mesh* mesh, const float modelo[16]
     const glm::mat4 model = glm::make_mat4(modelo);
     if (!matrizFinita(glm::mat3(model))) return false;
 
+    const glm::mat4 modelLight = matrizLuz * model;
+
     const MeshGPU* gpu = obtenerGpu(mesh);
     if (!gpu) return false;
 
     shaderSombra_->use();
     shaderSombra_->setMat4("uModel", model);
     shaderSombra_->setMat4("uLightMatrix", matrizLuz);
+    shaderSombra_->setMat4("uModelLight", modelLight);
 
     // El pase de profundidad no escribe color: el blend se apaga.
     if (!backend_) return false;

@@ -411,6 +411,12 @@ public:
         ultimoTamano = size;
         return 100 + static_cast<Handle>(creados);
     }
+    Handle createDepthTargetCubo(int size) override {
+        ++creados;
+        ultimoTamano = size;
+        return 200 + static_cast<Handle>(creados);
+    }
+    void bindDepthTargetCuboFace(Handle, int) override {}
     void destroyDepthTarget(Handle) override { ++destruidos; }
     void bindDepthTarget(Handle) override {}
     Handle depthTargetTexture(Handle target) const override {
@@ -439,7 +445,7 @@ void testSeleccionDeProyectores() {
     candidatos[1].posicion = glm::vec3(5.f, 10.f, 5.f);
     candidatos[1].direccion = glm::vec3(0.f, -1.f, 0.f);
     candidatos[1].resolucion = 512;
-    // Una luz puntual: todavia no puede proyectar sombra.
+    // Una luz puntual: ya puede proyectar sombra (cubemap de 6 caras).
     candidatos[2].tipo = TipoLuzProyector::Puntual;
     // Y otra direccional, que se queda fuera por el limite.
     candidatos[3].tipo = TipoLuzProyector::Direccional;
@@ -449,10 +455,10 @@ void testSeleccionDeProyectores() {
         candidatos, 4, 2, glm::vec3(0.f), salida);
 
     CHECK(resultado.elegidos == 2, "se eligen los proyectores que caben");
-    CHECK(resultado.noSoportados == 1,
-          "la luz puntual se descarta por no soportada");
-    CHECK(resultado.porLimite == 1,
-          "el proyector que excede el limite se cuenta aparte");
+    CHECK(resultado.noSoportados == 0,
+          "la luz puntual ya no se descarta (tiene camino de cubemap)");
+    CHECK(resultado.porLimite == 2,
+          "los proyectores que exceden el limite se cuentan aparte");
     CHECK(salida[0].resolucion == 1024,
           "el primer proyector conserva su resolucion");
     CHECK(salida[1].resolucion == 512,
@@ -517,6 +523,31 @@ void testMapaDeSombras() {
           "un mapa que no se pidio no existe");
 }
 
+void testMapaCubemap() {
+    // Una luz puntual necesita un cubemap de 6 caras: preparar con
+    // esCubemap = true debe crear un objetivo de profundidad de cubemap.
+    BackendFalso backend;
+    MapaSombras mapa(backend);
+
+    CHECK(mapa.preparar(0, 1024, true), "el mapa crea un cubemap de profundidad");
+    CHECK(backend.creados == 1, "el mapa crea un objetivo de profundidad");
+    CHECK(mapa.mapa(0).esCubemap, "el mapa marca que es cubemap");
+    CHECK(mapa.mapa(0).target != Rendering::Backend::kInvalidHandle,
+          "el mapa expone el FBO del cubemap");
+    CHECK(mapa.mapa(0).targetsCubo[0] != Rendering::Backend::kInvalidHandle,
+          "el mapa registra el FBO de la primera cara");
+    CHECK(mapa.activos() == 1, "el mapa cuenta un mapa activo");
+
+    // Pedirlo otra vez con la misma resolucion y tipo no crea otro objetivo.
+    mapa.preparar(0, 1024, true);
+    CHECK(backend.creados == 1, "el cubemap se reutiliza si no cambia nada");
+
+    // Cambiar a mapa 2D rehace el objetivo.
+    mapa.preparar(0, 1024, false);
+    CHECK(backend.creados == 2, "cambiar de cubemap a 2D rehace el mapa");
+    CHECK(!mapa.mapa(0).esCubemap, "el mapa deja de ser cubemap");
+}
+
 void testElProyectorConservaElIndiceDeSuLuz() {
     // La sombra tiene que atenuar la contribucion de SU luz: por eso el
     // proyector lleva el indice de la luz a la que pertenece.
@@ -564,6 +595,7 @@ int main() {
     testSeleccionDeProyectores();
     testSeleccionSinCandidatos();
     testMapaDeSombras();
+    testMapaCubemap();
     testElProyectorConservaElIndiceDeSuLuz();
     testElLimiteCoincideConElShader();
 

@@ -59,3 +59,10 @@ void PhysicsEngine::gravedad(float& x, float& y, float& z) const {
     y = -1.0f;
     z = 0.0f;
 }
+
+ResultadoRaycast PhysicsEngine::raycast(float ox, float oy, float oz,
+                                         float dx, float dy, float dz,
+                                         float alcance) {
+    if (backend_) return backend_->raycast(ox, oy, oz, dx, dy, dz, alcance);
+    return ResultadoRaycast{};
+}

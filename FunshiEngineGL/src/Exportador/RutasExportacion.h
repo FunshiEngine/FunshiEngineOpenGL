@@ -46,8 +46,8 @@ inline bool esSoloEditor(const std::string& rutaRelativa) {
 // Par (origen en el editor, destino en la distribucion del juego).
 //
 // El juego exportado conserva la disposicion del motor: su binario resuelve
-// MotorGrafico/ junto a si mismo (ProjectPaths::directorioBase), asi que el
-// proyecto viaja a <salida>/MotorGrafico/Proyects/<nombre>/ y el
+// FunshiEngine-DATA/ junto a si mismo (ProjectPaths::directorioBase), asi que el
+// proyecto viaja a <salida>/FunshiEngine-DATA/Proyects/<nombre>/ y el
 // juego encuentra escenas, Memory/Binarios y src<nombre>/ igual que el editor.
 // Se EXCLUYEN carpetas/archivos solo del editor (Memory/Interfaces/, imgui.ini,
 // ConfiguracionProyecto.json).
@@ -55,7 +55,7 @@ inline std::vector<std::pair<std::string, std::string>> rutasDatosProyecto(
     const std::string& nombreProyecto, const std::string& directorioSalida) {
     return {
         {EditorConfig::directorioProyecto(nombreProyecto),
-         directorioSalida + "/MotorGrafico/Proyects/" + nombreProyecto},
+         directorioSalida + "/FunshiEngine-DATA/Proyects/" + nombreProyecto},
     };
 }
 

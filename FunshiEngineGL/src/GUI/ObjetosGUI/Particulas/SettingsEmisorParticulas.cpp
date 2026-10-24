@@ -22,7 +22,26 @@
 #include "../../../Objetos/Componentes/EmisorParticulas.h"
 #include <imgui.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
+#include <filesystem>
+#include <iostream>
+
+#include "../../../Assets/StbImageLoader.h"
+
+namespace {
+
+// Un perfil de efecto es un JSON (el mismo formato que lee cargarPerfilDesdeJson).
+// La comparacion es normalizada a minusculas: la extension la pone el usuario.
+bool esPerfilJson(const char* ruta) {
+    std::string extension = std::filesystem::path(ruta).extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return extension == ".json";
+}
+
+} // namespace
 
 SettingsEmisorParticulas::SettingsEmisorParticulas(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(EmisorParticulas).name())),
@@ -92,10 +111,65 @@ void SettingsEmisorParticulas::showDataComponent() {
     if (ImGui::InputText("Ruta", buffer, sizeof(buffer))) {
         emisor->setRutaPerfil(std::string(buffer));
     }
+    // El perfil tambien se asigna arrastrando el JSON desde el explorador de
+    // contenido. Solo se aceptan .json; si el contenido no es un perfil
+    // valido, el motivo queda en errorPerfil y se muestra abajo.
+    ImGui::PushID("PerfilEfecto");
+    ImGui::Button(ruta.empty() ? "[Arrastra un perfil .json]" : ruta.c_str());
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload =
+                ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+            const char* rutaSoltada = static_cast<const char*>(payload->Data);
+            if (rutaSoltada && *rutaSoltada && esPerfilJson(rutaSoltada)) {
+                emisor->setRutaPerfil(rutaSoltada);
+            } else if (rutaSoltada && *rutaSoltada) {
+                std::cerr << "[Particulas] el archivo arrastrado no es un "
+                             "perfil de efecto (.json): "
+                          << rutaSoltada << std::endl;
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Quitar")) {
+        emisor->setRutaPerfil(std::string());
+    }
+    ImGui::PopID();
     if (!emisor->errorPerfil().empty()) {
         ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s",
-                           emisor->errorPerfil().c_str());
+                            emisor->errorPerfil().c_str());
     } else if (emisor->perfil()) {
         ImGui::Text("Perfil: %s", emisor->perfil()->nombre.c_str());
     }
+
+    // Textura de particula: se puede asignar arrastrando una imagen desde el
+    // explorador de contenido (showfolder). Sobreescribe la textura del perfil.
+    ImGui::Separator();
+    ImGui::Text("Textura de particula");
+    const std::string& textura = emisor->texturaParticula();
+    const char* textoBoton = textura.empty() ? "[Arrastra una imagen]"
+                                               : textura.c_str();
+    ImGui::PushID(emisor);
+    ImGui::Button(textoBoton);
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload =
+                ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+            const char* rutaSoltada = static_cast<const char*>(payload->Data);
+            int ancho = 0, alto = 0;
+            if (rutaSoltada && *rutaSoltada &&
+                StbImageLoader::dimensiones(rutaSoltada, ancho, alto)) {
+                emisor->setTexturaParticula(rutaSoltada);
+            } else if (rutaSoltada && *rutaSoltada) {
+                std::cerr << "[Particulas] el archivo arrastrado no es una "
+                             "imagen valida: "
+                          << rutaSoltada << std::endl;
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Quitar")) {
+        emisor->setTexturaParticula(std::string());
+    }
+    ImGui::PopID();
 }

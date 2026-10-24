@@ -43,6 +43,7 @@ layout(location = 4) in vec3 aBitangent;
 uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProjection;
+uniform mat4 uModelView;
 uniform mat3 uNormalMatrix;
 
 out vec3 vNormalWorld;
@@ -67,7 +68,7 @@ void main() {
     if (dot(cross(n, t), uNormalMatrix * aBitangent) < 0.0) b = -b;
     vTbn = mat3(t, b, n);
 
-    gl_Position = uProjection * uView * world;
+    gl_Position = uProjection * uModelView * vec4(aPosition, 1.0);
 }
 )";
 
@@ -98,21 +99,30 @@ uniform float uSpotCutoffCos[MAX_LIGHTS];
 // Sombras: un mapa de profundidad por luz que proyecta. MAX_SHADOWS tiene que
 // coincidir con el limite de proyectores del motor (kMaxProyectoresSombra).
 //
-// Cada mapa tiene su propio sampler (uShadowMap0..3) y no un array: GLSL 3.30
-// no deja indexar un array de samplers con una variable, asi que el mapa que
-// se consulta se elige con una cadena de if.
+// Cada mapa 2D (direccional/spot) tiene su propio sampler (uShadowMap0..3) y
+// no un array: GLSL 3.30 no deja indexar un array de samplers con una variable.
+// Las luces puntuales usan un cubemap de profundidad (samplerCube uShadowCube0..3)
+// y sus 6 matrices viven en el array plano uShadowMatrixCubo[] (indice = luz*6 + cara).
 // uShadowLightIndex dice a que luz de las de arriba pertenece cada mapa: la
 // sombra oscurece solo la contribucion de esa luz, no la de las demas.
 // uShadowTexel es 1/resolucion del mapa (el PCF necesita el tamano del texel).
+// uShadowDistancia es el alcance de la luz (para puntuales).
 const int MAX_SHADOWS = 4;
+const int kCarasCubemap = 6;
 uniform sampler2DShadow uShadowMap0;
 uniform sampler2DShadow uShadowMap1;
 uniform sampler2DShadow uShadowMap2;
 uniform sampler2DShadow uShadowMap3;
+uniform samplerCube uShadowCube0;
+uniform samplerCube uShadowCube1;
+uniform samplerCube uShadowCube2;
+uniform samplerCube uShadowCube3;
 uniform mat4 uShadowMatrix[MAX_SHADOWS];
+uniform mat4 uShadowMatrixCubo[MAX_SHADOWS * kCarasCubemap];
 uniform float uShadowBias[MAX_SHADOWS];
 uniform float uShadowStrength[MAX_SHADOWS];
 uniform float uShadowTexel[MAX_SHADOWS];
+uniform float uShadowDistancia[MAX_SHADOWS];
 uniform int uShadowLightIndex[MAX_SHADOWS];
 uniform int uShadowCount;
 
@@ -162,15 +172,51 @@ float coberturaSombra(int indice, vec2 uv, float ref, float texel) {
     return pcf3x3(uShadowMap3, uv, ref, texel);
 }
 
+// Profundidad guardada en el cubemap de una luz puntual, leida en la direccion
+// desde la luz al fragmento. El sampler va como parametro: GLSL 3.30 no deja
+// elegir el sampler con un if y guardarlo en una variable local (los samplers
+// no son asignables ni declarables fuera de uniforms o parametros).
+float profundidadCubemap(samplerCube cubo, vec3 direccion) {
+    return texture(cubo, direccion).r;
+}
+
 // Factor de sombra de una luz: 1.0 = iluminado, 0.0 = en sombra.
 //
-// El mapa es una sampler2DShadow en modo de comparacion: el hardware compara
-// la profundidad del fragmento con la del mapa y devuelve el porcentaje de
-// cobertura.
-//
-// Si el fragmento cae fuera del mapa, o detras del plano lejano, no hay nada
-// que compare y se queda iluminado: la sombra no se repite en el borde.
+// Las luces direccionales y spot usan un mapa 2D (sampler2DShadow) con
+// comparacion por hardware y PCF. Las luces puntuales usan un cubemap de
+// profundidad (samplerCube): se lee la profundidad almacenada en la direccion
+// desde la luz al fragmento y se compara contra la distancia del fragmento.
 float factorSombra(int indiceLuz, vec3 fragPos) {
+    // --- Luz puntual: cubemap de profundidad -------------------------------
+    if (uLightTypes[indiceLuz] == 1) {
+        for (int s = 0; s < MAX_SHADOWS; ++s) {
+            if (s >= uShadowCount) break;
+            if (uShadowLightIndex[s] != indiceLuz) continue;
+            vec3 dir = fragPos - uLightWorldPos[indiceLuz];
+            float distancia = length(dir);
+            if (distancia > uShadowDistancia[indiceLuz]) return 1.0;
+            vec3 dirNorm = normalize(dir);
+            // ref en [0,1]: distancia relativa al alcance de la luz.
+            float ref = distancia / uShadowDistancia[indiceLuz];
+            float profundidad;
+            if (indiceLuz == 0) profundidad = profundidadCubemap(uShadowCube0, dirNorm);
+            else if (indiceLuz == 1) profundidad = profundidadCubemap(uShadowCube1, dirNorm);
+            else if (indiceLuz == 2) profundidad = profundidadCubemap(uShadowCube2, dirNorm);
+            else profundidad = profundidadCubemap(uShadowCube3, dirNorm);
+            float cobertura = (profundidad < ref) ? 0.0 : 1.0;
+            return mix(1.0, cobertura, uShadowStrength[s]);
+        }
+        return 1.0;
+    }
+
+    // --- Luz direccional/spot: mapa 2D con comparacion por hardware --------
+    //
+    // El mapa es una sampler2DShadow en modo de comparacion: el hardware compara
+    // la profundidad del fragmento con la del mapa y devuelve el porcentaje de
+    // cobertura.
+    //
+    // Si el fragmento cae fuera del mapa, o detras del plano lejano, no hay nada
+    // que compare y se queda iluminado: la sombra no se repite en el borde.
     for (int s = 0; s < MAX_SHADOWS; ++s) {
         if (s >= uShadowCount) break;
         if (uShadowLightIndex[s] != indiceLuz) continue;
@@ -531,20 +577,21 @@ void main() {
 
 // Pases de profundidad del mapa de sombras.
 //
-// El vertex shader solo proyecta la geometria con la matriz de la luz: la
-// posicion del vertice en el mapa es lo que se guarda en la textura de
-// profundidad. No hay colores ni materiales, asi que solo usa el atributo de
-// posicion (el resto del VAO queda sin usar).
-inline const char* const kDepthVertexShader = R"(#version 330 core
-layout(location = 0) in vec3 aPosition;
+ // El vertex shader solo proyecta la geometria con la matriz de la luz: la
+ // posicion del vertice en el mapa es lo que se guarda en la textura de
+ // profundidad. No hay colores ni materiales, asi que solo usa el atributo de
+ // posicion (el resto del VAO queda sin usar).
+ inline const char* const kDepthVertexShader = R"(#version 330 core
+ layout(location = 0) in vec3 aPosition;
 
-uniform mat4 uModel;
-uniform mat4 uLightMatrix;
+ uniform mat4 uModel;
+ uniform mat4 uLightMatrix;
+ uniform mat4 uModelLight;
 
-void main() {
-    gl_Position = uLightMatrix * uModel * vec4(aPosition, 1.0);
-}
-)";
+ void main() {
+     gl_Position = uModelLight * vec4(aPosition, 1.0);
+ }
+ )";
 
 // El fragment shader no escribe nada util: el mapa es solo de profundidad y el
 // destino de dibujo no tiene buffer de color (glDrawBuffer(GL_NONE)). Se

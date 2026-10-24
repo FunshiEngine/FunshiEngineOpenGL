@@ -26,7 +26,7 @@
 //     terminar, para que la interfaz pueda mostrarlo en vez de perderlo,
 //   - la barra de menu le pasa al dialogo el proyecto activo.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
+// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
 // dependencias de GUI, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <filesystem>

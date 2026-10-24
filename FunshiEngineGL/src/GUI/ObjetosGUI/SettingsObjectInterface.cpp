@@ -520,6 +520,7 @@ void SettingsObjectInterface::contentGUI() {
 							    editor->createGameObject(std::move(obj), nullptr);
 							if (creado) {
 								auto* model = new Model();
+								model->setAssetManager(editor->getAssetManager());
 								model->setPath(pathStr);
 								creado->addComponent(
 								    std::unique_ptr<Component>(model));

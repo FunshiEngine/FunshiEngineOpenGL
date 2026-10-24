@@ -408,7 +408,7 @@ if(BUILD_ENGINE)
                FUNSHI_CXX_RUNTIME_FLAG="${FUNSHI_CXX_RUNTIME_FLAG}")
     # Raiz de los fuentes del engine, horneada: el exportador de juegos la usa
     # para el add_subdirectory del proyecto de exportacion sin deducirla de
-    # rutas relativas al proyecto (que apuntan a MotorGrafico/, no al engine).
+    # rutas relativas al proyecto (que apuntan a FunshiEngine-DATA/, no al engine).
     target_compile_definitions(funshi_engine
         PUBLIC FUNSHI_ENGINE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -655,6 +655,43 @@ set_target_properties(emisor-particulas-tests PROPERTIES
 )
 add_test(NAME emisor-particulas-tests COMMAND emisor-particulas-tests)
 
+# --- Prueba headless del campo texturaParticula del emisor -------------------
+add_executable(particulas-textura-tests
+    ${SRC_DIR}/Objetos/Componentes/EmisorParticulas.cpp
+    ${SRC_DIR}/Particulas/SistemaParticulas.cpp
+    ${SRC_DIR}/Particulas/LectorPerfil.cpp
+    ${SRC_DIR}/Particulas/PerfilParticula.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ParticulasTexturaTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/EditorConfigStubs.cpp
+)
+target_include_directories(particulas-textura-tests PRIVATE ${SRC_DIR} ${CMAKE_SOURCE_DIR}/External)
+set_target_properties(particulas-textura-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME particulas-textura-tests COMMAND particulas-textura-tests)
+
+# Perfiles de efecto de particulas: escritor JSON + flujo hasta el emisor. El
+# escritor valida las mismas invariantes que la carga, y el emisor lee el
+# perfil por ruta (el mismo camino que recorre el drag & drop del inspector).
+add_executable(particulas-perfil-tests
+    ${SRC_DIR}/Objetos/Componentes/EmisorParticulas.cpp
+    ${SRC_DIR}/Particulas/SistemaParticulas.cpp
+    ${SRC_DIR}/Particulas/LectorPerfil.cpp
+    ${SRC_DIR}/Particulas/EscritorPerfil.cpp
+    ${SRC_DIR}/Particulas/PerfilParticula.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ParticulasPerfilTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/EditorConfigStubs.cpp
+)
+target_include_directories(particulas-perfil-tests PRIVATE ${SRC_DIR} ${CMAKE_SOURCE_DIR}/External)
+set_target_properties(particulas-perfil-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME particulas-perfil-tests COMMAND particulas-perfil-tests)
+
 # --- Pruebas headless de la lectura de datos serializados ---------------------
 # Las longitudes y las etiquetas las controla el archivo: si estan corruptas,
 # la lectura se corta con un error limpio en vez de reservar una memoria
@@ -737,6 +774,45 @@ set_target_properties(malla-regiones-tests PROPERTIES
     CXX_EXTENSIONS OFF
 )
 add_test(NAME malla-regiones-tests COMMAND malla-regiones-tests)
+
+# --- Pruebas headless del dibujado de mallas por regiones --------------------
+# Con un backend falso (sin GPU) se comprueba que MeshRenderer invoca
+# drawMesh(handle, firstIndex, indexCount) una vez por region, con el rango
+# de indices exacto de cada una, y que una malla sin regiones se dibuja entera.
+add_executable(render-regiones-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/RenderRegionesTests.cpp
+)
+target_include_directories(render-regiones-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+    ${CMAKE_SOURCE_DIR}/External/imgui
+)
+target_link_libraries(render-regiones-tests PRIVATE funshi_engine)
+set_target_properties(render-regiones-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME render-regiones-tests COMMAND render-regiones-tests)
+
+
+# --- Pruebas headless del camino completo del componente Model (drag&drop) ---
+# AssetManager -> resolverDibujoModelo -> intentarRenderMesh -> regiones.
+add_executable(modelo-component-render-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ModeloModelComponentTests.cpp
+)
+target_include_directories(modelo-component-render-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+    ${CMAKE_SOURCE_DIR}/External/imgui
+)
+target_link_libraries(modelo-component-render-tests PRIVATE funshi_engine)
+set_target_properties(modelo-component-render-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME modelo-component-render-tests COMMAND modelo-component-render-tests)
 
 # --- Pruebas headless de los materiales por region ---------------------------
 # El componente Materiales guarda una region por parte de la malla con su
@@ -1417,7 +1493,7 @@ add_executable(model-serialization-tests
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/ModelSerializationTests.cpp
 )
-target_link_libraries(model-serialization-tests PRIVATE funshi_diagnostics_core)
+target_link_libraries(model-serialization-tests PRIVATE funshi_engine)
 target_include_directories(model-serialization-tests PRIVATE
     ${SRC_DIR}
     ${CMAKE_SOURCE_DIR}/External
@@ -1655,6 +1731,7 @@ add_executable(audio-tests
     ${SRC_DIR}/Audio/AudioEngine.cpp
     ${SRC_DIR}/Audio/GestorMusica.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../tests/AudioEngineTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/EditorConfigStubs.cpp
 )
 target_include_directories(audio-tests PRIVATE ${SRC_DIR})
 set_target_properties(audio-tests PROPERTIES
@@ -1667,6 +1744,29 @@ if(Threads_FOUND)
     target_link_libraries(audio-tests PRIVATE Threads::Threads)
 endif()
 add_test(NAME audio-tests COMMAND audio-tests)
+
+# AudioSource (componente de fuente de sonido): testa que reproducir() sin
+# motor inyectado no hace nada, y que con motor y archivo existente encole
+# el comando y pase a estado sonando. Usa stubs de EditorConfig para evitar
+# arrastrar la cadena completa de configuracion del proyecto.
+add_executable(audio-source-tests
+    ${SRC_DIR}/Audio/AudioEngine.cpp
+    ${SRC_DIR}/Audio/GestorMusica.cpp
+    ${SRC_DIR}/Objetos/Componentes/AudioSource.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/AudioSourceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/EditorConfigStubs.cpp
+)
+target_include_directories(audio-source-tests PRIVATE ${SRC_DIR})
+set_target_properties(audio-source-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+find_package(Threads QUIET)
+if(Threads_FOUND)
+    target_link_libraries(audio-source-tests PRIVATE Threads::Threads)
+endif()
+add_test(NAME audio-source-tests COMMAND audio-source-tests)
 
 # Reproductor de musica (GestorMusica) headless y portatil: la maquina de
 # estados del fundido cruzado, el paso automatico a la pista siguiente y el
@@ -1706,6 +1806,11 @@ if(FUNSHI_JAVA)
         PRIVATE ${SRC_DIR} ${JNI_INCLUDE_DIRS})
     target_link_libraries(scripts-java-tests PRIVATE funshi_diagnostics_core)
     target_compile_definitions(scripts-java-tests PRIVATE FUNSHI_JAVA)
+# GCC/Clang rechazan lambdas que capturan como punteros a funcion
+# (tablaServicios()); MSVC no necesita esta marca.
+    if(UNIX)
+        target_compile_options(scripts-java-tests PRIVATE -fpermissive)
+    endif()
     if(Java_JAVAC_EXECUTABLE)
         target_compile_definitions(scripts-java-tests
             PRIVATE FUNSHI_JAVAC_DEFAULT="${Java_JAVAC_EXECUTABLE}")

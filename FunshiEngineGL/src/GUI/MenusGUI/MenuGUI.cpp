@@ -77,6 +77,14 @@ void MenuGUI::setSensibilidadMovimientoCamara(float sensibilidad) {
         sensibilidad); // publica SensibilidadMovimientoCambio
 }
 
+float MenuGUI::getVolumenMaestro() const noexcept {
+    return model.getVolumenMaestro();
+}
+
+void MenuGUI::setVolumenMaestro(float volumen) {
+    model.setVolumenMaestro(volumen); // publica VolumenCambio
+}
+
 const Apariencia& MenuGUI::getApariencia() const noexcept {
     return model.getApariencia();
 }
@@ -150,7 +158,7 @@ void MenuGUI::setDimensionProyecto(DimensionProyecto dimension) noexcept {
 }
 
 void MenuGUI::actualizarProyectos() {
-    // Los proyectos son carpetas de MotorGrafico/Proyects/ (una por
+    // Los proyectos son carpetas de FunshiEngine-DATA/Proyects/ (una por
     // proyecto: Memory + src<Nombre>). Vista unica, sin duplicar la logica;
     // los accesos fallidos se toleran silenciosamente (no hay proyectos).
     std::vector<std::string> proyectos;
@@ -195,6 +203,10 @@ void MenuGUI::publicarCambio(MenuModel::Campo campo) {
     case MenuModel::Campo::SensibilidadMovimientoCamara:
         ev.type = EditorEventType::SensibilidadMovimientoCambio;
         ev.sensibilidadMovimiento = model.getSensibilidadMovimientoCamara();
+        break;
+    case MenuModel::Campo::VolumenMaestro:
+        ev.type = EditorEventType::VolumenCambio;
+        ev.volumen = model.getVolumenMaestro();
         break;
     case MenuModel::Campo::Apariencia:
         ev.type = EditorEventType::AparienciaCambio;

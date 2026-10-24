@@ -23,7 +23,7 @@
 // El backend de musica es FALSO (implementa IMusicaBackend sin tocar audio):
 // asi se puede comprobar el comportamiento del reproductor paso a paso.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo y salida
+// Patron de autoria (ver Skills): CHECK definido en este archivo y salida
 // final "OK/FALLOS: N comprobaciones".
 
 #include <cmath>

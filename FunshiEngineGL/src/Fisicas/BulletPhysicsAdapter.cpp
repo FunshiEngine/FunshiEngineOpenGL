@@ -178,3 +178,41 @@ std::vector<EventoContacto> BulletPhysicsAdapter::tomarEventosContacto() {
     eventosContacto_.clear();
     return eventos;
 }
+
+ResultadoRaycast BulletPhysicsAdapter::raycast(float ox, float oy, float oz,
+                                                float dx, float dy, float dz,
+                                                float alcance) {
+    ResultadoRaycast resultado;
+    if (!dynamicsWorld) return resultado;
+
+    btVector3 origen(ox, oy, oz);
+    btVector3 fin(ox + dx * alcance, oy + dy * alcance, oz + dz * alcance);
+
+    btCollisionWorld::ClosestRayResultCallback callback(origen, fin);
+    dynamicsWorld->rayTest(origen, fin, callback);
+
+    if (callback.hasHit()) {
+        resultado.impacto = true;
+        resultado.distancia = callback.m_closestHitFraction * alcance;
+        resultado.puntoX = callback.m_hitPointWorld.getX();
+        resultado.puntoY = callback.m_hitPointWorld.getY();
+        resultado.puntoZ = callback.m_hitPointWorld.getZ();
+        resultado.normalX = callback.m_hitNormalWorld.getX();
+        resultado.normalY = callback.m_hitNormalWorld.getY();
+        resultado.normalZ = callback.m_hitNormalWorld.getZ();
+
+        // El collider golpeado se recupera del objeto de colision de Bullet.
+        // Cada Collider del motor envuelve un btCollisionObject; lo buscamos
+        // comparando punteros de cuerpo rigid.
+        const btCollisionObject* obj = callback.m_collisionObject;
+        if (obj) {
+            for (RigidBody* body : cuerpos_) {
+                if (body && body->getRigidBody() == obj) {
+                    resultado.collider = body->getCollider();
+                    break;
+                }
+            }
+        }
+    }
+    return resultado;
+}

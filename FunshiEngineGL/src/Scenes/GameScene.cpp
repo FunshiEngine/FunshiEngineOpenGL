@@ -33,7 +33,6 @@
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/Componentes/EmisorParticulas.h"
 #include "../Objetos/Componentes/Grid.h"
-#include "../Objetos/Modelos3D.h"
 #include "../Objetos/SimpleObject.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../Objetos/Componentes/Colliders/Collider.h"
@@ -795,6 +794,11 @@ void GameScene::GUI() {
     menuBarGUI->printGUI();
     if (TerminalInterface* terminal = managerGUI->getTerminalGUI())
         terminal->printGUI();
+    // Taller de efectos (animaciones y particulas): como el terminal, queda
+    // disponible mientras la GUI del editor este activa.
+    if (AnimacionesParticulasInterface* tallerEfectos =
+            managerGUI->getAnimacionesParticulasGUI())
+        tallerEfectos->printGUI();
     // El overlay de las interfaces de juego (HUD) se dibuja aparte en
     // pintarInterfacesJuego(), porque tambien corre en el juego exportado,
     // donde no existe la GUI del editor.
@@ -1058,6 +1062,7 @@ void GameScene::pintarViewportsGUI() {
                         GameObject* creado = editorController->createGameObject(std::move(obj), nullptr);
                         if (creado) {
                             auto* model = new Model();
+                            model->setAssetManager(editorController->getAssetManager());
                             model->setPath(pathStr);
                             creado->addComponent(std::unique_ptr<Component>(model));
                             editorController->selectObject(creado);
@@ -1568,6 +1573,15 @@ void GameScene::gameScene() {
     // Proyecto 2D: la pasada omite el cielo y el difuminado por distancia.
     ctx.modo2D = dimensionProyecto == DimensionProyecto::DosD;
     ctx.sistemaParticulas = &sistemaParticulas;
+
+    // Audio 3D: el listener vive en la camara activa, así su posición se
+    // refresca cada frame (tanto en el editor como en el juego).
+    if (audioEngine && activeCameraObject) {
+        if (Transform* t = activeCameraObject->getGlobalTransform()) {
+            const float* p = t->getTranslatef();
+            audioEngine->setListenerPosition(p[0], p[1], p[2]);
+        }
+    }
 
     // Pasada de la escena (vistas previas + pasada principal + diag) en la
     // capa de Rendering.

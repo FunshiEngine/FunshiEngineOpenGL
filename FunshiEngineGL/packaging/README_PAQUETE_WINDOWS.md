@@ -56,7 +56,7 @@ Pasos que ejecuta:
   usuario).
 - Iconos de menú inicio y escritorio, que inician en la carpeta de la app para
   que `IconosGUI` encuentre sus imágenes y los scripts en C++ sus cabeceras.
-- Crea la raíz vacía `{app}\MotorGrafico\`: ahí viven los proyectos que el
+- Crea la raíz vacía `{app}\FunshiEngine-DATA\`: ahí viven los proyectos que el
   usuario crea (`<nombre>\Memory\Binarios\Scene`, `<nombre>\src<nombre>`) y
   la configuración (`Configuracion.json`, `imgui.ini`). No se instalan carpetas
   fijas de `Modelos\Texturas\Imagenes`.
@@ -74,16 +74,16 @@ Las instalaciones antiguas con `PrivilegesRequired=admin` quedaron en
 `C:\Program Files\FunshiEngineGL` y registradas en HKLM. La nueva se registra
 por usuario (HKCU), así que Inno no las ve como la misma aplicación: **desinstalá
 la versión anterior antes de instalar la nueva**, o te van a coexistir dos
-copias. Tus proyectos no se pierden: están en la carpeta `MotorGrafico` de la
+copias. Tus proyectos no se pierden: están en la carpeta `FunshiEngine-DATA` de la
 instalación vieja y el motor copia solo lo que falta cuando encuentra la
 carpeta original sin escribir (migración de `ProjectPaths`).
 
 ### Dónde guarda el motor los datos del usuario
 
 Toda escritura cuelga de una sola raíz, la que resuelve
-`ProjectPaths::directorioBase()`: `{app}\MotorGrafico` (junto al ejecutable) si
+`ProjectPaths::directorioBase()`: `{app}\FunshiEngine-DATA` (junto al ejecutable) si
 ahí se puede escribir, y si no la carpeta de datos del usuario
-(`%APPDATA%\FunshiEngineGL\MotorGrafico`). El motor elige la raíz probando de
+(`%APPDATA%\FunshiEngineGL\FunshiEngine-DATA`). El motor elige la raíz probando de
 verdad si puede escribir, no suponiendo dónde está.
 
 Con la instalación por usuario lo normal es el primer caso, porque
@@ -135,7 +135,7 @@ Cada combinacion genera su propio archivo de salida, así no se mezclan builds
 - La primera vez la escena arranca vacia (el editor crea
   `SceneBBDDObjetos.txt` al cargar).
 - Al crear un proyecto, las carpetas se generan solas en
-  `{app}\MotorGrafico\<nombre>\` (`Memory\Binarios\Scene` + `src<nombre>`).
+  `{app}\FunshiEngine-DATA\<nombre>\` (`Memory\Binarios\Scene` + `src<nombre>`).
   Arrastra meshes desde el árbol de archivos (raiz `src<nombre>`) al
   viewport para armar tu escena demo.
 - Las rutas de assets se guardan **relativas a la raíz del proyecto**
@@ -160,6 +160,6 @@ después queda cacheada y es mucho mas rapida.
    Se puede mover la carpeta del proyecto y siguen valiendo. Lo que no se
    resuelve todavía es una ruta guardada que venga de otro equipo.
 2. **Escenas con rutas Linux**: los `.db` guardan las rutas absolutas que se
-   cargaron. Una escena hecha en Linux (`/home/.../MotorGrafico/...`) no
+   cargaron. Una escena hecha en Linux (`/home/.../FunshiEngine-DATA/...`) no
    resolverá sus assets en Windows tal cual; hay que reimportar los modelos
    desde el árbol o regenerar la escena en Windows.

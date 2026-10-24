@@ -27,6 +27,7 @@
 #endif
 
 #include "../src/Scenes/GameScene.h"
+#include "../src/Audio/AudioEngine.h"
 #include "../src/GUIManager/GUIManager.h"
 #include "../src/Configuracion/EditorConfig.h"
 #include "../src/Configuracion/ProjectPaths.h"
@@ -39,7 +40,7 @@
 #include "EngineTime.h"
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-#include "../src/Objetos/Modelos3D.h"
+#include "../src/Objetos/GameObject.h"
 #include "../src/Objetos/Componentes/CameraComponent.h"
 #include "../src/Proyectos/GestorDeProyectos.h"
 #include "../src/States/ApplicationStateMachine.h"
@@ -475,6 +476,7 @@ static int EjecutarMotor(int argc, char* argv[])
     mainMenu->setSensibilidadCamara(editorConfig.datos().sensibilidadCamara);
     mainMenu->setSensibilidadMovimientoCamara(
         editorConfig.datos().sensibilidadMovimientoCamara);
+    mainMenu->setVolumenMaestro(editorConfig.datos().volumenMaestro);
 
     mainMenu->setApariencia(editorConfig.datos().apariencia);
     scene->setVentanaCamarasAbierta(editorConfig.datos().ventanaCamarasAbierta);
@@ -624,6 +626,14 @@ static int EjecutarMotor(int argc, char* argv[])
                 ev.sensibilidadMovimiento;
             editorConfig.solicitarGuardadoGeneral();
         });
+        // Volumen maestro de efectos de sonido: se aplica al bus de audio y
+        // se persiste en la configuracion general.
+        eventosGUI->subscribe([scene, &editorConfig](const EditorEvent& ev) {
+            if (ev.type != EditorEventType::VolumenCambio) return;
+            scene->getAudioEngine()->setVolumenMaestro(ev.volumen);
+            editorConfig.datos().volumenMaestro = ev.volumen;
+            editorConfig.solicitarGuardadoGeneral();
+        });
         // Restablecer configuracion: se reaplican los defaults en general
         // (idioma/apariencia/sensibilidad) y en el estado del proyecto
         // (ventanas, gizmo, camara). El nombre del proyecto se conserva: el
@@ -641,6 +651,7 @@ static int EjecutarMotor(int argc, char* argv[])
                 mainMenu->setSensibilidadCamara(cfg.sensibilidadCamara);
                 mainMenu->setSensibilidadMovimientoCamara(
                     cfg.sensibilidadMovimientoCamara);
+                mainMenu->setVolumenMaestro(cfg.volumenMaestro);
                 mainMenu->setApariencia(cfg.apariencia);
                 scene->setVentanaCamarasAbierta(cfg.ventanaCamarasAbierta);
                 scene->setGizmoOperation(operacionDesdeNumero(cfg.gizmoOperacion));
@@ -821,7 +832,7 @@ static int EjecutarMotor(int argc, char* argv[])
             gestor.eliminarProyectoDesdeMenu();
 
             if (mainMenu->ConsultarMenu()) {
-                // Refresca el listado de proyectos (carpetas de MotorGrafico):
+                // Refresca el listado de proyectos (carpetas de FunshiEngine-DATA):
                 // recoge proyectos creados/borrados mientras el menu esta abierto.
                 mainMenu->actualizarProyectos();
                 mainMenu->Renderizar();             // la vista dibuja la vista activa del modelo

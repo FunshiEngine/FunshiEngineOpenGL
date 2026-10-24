@@ -30,7 +30,7 @@
 // se puede verificar headless sin dibujar (borrar el objeto -> el inspector
 // tiene que desvincularse).
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo,
+// Patron de autoria (ver Skills): CHECK definido en este archivo,
 // TempPruebas::CarpetaPrueba para la carpeta temporal que se limpia sola, y
 // salida final "OK/FALLOS: N comprobaciones" saliendo con 0 o 1.
 
@@ -74,7 +74,7 @@
 #include "../FunshiEngineGL/src/Herramientas/PathUtils.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
-#include "../FunshiEngineGL/src/Objetos/Modelos3D.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
 #include "../FunshiEngineGL/src/Objetos/TagRegistry.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Color.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/AudioSource.h"
@@ -744,36 +744,38 @@ void diagnosticosCargaMalla() {
     auto loader = std::make_unique<LoaderDiagnostico>();
     LoaderDiagnostico* loaderRaw = loader.get();
     AssetManager assets(std::move(loader));
-    Modelos3D modelo;
-    modelo.setAssetManager(&assets);
-    modelo.setRegistroDiagnosticos(&diagnosticos);
+    GameObject modeloObj;
+    Model* modelo = new Model();
+    modeloObj.addComponent(modelo);
+    modelo->setAssetManager(&assets);
+    modelo->setRegistroDiagnosticos(&diagnosticos);
 
     loaderRaw->falla = false;
-    modelo.setPath("Assets/valido.obj");
-    CHECK(modelo.getMesh() != nullptr && diagnosticos.ultimos().empty(),
+    modelo->setPath("Assets/valido.obj");
+    CHECK(modelo->getMesh() != nullptr && diagnosticos.ultimos().empty(),
           "cargar una malla válida no publica un diagnóstico");
     CHECK(loaderRaw->cargas == 1, "el loader recibe la carga válida");
 
     loaderRaw->falla = true;
-    modelo.setPath("Assets/modelo.obj");
-    CHECK(modelo.getMesh() == nullptr && assets.hasFailedMesh("Assets/modelo.obj"),
+    modelo->setPath("Assets/modelo.obj");
+    CHECK(modelo->getMesh() == nullptr && assets.hasFailedMesh("Assets/modelo.obj"),
           "el fallo del loader deja el modelo vacío y cacheado");
     CHECK(loaderRaw->cargas == 2, "el loader intenta cargar el modelo fallido");
 
-    modelo.setPath("Assets/modelo.obj");
+    modelo->setPath("Assets/modelo.obj");
     CHECK(loaderRaw->cargas == 2,
           "la repetición del fallo usa el error cacheado");
     auto eventos = diagnosticos.ultimos(10);
     CHECK(eventos.size() == 1 &&
               eventos[0].tipoExcepcion == "AssetLoadException" &&
-              eventos[0].modulo == "Objetos/Modelos3D" &&
+              eventos[0].modulo == "Objetos/Model" &&
               eventos[0].nivel == NivelDiagnostico::Error,
           "RuntimeException de assets llega una sola vez al registro común");
 
     loaderRaw->falla = false;
     assets.clearFailedMeshes();
-    modelo.setPath("Assets/modelo.obj");
-    CHECK(modelo.getMesh() != nullptr && loaderRaw->cargas == 3,
+    modelo->setPath("Assets/modelo.obj");
+    CHECK(modelo->getMesh() != nullptr && loaderRaw->cargas == 3,
           "limpiar el fallo permite que el modelo se recupere");
     CHECK(diagnosticos.ultimos(10).size() == 1,
           "la recuperación exitosa no duplica el diagnóstico histórico");
@@ -980,7 +982,7 @@ static void escribirRutaPersistida(std::ostream& out, const std::string& s) {
 
 void rutasDeCarasDeSkybox() {
     EditorConfig::limpiarRaizAssets();
-    const std::string raiz = "/motor/MotorGrafico/Juego/srcJuego";
+    const std::string raiz = "/motor/FunshiEngine-DATA/Juego/srcJuego";
     EditorConfig::fijarRaizAssets(raiz);
 
     const std::string relativaPX = "Cielo/cielo_px.png";
@@ -1084,7 +1086,7 @@ void rutasDeCarasDeSkybox() {
 // en silencio y dejar los .db apuntando al lugar viejo.
 void reescrituraDeReferencias() {
     EditorConfig::limpiarRaizAssets();
-    const std::string raiz = "C:\\base\\MotorGrafico/Proyects/JuegoX/srcJuegoX";
+    const std::string raiz = "C:\\base\\FunshiEngine-DATA/Proyects/JuegoX/srcJuegoX";
     EditorConfig::fijarRaizAssets(raiz);
 
     // Rutas en memoria tal como quedan al cargar la escena (absolutizar
@@ -1802,6 +1804,11 @@ public:
         x = 0.0f;
         y = -1.0f;
         z = 0.0f;
+    }
+    // Sin impacto por defecto: el test no ejerce raycast.
+    ResultadoRaycast raycast(float, float, float, float, float, float,
+                             float) override {
+        return {};
     }
 };
 

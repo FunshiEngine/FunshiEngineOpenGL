@@ -55,12 +55,19 @@ public:
     // Comandos no bloqueantes (hilo de juego).
     // Reproduce el archivo de la ruta dada. Devuelve -1 si la ruta esta vacia o
     // el archivo no existe (queda avisado en el log), sino un handle >= 0 para
-    // detener().
+    // detener(). `posicion` (opcional): si se pasa, el sonido es espacial (3D)
+    // y nace en esa coordenada del mundo; si es nullptr, el sonido es global
+    // (2D).
     int reproducir(const std::string& ruta, float volumen = 1.0f,
-                   bool bucle = false);
+                   bool bucle = false, const float* posicion = nullptr);
     void detener(int handle);
     void detenerTodo();
     void setVolumenMaestro(float volumen);
+
+    // Reposiciona un sonido activo (para que siga a su objeto cada frame).
+    void setPosicionSonido(int handle, float x, float y, float z);
+    // Posiciona el listener (camara activa) para la spatializacion 3D.
+    void setListenerPosition(float x, float y, float z);
 
     // --- Musica -------------------------------------------------------
     // La musica es un contrato aparte del de los efectos (IMusicaBackend):

@@ -27,7 +27,7 @@
 //   - el material editado llega al shader (el color difuso se sube),
 //   - al invalidarla queda sucia y se vuelve a dibujar.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
+// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
 // dependencias de GUI, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <cmath>
@@ -145,6 +145,8 @@ public:
     }
 
     Handle createDepthTarget(int) override { return 8; }
+    Handle createDepthTargetCubo(int) override { return 9; }
+    void bindDepthTargetCuboFace(Handle, int) override {}
     void destroyDepthTarget(Handle) override {}
     void bindDepthTarget(Handle) override {}
     Handle depthTargetTexture(Handle target) const override { return target + 2000; }

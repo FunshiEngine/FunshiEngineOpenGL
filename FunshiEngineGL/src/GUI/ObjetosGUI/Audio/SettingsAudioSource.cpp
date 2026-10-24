@@ -81,6 +81,12 @@ void SettingsAudioSource::showDataComponent() {
 	if (ImGui::SliderFloat("Volumen", &volume, 0.f, 1.f))
 		source->setVolume(volume);
 
+	bool espacial = source->isEspacial();
+	ImGui::Checkbox("Espacial (3D)", &espacial);
+	source->setEspacial(espacial);
+	ImGui::SameLine();
+	ImGui::TextDisabled("cuando esta desactivado suena global (2D)");
+
 	bool loop = source->isLoop();
 	if (ImGui::Checkbox("Bucle", &loop))
 		source->setLoop(loop);
@@ -90,7 +96,12 @@ void SettingsAudioSource::showDataComponent() {
 		source->setReproduccionAutomatica(autoPlay);
 
 	// La escena inyecta el motor; sin motor (inspector aislado) los botones se
-	// muestran deshabilitados.
+	// muestran deshabilitados. Si el componente aun no tiene motor (modo
+	// editor, antes de entrar en play), se comparte el motor del inspector
+	// para que Reproducir/Detener funcionen sin tener que entrar en play.
+	if (!source->getMotor() && motor)
+		source->setMotor(motor);
+
 	ImGui::BeginDisabled(motor == nullptr);
 	if (ImGui::Button(source->isReproduciendo() ? "Detener" : "Reproducir")) {
 		if (source->isReproduciendo()) source->detener();

@@ -49,7 +49,7 @@ private:
                              Position<File*>* left, Position<File*>* right);
 
 public:
-    explicit GestorDeArchivos(std::string pathProyect, std::string rootName = "MotorGrafico");
+    explicit GestorDeArchivos(std::string pathProyect, std::string rootName = "FunshiEngine-DATA");
     ~GestorDeArchivos();
 
     GestorDeArchivos(const GestorDeArchivos&) = delete;

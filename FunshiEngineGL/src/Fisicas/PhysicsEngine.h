@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "ContactoFisico.h"
-class IPhysicsBackend;
+#include "IPhysicsBackend.h"
 class RigidBody;
 
 // Fachada del mundo fisico (patron Facade).
@@ -46,6 +46,9 @@ public:
     std::vector<EventoContacto> tomarEventosContacto();
     void fijarGravedad(float x, float y, float z);
     void gravedad(float& x, float& y, float& z) const;
+    ResultadoRaycast raycast(float ox, float oy, float oz,
+                             float dx, float dy, float dz,
+                             float alcance);
 
 private:
     std::unique_ptr<IPhysicsBackend> backend_;

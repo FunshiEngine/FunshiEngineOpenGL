@@ -19,7 +19,7 @@
 // Pruebas headless del sistema de Prefabs: round-trip completo (guardar -> instanciar ->
 // conservar nombre, tag, jerarquia, componentes, Transform) y validacion de archivos.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo,
+// Patron de autoria (ver Skills): CHECK definido en este archivo,
 // TempPruebas::CarpetaPrueba para la carpeta temporal que se limpia sola, y
 // salida final "OK/FALLOS: N comprobaciones" saliendo con 0 o 1.
 
@@ -317,7 +317,7 @@ void prefabLibraryCacheYValidacion() {
     Prefab* p3 = library.obtener("NoExiste");
     CHECK(p3 == nullptr, "library devuelve nullptr para prefab inexistente");
 
-    fs::path corrupto = fs::path(base) / "Assets" / "Prefabs" / "Corrupto.prefab";
+    fs::path corrupto = fs::path(base) / "Prefabs" / "Corrupto.prefab";
     {
         std::ofstream out(corrupto, std::ios::binary);
         out.write("BASURA", 6);
@@ -326,7 +326,7 @@ void prefabLibraryCacheYValidacion() {
     Prefab* p4 = library.obtener("Corrupto");
     CHECK(p4 == nullptr, "library rechaza archivo con magic invalido");
 
-    fs::path truncado = fs::path(base) / "Assets" / "Prefabs" / "Truncado.prefab";
+    fs::path truncado = fs::path(base) / "Prefabs" / "Truncado.prefab";
     {
         std::ofstream out(truncado, std::ios::binary);
         std::uint32_t magic = 0x42415250;
@@ -338,7 +338,7 @@ void prefabLibraryCacheYValidacion() {
     Prefab* p5 = library.obtener("Truncado");
     CHECK(p5 == nullptr, "library rechaza archivo truncado");
 
-    fs::path vacio = fs::path(base) / "Assets" / "Prefabs" / "Vacio.prefab";
+    fs::path vacio = fs::path(base) / "Prefabs" / "Vacio.prefab";
     {
         std::ofstream out(vacio, std::ios::binary);
         std::uint32_t magic = 0x42415250;
@@ -356,6 +356,41 @@ void prefabLibraryCacheYValidacion() {
 }
 
 // 5. Prefab::validarArchivo() estatico
+// Refrescar la biblioteca es un escaneo de solo lectura: si la carpeta
+// Prefabs no existe no hay nada que listar y NO se crea. Con un
+// create_directories y la raiz de assets sin fijar, el refresco creaba una
+// "Prefabs" relativa en el directorio corriente del proceso (la carpeta
+// fantasma que aparecia en la raiz).
+void recargarNoCreaCarpeta() {
+    TempPruebas::CarpetaPrueba carpeta("funshi_prefab_recargar");
+    const fs::path base = carpeta.ruta();
+    const fs::path prefabs = base / "Prefabs";
+
+    EditorConfig::limpiarRaizAssets();
+    EditorConfig::fijarRaizAssets(base.string());
+
+    PrefabLibrary library;
+    CHECK(!fs::exists(prefabs), "Prefabs no existe antes del refresco");
+
+    library.recargar();
+    CHECK(!fs::exists(prefabs), "recargar sin carpeta no la crea");
+    CHECK(library.listarNombres().empty(),
+          "recargar sin carpeta deja la cache vacia");
+
+    // Con la carpeta presente el escaneo si lista: el refresco funciona igual,
+    // solo dejo de tener el efecto secundario de crear directorios.
+    fs::create_directories(prefabs);
+    {
+        std::ofstream out(prefabs / "Existente.prefab", std::ios::binary);
+        out.write("XXXX", 4);
+    }
+    library.recargar();
+    CHECK(library.listarNombres().size() == 1,
+          "recargar con carpeta lista los prefabs presentes");
+
+    EditorConfig::limpiarRaizAssets();
+}
+
 void validarArchivoEstatico() {
     TempPruebas::CarpetaPrueba carpeta("funshi_prefab_validar");
     const fs::path base = carpeta.ruta();
@@ -382,7 +417,7 @@ void validarArchivoEstatico() {
     CHECK(!Prefab::validarArchivo("/no/existe/archivo.prefab"),
           "validarArchivo devuelve false para archivo inexistente");
 
-    fs::path badMagic = base / "Assets" / "Prefabs" / "BadMagic.prefab";
+    fs::path badMagic = base / "Prefabs" / "BadMagic.prefab";
     {
         std::ofstream out(badMagic, std::ios::binary);
         out.write("XXXX", 4);
@@ -390,7 +425,7 @@ void validarArchivoEstatico() {
     CHECK(!Prefab::validarArchivo(badMagic.string()),
           "validarArchivo rechaza magic incorrecto");
 
-    fs::path badVersion = base / "Assets" / "Prefabs" / "BadVersion.prefab";
+    fs::path badVersion = base / "Prefabs" / "BadVersion.prefab";
     {
         std::ofstream out(badVersion, std::ios::binary);
         std::uint32_t magic = 0x42415250;
@@ -403,7 +438,7 @@ void validarArchivoEstatico() {
     CHECK(!Prefab::validarArchivo(badVersion.string()),
           "validarArchivo rechaza version incorrecta");
 
-    fs::path empty = base / "Assets" / "Prefabs" / "Empty.prefab";
+    fs::path empty = base / "Prefabs" / "Empty.prefab";
     {
         std::ofstream out(empty, std::ios::binary);
     }
@@ -654,6 +689,7 @@ int main() {
     roundTripPrefabJerarquia();
     roundTripPrefabConModel();
     prefabLibraryCacheYValidacion();
+    recargarNoCreaCarpeta();
     validarArchivoEstatico();
     instanciarPrefabInexistente();
     multiplesInstanciasMismoPrefab();

@@ -104,7 +104,7 @@ std::size_t EmisorParticulas::emitir(SistemaParticulas& sistema,
     std::size_t emitidas = 0;
     while (acumulador_ >= 1.0f) {
         acumulador_ -= 1.0f;
-        sistema.emitir(efectivos, origen, perfil_);
+        sistema.emitir(efectivos, origen, perfil_, texturaParticula_);
         ++emitidas;
     }
     return emitidas;
@@ -144,6 +144,8 @@ void EmisorParticulas::serializeComponent(std::ofstream* file) {
     file->write(reinterpret_cast<const char*>(&activa), sizeof(activa));
     // La ruta del perfil se persiste relativa a la raiz de assets.
     escribirPath(file, EditorConfig::relativizarRuta(rutaPerfil_));
+    // La textura de particula tambien se guarda relativa a la raiz de assets.
+    escribirPath(file, EditorConfig::relativizarRuta(texturaParticula_));
 }
 
 void EmisorParticulas::deserializeComponent(std::ifstream* file) {
@@ -180,6 +182,9 @@ void EmisorParticulas::deserializeComponent(std::ifstream* file) {
     std::string ruta;
     leerPath(file, ruta);
     rutaPerfil_ = ruta;
+    // La textura de particula tambien se guarda relativa.
+    leerPath(file, ruta);
+    texturaParticula_ = ruta;
     // El perfil se lee cuando la escena ya tiene la raiz de assets resuelta.
 }
 

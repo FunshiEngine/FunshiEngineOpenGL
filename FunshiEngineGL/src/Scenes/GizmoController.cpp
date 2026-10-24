@@ -35,7 +35,7 @@
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
+#include "../Objetos/Componentes/Model.h"
 #include "../Rendering/GuiaEje.h"
 #include "EditorController.h"
 #include "SceneRegistry.h"
@@ -486,9 +486,9 @@ GameObject* GizmoController::pickObject(float mouseX, float mouseY,
             glm::vec3 boxMin(-1.0f, -1.0f, -1.0f);
             glm::vec3 boxMax(1.0f, 1.0f, 1.0f);
 
-            if (auto* m3d = dynamic_cast<Modelos3D*>(obj)) {
+            if (auto* model = obj->getComponent<Model>()) {
                 vec3 bMin, bMax;
-                if (m3d->getBoundingBox(bMin, bMax)) {
+                if (model->getBoundingBox(bMin, bMax)) {
                     boxMin = glm::vec3(bMin.x, bMin.y, bMin.z);
                     boxMax = glm::vec3(bMax.x, bMax.y, bMax.z);
                 }

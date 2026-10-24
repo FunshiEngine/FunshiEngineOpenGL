@@ -176,6 +176,7 @@ const ApiScriptGameObject* tablaApi() {
 
 const ScriptServices* tablaServicios() {
     static const ScriptServices servicios = {
+        // --- v1 ---
         [](const char* ruta, float volumen, bool bucle) {
             return ruta && std::string(ruta) == "disparo.wav" &&
                            volumen == 0.5f && !bucle
@@ -183,14 +184,14 @@ const ScriptServices* tablaServicios() {
                        : -1;
         },
         [](int handle) { handleSonidoDetenido = handle; },
+        // --- v3 ---
         [](const char* nombre) {
             return nombre && std::string(nombre) == "Meta"
                        ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
                        : nullptr;
         },
         [](int id) {
-            return id == 7 ? reinterpret_cast<void*>(
-                                 static_cast<intptr_t>(0x1234))
+            return id == 7 ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
                            : nullptr;
         },
         [](const char* etiqueta) {
@@ -198,11 +199,14 @@ const ScriptServices* tablaServicios() {
                        ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
                        : nullptr;
         },
+        // teclado
         [](const char* tecla) { return tecla && std::string(tecla) == "W"; },
         [](const char* tecla) { return tecla && std::string(tecla) == "SPACE"; },
         [](const char* tecla) { return tecla && std::string(tecla) == "D0"; },
+        // mouse
         []() { return 12.5f; },
         []() { return -4.0f; },
+        // --- v4: gravedad global y gestion de objetos ---
         [](float x, float y, float z) {
             gravMundo[0] = x;
             gravMundo[1] = y;
@@ -214,40 +218,54 @@ const ScriptServices* tablaServicios() {
         [](const char*, void*) { return objetoCreado; },
         [](void* o) { return o == objetoCreado || o == objetoClonado; },
         [](const void*, void*) { return objetoClonado; },
-        [](void*, float) { return true; },
-        [](void*, float) { return true; },
-        [](void*, float) { return true; },
-        [](const char*, void*) { return objetoCreado; },
-        []() { 
+        // v4 continuacion: colliders y rigidbody
+        [](void*, float) { return true; },  // agregarColliderEsfera
+        [](void*, float) { return true; },  // agregarColliderCubo
+        [](void*, float) { return true; },  // agregarRigidBody
+        // --- v5: colisiones y raycast ---
+        [](const void*) { return objetoCreado; },  // objetoDeCollider
+        [](float, float, float, float, float, float, float,
+             float*, float*, float*, float*, float*, float*, float*, void**)
+            { return false; },  // raycaste
+        []() { return 0.0f; },  // puntoImpactoX
+        []() { return 0.0f; },  // puntoImpactoY
+        []() { return 0.0f; },  // puntoImpactoZ
+        []() { return 0.0f; },  // normalImpactoX
+        []() { return 0.0f; },  // normalImpactoY
+        []() { return 0.0f; },  // normalImpactoZ
+        []() { return 0.0f; },  // distanciaImpacto
+        // --- v6: prefabs e interfaz web ---
+        [](const char*, void*) { return objetoCreado; },  // instanciarPrefab
+        []() {
             static const char* prefabs[] = { "Enemigo", "Jugador", nullptr };
             return prefabs;
-        },
-        [](const char*) { return reinterpret_cast<void*>(
-                               static_cast<intptr_t>(0x1234)); },
-        [](const void*) { return true; },
-        [](void*, bool) {},
-        [](void*, const char*) { return true; },
-        [](void*, const char*, const char*) { return true; },
-        [](void*, const char*) { return "3"; },
+        },  // listarPrefabs
+        [](const char*) { return reinterpret_cast<void*>(static_cast<intptr_t>(0x1234)); },  // interfazDeObjeto
+        [](const void*) { return true; },  // interfazActiva
+        [](void*, bool) {},  // interfazEstablecerActiva
+        [](void*, const char*) { return true; },  // interfazEstablecerEstado
+        [](void*, const char*, const char*) { return true; },  // interfazEstablecerValor
+        [](void*, const char*) { return "3"; },  // interfazValor
+        // --- v8: musica ---
         [](const char* ruta, float volumen, float fundido) {
             musicaReproducida = ruta && std::string(ruta) == "tema.ogg" &&
                                 volumen == 0.8f && fundido == 0.0f;
             return musicaReproducida;
-        },
-        [](float fundido) { fundidoSalida = fundido; },
-        [](float volumen) { volumenBus = volumen; },
-        // Interfaz de juego nativa (HUD del motor): el handle es opaco.
+        },  // reproducirMusica
+        [](float fundido) { fundidoSalida = fundido; },  // detenerMusica
+        [](float volumen) { volumenBus = volumen; },  // volumenMusica
+        // --- v9: interfaz de juego nativa ---
         [](const char* nombre) {
             return nombre && std::string(nombre) == "HUD"
                        ? reinterpret_cast<void*>(static_cast<intptr_t>(0x5678))
                        : nullptr;
-        },
-        [](const void*) { return true; },
-        [](void*, bool) {},
-        [](void*, const char*, const char*) { return true; },
-        [](void*, const char*, bool) { return true; },
-        [](void*, const char*) { return false; },
-        9,
+        },  // interfazNativaDeObjeto
+        [](const void*) { return true; },  // interfazNativaVisible
+        [](void*, bool) {},  // interfazNativaEstablecerVisible
+        [](void*, const char*, const char*) { return true; },  // interfazNativaEstablecerTexto
+        [](void*, const char*, bool) { return true; },  // interfazNativaEstablecerVisibleWidget
+        [](void*, const char*) { return false; },  // interfazNativaBotonPulsado
+        10,  // version
     };
     return &servicios;
 }

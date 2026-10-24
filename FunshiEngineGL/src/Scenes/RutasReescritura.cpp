@@ -34,7 +34,7 @@
 #include "Objetos/Componentes/Script.h"
 #include "Objetos/Componentes/Skybox.h"
 #include "Objetos/GameObject.h"
-#include "Objetos/Modelos3D.h"
+#include "Objetos/Componentes/Model.h"
 
 namespace {
 
@@ -215,7 +215,7 @@ int paraSlotsDe(Component& componente, Operar&& operar) {
 template <typename Operar>
 int paraSlotsDeObjeto(GameObject& objeto, Operar&& operar) {
     int cambios = 0;
-    if (auto* modelo = dynamic_cast<Modelos3D*>(&objeto)) {
+    if (auto* modelo = objeto.getComponent<Model>()) {
         cambios += operar(modelo->getPath(),
                           [modelo](const std::string& p) {
                               modelo->setPath(p);

@@ -27,7 +27,7 @@
 //     MSVC antepone ("class Transform"),
 //   - un tipo desconocido no devuelva icono ni reviente.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
+// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
 // dependencias de GUI, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <iostream>

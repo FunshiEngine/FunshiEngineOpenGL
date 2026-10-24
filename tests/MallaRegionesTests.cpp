@@ -27,7 +27,7 @@
 // La suite escribe un .obj con dos materiales en una carpeta temporal, lo carga
 // con el importador real (Assimp) y comprueba que las regiones salen bien.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
+// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
 // dependencias de GUI, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <cstdio>

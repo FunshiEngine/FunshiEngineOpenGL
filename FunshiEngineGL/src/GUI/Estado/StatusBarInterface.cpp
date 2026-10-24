@@ -29,12 +29,16 @@
 #include "../../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <cstdio>
+#include <fstream>
 #include <imgui.h>
+#include <nlohmann/json.hpp>
 
 StatusBarInterface::StatusBarInterface(bool stateGUI)
     : GeneralUserInterface(WindowNames::Status, stateGUI,
                            ImGuiWindowFlags_MenuBar),
-      estadoPublicado_(stateGUI) {}
+      estadoPublicado_(stateGUI),
+      rutaRespaldo_(RegistroDiagnosticos::archivoPorDefecto().parent_path() /
+                    "FunshiEngineGL_diagnosticos.respaldo.jsonl") {}
 
 void StatusBarInterface::bindScene(SceneRegistry* scene) { scene_ = scene; }
 
@@ -171,7 +175,49 @@ void StatusBarInterface::contentGUI() {
 
 void StatusBarInterface::dibujarDiagnosticos() {
     ImGui::SeparatorText("Consola de estado/log");
-    const auto eventos = RegistroDiagnosticos::global().ultimos(100);
+
+    // Botones de gestion del log: limpiar (con respaldo) y recuperar.
+    auto& registro = RegistroDiagnosticos::global();
+    bool hayEventos = !registro.ultimos(1).empty();
+    ImGui::SetNextItemWidth(140.0f);
+    if (hayEventos && ImGui::Button("Limpiar log")) {
+        // Leer el contenido actual del archivo de log.
+        std::ifstream entrada(registro.archivo(),
+                              std::ios::in | std::ios::binary);
+        std::string contenidoActual(
+            (std::istreambuf_iterator<char>(entrada)),
+            std::istreambuf_iterator<char>());
+
+        std::ofstream salida(rutaRespaldo_,
+                             std::ios::out | std::ios::binary | std::ios::trunc);
+        if (salida) {
+            salida << contenidoActual;
+            salida.flush();
+            hayRespaldo_ = true;
+        }
+        // Vaciar el log principal (memoria + archivo).
+        registro.limpiarTodo();
+    }
+    ImGui::SameLine();
+    if (hayRespaldo_ && ImGui::Button("Recuperar")) {
+        // Insertar el contenido del respaldo ANTES del contenido actual,
+        // para que se muestre en orden cronologico correcto.
+        auto eventosRespaldo =
+            RegistroDiagnosticos::leerArchivo(rutaRespaldo_, 10000);
+        if (!eventosRespaldo.empty()) {
+            registro.insertarAntes(std::move(eventosRespaldo));
+        }
+        // Vaciar el respaldo tras recuperar.
+        std::ofstream salida(rutaRespaldo_,
+                             std::ios::out | std::ios::binary | std::ios::trunc);
+        hayRespaldo_ = false;
+    }
+    if (hayRespaldo_) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(hay respaldo de log)");
+    }
+
+    const auto eventos = registro.ultimos(100);
     if (eventos.empty()) {
         ImGui::TextDisabled("No hay diagnósticos registrados");
         return;

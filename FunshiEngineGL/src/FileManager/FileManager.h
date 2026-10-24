@@ -56,7 +56,7 @@ public:
         std::string extension;
     };
 
-    explicit FileManager(const std::string& pathProyect, const std::string& rootName = "MotorGrafico");
+    explicit FileManager(const std::string& pathProyect, const std::string& rootName = "FunshiEngine-DATA");
     ~FileManager();
 
     FileManager(const FileManager&) = delete;

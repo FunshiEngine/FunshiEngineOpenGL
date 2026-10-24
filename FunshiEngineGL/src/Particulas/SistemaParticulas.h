@@ -50,8 +50,11 @@ public:
     //
     // 'perfil' es opcional: es el efecto del que sale la particula y el que
     // manda sobre su tamano y su color a lo largo de la vida.
+    // 'texturaOverride', si no esta vacia, se guarda en cada particula y el
+    // renderer la usa en vez de la textura del perfil.
     void emitir(const ParametrosEmisor& parametros, const float origen[3],
-                const std::shared_ptr<const PerfilParticula>& perfil = nullptr);
+                const std::shared_ptr<const PerfilParticula>& perfil = nullptr,
+                const std::string& texturaOverride = std::string());
 
     // Avanza la simulacion: aplica el rozamiento y la gravedad, integra la
     // posicion y retira las particulas que se quedaron sin vida.

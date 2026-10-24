@@ -34,7 +34,7 @@
 // a la stdlib sin heredar el baile de headers de Windows. Mismo criterio que
 // FileSystemWatcher: la abstraccion de SO vive en FileManager.
 //
-// Paridad multiplataforma (AGENTS.md): los argumentos pasan como bytes en
+// Paridad multiplataforma (Skills): los argumentos pasan como bytes en
 // las dos ramas; en Windows la linea se convierte CP_ACP -> ancho, la misma
 // conversion que hacian std::system/LoadLibraryA.
 

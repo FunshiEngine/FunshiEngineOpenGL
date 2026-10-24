@@ -34,6 +34,7 @@ inline constexpr const char* Status         = "Estado";
 inline constexpr const char* Terminal       = "Terminal";
 inline constexpr const char* CameraList     = "Camaras";
 inline constexpr const char* VistaInterfaz  = "Vista de interfaz";
+inline constexpr const char* AnimacionesParticulas = "Animaciones y Particulas";
 } // namespace WindowNames
 
 #endif

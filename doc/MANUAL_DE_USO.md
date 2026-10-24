@@ -10,7 +10,7 @@
 Guia practica para usuarios del editor: como montar una escena, asignar assets
 por arrastre y escribir scripts con la API exacta que expone el motor.
 
-> Documentacion complementaria: [README.md](README.md) (caracteristicas y
+> Documentacion complementaria: [README.md](../README.md) (caracteristicas y
 > compilacion), [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) (arquitectura),
 > [CAMARAS_VISTAS_PREVIAS.md](CAMARAS_VISTAS_PREVIAS.md) (camaras) y
 > [FunshiEngineGL/DOCUMENTACION.md](FunshiEngineGL/DOCUMENTACION.md) (notas
@@ -64,7 +64,7 @@ cmake --build FunshiEngineGL/build -j$(nproc)
 **Primeros pasos:**
 
 1. En el menu de inicio elegi idioma y sensibilidad de camara. Abri **Config Proyect**: a la izquierda se lista la
-   carpeta de proyectos (cada carpeta de `MotorGrafico/` es un proyecto);
+   carpeta de proyectos (cada carpeta de `FunshiEngine-DATA/` es un proyecto);
    elegi uno con click o crea uno escribiendo su nombre en el campo de la
    derecha y pulsando **Confirmar**. Con boton derecho sobre un proyecto se
    abre **Editar nombre**: escribi el nuevo nombre y el modal lo confirma,
@@ -82,7 +82,7 @@ cmake --build FunshiEngineGL/build -j$(nproc)
 ## 2. Proyectos y estructura de carpetas
 
 Al crear un proyecto, el motor genera la estructura bajo
-`{app}/MotorGrafico/Proyects/<proyecto>/`:
+`{app}/FunshiEngine-DATA/Proyects/<proyecto>/`:
 
 > **Dónde quedan los datos.** `{app}` es la carpeta del ejecutable cuando el
 > motor está en una carpeta donde puede escribir: el build de desarrollo y
@@ -91,9 +91,9 @@ Al crear un proyecto, el motor genera la estructura bajo
 > administrador). Si el motor está en una carpeta donde no puede escribir —una
 > copia en `Program Files`, una carpeta montada en solo lectura, el motor
 > lanzado como administrador—, usa en su lugar
-> `%APPDATA%\FunshiEngineGL\MotorGrafico` (Windows) o
-> `$XDG_DATA_HOME/FunshiEngineGL/MotorGrafico`, con respaldo en
-> `~/.local/share/FunshiEngineGL/MotorGrafico` (Linux y macOS). La ruta
+> `%APPDATA%\FunshiEngineGL\FunshiEngine-DATA` (Windows) o
+> `$XDG_DATA_HOME/FunshiEngineGL/FunshiEngine-DATA`, con respaldo en
+> `~/.local/share/FunshiEngineGL/FunshiEngine-DATA` (Linux y macOS). La ruta
 > efectiva se imprime por consola al arrancar y la migración de la carpeta
 > anterior, si había algo, se avisa en la barra de estado. Los proyectos que
 > migran siguen funcionando: las rutas de assets se guardan relativas al
@@ -107,7 +107,7 @@ Al crear un proyecto, el motor genera la estructura bajo
 > opciones fallan se queda sin archivo de log y escribe en la consola.
 
 ```
-MotorGrafico/
+FunshiEngine-DATA/
 ├── logs/
 │   └── FunshiEngineGL_<AAAAMMDD_HHMMSS>.log   ← log de arranque (UTC), uno por ejecucion
 ├── Proyects/
@@ -294,32 +294,31 @@ seleccion).
 ### Prefabs: reutilizar jerarquías completas
 
 Un **prefab** guarda un objeto (raiz) con todos sus hijos, componentes y
-propiedades (nombre, tag, Transform) en un archivo `.prefab` bajo
-`Assets/Prefabs/`. Al instanciarlo se crea una copia profunda en la escena con
-IDs nuevos; el original no se toca.
+propiedades (nombre, tag, Transform) en un archivo `.prefab` bajo la carpeta
+`Prefabs/` de los assets del proyecto (`src<Proyecto>/Prefabs/`, visible en el
+explorador de contenido). Al instanciarlo se crea una copia profunda en la
+escena con IDs nuevos; el original no se toca.
 
 **Crear un prefab**
 
-1. Selecciona el objeto raiz en la jerarquía.
-2. Abre el panel **Prefab** del Inspector (pestaña/panel "Prefab").
-3. Escribe un nombre en el campo "Nombre del prefab" y pulsa **Guardar**.
-   El archivo aparece en `Assets/Prefabs/<nombre>.prefab`.
+1. Selecciona el objeto raiz en la jerarquía (**SelectedObjects**).
+2. Clic derecho sobre el objeto y elige **Crear Prefab**.
+3. Escribe el nombre y confirma. El archivo aparece en
+   `Prefabs/<nombre>.prefab` dentro de los assets del proyecto y se lista en
+   el explorador de contenido.
 
 **Instanciar un prefab**
 
-1. En el panel Prefab, la lista "Prefabs guardados" muestra todos los `.prefab`
-   disponibles.
-2. Selecciona uno y pulsa **Instanciar**.
-   - Si hay un objeto seleccionado en la jerarquía, la instancia entra como
-     hijo de ese objeto.
-   - Si no hay selección, la instancia entra en la raíz de la escena.
-3. La instancia conserva **nombre, tag, Transform (posición global), jerarquía
-   completa y todos los componentes** del prefab original.
+Arrastra el `.prefab` desde el explorador de contenido y suéltalo sobre
+cualquier fila del panel **SelectedObjects**: la instancia entra en la raíz de
+la escena y queda seleccionada para moverla con el gizmo. Conserva **nombre, tag, Transform,
+jerarquía completa y todos los componentes** del prefab original.
 
 **Biblioteca de prefabs (`PrefabLibrary`)**
 
-- Escanea `Assets/Prefabs/` al arrancar y cada vez que se pulsa "Recargar"
-  en el panel Prefab.
+- Al soltar un `.prefab`, la biblioteca lo carga del disco en ese momento (no
+  hace falta refrescar nada a mano): el explorador de contenido ya muestra lo
+  que hay en `Prefabs/`.
 - Mantiene un **caché en memoria** (`std::unordered_map<string, Prefab>`) para
   que instanciar sea instantáneo tras la primera vez.
 - **Validación automática** antes de cachear: rechaza archivos con magic number
@@ -342,7 +341,7 @@ IDs nuevos; el original no se toca.
 | Aspecto | Copiar/pegar | Prefab |
 |---|---|---|
 | **Alcance** | Solo el objeto seleccionado (no hijos) | Raiz + **todos los descendientes** |
-| **Persistencia** | Solo en sesión actual (portapapeles) | **Archivo en disco** (`Assets/Prefabs/`) |
+| **Persistencia** | Solo en sesión actual (portapapeles) | **Archivo en disco** (`src<Proyecto>/Prefabs/`) |
 | **Reutilización** | Una vez por pegado | **Ilimitada** (múltiples instancias) |
 | **IDs** | Nuevos en cada pegado | **Nuevos en cada instanciación** (SceneRegistry) |
 | **Workflow** | Rápido, ad-hoc | **Predefinido**, versionable, compartible |
@@ -350,10 +349,11 @@ IDs nuevos; el original no se toca.
 **Buenas prácticas**
 
 - Usa nombres descriptivos: `Enemigo_Base`, `Arbol_Pino`, `Item_Medkit`.
-- El panel Prefab muestra la **ruta absoluta** del archivo al guardar, útil para
-  depurar rutas.
-- Si mueves o renombras `Assets/Prefabs/` desde el explorador, los archivos
-  `.prefab` se mueven con él; el panel "Recargar" actualiza la lista.
+- Para renombrar o borrar un prefab, hazlo desde el explorador de contenido
+  (como cualquier otro archivo): la biblioteca valida el archivo antes de
+  cachearlo y descarta los corruptos.
+- Si mueves o renombras la carpeta `Prefabs/` desde el explorador, los
+  archivos `.prefab` se mueven con ella.
 - Los IDs se regeneran al instanciar: no colisionan con el original ni entre
   instancias.
 
@@ -617,12 +617,30 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
    Interfaz).
 3. La escena guarda el path; al recargar se resuelve de nuevo.
 
-**Instanciar prefab por drag & drop (nuevo):**
-1. En el explorador, localiza un archivo `.prefab` en `Assets/Prefabs/`.
-2. Arrástralo y suéltalo sobre el **panel Prefab del Inspector** (donde está el
-   botón "Guardar como prefab" / "Instanciar prefab").
-3. La instancia se crea como hijo del objeto seleccionado (o en la raíz si no
-    hay selección) y se selecciona automáticamente.
+**Modelos 3D (.obj/.fbx/... que admita Assimp):**
+
+1. En la jerarquia (**SelectedObjects**), selecciona el objeto que llevara el
+   modelo o crealo (clic derecho → **New GameObject**).
+2. **Add Component → Model**: aparece el panel **Model** del Inspector con el
+   boton "[Arrastra modelo]".
+3. Arrastra el archivo `.obj` desde el explorador y suelta sobre ese boton: el
+   panel guarda la ruta y el modelo se dibuja en la escena con el transform del
+   objeto.
+4. Si no se ve, revisa que la camara apunte hacia el objeto y que el objeto
+   tenga un **Transform** con la escala/posicion esperadas.
+
+Importante: soltar un `.obj` (o cualquier asset) sobre **Vista de contenido**
+solo lo mueve o copia entre carpetas del proyecto; **no lo coloca en la
+escena**. Para instanciarlo como modelo 3D usa el panel **Model** del objeto en
+**SelectedObjects** (arriba).
+
+**Instanciar prefab por drag & drop:**
+1. En el explorador, localiza un archivo `.prefab` en la carpeta `Prefabs/`
+   de los assets del proyecto.
+2. Arrástralo y suéltalo sobre cualquier objeto del panel **SelectedObjects**
+   (la jerarquía de la escena).
+3. La instancia se crea en la raíz de la escena y se selecciona
+   automáticamente.
 
  **Crear y pintar un Tilemap:**
 
@@ -723,8 +741,11 @@ Detalles que conviene saber:
   explorador de archivos al panel del componente, igual que se hace con los
   scripts. El panel muestra la ruta asignada; si el archivo arrastrado no es
   un formato de audio, el motor lo dice en el log y no lo asigna.
-- Ajusta volumen, loop y "reproduccion automatica". En Depuración y Juego, el
-  `AudioEngine` reproduce el archivo en su hilo de audio.
+- Ajusta volumen, loop, "reproduccion automatica" y **Espacial (3D)**:
+  marcado, el sonido suena desde la posicion del objeto y se atenua con la
+  distancia a la camara activa; desmarcado, suena global (2D) igual en toda la
+  escena. En Depuracion y Juego, el `AudioEngine` reproduce el archivo en su
+  hilo de audio.
 - La ruta se guarda en la escena **relativa** a `src<proyecto>/`: al mover o
   renombrar el proyecto entero, la escena sigue funcionando. En el juego
   exportado se resuelve contra la carpeta del juego (allí se copia todo
@@ -826,7 +847,7 @@ exporta (el proyecto activo en ese momento):
 | Campo | Descripcion |
 |---|---|
 | **Nombre del ejecutable** | Nombre del binario final (sin extension). |
-| **Nombre del proyecto exportado** | Nombre de la carpeta bajo `MotorGrafico/Exportaciones/`. |
+| **Nombre del proyecto exportado** | Nombre de la carpeta bajo `FunshiEngine-DATA/Exportaciones/`. |
 | **Plataforma objetivo** | La que admita la maquina: en Windows, **Windows (nativo)** (sale un `.exe` con sus DLL al lado); en Linux, **Linux (nativo)** o **Windows (cross-compile MinGW)** (si esta instalado el toolchain cruzado). |
 
 Al pulsar **Exportar**, el motor:
@@ -840,7 +861,7 @@ Al pulsar **Exportar**, el motor:
    (GUIManager, MenuGUI, paneles): solo el runtime del juego (escena, física,
    scripts, render, input). Al arrancar lee `JuegoExportado.json` junto a si
    mismo y entra directo en modo juego.
-3. Empaqueta en `MotorGrafico/Exportaciones/<nombre>/` con estructura
+3. Empaqueta en `FunshiEngine-DATA/Exportaciones/<nombre>/` con estructura
    **simplificada** (sin replicar la jerarquía del editor):
    - Ejecutable (`<nombre>.exe` en Windows, `<nombre>` en Linux).
    - `Assets/` directamente en la raíz (modelos, texturas, etc.).
@@ -860,7 +881,7 @@ Al pulsar **Exportar**, el motor:
    
    **NO se incluyen** archivos del editor:
    `ConfiguracionProyecto.json`, `imgui.ini` ni la estructura
-   `MotorGrafico/Proyects/`.
+   `FunshiEngine-DATA/Proyects/`.
 
 El dialogo muestra un **spinner indeterminado** (barra de progreso falsa) mientras
 se ejecuta la compilacion; el proceso no bloquea el editor. Mientras la
@@ -882,7 +903,7 @@ al terminar queda abierto mostrando el resultado hasta que el usuario lo cierre.
 > desde el que exportar: elige o abre un proyecto antes de exportar.
 
 **Traza de la exportacion:** cada exportacion deja su propio archivo de log
-en la carpeta `logs/` del motor (`MotorGrafico/logs/Exportacion_<AAAAMMDD_HHMMSS>.log`,
+en la carpeta `logs/` del motor (`FunshiEngine-DATA/logs/Exportacion_<AAAAMMDD_HHMMSS>.log`,
 timestamp en UTC). Ahi queda **todo lo que se imprimio en la terminal durante
 la compilacion** (el configure de CMake, el progreso de la compilacion, los
 avisos del compilador y del enlazador) junto con la bitacora de la
@@ -907,10 +928,10 @@ dependencias del motor construidas para MinGW (GLFW, Bullet, Assimp).
 **Lanzar el juego exportado:**
 ```bash
 # Linux
-./MotorGrafico/Exportaciones/MiJuego/MiJuego
+./FunshiEngine-DATA/Exportaciones/MiJuego/MiJuego
 
 # Windows
-MotorGrafico\Exportaciones\MiJuego\MiJuego.exe
+FunshiEngine-DATA\Exportaciones\MiJuego\MiJuego.exe
 ```
 
 > El binario exportado arranca directo en modo juego (doble clic, sin
@@ -921,11 +942,11 @@ MotorGrafico\Exportaciones\MiJuego\MiJuego.exe
 
 ## 12. Apariencia y configuración del editor
 
-La vista **Opciones** del menú de inicio tiene tres bloques:
+La vista **Opciones** del menú de inicio tiene tres pestañas:
 
-- **Juego:** idioma (Espanol / English), *Radio de difuminado* (20 a 600
-  unidades), *Sensibilidad de camara* (mouse-look, 0.02 a 5.0) y
-  *Sensibilidad de movimiento* (velocidad de `WASD`, 0.1 a 5.0).
+- **Audio:** *Volumen maestro* (0.0 silenciado, 1.0 maxima): afecta a todos los
+  efectos de sonido de la escena (`AudioSource`). Se aplica al instante y se
+  conserva al cerrar el editor.
 - **Apariencia:**
   - *Tema claro de la interfaz* — arranca en **oscuro**.
   - *Modo blanco y negro (interfaz y viewport)* — desatura la interfaz completa y
@@ -939,11 +960,18 @@ La vista **Opciones** del menú de inicio tiene tres bloques:
     alta del viewport (por defecto gris oscuro).
   - *Color de la parte inferior del cielo* — color del degradado en la zona
     baja del viewport (por defecto gris oscuro).
+  - *Radio de difuminado* (20 a 600 unidades): radio del circulo-horizonte del
+    piso; la grilla se dibuja hasta ahi y se difumina hacia su borde.
   - *Restablecer apariencia* — vuelve el perfil completo a los valores de
     fabrica (tema oscuro, sin modo blanco y negro, acento azul, cielo gris
     oscuro).
-- **Configuracion:** *Restablecer configuracion* — vuelve **toda** la
-  configuracion a los defaults, conservando el nombre del proyecto.
+- **Controles:** idioma (Espanol / English), *Sensibilidad de camara*
+  (mouse-look, 0.02 a 5.0) y *Sensibilidad de movimiento* (velocidad de
+  `WASD`, 0.1 a 5.0).
+
+Ademas hay un boton **Restablecer configuracion** (fuera de las pestañas) que
+vuelve **toda** la configuracion a los defaults, conservando el nombre del
+proyecto.
 
 *Radio de difuminado* es el radio del circulo-horizonte del piso, en unidades de
 mundo: la grilla se dibuja hasta ahi y se difumina hacia su borde, y la guia de
@@ -990,7 +1018,7 @@ azul clasico.
 
 - Persistencia: la **apariencia**, el idioma y las dos sensibilidades se guardan
   en la configuracion general, en la raiz de datos del motor
-  (`MotorGrafico/Configuraciones/Configuracion.json` —junto al binario si el
+  (`FunshiEngine-DATA/Configuraciones/Configuracion.json` —junto al binario si el
   motor puede escribir ahi, o en la carpeta de datos del usuario si no (ver
   "Donde quedan los datos" en la seccion 2)—). El **gizmo** (operacion y sistema
   de coordenadas), la **ventana de camaras**, la **visibilidad de las ventanas**
@@ -1961,7 +1989,8 @@ El panel del emisor tiene:
 | Gravedad | La aceleracion constante que se les aplica |
 | Rozamiento | La fraccion de velocidad que pierden por segundo |
 | Rotacion / Velocidad de rotacion | El giro del quad |
-| Ruta (perfil de efecto) | El JSON del efecto (opcional) |
+| Ruta (perfil de efecto) | El JSON del efecto (opcional): escrito a mano o asignado arrastrando el `.json` desde el explorador de contenido; **Quitar** lo limpia |
+| Textura de particula | Imagen que sobreescribe la textura del perfil al dibujar (se asigna arrastrándola desde el explorador; opcional) |
 
 Las particulas se dibujan despues de los sprites, con mezcla aditiva, y no
 escriben profundidad: el orden de dibujo decide el solapamiento.
@@ -2004,7 +2033,30 @@ perfil y el panel muestra el motivo.
 La ruta del perfil se guarda **relativa a la carpeta de assets** del proyecto,
 igual que las texturas de los materiales.
 
-### 20.3 Como se ejecuta
+### 20.3 La ventana Animaciones y Particulas
+
+La ventana **Animaciones y Particulas** (menú **Ventanas**) es el taller de
+los efectos: configura el perfil sin necesidad de tener un objeto delante y
+genera el archivo que después se arrastra sobre un emisor.
+
+- **Pestaña Particulas**: edita el perfil en curso (nombre, vida, velocidad,
+  aceleración, rozamiento, textura y las curvas de tamaño y color, un punto
+  por fila). El botón **Generar perfil** lo escribe como
+  `Particulas/<nombre>.json` dentro de los assets del proyecto: aparece en el
+  explorador de contenido y desde ahí se arrastra sobre el campo de perfil de
+  un `EmisorParticulas`. Generar exige nombre válido y no pisa un efecto
+  existente.
+- Arrastrar un `.json` de perfil sobre la zona de carga de la pestaña lo trae
+  de vuelta al editor para retocarlo y regenerarlo.
+- Los **prefabs** se manejan desde **SelectedObjects**: se instancian
+  arrastrando su `.prefab` sobre el panel y se guardan con clic derecho sobre
+  el objeto (**Crear Prefab**). El flujo completo está en el capítulo 4,
+  "Prefabs: reutilizar jerarquías completas".
+- **Pestaña Animaciones**: referencia a dónde se configura una animación 2D
+  (el inspector del componente `Animador2D`); el taller propio de animaciones
+  llegará con un formato de asset para ellas.
+
+### 20.4 Como se ejecuta
 
 La simulacion corre en el editor y en juego: un efecto se ve mientras se
 edita. El numero de particulas vivas esta acotado (4000 por defecto), asi que
@@ -2014,7 +2066,7 @@ limite, se descarta la particula mas vieja.
 Las particulas son **cinematicas**: no chocan con la fisica. Si un efecto
 necesita rebotar, habria que consultarlo contra el mundo.
 
-### 20.4 Desde la consola
+### 20.5 Desde la consola
 
 El emisor es un componente mas, asi que la API de inspeccion (seccion 19) lo
 altera como a cualquier otro: `scene.component.create` con el tipo

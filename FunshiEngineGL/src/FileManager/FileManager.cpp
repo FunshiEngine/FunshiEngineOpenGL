@@ -75,7 +75,7 @@ Carpeta* buscarPreOrden(ArbolEnlazado<File*>* arbol,
 
 FileManager::FileManager(const std::string& pathProyect, const std::string& rootName)
     : pathProyect(pathProyect),
-      rootName(rootName.empty() ? "MotorGrafico" : rootName),
+      rootName(rootName.empty() ? "FunshiEngine-DATA" : rootName),
       gestor(new GestorDeArchivos(pathProyect, this->rootName)),
       vigilante(new FileSystemWatcher(pathProyect)) {}
 
@@ -84,7 +84,7 @@ FileManager::~FileManager() = default;
 void FileManager::setProyecto(const std::string& nuevoPath, const std::string& nuevoRootName) {
     if (pathProyect == nuevoPath && rootName == nuevoRootName) return;
     pathProyect = nuevoPath;
-    rootName = nuevoRootName.empty() ? "MotorGrafico" : nuevoRootName;
+    rootName = nuevoRootName.empty() ? "FunshiEngine-DATA" : nuevoRootName;
     std::error_code ec;
     std::filesystem::create_directories(pathProyect, ec);
     vigilante = std::make_unique<FileSystemWatcher>(pathProyect);

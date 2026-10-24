@@ -53,7 +53,7 @@
 #include "Comandos/GestorComandos.h"
 #include "Fisicas/PhysicsEngine.h"
 
-#include "Objetos/Modelos3D.h"
+#include "Objetos/Componentes/Model.h"
 #include "Objetos/SimpleObject.h"
 #include "Objetos/GameObject.h"
 #include "Objetos/Componentes/Transform.h"
@@ -103,7 +103,7 @@ void probarCrearObjeto() {
     EditorController editor(&scene);
     GestorComandos* cmds = editor.getGestorComandos();
 
-    auto modelo = std::make_unique<Modelos3D>();
+    auto modelo = std::make_unique<GameObject>();
     auto comando = std::make_unique<CrearObjetoComando>(
         &editor, &scene, std::move(modelo));
     CrearObjetoComando* creado = comando.get();
@@ -356,7 +356,7 @@ void probarRedoCadena() {
 
     // Ejecutar 3 comandos de crear objeto
     for (int i = 0; i < 3; ++i) {
-        auto modelo = std::make_unique<Modelos3D>();
+        auto modelo = std::make_unique<GameObject>();
         cmds->ejecutar(std::make_unique<CrearObjetoComando>(
             &editor, &scene, std::move(modelo)));
     }

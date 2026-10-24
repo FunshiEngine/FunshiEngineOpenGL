@@ -45,6 +45,7 @@ enum class EditorEventType {
     IdiomaCambio,         // idioma -> etiquetas sensibles (onLanguageChanged)
     SensibilidadCambio,   // multiplicador del mouse look de la camara -> escena
     SensibilidadMovimientoCambio, // multiplicador de la velocidad WASD -> escena
+    VolumenCambio, // volumen maestro de efectos de sonido (0.0 - 1.0) -> escena
     ReiniciarConfiguracion, // "Restablecer configuracion" -> main reaplica defaults
     VentanaActivaCambio,  // reservado: ventana con foco ImGui (Settings futuro)
     ArchivosReubicados,   // archivo/carpeta movido o renombrado en el explorador -> Reescribir referencias
@@ -71,6 +72,10 @@ struct EditorEvent {
     // Para SensibilidadMovimientoCambio: multiplicador de la velocidad WASD de
     // la camara del editor (1.0 = velocidad base de la camara activa).
     float sensibilidadMovimiento = 1.0f;
+
+    // Para VolumenCambio: volumen maestro de efectos de sonido (0.0 = silencio,
+    // 1.0 = maximo).
+    float volumen = 1.0f;
 
     // Para CamaraActivaCambio: puntero NO propietario al GameObject camara
     // (igual que SceneEvent.object, pero semantica: «cambio la camara activa»,

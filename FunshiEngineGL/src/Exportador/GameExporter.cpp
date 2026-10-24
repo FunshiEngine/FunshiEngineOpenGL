@@ -365,7 +365,7 @@ bool GameExporter::compilarJuego(const std::string& buildDir) {
 bool GameExporter::copiarAssetsYDependencias(const std::string& buildDir) {
     // En lugar de copiar todo el proyecto y luego limpiar, copiamos SOLO lo
     // necesario para el juego: escenas, binarios compilados de scripts y assets.
-    // NO se copia la estructura MotorGrafico/Proyects: el juego exportado tiene
+    // NO se copia la estructura FunshiEngine-DATA/Proyects: el juego exportado tiene
     // su propia estructura simplificada.
 
     std::error_code ec;

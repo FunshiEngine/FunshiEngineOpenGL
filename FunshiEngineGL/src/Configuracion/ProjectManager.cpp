@@ -38,17 +38,21 @@ bool existeDir(const std::string& path) {
 } // namespace
 
 void ProjectManager::migrarProyectosAntiguos() {
-    const std::string base = ProjectPaths::directorioBase();
-    const std::string proyectsDir = ProjectPaths::directorioProyects();
+    migrarProyectosAntiguosEn(ProjectPaths::directorioBase(),
+                              ProjectPaths::directorioProyects());
+}
+
+void ProjectManager::migrarProyectosAntiguosEn(const std::string& base,
+                                               const std::string& destino) {
     std::error_code ec;
 
-    std::filesystem::create_directories(proyectsDir, ec);
+    std::filesystem::create_directories(destino, ec);
 
     for (const auto& entry : std::filesystem::directory_iterator(base, ec)) {
         if (!entry.is_directory(ec)) continue;
         const std::string nombre = entry.path().filename().string();
-        if (ProjectPaths::esNombreValido(nombre) && !existeDir(proyectsDir + "/" + nombre)) {
-            std::filesystem::rename(entry.path(), proyectsDir + "/" + nombre, ec);
+        if (ProjectPaths::esNombreValido(nombre) && !existeDir(destino + "/" + nombre)) {
+            std::filesystem::rename(entry.path(), destino + "/" + nombre, ec);
         }
     }
 }
@@ -73,7 +77,7 @@ bool ProjectManager::crearEstructuraProyecto(const std::string& nombre) {
     const std::string binScene = ProjectPaths::rutaSceneDir(nombre);
 
     // Migracion de proyectos legacy que guardaban el descriptor y la escena
-    // directamente en la raiz de MotorGrafico/Binarios (estructura anterior a
+    // directamente en la raiz de FunshiEngine-DATA/Binarios (estructura anterior a
     // Proyects/).
     const std::string base = ProjectPaths::directorioBase();
     const std::string oldBBDD = base + "/Binarios/SceneBBDDObjetos.txt";

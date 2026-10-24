@@ -22,7 +22,7 @@
 //   - horneado de la malla (una malla por tilemap, cuatriangulos por tile),
 //   - round-trip binario del componente.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
+// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
 // dependencias de GUI/OpenGL, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <cmath>

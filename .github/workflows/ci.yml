@@ -43,7 +43,7 @@ jobs:
         run: cmake --build build --target FunshiEngineGL runtime-compile-check
 
       - name: Compilar pruebas
-        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests interfaz-ui-tests shaders-tests sombras-tests iluminacion-tests scripts-tests scripts-runtime-tests audio-tests musica-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests inspeccion-escena-tests emisor-particulas-tests ui-component-tests serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests iconos-componentes-tests malla-regiones-tests materiales-regiones-tests primitivas3d-tests preview-material-tests tilemap-tests interfaces-juego-tests barra-progreso-tests interface-component-tests webui-runtime-tests mods-tests exportacion-tests
+        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests particulas-textura-tests particulas-perfil-tests interfaz-ui-tests shaders-tests sombras-tests iluminacion-tests scripts-tests scripts-runtime-tests audio-tests musica-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests inspeccion-escena-tests emisor-particulas-tests ui-component-tests serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests iconos-componentes-tests malla-regiones-tests materiales-regiones-tests primitivas3d-tests preview-material-tests tilemap-tests interfaces-juego-tests barra-progreso-tests interface-component-tests webui-runtime-tests mods-tests exportacion-tests
 
       - name: Ejecutar pruebas
         run: ctest --test-dir build -C Release --output-on-failure
@@ -75,7 +75,7 @@ jobs:
         run: cmake -B build -S FunshiEngineGL -G Ninja -DBUILD_ENGINE=OFF -DENABLE_ASAN=OFF -DFUNSHI_JAVA=OFF
 
       - name: Compilar pruebas headless
-        run: cmake --build build --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests interfaz-ui-tests scripts-tests scripts-runtime-tests audio-tests musica-tests model-serialization-tests proceso-tests barra-progreso-tests mods-tests
+        run: cmake --build build --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests particulas-textura-tests particulas-perfil-tests interfaz-ui-tests scripts-tests scripts-runtime-tests audio-tests musica-tests model-serialization-tests proceso-tests barra-progreso-tests mods-tests
 
       - name: Ejecutar pruebas
         run: ctest --test-dir build --output-on-failure
@@ -97,7 +97,7 @@ jobs:
         run: cmake -B build -S FunshiEngineGL -DBUILD_ENGINE=OFF -DENABLE_ASAN=OFF -DFUNSHI_JAVA=OFF
 
       - name: Compilar pruebas headless
-        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests interfaz-ui-tests scripts-tests scripts-runtime-tests audio-tests musica-tests model-serialization-tests proceso-tests barra-progreso-tests mods-tests
+        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests particulas-textura-tests particulas-perfil-tests interfaz-ui-tests scripts-tests scripts-runtime-tests audio-tests musica-tests model-serialization-tests proceso-tests barra-progreso-tests mods-tests
 
       - name: Ejecutar pruebas
         run: ctest --test-dir build -C Release --output-on-failure
@@ -145,7 +145,7 @@ jobs:
         run: cmake --build build --config Release --target FunshiEngineGL runtime-compile-check
 
       - name: Compilar pruebas
-        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests interfaz-ui-tests shaders-tests sombras-tests iluminacion-tests scripts-tests scripts-runtime-tests audio-tests musica-tests interface-component-tests barra-progreso-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests inspeccion-escena-tests emisor-particulas-tests ui-component-tests serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests iconos-componentes-tests malla-regiones-tests materiales-regiones-tests primitivas3d-tests preview-material-tests tilemap-tests interfaces-juego-tests webui-runtime-tests mods-tests exportacion-tests
+        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests particulas-textura-tests particulas-perfil-tests interfaz-ui-tests shaders-tests sombras-tests iluminacion-tests scripts-tests scripts-runtime-tests audio-tests musica-tests interface-component-tests barra-progreso-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests inspeccion-escena-tests emisor-particulas-tests ui-component-tests serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests iconos-componentes-tests malla-regiones-tests materiales-regiones-tests primitivas3d-tests preview-material-tests tilemap-tests interfaces-juego-tests webui-runtime-tests mods-tests exportacion-tests
 
       - name: Ejecutar pruebas
         uses: nick-fields/retry@v3

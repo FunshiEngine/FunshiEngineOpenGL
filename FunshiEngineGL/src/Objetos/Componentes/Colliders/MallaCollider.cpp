@@ -23,7 +23,7 @@
 
 #include "TiposShapeBullet.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Modelos3D.h"
+#include "../../../Objetos/Componentes/Model.h"
 #include "../../../Rendering/LineBuilder.h"
 #include "../../../Rendering/LineRenderer.h"
 
@@ -40,7 +40,7 @@ MallaCollider::MallaCollider(float radio, Transform* transformOfDadObject,
 std::unique_ptr<btCollisionShape> MallaCollider::createCollisionShape() {
     // Convex hull de los vertices del modelo (es el colisionador geometrico
     // exacto de la malla). Sin malla cargada se cae a la shape de respaldo.
-    Modelos3D* modelo = dynamic_cast<Modelos3D*>(owner);
+    auto* modelo = owner->getComponent<Model>();
     if (!modelo) return nullptr;
 
     const std::vector<vec3>& vertices = modelo->getVertices();

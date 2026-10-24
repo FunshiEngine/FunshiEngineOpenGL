@@ -84,7 +84,7 @@ public:
     const std::string& getNombreProyecto() const noexcept;
     void setNombreProyecto(const std::string& nombre);
 
-    // Proyectos disponibles: las carpetas de <directorioBase>/MotorGrafico
+    // Proyectos disponibles: las carpetas de <directorioBase>/FunshiEngine-DATA
     // (los proyectos SON carpetas). La lista la rellena la fachada
     // (MenuGUI::actualizarProyectos) desde el disco; la vista solo la muestra.
     const std::vector<std::string>& getProyectosDisponibles() const noexcept;
@@ -136,6 +136,12 @@ public:
     float getSensibilidadMovimientoCamara() const noexcept;
     void setSensibilidadMovimientoCamara(float sensibilidad);
 
+    // Volumen maestro de efectos de sonido (0.0 silenciado, 1.0 maxima).
+    // Se publica como VolumenMaestro para que AudioEngine lo aplique al bus de
+    // efectos; se persiste en la configuracion general.
+    float getVolumenMaestro() const noexcept;
+    void setVolumenMaestro(float volumen);
+
     // Perfil de apariencia (tema, modo B/N, acento de la UI y fondo 3D). La
     // vista Opciones lo edita y main lo aplica a ImGui y a la escena.
     const Apariencia& getApariencia() const noexcept;
@@ -158,6 +164,7 @@ public:
         SensibilidadCamara,
         SensibilidadMovimientoCamara,
         Apariencia,
+        VolumenMaestro, // volumen maestro de efectos de sonido
         Reiniciar, // restablecerConfiguracion() completo
     };
     using OnCampoCambio = std::function<void(Campo)>;
@@ -182,6 +189,7 @@ private:
     // en la vista Opciones junto a la sensibilidad de camara y se aplica a la
     // escena por SensibilidadMovimientoCambio.
     float sensibilidadMovimientoCamara = 1.0f;
+    float volumenMaestro = 1.0f;
     Apariencia apariencia;
     // Un solo observador (la fachada). Puntero a funcion/closure NO propietario;
     // si no hay observador, no hacer nada.

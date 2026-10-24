@@ -97,11 +97,18 @@ dependencias de terceros.
 ```text
 FunshiEngineGL/                          ← raíz del repo
 ├── README.md                            ← visión general, build, ejecución y enlaces a la documentación
-├── PROJECT_STRUCTURE.md                 ← este documento
-├── MANUAL_DE_USO.md                     ← manual de usuario (editor + scripting C++/Java)
-├── CAMARAS_VISTAS_PREVIAS.md            ← Fase 2: cámaras componente + vistas previas
-├── ARQUITECTURA_ESTADOS_GUI.md          ← estados/menú/GUI internas (diseño + Fases 1-3)
-├── FLUJO_DE_RAMAS.md                    ← convención de ramas (develop/test/staging/release)
+├── doc/                                 ← documentación del proyecto
+│   ├── PROJECT_STRUCTURE.md             ← este documento
+│   ├── MANUAL_DE_USO.md                 ← manual de usuario (editor + scripting C++/Java)
+│   ├── CAMARAS_VISTAS_PREVIAS.md        ← cámaras componente + vistas previas
+│   ├── ARQUITECTURA_ESTADOS_GUI.md      ← estados/menú/GUI internas (diseño + Fases 1-3)
+│   ├── DocuTecnicoBugs.md               ← registro técnico de bugs (patrón, síntomas, fix)
+│   └── FLUJO_DE_RAMAS.md                ← convención de ramas (develop/test/staging/release)
+├── Skills/                              ← convenciones para agentes de código
+│   ├── Arquitectura/Arquitectura.md     ← reglas de arquitectura y memoria de trabajo
+│   ├── Plan/Plan_De_Trabajo.md          ← convenciones del código y flujo de trabajo
+│   ├── Plan/Depuracion.md               ← pruebas, depuración y orden por dependencia
+│   └── Repositorio/Repositorio.md       ← comandos esenciales y ejecución del editor
 ├── .github/workflows/ci.yml             ← CI: engine en Ubuntu y en Windows (MSVC) + pruebas headless
 ├── .github/workflows/release.yml        ← instaladores Qt IFW (.run) e Inno (.exe) por tag
 ├── .github/workflows/windows-release.yml← build+release específico de Windows
@@ -335,6 +342,13 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   └── PanelesModsInterface.h/.cpp ← colección de esos paneles; se sincroniza con
         │   │                                  Mods/RegistroPanelesMods cada frame (los mods
         │   │                                  pueden registrar paneles en caliente)
+        │   ├── EfectosGUI/                 ← taller de efectos: la ventana dedicada
+        │   │   └── AnimacionesParticulasInterface.h/.cpp ← pestañas Particulas (editor y
+        │   │                                  generación de perfiles de efecto a los assets,
+        │   │                                  con carga por arrastre) y Animaciones
+        │   │                                  (referencia al inspector de Animador2D). Los
+        │   │                                  prefabs no tienen panel: se instancian
+        │   │                                  arrastrando el .prefab sobre SelectedObjects
         │   ├── Tema/
         │   │   └── TemaEditor.h/.cpp      ← aplica el perfil Apariencia al estilo ImGui en vivo
         │   │                                  (tema claro/oscuro, acento RGB en TODOS los roles de ImGui
@@ -402,7 +416,9 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                      estado vive en EstadoExportacion)
         │   └── SceneGUI/
         │       ├── SceneSelectedInterface.h/.cpp  ← jerarquía y selección; usa EditorController
-        │       ├── SceneObjectTree.h/.cpp         ← árbol de objetos (con drag & drop)
+        │       ├── SceneObjectTree.h/.cpp         ← árbol de objetos (drag & drop para reparentar;
+        │       │                                  soltar un .prefab instancia en la raíz y
+        │       │                                  Crear Prefab guarda la selección)
         │       └── SceneMenuBarInterface.h/.cpp   ← controles Depuración/Juego/Pausa/Reset/Terminar
         ├── GUIManager/
         │   └── GUIManager.h/.cpp         ← fábrica de ventanas y su registro (cada
@@ -486,7 +502,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                                dibujo de líneas (VBO/VAO + shader de líneas
         │   │                                gruesas; el glLineWidth quedó eliminado)
         │   ├── ParticulasRenderer.h/.cpp   ← dibuja el lote de particulas: agrupa por
-        │   │                                perfil (cada perfil tiene su textura) y
+        │   │                                perfil y textura (la textura de particula
+        │   │                                del emisor sobreescribe la del perfil) y
         │   │                                sube un lote por grupo
         │   ├── UIRenderer.h/.cpp          ← dibuja la interfaz de juego nativa con el
         │   │                                draw list de ImGui (el unico punto del sistema
@@ -531,7 +548,8 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── TagRegistry.h             ← registro dinámico de tags para el Inspector
         │   ├── GameObjectFactory.h/.cpp
         │   ├── Prefab.h/.cpp            ← formato .prefab (magic PREB, arbol recursivo con componentes/hijos)
-        │   ├── PrefabLibrary.h/.cpp     ← cache + escaneo Assets/Prefabs/, crear/obtener/listar/borrar/renombrar
+        │   ├── PrefabLibrary.h/.cpp     ← cache + escaneo (solo lectura) de Prefabs/ en la
+        │   │                              raíz de assets, crear/obtener/listar/borrar/renombrar
         │   ├── ClonadorObjetos.h/.cpp   ← copia profunda por roundtrip de serializacion (scripts + Ctrl+C/V)
         │   ├── SimpleObject.h            ← GameObject sin geometría (Transform/Grid/Light...)
         │   ├── Modelos3D.h/.cpp          ← carga Assimp y datos de la malla (el dibujado
@@ -635,6 +653,9 @@ FunshiEngineGL/                          ← raíz del repo
         │   ├── ParametrosEmisor.h      ← los datos que edita el inspector
         │   ├── PerfilParticula.h/.cpp  ← perfil de efecto: curvas de tamano y color
         │   ├── LectorPerfil.h/.cpp     ← carga del perfil de efecto (JSON)
+        │   ├── EscritorPerfil.h/.cpp   ← escritura del perfil de efecto (JSON): misma
+        │   │                              invariante que la carga, para que un perfil
+        │   │                              guardado nunca sea uno que la carga rechace
         │   ├── SistemaParticulas.h/.cpp ← simulacion: emision, integracion, muerte
         │   │                              y presupuesto de particulas vivas
         │   └── ParticulasBuilder.h/.cpp← expansion de cada particula a un quad
@@ -1070,7 +1091,10 @@ solo como orquestador de arranque y bucle.
   `renombrarProyecto`, `eliminarProyecto`) no se implementa en EditorConfig:
   son **delegaciones a `ProjectManager`**, único dueño del CRUD, las
   migraciones de estructura antigua y los fallbacks de copia entre
-  dispositivos. La política de qué proyecto queda abierto al arrancar (menú
+  dispositivos (la migración mueve a `Proyects/` las carpetas sueltas de la
+  raíz de datos; las carpetas reservadas del motor — `Proyects`,
+  `Configuraciones`, `Exportaciones`, `Mods`, `cache` (caché de mods), `logs`,
+  entre otras — quedan excluidas por `ProjectPaths::esReservado`). La política de qué proyecto queda abierto al arrancar (menú
   salvo `--proyecto`, y si es primer arranque) vive aislada y sin
   disco ni UI en `Configuracion/ProyectoInicial.h`. La orquestación de todo el flujo de proyectos sobre esta
   fachada (qué hará al arrancar, entrar, guardar, renombrar, eliminar,
@@ -1078,7 +1102,7 @@ solo como orquestador de arranque y bucle.
   `Proyectos/GestorDeProyectos` (extraído de `main.cpp`). Guarda dos archivos
   junto al binario (Linux y Windows), y cada campo va a uno u otro según si es
   una preferencia de la máquina o del proyecto abierto:
-  `<directorioEjecutable>/MotorGrafico/Configuraciones/Configuracion.json`
+  `<directorioEjecutable>/FunshiEngine-DATA/Configuraciones/Configuracion.json`
   (**general**: último proyecto, idioma, sensibilidad de cámara, sensibilidad de
   movimiento y perfil de apariencia) y
   `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` (**por proyecto**:
@@ -1086,7 +1110,7 @@ solo como orquestador de arranque y bucle.
   abierto/cerrado de las ventanas de `GUIManager` y cámara activa por id).
   Tolerante a archivos ausentes o corruptos: los defaults
   viven en `EditorConfig.h`/`ConfigPersistence.h`.
-  La raíz `MotorGrafico` no es siempre `<directorioEjecutable>/MotorGrafico`:
+  La raíz `FunshiEngine-DATA` no es siempre `<directorioEjecutable>/FunshiEngine-DATA`:
   `ProjectPaths::directorioBase()` la resuelve probando si puede escribirse y, si
   no, cae a la carpeta de datos del usuario (`%APPDATA%` en Windows,
   `$XDG_DATA_HOME` o `~/.local/share` en Linux). Ver "Resolución de la raíz de
@@ -1103,7 +1127,9 @@ solo como orquestador de arranque y bucle.
 - Carpeta de un proyecto: `Proyects/<proyecto>/` con `Memory/` (escena,
   configuración del proyecto e `imgui.ini`) y la raíz de
   assets `src<proyecto>/` (meshes, texturas, materiales y las carpetas de
-  assets que cree el usuario). Esas rutas salen de `ProjectPaths`
+  assets que cree el usuario: los perfiles de efecto generados desde la
+  ventana de efectos quedan en `src<proyecto>/Particulas/` y los prefabs en
+  `src<proyecto>/Prefabs/`). Esas rutas salen de `ProjectPaths`
   (`directorioSrc`, `directorioScripts`), incluido el
   exportador del juego standalone, que las pide ahí mediante
   `Exportador/RutasExportacion.h` (lógica pura, header-only) en vez de
@@ -1521,10 +1547,17 @@ restantes compilan también con `BUILD_ENGINE=OFF`):
   (lista nula o vacía sin resultados, objetos sin `InterfaceComponent` que no
   aportan, una escena con varias interfaces que las devuelve TODAS ordenadas por
   z y las interfaces sin ruta o inactivas omitidas sin cortar el recorrido).
-- `prefab-tests` (82): sistema de Prefabs: round-trip guardar → instanciar
+- `prefab-tests` (103): sistema de Prefabs: round-trip guardar → instanciar
   conservando nombre, tag, jerarquía, componentes y `Transform`, más la caché de
-  `PrefabLibrary` y la validación de archivos corruptos; la API de scripts
-  `listarPrefabs` con storage estable (válido hasta la llamada siguiente).
+  `PrefabLibrary`, la validación de archivos corruptos y el refresco como
+  escaneo de solo lectura (sin carpeta `Prefabs/` no se crea nada); la API de
+  scripts `listarPrefabs` con storage estable (válido hasta la llamada
+  siguiente).
+- `particulas-perfil-tests` (38): el escritor de perfiles de efecto (`EscritorPerfil`)
+  y el ciclo completo hasta el emisor: ida y vuelta archivo↔memoria campo por
+  campo, rechazo de las mismas invariantes que impone la carga, carga por
+  `setRutaPerfil` (el camino del drag & drop del inspector) y conservación de
+  la ruta del perfil en la serialización binaria.
 - `terminal-emulator-tests` (24): cuadrícula VT del `TerminalEmulator`: CR/LF,
   posicionamiento y consulta del cursor (`H`/`DSR`), secuencias SGR (color,
   negrita, fondo) y borrado; CSI 1K con cursor en wrap pendiente, rejilla
@@ -1639,11 +1672,11 @@ No están implementados todavía:
 ### 8.1 Resolución de la raíz de datos
 
 Todos los datos del usuario (proyectos, escenas, configuraciones, `imgui.ini`)
-cuelgan de una única raíz, `MotorGrafico`, y toda la jerarquía de rutas sale de
+cuelgan de una única raíz, `FunshiEngine-DATA`, y toda la jerarquía de rutas sale de
 `ProjectPaths::directorioBase()`. Esa función **resuelve** la raíz en vez de
 calcularla:
 
-1. Parte de `<directorioEjecutable>/MotorGrafico`, la ubicación histórica.
+1. Parte de `<directorioEjecutable>/FunshiEngine-DATA`, la ubicación histórica.
 2. Comprueba si puede **escribir** ahí. No basta con que el directorio exista y
    sea legible: se abre y se cierra un archivo de prueba, porque en
    `C:\Program Files` la carpeta es legible y aun así el proceso no puede crear
@@ -1702,7 +1735,7 @@ cargar, así que mover la raíz no invalida las escenas existentes.
 - La manipulación del gizmo pausa `stepSimulation` mientras el usuario arrastra y
   la física solo corre en Depuración o Juego; el sync collider↔rigidbody↔objeto usa la matriz
   global compuesta del dueño, de modo que mover un collider no desincroniza el cuerpo.
-- Las rutas de usuario (`<directorioEjecutable>/MotorGrafico`) están
+- Las rutas de usuario (`<directorioEjecutable>/FunshiEngine-DATA`) están
   centralizadas en `EditorConfig` para la configuración y el layout, y las del
   proyecto en `ProjectPaths` (que es la única fuente de verdad: `directorioSrc`,
   `directorioScripts` y el resto); `PathUtils.h` comparte el separador

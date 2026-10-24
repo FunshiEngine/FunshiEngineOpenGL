@@ -18,6 +18,9 @@
 */
 #include "SceneSelectedInterface.h"
 
+#include <iostream>
+#include <memory>
+
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/GameObjectFactory.h"
 #include "../../Comandos/CrearObjetoComando.h"
@@ -25,7 +28,6 @@
 #include "../../Scenes/SceneRegistry.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
-#include <memory>
 
 SceneSelectedInterface::SceneSelectedInterface(bool state)
     : GeneralUserInterface("SelectedObjects", state, ImGuiWindowFlags_MenuBar) {}
