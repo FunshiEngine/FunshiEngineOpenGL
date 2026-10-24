@@ -1062,6 +1062,7 @@ void GameScene::pintarViewportsGUI() {
                         GameObject* creado = editorController->createGameObject(std::move(obj), nullptr);
                         if (creado) {
                             auto* model = new Model();
+                            model->setAssetManager(editorController->getAssetManager());
                             model->setPath(pathStr);
                             creado->addComponent(std::unique_ptr<Component>(model));
                             editorController->selectObject(creado);
