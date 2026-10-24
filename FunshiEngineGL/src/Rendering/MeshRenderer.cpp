@@ -469,9 +469,20 @@ bool MeshRenderer::renderMesh(GameObject* contexto, const Mesh* mesh,
 const MeshGPU* MeshRenderer::obtenerGpu(const Mesh* mesh) {
     if (!mesh) return nullptr;
     auto it = gpu_.find(mesh);
-    if (it != gpu_.end()) return it->second.get();
+    if (it != gpu_.end()) {
+        std::cerr << "[MeshRenderer] obtenerGpu cache hit: mesh=" << mesh
+                  << " vertices=" << mesh->vertices.size()
+                  << " indices=" << mesh->indices.size() << std::endl;
+        return it->second.get();
+    }
 
     if (!backend_) return nullptr;
+    std::cerr << "[MeshRenderer] obtenerGpu uploading: mesh=" << mesh
+              << " vertices=" << mesh->vertices.size()
+              << " indices=" << mesh->indices.size()
+              << " hasNormals=" << mesh->hasNormals()
+              << " hasUvs=" << mesh->hasUvs()
+              << " hasTangents=" << mesh->hasTangents() << std::endl;
     auto gpu = std::make_unique<MeshGPU>(*backend_);
     gpu->upload(&mesh->vertices[0].x, mesh->vertices.size(),
                 mesh->hasNormals() ? &mesh->normals[0].x : nullptr,
@@ -485,6 +496,7 @@ const MeshGPU* MeshRenderer::obtenerGpu(const Mesh* mesh) {
                 mesh->indices.empty() ? nullptr : &mesh->indices[0],
                 mesh->indices.size());
     it = gpu_.emplace(mesh, std::move(gpu)).first;
+    std::cerr << "[MeshRenderer] obtenerGpu uploaded OK" << std::endl;
     return it->second.get();
 }
 

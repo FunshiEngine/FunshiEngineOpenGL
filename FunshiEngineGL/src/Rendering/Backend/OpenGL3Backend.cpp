@@ -89,6 +89,12 @@ bool subirBuffer(GLenum target, GLuint buffer, const float* data,
     GLFuncs::pfnBufferData(
         target, static_cast<GLsizeiptr>(count * sizeof(float)), data,
         GL_STATIC_DRAW);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "[OpenGL3Backend] subirBuffer error: " << err
+                  << " target=" << target << " count=" << count << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -216,18 +222,44 @@ Handle OpenGL3Backend::createMesh(const MeshData& data) {
 
     // Indices -> EBO (se graban en el VAO por estar bindeados con el VAO activo).
     if (data.indices && data.indexCount > 0) {
+        // Verificar que ningun indice supera el numero de vertices
+        unsigned int maxIndex = 0;
+        for (std::size_t i = 0; i < data.indexCount; ++i) {
+            if (data.indices[i] > maxIndex) maxIndex = data.indices[i];
+        }
+        if (maxIndex >= data.vertexCount) {
+            std::cerr << "[OpenGL3Backend] createMesh: INDICE FUERA DE RANGO! maxIndex="
+                      << maxIndex << " vertexCount=" << data.vertexCount << std::endl;
+        } else {
+            std::cerr << "[OpenGL3Backend] createMesh: indices OK, maxIndex=" << maxIndex
+                      << " vertexCount=" << data.vertexCount << std::endl;
+        }
+
         GLFuncs::pfnBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[5]);
         GLFuncs::pfnBufferData(
             GL_ELEMENT_ARRAY_BUFFER,
             static_cast<GLsizeiptr>(data.indexCount * sizeof(GLuint)),
             data.indices, GL_STATIC_DRAW);
+        GLenum err = glGetError();
+        if (err != GL_NO_ERROR) {
+            std::cerr << "[OpenGL3Backend] createMesh index buffer error: " << err
+                      << " indexCount=" << data.indexCount << std::endl;
+        }
     }
 
     GLFuncs::pfnBindVertexArray(0);
 
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "[OpenGL3Backend] createMesh final error: " << err << std::endl;
+    }
+
     const Handle handle = static_cast<Handle>(vao);
     meshes_[handle] = GpuMesh{vao, {buffers[0], buffers[1], buffers[2],
                                     buffers[3], buffers[4], buffers[5]}};
+    std::cerr << "[OpenGL3Backend] createMesh OK: vao=" << vao
+              << " vertices=" << data.vertexCount << " indices=" << data.indexCount
+              << std::endl;
     return handle;
 }
 
@@ -251,13 +283,39 @@ void OpenGL3Backend::destroyMesh(Handle mesh) {
 void OpenGL3Backend::drawMesh(Handle mesh, unsigned int firstIndex,
                                unsigned int indexCount) {
     if (mesh == kInvalidHandle || indexCount == 0) return;
-    GLFuncs::pfnBindVertexArray(static_cast<GLuint>(mesh));
+    // Buscar la malla GPU para obtener el EBO (buffers[5]) y enlazarlo
+    // explicitamente: algunos drivers no restauran el GL_ELEMENT_ARRAY_BUFFER
+    // del VAO de forma fiable.
+    const auto it = meshes_.find(mesh);
+    if (it == meshes_.end()) {
+        std::cerr << "[OpenGL3Backend] drawMesh: mesh handle no encontrado: " << mesh << std::endl;
+        return;
+    }
+    const GpuMesh& g = it->second;
+    GLFuncs::pfnBindVertexArray(g.vao);
+    if (g.buffers[5] != 0) {
+        GLFuncs::pfnBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.buffers[5]);
+    }
+    // Verificar que hay un programa de shader activo
+    GLint currentProgram = 0;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &currentProgram);
+    if (currentProgram == 0) {
+        std::cerr << "[OpenGL3Backend] drawMesh: NO HAY PROGRAMA DE SHADER ACTIVO!" << std::endl;
+    } else {
+        std::cerr << "[OpenGL3Backend] drawMesh: programa activo=" << currentProgram << std::endl;
+    }
     // El puntero del EBO se desplaza al primer indice del rango: asi una
     // region (una sub-malla con material propio) se dibuja sin tocar el resto.
     const std::size_t offset = static_cast<std::size_t>(firstIndex) *
                                 sizeof(unsigned int);
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount),
                    GL_UNSIGNED_INT, (const void*)offset);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "[OpenGL3Backend] drawMesh error: " << err
+                  << " mesh=" << mesh << " first=" << firstIndex
+                  << " count=" << indexCount << std::endl;
+    }
     GLFuncs::pfnBindVertexArray(0);
 }
 
