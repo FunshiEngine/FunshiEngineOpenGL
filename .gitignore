@@ -151,3 +151,7 @@ imgui.ini
 FunshiEngineGL/ImGuizmo/example/
 FunshiEngineGL/ImGuizmo/vcpkg-example/
 .aider*
+
+# OpenCode Swarm plugin configuration (local only, not versioned)
+.opencode/
+.local/

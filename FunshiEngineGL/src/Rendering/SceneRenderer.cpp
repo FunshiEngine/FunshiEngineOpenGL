@@ -169,65 +169,8 @@ void SceneRenderer::render(const FrameContext& ctx, GameObject* activeCameraObje
             static_cast<float>(ctx.framebufferHeight),
         radioDifuminado(ctx));
 
-    static bool diagMatricesPendiente = true;
-    if (diagMatricesPendiente) {
-        diagMatricesPendiente = false;
-        bool noFinita = false;
-        for (int i = 0; i < 16; ++i) {
-            if (!std::isfinite(view[i]) || !std::isfinite(projection[i])) {
-                noFinita = true;
-                break;
-            }
-        }
-        const float* diagPos = camara->getPosition();
-        const float fwd[3] = {-view[2], -view[6], -view[10]};
-        std::cout << "[diag] matrices camara finitas: "
-                  << (noFinita ? "NO (NaN/Inf)" : "si") << "; pos camara = ("
-                  << diagPos[0] << ", " << diagPos[1] << ", " << diagPos[2]
-                  << ") fwd=(" << fwd[0] << ", " << fwd[1] << ", " << fwd[2]
-                  << ") fov=" << camara->getFov()
-                  << " near=" << camara->getNearPlane()
-                  << " far=" << camara->getFarPlane() << std::endl;
-
-        // Inventario de la escena: cuantas luces y cuantas mallas dibujables
-        // (con normales) hay, para contrastar con lo que se ve en pantalla.
-        std::cout << "[diag] luces_en_escena=";
-        auto* diagObjects = ctx.gameObjects;
-        int diagLuces = 0;
-        int diagObjs = 0;
-        int diagConMalla = 0;
-        int diagConMallaYNormales = 0;
-        if (diagObjects && !diagObjects->isEmpty()) {
-            Position<GameObject*>* pos = diagObjects->first();
-            while (pos && pos->getElement()) {
-                GameObject* o = pos->getElement();
-                ++diagObjs;
-                if (o->getComponent<Light>()) ++diagLuces;
-                auto* m = o->getComponent<Model>();
-                if (m && m->getMesh() && !m->getMesh()->isEmpty()) {
-                    ++diagConMalla;
-                    if (m->getMesh()->hasNormals()) ++diagConMallaYNormales;
-                }
-                pos = (pos != diagObjects->last()) ? diagObjects->next(pos)
-                                                   : nullptr;
-            }
-        }
-        std::cout << diagLuces << " objetos=" << diagObjs
-                  << " conMalla=" << diagConMalla
-                  << " conMallaYNormales=" << diagConMallaYNormales
-                  << std::endl;
-    }
-
     dibujarEscena(ctx, view, projection, activeCameraObject, ctx.framebufferWidth,
                   ctx.framebufferHeight, true);
-
-    static bool diagPostPassPendiente = true;
-    if (diagPostPassPendiente) {
-        diagPostPassPendiente = false;
-        std::cout << "[diag] MeshRenderer moderno disponible="
-                  << (meshRenderer_ && meshRenderer_->available() ? "si" : "no")
-                  << std::endl;
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -565,6 +508,7 @@ bool SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
 
     backend.bindTextureCube(skyboxCubemap_, 0);
     backend.drawMesh(skyboxCuboMalla_, 0, 36);
+    backend.bindTextureCube(Rendering::Backend::kInvalidHandle, 0);
 
     // Restaurar estado.
     backend.setDepthMask(true);

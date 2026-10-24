@@ -51,10 +51,15 @@ bool matrizFinita(const glm::mat3& m) {
     return true;
 }
 
-// Unidades de textura reservadas para los mapas de sombra. Las del material
-// ocupan las cuatro primeras (difusa, especular, emision y normal), asi que
-// los mapas de sombra arrancan en la quinta.
-constexpr int kUnidadTexturaSombra = 4;
+// Unidades fijas de textura para cada tipo de sampler: evita colisiones de
+// tipo en la misma unidad de textura (lo cual causa GL_INVALID_OPERATION 1282
+// en glDrawElements al mezclar sampler2D, sampler2DShadow y samplerCube en unidad 0).
+constexpr int kUnidadTexturaDifusa = 0;
+constexpr int kUnidadTexturaEspecular = 1;
+constexpr int kUnidadTexturaEmision = 2;
+constexpr int kUnidadTexturaNormal = 3;
+constexpr int kUnidadTexturaSombra = 4;      // 4..7 para sampler2DShadow (kMaxProyectoresSombra = 4)
+constexpr int kUnidadTexturaSombraCubo = 8;  // 8..11 para samplerCube (kMaxProyectoresSombra = 4)
 
 } // namespace
 
@@ -86,6 +91,7 @@ bool MeshRenderer::inicializar() {
                       << e.what() << '\n';
             shaderSombra_.reset();
         }
+        configurarSamplers();
         aplicarLuces();
         // Los mapas de sombra tambien se suben aqui: el programa puede
         // aparecer despues de que la escena ya tuviera proyectores (el
@@ -194,6 +200,31 @@ void MeshRenderer::setSombras(const Rendering::ProyectorSombra* proyectores,
     if (shader_) aplicarSombras();
 }
 
+void MeshRenderer::configurarSamplers() {
+    if (!shader_) return;
+    shader_->use();
+
+    // 1. Texturas 2D del material (unidades 0..3)
+    shader_->setInt("uDiffuseTex", kUnidadTexturaDifusa);
+    shader_->setInt("uSpecularTex", kUnidadTexturaEspecular);
+    shader_->setInt("uEmissionTex", kUnidadTexturaEmision);
+    shader_->setInt("uNormalTex", kUnidadTexturaNormal);
+
+    // 2. Mapas de sombra 2D (sampler2DShadow, unidades 4..7)
+    for (int i = 0; i < Rendering::kMaxProyectoresSombra; ++i) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "uShadowMap%d", i);
+        shader_->setInt(name, kUnidadTexturaSombra + i);
+    }
+
+    // 3. Mapas de sombra puntuales (samplerCube, unidades 8..11)
+    for (int i = 0; i < Rendering::kMaxProyectoresSombra; ++i) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "uShadowCube%d", i);
+        shader_->setInt(name, kUnidadTexturaSombraCubo + i);
+    }
+}
+
 void MeshRenderer::aplicarSombras() {
     if (!shader_) return;
     // Los uniforms se suben con el programa activo: sin use() se descartan.
@@ -243,8 +274,9 @@ void MeshRenderer::aplicarSombras() {
         }
         std::snprintf(name, sizeof(name), "uShadowDistancia[%d]", proyector.indiceLuz);
         shader_->setFloat(name, proyector.distancia);
-        std::snprintf(name, sizeof(name), "uShadowCube%d", proyector.indiceLuz);
-        shader_->setInt(name, kUnidadTexturaSombra + Rendering::kMaxProyectoresSombra + proyector.indiceLuz);
+        const int idxCubo = std::min(proyector.indiceLuz, Rendering::kMaxProyectoresSombra - 1);
+        std::snprintf(name, sizeof(name), "uShadowCube%d", idxCubo);
+        shader_->setInt(name, kUnidadTexturaSombraCubo + idxCubo);
     }
 }
 
@@ -322,25 +354,26 @@ void MeshRenderer::aplicarTexturas(const IMaterial* material, const Mesh* mesh) 
     if (!material) return;
 
     shader_->setInt("uUseTexture",
-                    enlazarSlotTextura(material->getDiffuseMapPath(), 0,
-                                       "uDiffuseTex")
+                    enlazarSlotTextura(material->getDiffuseMapPath(),
+                                       kUnidadTexturaDifusa, "uDiffuseTex")
                         ? 1
                         : 0);
     shader_->setInt("uUseSpecularMap",
-                    enlazarSlotTextura(material->getSpecularMapPath(), 1,
-                                       "uSpecularTex")
+                    enlazarSlotTextura(material->getSpecularMapPath(),
+                                       kUnidadTexturaEspecular, "uSpecularTex")
                         ? 1
                         : 0);
     shader_->setInt("uUseEmissionMap",
-                    enlazarSlotTextura(material->getEmissionMapPath(), 2,
-                                       "uEmissionTex")
+                    enlazarSlotTextura(material->getEmissionMapPath(),
+                                       kUnidadTexturaEmision, "uEmissionTex")
                         ? 1
                         : 0);
 
     // El normal map ademas exige el marco tangente de la malla.
     shader_->setInt("uUseNormalMap",
                     mesh->hasTangents()
-                        ? (enlazarSlotTextura(material->getNormalMapPath(), 3,
+                        ? (enlazarSlotTextura(material->getNormalMapPath(),
+                                              kUnidadTexturaNormal,
                                               "uNormalTex")
                                ? 1
                                : 0)
@@ -469,20 +502,9 @@ bool MeshRenderer::renderMesh(GameObject* contexto, const Mesh* mesh,
 const MeshGPU* MeshRenderer::obtenerGpu(const Mesh* mesh) {
     if (!mesh) return nullptr;
     auto it = gpu_.find(mesh);
-    if (it != gpu_.end()) {
-        std::cerr << "[MeshRenderer] obtenerGpu cache hit: mesh=" << mesh
-                  << " vertices=" << mesh->vertices.size()
-                  << " indices=" << mesh->indices.size() << std::endl;
-        return it->second.get();
-    }
+    if (it != gpu_.end()) return it->second.get();
 
     if (!backend_) return nullptr;
-    std::cerr << "[MeshRenderer] obtenerGpu uploading: mesh=" << mesh
-              << " vertices=" << mesh->vertices.size()
-              << " indices=" << mesh->indices.size()
-              << " hasNormals=" << mesh->hasNormals()
-              << " hasUvs=" << mesh->hasUvs()
-              << " hasTangents=" << mesh->hasTangents() << std::endl;
     auto gpu = std::make_unique<MeshGPU>(*backend_);
     gpu->upload(&mesh->vertices[0].x, mesh->vertices.size(),
                 mesh->hasNormals() ? &mesh->normals[0].x : nullptr,
@@ -496,7 +518,6 @@ const MeshGPU* MeshRenderer::obtenerGpu(const Mesh* mesh) {
                 mesh->indices.empty() ? nullptr : &mesh->indices[0],
                 mesh->indices.size());
     it = gpu_.emplace(mesh, std::move(gpu)).first;
-    std::cerr << "[MeshRenderer] obtenerGpu uploaded OK" << std::endl;
     return it->second.get();
 }
 
@@ -512,9 +533,9 @@ void MeshRenderer::enlazarTexturasSombra() {
             sombras_[static_cast<std::size_t>(i)].textura;
         if (textura == Rendering::Backend::kInvalidHandle) continue;
         if (sombras_[static_cast<std::size_t>(i)].esCubemap) {
-            backend.bindTextureCube(textura,
-                kUnidadTexturaSombra + Rendering::kMaxProyectoresSombra +
-                sombras_[static_cast<std::size_t>(i)].indiceLuz);
+            const int idxCubo = std::min(sombras_[static_cast<std::size_t>(i)].indiceLuz,
+                                         Rendering::kMaxProyectoresSombra - 1);
+            backend.bindTextureCube(textura, kUnidadTexturaSombraCubo + idxCubo);
         } else {
             backend.bindTexture2D(textura, kUnidadTexturaSombra + i);
         }

@@ -222,19 +222,6 @@ Handle OpenGL3Backend::createMesh(const MeshData& data) {
 
     // Indices -> EBO (se graban en el VAO por estar bindeados con el VAO activo).
     if (data.indices && data.indexCount > 0) {
-        // Verificar que ningun indice supera el numero de vertices
-        unsigned int maxIndex = 0;
-        for (std::size_t i = 0; i < data.indexCount; ++i) {
-            if (data.indices[i] > maxIndex) maxIndex = data.indices[i];
-        }
-        if (maxIndex >= data.vertexCount) {
-            std::cerr << "[OpenGL3Backend] createMesh: INDICE FUERA DE RANGO! maxIndex="
-                      << maxIndex << " vertexCount=" << data.vertexCount << std::endl;
-        } else {
-            std::cerr << "[OpenGL3Backend] createMesh: indices OK, maxIndex=" << maxIndex
-                      << " vertexCount=" << data.vertexCount << std::endl;
-        }
-
         GLFuncs::pfnBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[5]);
         GLFuncs::pfnBufferData(
             GL_ELEMENT_ARRAY_BUFFER,
@@ -257,9 +244,6 @@ Handle OpenGL3Backend::createMesh(const MeshData& data) {
     const Handle handle = static_cast<Handle>(vao);
     meshes_[handle] = GpuMesh{vao, {buffers[0], buffers[1], buffers[2],
                                     buffers[3], buffers[4], buffers[5]}};
-    std::cerr << "[OpenGL3Backend] createMesh OK: vao=" << vao
-              << " vertices=" << data.vertexCount << " indices=" << data.indexCount
-              << std::endl;
     return handle;
 }
 
@@ -301,8 +285,6 @@ void OpenGL3Backend::drawMesh(Handle mesh, unsigned int firstIndex,
     glGetIntegerv(GL_CURRENT_PROGRAM, &currentProgram);
     if (currentProgram == 0) {
         std::cerr << "[OpenGL3Backend] drawMesh: NO HAY PROGRAMA DE SHADER ACTIVO!" << std::endl;
-    } else {
-        std::cerr << "[OpenGL3Backend] drawMesh: programa activo=" << currentProgram << std::endl;
     }
     // El puntero del EBO se desplaza al primer indice del rango: asi una
     // region (una sub-malla con material propio) se dibuja sin tocar el resto.
@@ -546,9 +528,9 @@ void OpenGL3Backend::destroyTexture2D(Handle texture) {
 }
 
 void OpenGL3Backend::bindTexture2D(Handle texture, int unit) {
-    if (texture == kInvalidHandle || !GLFuncs::pfnActiveTexture) return;
+    if (!GLFuncs::pfnActiveTexture) return;
     GLFuncs::pfnActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
-    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+    glBindTexture(GL_TEXTURE_2D, texture != kInvalidHandle ? static_cast<GLuint>(texture) : 0);
 }
 
 void OpenGL3Backend::updateTexture2D(Handle texture, const Image2D& image) {
@@ -628,9 +610,9 @@ void OpenGL3Backend::destroyTextureCube(Handle texture) {
 }
 
 void OpenGL3Backend::bindTextureCube(Handle texture, int unit) {
-    if (texture == kInvalidHandle || !GLFuncs::pfnActiveTexture) return;
+    if (!GLFuncs::pfnActiveTexture) return;
     GLFuncs::pfnActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
-    glBindTexture(GL_TEXTURE_CUBE_MAP, static_cast<GLuint>(texture));
+    glBindTexture(GL_TEXTURE_CUBE_MAP, texture != kInvalidHandle ? static_cast<GLuint>(texture) : 0);
 }
 
 // ---------------------------------------------------------------------------

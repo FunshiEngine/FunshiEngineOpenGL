@@ -177,6 +177,7 @@ private:
                     const float modelo[16], const float view[16],
                     const float projection[16],
                     const ProveedorMaterial& proveedor);
+    void configurarSamplers();
     void aplicarLuces();
     // Sube los uniforms del material (contrato IMaterial). Si el material es
     // nullptr, se usa el color del objeto o los valores por defecto.
