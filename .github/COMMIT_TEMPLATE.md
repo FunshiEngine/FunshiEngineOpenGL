@@ -1,9 +1,5 @@
 # Plantilla de mensajes de commit
 
-GitHub no ofrece plantillas de mensaje de commit (esa función se retiró), así
-que este archivo es la referencia de la convención. La regla completa vive en
-`Skills/`; este resumen es para tenerla a mano al commitear.
-
 ## Formato
 
 ```
