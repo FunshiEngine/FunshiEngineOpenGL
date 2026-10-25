@@ -39,6 +39,7 @@ protected:
     int id = 0;
     int tam = 1;
     std::string tag_ = "Untagged";
+    bool dirty_ = false;  // Para autosave de escena
 public:
     explicit GameObject(Entity* origin);
     GameObject();
@@ -65,6 +66,10 @@ public:
     // escena y dibuja cada Modelos3D con MeshRenderer (VBO/VAO + shader). Asi
     // la entidad no necesita conocer la capa de Rendering.
     virtual void update(float deltaTime);
+
+    // Dirty tracking para autosave de escena
+    bool isDirty() const { return dirty_; }
+    void setDirty(bool value) { dirty_ = value; }
 
 protected:
     // Atributos propios del objeto de juego (id, nombre, estado, tam y tag):
