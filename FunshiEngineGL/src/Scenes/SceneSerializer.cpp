@@ -23,6 +23,8 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 #include "EditorController.h"
 #include "SceneRegistry.h"
@@ -44,6 +46,123 @@ SceneSerializer::SceneSerializer(SceneRegistry* value,
 
 
 namespace {
+
+void recolectarIdsArbol(Position<GameObject*>* root,
+                        std::unordered_set<int>& ids) {
+    (void)root;
+    (void)ids;
+}
+
+void recolectarIdsRecursivo(SceneRegistry* scene,
+                           Position<GameObject*>* root,
+                           std::unordered_set<int>& ids) {
+    if (!scene || !root)
+        return;
+    GameObject* object = root->getElement();
+    if (object) {
+        ids.insert(object->getId());
+    }
+    if (!scene->getEntitysTree()->isInternal(root))
+        return;
+    auto* children = scene->getEntitysTree()->childsOf(root);
+    if (!children)
+        return;
+    auto* position = children->first();
+    while (position != nullptr) {
+        recolectarIdsRecursivo(scene, position->getElement(), ids);
+        position = (position != children->last()) ? children->next(position) : nullptr;
+    }
+    delete children;
+}
+
+void limpiarBinariosHuérfanos(SceneRegistry* scene,
+                             const std::string& filename) {
+    if (!scene)
+        return;
+    std::unordered_set<int> idsActuales;
+    if (!scene->getEntitysTree()->isEmpty()) {
+        recolectarIdsRecursivo(scene,
+                               scene->getEntitysTree()->rootOfTree(),
+                               idsActuales);
+    }
+
+    std::filesystem::path dirBinarios = std::filesystem::path(filename);
+    if (dirBinarios.extension() == ".txt") {
+        dirBinarios = dirBinarios.parent_path();
+    } else if (!dirBinarios.empty() && dirBinarios.filename().string() == "Scene") {
+        // filename puede ser el prefijo sin /Scene al final? Revisar: rutaScenePrefijo devuelve .../Scene
+        // o puede ser .../Scene/
+    }
+    // Asegurar que apunte al directorio Scene
+    if (dirBinarios.filename().string() != "Scene") {
+        // Intentar añadir /Scene
+        std::filesystem::path candidato = dirBinarios / "Scene";
+        if (std::filesystem::exists(candidato)) {
+            dirBinarios = candidato;
+        } else {
+            // filename puede ya ser .../Memory/Binarios/Scene (sin / final)
+            // o .../Memory/Binarios/Scene/
+        }
+    }
+
+    std::error_code ec;
+    if (!std::filesystem::exists(dirBinarios, ec) || ec) {
+        return;
+    }
+    if (!std::filesystem::is_directory(dirBinarios, ec) || ec) {
+        return;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(dirBinarios, ec)) {
+        if (ec)
+            break;
+        if (!entry.is_regular_file(ec) || ec)
+            continue;
+        const std::string nombreArchivo = entry.path().filename().string();
+        if (nombreArchivo.size() < 8)
+            continue;
+        if (nombreArchivo.rfind("ObjectN", 0) != 0)
+            continue;
+        if (nombreArchivo.find(".db") == std::string::npos)
+            continue;
+        // Extraer ID
+        std::string texto = nombreArchivo.substr(7);
+        const std::size_t finDb = texto.find(".db");
+        if (finDb == std::string::npos)
+            continue;
+        texto = texto.substr(0, finDb);
+        if (texto.empty())
+            continue;
+        // Validar que son solo dígitos
+        bool soloDigitos = true;
+        for (char c : texto) {
+            if (c < '0' || c > '9') {
+                soloDigitos = false;
+                break;
+            }
+        }
+        if (!soloDigitos)
+            continue;
+        int idArchivo = 0;
+        try {
+            idArchivo = std::stoi(texto);
+        } catch (...) {
+            continue;
+        }
+        if (idArchivo == 0)
+            continue; // Nunca borrar ObjectN0.db
+        if (idsActuales.find(idArchivo) == idsActuales.end()) {
+            std::error_code ecRemove;
+            if (!std::filesystem::remove(entry.path(), ecRemove)) {
+                std::cerr << "[escena] no se pudo eliminar binario huérfano: "
+                          << entry.path() << " (" << ecRemove.message() << ")\n";
+            } else {
+                std::cerr << "[escena] eliminado binario huérfano: "
+                          << entry.path() << "\n";
+            }
+        }
+    }
+}
 
 void publicarFalloEscena(RegistroDiagnosticos* diagnosticos,
                          const std::string& codigo,
@@ -317,6 +436,13 @@ void SceneSerializer::save(const std::string& filename)
 
     const std::string pathTxt =
         filename + "BBDDObjetos.txt";
+
+    /*
+     * Limpiar binarios huérfanos antes de guardar.
+     * Se mantiene únicamente ObjectN0.db (raíz). Se eliminan ObjectN*.db
+     * cuyo ID no exista en el árbol actual.
+     */
+    limpiarBinariosHuérfanos(scene, filename);
 
     /*
      * save() guarda un snapshot completo de la escena.
