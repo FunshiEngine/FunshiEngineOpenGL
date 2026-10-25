@@ -42,6 +42,8 @@ GameObject::GameObject() : Entity() {
     TagRegistry::registrar(tag_);
 }
 
+
+
 GameObject::~GameObject() = default;
 
 

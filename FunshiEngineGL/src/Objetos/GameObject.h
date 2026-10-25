@@ -62,6 +62,14 @@ public:
     const std::string& getTag() const noexcept { return tag_; }
     void setTag(std::string tag);
 
+    // Dirty tracking: indica si el objeto ha cambiado desde el último
+    // guardado, para que scene.autosave sepa qué objetos persistir.
+    bool isDirty() const noexcept { return dirty_; }
+    void setDirty(bool sucio) { dirty_ = sucio; }
+
+protected:
+    bool dirty_ = false;
+
     // El dibujado no es responsabilidad de la entidad: SceneRenderer recorre la
     // escena y dibuja cada Modelos3D con MeshRenderer (VBO/VAO + shader). Asi
     // la entidad no necesita conocer la capa de Rendering.
@@ -78,6 +86,7 @@ protected:
     void deserializeLocalAtributes() override;
 
 public:
+    virtual void update(float deltaTime);
     bool saveEntity(std::string filename) override;
     bool loadEntity(std::string filename) override;
 };
