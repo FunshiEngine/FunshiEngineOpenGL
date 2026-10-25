@@ -202,7 +202,7 @@ void ContentFolderInterface::recorrer(const std::string& path) {
     }
 
     // Dibujo del grid desde el cache (mismo layout del grid de iconos).
-    const float iconSize = 87.0f;
+    const float iconSize = 113.1f;
     const float spacing = 16.0f;
     const float stepX = iconSize + spacing;
     const float altoTexto = ImGui::GetTextLineHeightWithSpacing();
@@ -409,16 +409,45 @@ void ContentFolderInterface::initGUI() {
     // abiertas no habia forma de saber donde estabas.
     if (ImGui::BeginMenuBar()) {
         if (sel->carpetaActual) {
-            const std::string& nombre = sel->carpetaActual->getPathName();
-            ImGui::TextUnformatted(nombre.empty() ? "(raiz)" : nombre.c_str());
+            // Guardar ruta antes de cualquier modificación para evitar
+            // desreferenciar tras poner carpetaActual a nullptr
+            const std::string pathRoot = sel->carpetaActual->getPathRoot();
+            const std::string pathName = sel->carpetaActual->getPathName();
+            const std::string pathCompleta =
+                pathRoot + PATH_SEP + pathName;
+
+            // Botón para subir al padre (más pequeño)
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, 1.0f));
+            if (ImGui::SmallButton("..")) {
+                fs::path padrePath(pathName);
+                padrePath = padrePath.parent_path();
+                if (!padrePath.empty() && padrePath != padrePath.root_name()) {
+                    std::string rutaPadre = pathRoot + PATH_SEP + padrePath.string();
+                    sel->rutaVisible = rutaPadre;
+                } else {
+                    // Si no hay padre (raiz), ir a la raiz del proyecto
+                    if (fileManager) {
+                        sel->rutaVisible = pathRoot + PATH_SEP + fileManager->getRootName();
+                    } else {
+                        sel->rutaVisible = pathRoot;
+                    }
+                }
+                sel->carpetaActual = nullptr;
+                sel->contadorCambios++;
+                cacheCarpeta.clear();
+                cacheMtime = std::filesystem::file_time_type{};
+            }
+            ImGui::PopStyleVar();
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Subir a carpeta padre");
+            }
+            ImGui::SameLine();
+            ImGui::TextUnformatted(pathName.empty() ? "(raiz)" : pathName.c_str());
             // La ruta completa en el tooltip: dos carpetas de sitios distintos
             // pueden llamarse igual, y con varias abiertas el nombre solo no
             // dice donde estas.
             if (ImGui::IsItemHovered()) {
-                const std::string completa =
-                    sel->carpetaActual->getPathRoot() + PATH_SEP +
-                    sel->carpetaActual->getPathName();
-                ImGui::SetTooltip("%s", completa.c_str());
+                ImGui::SetTooltip("%s", pathCompleta.c_str());
             }
         }
         ImGui::EndMenuBar();
