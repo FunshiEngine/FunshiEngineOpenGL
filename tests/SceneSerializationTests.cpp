@@ -30,7 +30,7 @@
 // se puede verificar headless sin dibujar (borrar el objeto -> el inspector
 // tiene que desvincularse).
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo,
+// Patron de autoria (ver Skills): CHECK definido en este archivo,
 // TempPruebas::CarpetaPrueba para la carpeta temporal que se limpia sola, y
 // salida final "OK/FALLOS: N comprobaciones" saliendo con 0 o 1.
 
@@ -46,6 +46,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <imgui.h>
@@ -57,6 +58,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Audio/AudioEngine.h"
 #include "../FunshiEngineGL/src/Assets/AssetException.h"
 #include "../FunshiEngineGL/src/Assets/AssetManager.h"
 #include "../FunshiEngineGL/src/Assets/Mesh.h"
@@ -72,9 +74,10 @@
 #include "../FunshiEngineGL/src/Herramientas/PathUtils.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
-#include "../FunshiEngineGL/src/Objetos/Modelos3D.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
 #include "../FunshiEngineGL/src/Objetos/TagRegistry.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Color.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/AudioSource.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Material.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Model.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/EsfereCollider.h"
@@ -741,36 +744,38 @@ void diagnosticosCargaMalla() {
     auto loader = std::make_unique<LoaderDiagnostico>();
     LoaderDiagnostico* loaderRaw = loader.get();
     AssetManager assets(std::move(loader));
-    Modelos3D modelo;
-    modelo.setAssetManager(&assets);
-    modelo.setRegistroDiagnosticos(&diagnosticos);
+    GameObject modeloObj;
+    Model* modelo = new Model();
+    modeloObj.addComponent(modelo);
+    modelo->setAssetManager(&assets);
+    modelo->setRegistroDiagnosticos(&diagnosticos);
 
     loaderRaw->falla = false;
-    modelo.setPath("Assets/valido.obj");
-    CHECK(modelo.getMesh() != nullptr && diagnosticos.ultimos().empty(),
+    modelo->setPath("Assets/valido.obj");
+    CHECK(modelo->getMesh() != nullptr && diagnosticos.ultimos().empty(),
           "cargar una malla válida no publica un diagnóstico");
     CHECK(loaderRaw->cargas == 1, "el loader recibe la carga válida");
 
     loaderRaw->falla = true;
-    modelo.setPath("Assets/modelo.obj");
-    CHECK(modelo.getMesh() == nullptr && assets.hasFailedMesh("Assets/modelo.obj"),
+    modelo->setPath("Assets/modelo.obj");
+    CHECK(modelo->getMesh() == nullptr && assets.hasFailedMesh("Assets/modelo.obj"),
           "el fallo del loader deja el modelo vacío y cacheado");
     CHECK(loaderRaw->cargas == 2, "el loader intenta cargar el modelo fallido");
 
-    modelo.setPath("Assets/modelo.obj");
+    modelo->setPath("Assets/modelo.obj");
     CHECK(loaderRaw->cargas == 2,
           "la repetición del fallo usa el error cacheado");
     auto eventos = diagnosticos.ultimos(10);
     CHECK(eventos.size() == 1 &&
               eventos[0].tipoExcepcion == "AssetLoadException" &&
-              eventos[0].modulo == "Objetos/Modelos3D" &&
+              eventos[0].modulo == "Objetos/Model" &&
               eventos[0].nivel == NivelDiagnostico::Error,
           "RuntimeException de assets llega una sola vez al registro común");
 
     loaderRaw->falla = false;
     assets.clearFailedMeshes();
-    modelo.setPath("Assets/modelo.obj");
-    CHECK(modelo.getMesh() != nullptr && loaderRaw->cargas == 3,
+    modelo->setPath("Assets/modelo.obj");
+    CHECK(modelo->getMesh() != nullptr && loaderRaw->cargas == 3,
           "limpiar el fallo permite que el modelo se recupere");
     CHECK(diagnosticos.ultimos(10).size() == 1,
           "la recuperación exitosa no duplica el diagnóstico histórico");
@@ -977,7 +982,7 @@ static void escribirRutaPersistida(std::ostream& out, const std::string& s) {
 
 void rutasDeCarasDeSkybox() {
     EditorConfig::limpiarRaizAssets();
-    const std::string raiz = "/motor/MotorGrafico/Juego/srcJuego";
+    const std::string raiz = "/motor/FunshiEngine-DATA/Juego/srcJuego";
     EditorConfig::fijarRaizAssets(raiz);
 
     const std::string relativaPX = "Cielo/cielo_px.png";
@@ -1081,7 +1086,7 @@ void rutasDeCarasDeSkybox() {
 // en silencio y dejar los .db apuntando al lugar viejo.
 void reescrituraDeReferencias() {
     EditorConfig::limpiarRaizAssets();
-    const std::string raiz = "C:\\base\\MotorGrafico/Proyects/JuegoX/srcJuegoX";
+    const std::string raiz = "C:\\base\\FunshiEngine-DATA/Proyects/JuegoX/srcJuegoX";
     EditorConfig::fijarRaizAssets(raiz);
 
     // Rutas en memoria tal como quedan al cargar la escena (absolutizar
@@ -1092,6 +1097,8 @@ void reescrituraDeReferencias() {
         EditorConfig::absolutizarRuta("Mallas/Auto.fbx");
     const std::string texturaEnEscena =
         EditorConfig::absolutizarRuta("Texturas/difuso.png");
+    const std::string audioEnEscena =
+        EditorConfig::absolutizarRuta("Audio/disparo.wav");
 
     // 1. Mover `Scripts` dentro de `Assets`: solo la fuente esta bajo el
     //    prefijo movido; malla y textura quedan intactas.
@@ -1116,6 +1123,13 @@ void reescrituraDeReferencias() {
     Material* refMaterial = material.get();
     objeto.addComponent(std::move(material));
 
+    // El archivo de audio es un asset mas: su ruta se reescribe igual que la
+    // de una malla o una textura.
+    auto audio = std::make_unique<AudioSource>();
+    audio->setRutaClip(audioEnEscena);
+    AudioSource* refAudio = audio.get();
+    objeto.addComponent(std::move(audio));
+
     ListaDE<GameObject*> escena;
     escena.addLast(&objeto);
 
@@ -1128,6 +1142,8 @@ void reescrituraDeReferencias() {
           "la malla (fuera del prefijo movido) no se toca");
     CHECK(refMaterial->getDiffuseMapPath() == texturaEnEscena,
           "la textura (fuera del prefijo movido) no se toca");
+    CHECK(refAudio->getRutaClip() == audioEnEscena,
+          "el audio (fuera del prefijo movido) no se toca");
 
     // 2. Renombrar la carpeta de la malla: reescribe la malla y nada mas.
     const int renombrarMalla = RutasReescritura::reescribirEnEscena(
@@ -1153,6 +1169,15 @@ void reescrituraDeReferencias() {
         &escena, raiz + PATH_SEP + "OtraCarpeta",
         raiz + PATH_SEP + "NadaCarpeta");
     CHECK(sinCambios == 0, "prefijo que no matchea no cambia nada");
+
+    // 5. Renombrar la carpeta del audio: reescribe la ruta del componente.
+    const int renombrarAudio = RutasReescritura::reescribirEnEscena(
+        &escena, raiz + PATH_SEP + "Audio", raiz + PATH_SEP + "Sonidos");
+    CHECK(renombrarAudio == 1,
+          "renombrar una carpeta reescribe la ruta del archivo de audio");
+    CHECK(refAudio->getRutaClip() ==
+              raiz + PATH_SEP + "Sonidos/disparo.wav",
+          "el archivo de audio queda bajo el nombre nuevo");
 
     EditorConfig::limpiarRaizAssets();
 }
@@ -1203,14 +1228,29 @@ void sanadoDeRutasRotas() {
     Model* refModelo = modelo.get();
     objeto.addComponent(std::move(modelo));
 
+    // El archivo de audio roto se repara con la misma regla.
+    fs::create_directories(raiz / "Assets" / "Audio", ec);
+    {
+        std::ofstream clip((raiz / "Assets" / "Audio" / "disparo.wav").string());
+        clip << "clip\n";
+    }
+    const fs::path audioReal = raiz / "Assets" / "Audio" / "disparo.wav";
+    auto audio = std::make_unique<AudioSource>();
+    audio->setRutaClip(EditorConfig::absolutizarRuta("Audio/disparo.wav"));
+    AudioSource* refAudio = audio.get();
+    objeto.addComponent(std::move(audio));
+
     ListaDE<GameObject*> escena;
     escena.addLast(&objeto);
 
     const int reparadas = RutasReescritura::sanarRutasInexistentes(&escena);
-    CHECK(reparadas == 1, "con una coincidencia unica se repara");
+    CHECK(reparadas == 2, "con una coincidencia unica se reparan las dos");
     CHECK(fs::path(refScript->getPath()).generic_string() ==
               real.generic_string(),
           "la fuente del script queda apuntando al archivo que existe");
+    CHECK(fs::path(refAudio->getRutaClip()).generic_string() ==
+              audioReal.generic_string(),
+          "el archivo de audio queda apuntando al archivo que existe");
     CHECK(refMaterial->getDiffuseMapPath() ==
               EditorConfig::absolutizarRuta("Texturas/difuso.png"),
           "sin ninguna coincidencia la ruta queda como estaba");
@@ -1740,6 +1780,11 @@ void elInspectorDibujaUnFrameSinArrastre() {
 // seguia en la pose vieja y se teletransportaba de vuelta en el siguiente paso
 // de simulacion. Ahora el local se reescribe como inverse(mundoPadre) *
 // mundoHijo y el cuerpo se reconstruye.
+// El contrato de fisicas no tiene comportamiento por defecto: un backend que
+// no declare los contactos ni la gravedad no compila.
+static_assert(std::is_abstract<IPhysicsBackend>::value,
+              "el contrato de fisicas exige implementar todos sus metodos");
+
 class BackendFisicoFalso : public IPhysicsBackend {
 public:
     int agregados = 0;
@@ -1752,6 +1797,19 @@ public:
         ultimo = body;
     }
     void removeRigidBody(RigidBody*) override { ++quitados; }
+
+    std::vector<EventoContacto> tomarEventosContacto() override { return {}; }
+    void fijarGravedad(float, float, float) override {}
+    void gravedad(float& x, float& y, float& z) const override {
+        x = 0.0f;
+        y = -1.0f;
+        z = 0.0f;
+    }
+    // Sin impacto por defecto: el test no ejerce raycast.
+    ResultadoRaycast raycast(float, float, float, float, float, float,
+                             float) override {
+        return {};
+    }
 };
 
 void reparentarPreservaLaPoseYRefrescaElCuerpo() {
@@ -2765,6 +2823,44 @@ void spriteRendererSerializaRoundTrip() {
           "un sprite nuevo cubre la textura completa");
 }
 
+// La API de scripts expone la musica por ruta (v8 de la tabla de servicios).
+void musicaDesdeScripts() {
+    TempPruebas::CarpetaPrueba carpeta("funshi_musica_scripts");
+    const std::string pista = (carpeta.ruta() / "tema.ogg").string();
+    std::ofstream(pista) << "contenido";
+
+    AudioEngine audio;
+    audio.esperarPilaVacia();
+
+    MotorScript::inyectarServiciosScript(&audio, nullptr, nullptr);
+    const MotorScript::ScriptServices* servicios = MotorScript::tablaServicios();
+    CHECK(servicios->version >= 8,
+          "los servicios publican la musica por ruta");
+    CHECK(servicios->reproducirMusica != nullptr &&
+              servicios->detenerMusica != nullptr &&
+              servicios->volumenMusica != nullptr,
+          "la tabla expone las tres funciones de musica");
+
+    CHECK(servicios->reproducirMusica(pista.c_str(), 0.8f, 0.0f),
+          "una pista existente se reproduce desde un script");
+    CHECK(!servicios->reproducirMusica("", 1.0f, 0.0f),
+          "una pista sin ruta no se reproduce");
+    const std::string inexistente = (carpeta.ruta() / "no_existe.ogg").string();
+    CHECK(!servicios->reproducirMusica(inexistente.c_str(), 1.0f, 0.0f),
+          "una pista cuyo archivo no existe no se reproduce");
+
+    // El volumen del bus y la deteccion no dejan nada sin cerrar.
+    servicios->volumenMusica(0.5f);
+    servicios->detenerMusica(0.0f);
+
+    // Sin motor de audio la API es tolerante: no reproduce y no falla.
+    MotorScript::inyectarServiciosScript(nullptr, nullptr, nullptr);
+    CHECK(!servicios->reproducirMusica(pista.c_str(), 1.0f, 0.0f),
+          "sin motor de audio la musica no se reproduce");
+    servicios->volumenMusica(1.0f);
+    servicios->detenerMusica(0.0f);
+}
+
 int main() {
     nombresPorDefecto();
     roundTripDeEscena();
@@ -2796,6 +2892,7 @@ int main() {
     movimientoFisicoYSaltoDesdeScripts();
     eventosDeContactoExponenColliderYPropietario();
     busquedaDeObjetosPorNombreIdYEtiqueta();
+    musicaDesdeScripts();
     propiedadesFisicasDesdeScripts();
     rigidBodySerializaPropiedadesNuevas();
     sensorDetectaSinRespuestaYPlano2D();

@@ -26,7 +26,7 @@
 // Ademas cubre exit codes, truncado del log, cwd, entorno extra y — en
 // Windows — la receta cruda de cmd.exe que usa el harvest de vcvars.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo,
+// Patron de autoria (ver Skills): CHECK definido en este archivo,
 // TempPruebas::CarpetaPrueba para la carpeta temporal que se limpia sola, y
 // salida final "OK/FALLOS: N comprobaciones" saliendo con 0 o 1.
 
@@ -157,6 +157,27 @@ int main(int argc, char** argv) {
     Proceso::ejecutar({copia.string(), "--hijo", "codigo", "0"}, logArgs);
     CHECK(contenidoDe(logArgs).empty(),
           "el log se trunca en cada arranque (hereda la semantica de `>` )");
+
+    // --- Modo "agregar al final": varias etapas en el MISMO archivo ------------
+    // La exportacion deja la salida de cada etapa (configure, compilacion del
+    // motor, compilacion del juego) en un unico archivo: la segunda etapa no
+    // puede pisar lo que escribio la primera.
+    const std::string logAcumulado = (dir / "acumulado.log").string();
+    Proceso::ejecutar({copia.string(), "--hijo", "args", "primera"},
+                      logAcumulado);
+    Proceso::ejecutar({copia.string(), "--hijo", "args", "segunda"},
+                      logAcumulado, std::string(), {}, false);
+    const std::vector<std::string> lineasAcumulado = lineasDe(logAcumulado);
+    CHECK(lineasAcumulado.size() == 2,
+          "la segunda etapa se agrega al log sin pisar la primera");
+    CHECK(lineasAcumulado.size() > 0 && lineasAcumulado[0] == "ARG=primera",
+          "la salida de la primera etapa se conserva");
+    CHECK(lineasAcumulado.size() > 1 && lineasAcumulado[1] == "ARG=segunda",
+          "la salida de la segunda etapa queda despues");
+    // Y el modo normal (truncando) sigue vaciando el archivo.
+    Proceso::ejecutar({copia.string(), "--hijo", "codigo", "0"}, logAcumulado);
+    CHECK(contenidoDe(logAcumulado).empty(),
+          "volver al modo normal vuelve a vaciar el log");
 
     // --- cwd: el hijo trabaja donde se le pide, no donde vive el motor ---------
     fs::create_directories(dir / "trabajo", ec);

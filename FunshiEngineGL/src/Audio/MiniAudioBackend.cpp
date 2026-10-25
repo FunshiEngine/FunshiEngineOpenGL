@@ -25,6 +25,7 @@
 #include "miniaudio.h"
 
 #include <utility>
+#include <iostream>
 
 struct MiniAudioBackend::Impl {
     ma_engine motor;
@@ -33,7 +34,25 @@ struct MiniAudioBackend::Impl {
     // id del backend -> sonido activo. miniaudio mezcla en el hilo de su
     // device; los accesos a esta estructura ocurren solo desde el hilo de
     // trabajo del AudioEngine (serializados por su cola).
-    std::unordered_map<int, ma_sound> activas;
+    struct SonidoActivo {
+        ma_sound sonido;
+        bool tienePosicion = false;
+        float px = 0.f, py = 0.f, pz = 0.f;
+    };
+    std::unordered_map<int, SonidoActivo> activas;
+
+    // Musica: el bus es un grupo de miniaudio (un "sonido" sin fuente de
+    // datos) con volumen propio. Las pistas se cuelgan de el, asi que el bus
+    // solo afecta a la musica y los efectos de sonido quedan fuera.
+    ma_sound_group bus;
+    bool busInicializado = false;
+    float volumenBus = 1.0f;
+    bool busSilenciado = false;
+    // id de pista -> sonido de la pista. Las pistas se abren en streaming
+    // (una pista de musica puede durar minutos: no se decodifica entera a
+    // memoria como se hace con los efectos).
+    std::unordered_map<int, ma_sound> pistas;
+    int proximoIdPista = 1;
 };
 
 MiniAudioBackend::MiniAudioBackend() : impl_(new Impl()) {}
@@ -47,53 +66,102 @@ bool MiniAudioBackend::iniciar() {
     // Sin device explicito: usa el device por defecto del sistema.
     if (ma_engine_init(&cfg, &impl_->motor) != MA_SUCCESS) return false;
     impl_->inicializado = true;
+
+    // El bus de musica: un grupo de miniaudio, que es un sonido sin fuente de
+    // datos. Sin el, las pistas no tendrian un volumen conjunto.
+    ma_sound_group_config cfgGrupo = ma_sound_group_config_init_2(&impl_->motor);
+    if (ma_sound_group_init_ex(&impl_->motor, &cfgGrupo, &impl_->bus) != MA_SUCCESS) {
+        ma_engine_uninit(&impl_->motor);
+        impl_->inicializado = false;
+        return false;
+    }
+    impl_->busInicializado = true;
+    aplicarVolumenBus();
     return true;
 }
 
 void MiniAudioBackend::cerrar() {
     if (!impl_->inicializado) return;
     detenerTodo();
+    // Las pistas se cierran antes que el bus: estan colgadas de el.
+    for (auto& [id, pista] : impl_->pistas) {
+        ma_sound_stop(&pista);
+        ma_sound_uninit(&pista);
+    }
+    impl_->pistas.clear();
+    if (impl_->busInicializado) {
+        ma_sound_group_uninit(&impl_->bus);
+        impl_->busInicializado = false;
+    }
     ma_engine_uninit(&impl_->motor);
     impl_->inicializado = false;
 }
 
 int MiniAudioBackend::reproducirArchivo(const std::string& ruta, float volumen,
-                                        bool bucle) {
-    if (!impl_->inicializado || ruta.empty()) return 0;
+                                        bool bucle, const float* posicion) {
+    if (ruta.empty()) return 0;
+    // El comando Iniciar se encola de forma asincronica en el ctor de
+    // AudioEngine; si el hilo de audio aun no lo ha procesado, inicializar
+    // de forma sincronica aqui evita que el primer Reproducir se pierda por
+    // condicion de carrera (impl_->inicializado == false).
+    if (!impl_->inicializado && !iniciar()) return 0;
 
-    ma_sound sonido;
+    // El ma_sound se construye directo en su slot del mapa: copiar un ma_sound
+    // no es valido (su nodo interno queda enlazado al grafo del engine
+    // apuntando al objeto original; al salir de la funcion ese original muere y
+    // el callback de audio termina leyendo un nodo colgado, SEGV en
+    // ma_engine_node_process_pcm_frames__sound).
+    const int id = impl_->proximoId++;
+    auto& activo = impl_->activas[id];
+    ma_sound& sonido = activo.sonido;
     // MA_SOUND_FLAG_DECODE: decodifica el archivo completo a memoria, ideal
     // para efectos cortos: el stream no depende de que el archivo siga
     // abierto en disco y el loop/volumen responden al instante.
     if (ma_sound_init_from_file(&impl_->motor, ruta.c_str(),
                                 MA_SOUND_FLAG_DECODE, nullptr, nullptr,
                                 &sonido) != MA_SUCCESS) {
+        impl_->activas.erase(id);
+        std::cerr << "[Audio] MiniAudioBackend::reproducirArchivo: no se pudo "
+                     "inicializar sonido desde '" << ruta << "'\n";
         return 0;
     }
     ma_sound_set_volume(&sonido, volumen);
     ma_sound_set_looping(&sonido, bucle ? MA_TRUE : MA_FALSE);
+    if (posicion) {
+        // Sonido espacial (3D): se ubica en el mundo y se atenuara segun la
+        // distancia al listener (la camara activa).
+        ma_sound_set_position(&sonido, posicion[0], posicion[1], posicion[2]);
+        activo.tienePosicion = true;
+        activo.px = posicion[0];
+        activo.py = posicion[1];
+        activo.pz = posicion[2];
+    } else {
+        // Sonido global (2D): sin spatializacion, suena igual desde cualquier
+        // punto de la escena.
+        ma_sound_set_spatialization_enabled(&sonido, MA_FALSE);
+    }
     if (ma_sound_start(&sonido) != MA_SUCCESS) {
         ma_sound_uninit(&sonido);
+        impl_->activas.erase(id);
+        std::cerr << "[Audio] MiniAudioBackend::reproducirArchivo: ma_sound_start "
+                     "fallo para '" << ruta << "'\n";
         return 0;
     }
-
-    const int id = impl_->proximoId++;
-    impl_->activas.emplace(id, sonido);
     return id;
 }
 
 void MiniAudioBackend::detener(int id) {
     const auto it = impl_->activas.find(id);
     if (it == impl_->activas.end()) return;
-    ma_sound_stop(&it->second);
-    ma_sound_uninit(&it->second);
+    ma_sound_stop(&it->second.sonido);
+    ma_sound_uninit(&it->second.sonido);
     impl_->activas.erase(it);
 }
 
 void MiniAudioBackend::detenerTodo() {
-    for (auto& [id, sonido] : impl_->activas) {
-        ma_sound_stop(&sonido);
-        ma_sound_uninit(&sonido);
+    for (auto& [id, activo] : impl_->activas) {
+        ma_sound_stop(&activo.sonido);
+        ma_sound_uninit(&activo.sonido);
     }
     impl_->activas.clear();
 }
@@ -105,11 +173,129 @@ void MiniAudioBackend::setVolumenMaestro(float volumen) {
 void MiniAudioBackend::despachar(float) {
     if (impl_->activas.empty()) return;
     for (auto it = impl_->activas.begin(); it != impl_->activas.end();) {
-        if (ma_sound_at_end(&it->second)) {
-            ma_sound_uninit(&it->second);
+        if (ma_sound_at_end(&it->second.sonido)) {
+            ma_sound_uninit(&it->second.sonido);
             it = impl_->activas.erase(it);
         } else {
             ++it;
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Musica
+// ---------------------------------------------------------------------------
+
+int MiniAudioBackend::abrirPista(const std::string& ruta) {
+    if (!impl_->inicializado || !impl_->busInicializado || ruta.empty()) return 0;
+
+    // Mismo motivo que reproducirArchivo: la pista se inicializa directo en el
+    // mapa (copiar un ma_sound deja el nodo del grafo apuntando al original,
+    // que muere al salir de la funcion).
+    const int id = impl_->proximoIdPista++;
+    ma_sound& pista = impl_->pistas[id];
+    // MA_SOUND_FLAG_STREAM: la pista se decodifica sobre la marcha. Los
+    // efectos usan MA_SOUND_FLAG_DECODE (todo a memoria) porque son cortos;
+    // una pista de musica puede durar minutos y no caben en memoria
+    // decodificadas.
+    if (ma_sound_init_from_file(&impl_->motor, ruta.c_str(),
+                                MA_SOUND_FLAG_STREAM, &impl_->bus, nullptr,
+                                &pista) != MA_SUCCESS) {
+        impl_->pistas.erase(id);
+        return 0;
+    }
+    return id;
+}
+
+void MiniAudioBackend::cerrarPista(int id) {
+    const auto it = impl_->pistas.find(id);
+    if (it == impl_->pistas.end()) return;
+    ma_sound_stop(&it->second);
+    ma_sound_uninit(&it->second);
+    impl_->pistas.erase(it);
+}
+
+bool MiniAudioBackend::reproducirPista(int id, float volumen) {
+    const auto it = impl_->pistas.find(id);
+    if (it == impl_->pistas.end()) return false;
+    ma_sound_set_volume(&it->second, volumen);
+    if (ma_sound_start(&it->second) != MA_SUCCESS) return false;
+    return true;
+}
+
+void MiniAudioBackend::detenerPista(int id) {
+    const auto it = impl_->pistas.find(id);
+    if (it == impl_->pistas.end()) return;
+    ma_sound_stop(&it->second);
+}
+
+void MiniAudioBackend::volumenPista(int id, float volumen) {
+    const auto it = impl_->pistas.find(id);
+    if (it == impl_->pistas.end()) return;
+    ma_sound_set_volume(&it->second, volumen);
+}
+
+void MiniAudioBackend::volumenBus(float volumen) {
+    impl_->volumenBus = volumen;
+    aplicarVolumenBus();
+}
+
+void MiniAudioBackend::silenciarBus(bool silenciado) {
+    impl_->busSilenciado = silenciado;
+    aplicarVolumenBus();
+}
+
+// El silencio se aplica al alza: el bus queda a volumen 0 sin perder el
+// volumen que el usuario habia pedido.
+void MiniAudioBackend::aplicarVolumenBus() {
+    if (!impl_->busInicializado) return;
+    const float efectivo = impl_->busSilenciado ? 0.0f : impl_->volumenBus;
+    ma_sound_group_set_volume(&impl_->bus, efectivo);
+}
+
+EstadoPista MiniAudioBackend::estadoPista(int id) {
+    const auto it = impl_->pistas.find(id);
+    if (it == impl_->pistas.end()) return EstadoPista::Detenida;
+    if (ma_sound_at_end(&it->second)) return EstadoPista::Terminada;
+    return ma_sound_is_playing(&it->second) ? EstadoPista::Reproduciendo
+                                            : EstadoPista::Detenida;
+}
+
+float MiniAudioBackend::posicionPista(int id) {
+    const auto it = impl_->pistas.find(id);
+    if (it == impl_->pistas.end()) return 0.0f;
+    ma_uint64 cursor = 0;
+    if (ma_sound_get_cursor_in_pcm_frames(&it->second, &cursor) != MA_SUCCESS)
+        return 0.0f;
+    const ma_uint32 tasa = ma_engine_get_sample_rate(&impl_->motor);
+    if (tasa == 0) return 0.0f;
+    return static_cast<float>(cursor) / static_cast<float>(tasa);
+}
+
+float MiniAudioBackend::duracionPista(int id) {
+    const auto it = impl_->pistas.find(id);
+    if (it == impl_->pistas.end()) return 0.0f;
+    ma_uint64 largo = 0;
+    // Una pista en streaming puede no conocer su largo hasta que el
+    // decodificador ha leido bastante: si no lo sabe, se informa 0.
+    if (ma_sound_get_length_in_pcm_frames(&it->second, &largo) != MA_SUCCESS)
+        return 0.0f;
+    const ma_uint32 tasa = ma_engine_get_sample_rate(&impl_->motor);
+    if (tasa == 0) return 0.0f;
+    return static_cast<float>(largo) / static_cast<float>(tasa);
+}
+
+void MiniAudioBackend::setPosicionSonido(int id, float x, float y, float z) {
+    const auto it = impl_->activas.find(id);
+    if (it == impl_->activas.end()) return;
+    it->second.tienePosicion = true;
+    it->second.px = x;
+    it->second.py = y;
+    it->second.pz = z;
+    ma_sound_set_position(&it->second.sonido, x, y, z);
+}
+
+void MiniAudioBackend::setListenerPosition(float x, float y, float z) {
+    if (impl_->inicializado)
+        ma_engine_listener_set_position(&impl_->motor, 0, x, y, z);
 }

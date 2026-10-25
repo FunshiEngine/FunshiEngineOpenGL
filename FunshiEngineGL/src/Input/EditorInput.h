@@ -19,6 +19,10 @@
 #ifndef EDITOR_INPUT_H
 #define EDITOR_INPUT_H
 #include <functional>
+#include <string>
+
+#include "EstadoOrbita.h"
+#include "IEstadoInterfaz.h"
 
 struct GLFWwindow;
 
@@ -31,7 +35,7 @@ class OrquestadorEstadoGUI;
 // solo con el orquestado (estados, ImGui, render). Vive una sola instancia
 // creada por main; las callbacks estaticas redireccionan via instancia.
 //
-// Dos responsabilidades:
+// Tres responsabilidades, todas sobre la entrada:
 //  1. Traduccion de eventos GLFW a acciones del editor (E, C, G, gizmo,
 //     Escape, clic derecho = navegar, cursor capturado).
 //  2. Maquina de estado de movimiento: onKey() SOLO registra las teclas
@@ -41,10 +45,14 @@ class OrquestadorEstadoGUI;
 //     mueven a la misma velocidad que un eje solo (antes cada tecla era una
 //     callback separada: la diagonal salia a sqrt(2) y con reinicios de
 //     transform por cada eje).
+//  3. Consulta a la interfaz (IEstadoInterfaz) para saber si el teclado o el
+//     mouse pertenecen a un widget. El modulo no dibuja: el dibujo de ImGui
+//     vive en la capa de GUI.
 class EditorInput {
 public:
     EditorInput(GameScene* escena, ApplicationStateMachine* maquina,
-                OrquestadorEstadoGUI* orquestador);
+                OrquestadorEstadoGUI* orquestador,
+                IEstadoInterfaz* estadoInterfaz = nullptr);
 
     // Registra las callbacks de GLFW. OJO: se debe llamar ANTES de
     // ImGui_ImplGlfw_InitForOpenGL(window, true): el backend de ImGui guarda
@@ -69,8 +77,9 @@ public:
     // conoce proyectos ni configuracion.
     void setAccionGuardar(std::function<void()> accion);
 
-    // Dibuja barra lateral de radio de orbita (vertical) si orbitando.
-    void dibujarSidebarOrbita();
+    // Estado de la orbita para que la GUI dibuje la barra lateral del radio.
+    // El input no dibuja: entrega los datos y la GUI los presenta.
+    EstadoOrbita estadoOrbita() const;
 
     static void teclado_callback(GLFWwindow* window, int key, int scancode,
                                  int action, int mods);
@@ -93,9 +102,21 @@ private:
     bool modoJuegoActivo() const noexcept;
     void limpiarMovimientoCamara() noexcept;
 
+    // Estado de la interfaz: si el teclado o el mouse pertenecen a un widget.
+    // Sin interfaz inyectada no hay captura (el juego exportado puede no
+    // tenerla) y las teclas del editor funcionan siempre.
+    bool capturaTeclado() const noexcept;
+    bool capturaMouse() const noexcept;
+    std::string motivoCaptura() const;
+
+    // Traza del estado de captura del teclado (solo del lado del log).
+    void trazarCapturaDeTeclado() const;
+
     GameScene* scene;
     ApplicationStateMachine* appState;
     OrquestadorEstadoGUI* orquestador;
+    // Estado de la interfaz (la dueña de la captura de teclado y mouse).
+    IEstadoInterfaz* interfaz = nullptr;
     // Guardado en caliente (Ctrl+S): inyectado por main con la misma rutina
     // que el guardado al salir.
     std::function<void()> accionGuardar;

@@ -47,9 +47,6 @@ protected:
 public:
     Skybox() = default;
 
-    void saveComponent(std::ofstream* file) override { serializeComponent(file); }
-    void loadComponent(std::ifstream* file) override { deserializeComponent(file); }
-
     // Acceso a las caras
     const std::string& getCaraMasX() const { return caraMasX; }
     void setCaraMasX(const std::string& s) { caraMasX = s; }

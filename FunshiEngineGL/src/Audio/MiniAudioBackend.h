@@ -20,6 +20,7 @@
 #define MINIAUDIO_BACKEND_H
 
 #include "IAudioBackend.h"
+#include "IMusicaBackend.h"
 
 #include <cstdint>
 #include <unordered_map>
@@ -31,7 +32,11 @@
 // (hilo de audio en tiempo real). Como ma_engine ya es seguro entre hilos y
 // AudioEngine serializa todos los accesos del adaptador en su propio hilo de
 // trabajo, el hilo del juego nunca toca el hardware de audio directamente.
-class MiniAudioBackend : public IAudioBackend {
+//
+// Tambien implementa el contrato de musica: las pistas se cuelgan de un
+// grupo de miniaudio (el bus), que tiene volumen propio. El bus solo afecta
+// a la musica: los efectos de sonido no pasan por el.
+class MiniAudioBackend : public IAudioBackend, public IMusicaBackend {
 public:
     MiniAudioBackend();
     ~MiniAudioBackend() override;
@@ -39,13 +44,32 @@ public:
     bool iniciar() override;
     void cerrar() override;
     int reproducirArchivo(const std::string& ruta, float volumen,
-                          bool bucle) override;
+                          bool bucle,
+                          const float* posicion = nullptr) override;
     void detener(int id) override;
     void detenerTodo() override;
     void setVolumenMaestro(float volumen) override;
     void despachar(float deltaTime) override;
 
+    void setPosicionSonido(int id, float x, float y, float z) override;
+    void setListenerPosition(float x, float y, float z) override;
+
+    IMusicaBackend* backendMusica() override { return this; }
+
+    int abrirPista(const std::string& ruta) override;
+    void cerrarPista(int id) override;
+    bool reproducirPista(int id, float volumen) override;
+    void detenerPista(int id) override;
+    void volumenPista(int id, float volumen) override;
+    void volumenBus(float volumen) override;
+    void silenciarBus(bool silenciado) override;
+    EstadoPista estadoPista(int id) override;
+    float posicionPista(int id) override;
+    float duracionPista(int id) override;
+
 private:
+    void aplicarVolumenBus();
+
     struct Impl;
     Impl* impl_;
 };

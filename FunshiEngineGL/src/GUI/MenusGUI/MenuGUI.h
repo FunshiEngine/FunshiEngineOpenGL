@@ -101,6 +101,11 @@ public:
     float getSensibilidadMovimientoCamara() const noexcept;
     void setSensibilidadMovimientoCamara(float sensibilidad);
 
+    // Volumen maestro de efectos de sonido (vista Opciones). Se propaga a la
+    // escena por VolumenCambio -> AudioEngine::setVolumenMaestro.
+    float getVolumenMaestro() const noexcept;
+    void setVolumenMaestro(float volumen);
+
     // Perfil de apariencia del editor editado en la vista Opciones. Se aplica
     // a ImGui (TemaEditor) y a la escena (fondo y grilla) por AparienciaCambio.
     const Apariencia& getApariencia() const noexcept;
@@ -151,7 +156,7 @@ public:
     void setDimensionProyecto(DimensionProyecto dimension) noexcept;
 
     // Refresca el listado de proyectos disponibles mostrado en el menu: los
-    // proyectos SON las carpetas del directorio base de MotorGrafico. La
+    // proyectos SON las carpetas del directorio base de FunshiEngine-DATA. La
     // fachada lo lee del disco y lo vuelca al modelo (nunca la vista); main lo
     // invoca mientras el menu esta visible para reflejar carpetas creadas o
     // borradas externamente.

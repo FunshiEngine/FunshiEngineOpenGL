@@ -107,6 +107,9 @@ int main() {
     // 2. Regresion: path de 117 bytes (el real de la escena que abortaba).
     {
         const fs::path archivo = base / "117bytes.bin";
+        // Fixture historico del bug: se conserva con el nombre de carpeta de
+        // entonces (MotorGrafico) porque lo que reproduce es el largo exacto
+        // de 117 bytes contra el buffer de lectura de 100.
         const std::string path =
             "/home/ggmaster/Projects/FunshiEngineGL/FunshiEngineGL/build/"
             "MotorGrafico/NuevoProyecto/srcNuevoProyecto/Personaje.obj";
@@ -204,7 +207,7 @@ int main() {
     //    path bajo esa raiz se PERSISTE relativo (la escena sigue valida al
     //    mover/renombrar el proyecto) y al cargar se resuelve a absoluto.
     {
-        const std::string raiz = "/motor/MotorGrafico/MiJuego/srcMiJuego";
+        const std::string raiz = "/motor/FunshiEngine-DATA/MiJuego/srcMiJuego";
         EditorConfig::fijarRaizAssets(raiz);
 
         const fs::path archivo = base / "relativa.bin";
@@ -236,7 +239,7 @@ int main() {
     // 8. Escena legacy: un path ABSOLUTO persistido (formato viejo) se carga
     //    intacto aunque haya raiz de assets fijada.
     {
-        const std::string raiz = "/motor/MotorGrafico/Otro/srcOtro";
+        const std::string raiz = "/motor/FunshiEngine-DATA/Otro/srcOtro";
         EditorConfig::fijarRaizAssets(raiz);
         const fs::path archivo = base / "legacy_abs.bin";
         const std::string absoluto = "/legacy/Absoluto/cubo.obj";

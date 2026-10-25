@@ -24,7 +24,6 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
 #include "../Objetos/ObjetoEscena.h"
 #include "../Objetos/Componentes/Transform.h"
 

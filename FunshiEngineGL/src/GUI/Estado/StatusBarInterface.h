@@ -21,6 +21,7 @@
 
 #include "../GeneralUserInterface.h"
 #include "../../Behaviour/ScriptRuntime.h"
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,9 @@ private:
     // Ultimo estado publicado en el bus (evita republicar en cada frame);
     // se inicializa con el estado de fabrica para no notificar la restauracion.
     bool estadoPublicado_ = false;
+    // Respaldo del log de diagnosticos: ruta del archivo y si hay uno vigente.
+    std::filesystem::path rutaRespaldo_;
+    bool hayRespaldo_ = false;
 
     void dibujarToolchain();
     void dibujarDiagnosticos();

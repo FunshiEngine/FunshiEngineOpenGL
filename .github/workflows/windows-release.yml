@@ -61,10 +61,10 @@ jobs:
           -DFUNSHI_VERSION=${{ steps.ver.outputs.version }}
 
       - name: Compilar engine
-        run: cmake --build build --config Release --target FunshiEngineGL
+        run: cmake --build build --config Release --target FunshiEngineGL runtime-compile-check
 
       - name: Compilar pruebas
-        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests interface-component-tests barra-progreso-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests tilemap-tests interfaces-juego-tests webui-runtime-tests mods-tests
+        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests interfaz-ui-tests shaders-tests sombras-tests iluminacion-tests scripts-tests scripts-runtime-tests audio-tests musica-tests interface-component-tests barra-progreso-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests inspeccion-escena-tests emisor-particulas-tests ui-component-tests serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests iconos-componentes-tests malla-regiones-tests materiales-regiones-tests primitivas3d-tests preview-material-tests tilemap-tests interfaces-juego-tests webui-runtime-tests mods-tests exportacion-tests
 
       - name: Ejecutar pruebas
         run: ctest --test-dir build -C Release --output-on-failure --verbose

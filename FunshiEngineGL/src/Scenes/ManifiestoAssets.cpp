@@ -27,7 +27,7 @@
 #include "Objetos/Componentes/Script.h"
 #include "Objetos/Componentes/Skybox.h"
 #include "Objetos/GameObject.h"
-#include "Objetos/Modelos3D.h"
+#include "Objetos/Componentes/Model.h"
 
 namespace {
 
@@ -38,7 +38,7 @@ namespace {
 EntradaAssets recogerDeObjeto(GameObject& objeto) {
     EntradaAssets entrada;
 
-    if (auto* modelo = dynamic_cast<Modelos3D*>(&objeto))
+    if (auto* modelo = objeto.getComponent<Model>())
         entrada.malla = modelo->getPath();
 
     auto* componentes = objeto.getComponents();
@@ -89,7 +89,7 @@ int aplicarEnObjeto(GameObject& objeto, const EntradaAssets& entrada) {
     // Contador local para indices de scripts: se reinicia a 0 por cada objeto
     size_t scriptIndex = 0;
 
-    if (auto* modelo = dynamic_cast<Modelos3D*>(&objeto)) {
+    if (auto* modelo = objeto.getComponent<Model>()) {
         cambios += aplicarCampo(entrada.malla, modelo->getPath(),
                                 [modelo](const std::string& p) { modelo->setPath(p); });
     }

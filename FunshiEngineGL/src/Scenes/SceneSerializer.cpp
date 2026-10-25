@@ -23,12 +23,14 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 #include "EditorController.h"
 #include "SceneRegistry.h"
 #include "../Diagnosticos/RegistroDiagnosticos.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
+#include "../Objetos/Componentes/Model.h"
 #include "../Objetos/ObjetoEscena.h"
 
 
@@ -44,6 +46,123 @@ SceneSerializer::SceneSerializer(SceneRegistry* value,
 
 
 namespace {
+
+void recolectarIdsArbol(Position<GameObject*>* root,
+                        std::unordered_set<int>& ids) {
+    (void)root;
+    (void)ids;
+}
+
+void recolectarIdsRecursivo(SceneRegistry* scene,
+                           Position<GameObject*>* root,
+                           std::unordered_set<int>& ids) {
+    if (!scene || !root)
+        return;
+    GameObject* object = root->getElement();
+    if (object) {
+        ids.insert(object->getId());
+    }
+    if (!scene->getEntitysTree()->isInternal(root))
+        return;
+    auto* children = scene->getEntitysTree()->childsOf(root);
+    if (!children)
+        return;
+    auto* position = children->first();
+    while (position != nullptr) {
+        recolectarIdsRecursivo(scene, position->getElement(), ids);
+        position = (position != children->last()) ? children->next(position) : nullptr;
+    }
+    delete children;
+}
+
+void limpiarBinariosHuérfanos(SceneRegistry* scene,
+                             const std::string& filename) {
+    if (!scene)
+        return;
+    std::unordered_set<int> idsActuales;
+    if (!scene->getEntitysTree()->isEmpty()) {
+        recolectarIdsRecursivo(scene,
+                               scene->getEntitysTree()->rootOfTree(),
+                               idsActuales);
+    }
+
+    std::filesystem::path dirBinarios = std::filesystem::path(filename);
+    if (dirBinarios.extension() == ".txt") {
+        dirBinarios = dirBinarios.parent_path();
+    } else if (!dirBinarios.empty() && dirBinarios.filename().string() == "Scene") {
+        // filename puede ser el prefijo sin /Scene al final? Revisar: rutaScenePrefijo devuelve .../Scene
+        // o puede ser .../Scene/
+    }
+    // Asegurar que apunte al directorio Scene
+    if (dirBinarios.filename().string() != "Scene") {
+        // Intentar añadir /Scene
+        std::filesystem::path candidato = dirBinarios / "Scene";
+        if (std::filesystem::exists(candidato)) {
+            dirBinarios = candidato;
+        } else {
+            // filename puede ya ser .../Memory/Binarios/Scene (sin / final)
+            // o .../Memory/Binarios/Scene/
+        }
+    }
+
+    std::error_code ec;
+    if (!std::filesystem::exists(dirBinarios, ec) || ec) {
+        return;
+    }
+    if (!std::filesystem::is_directory(dirBinarios, ec) || ec) {
+        return;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(dirBinarios, ec)) {
+        if (ec)
+            break;
+        if (!entry.is_regular_file(ec) || ec)
+            continue;
+        const std::string nombreArchivo = entry.path().filename().string();
+        if (nombreArchivo.size() < 8)
+            continue;
+        if (nombreArchivo.rfind("ObjectN", 0) != 0)
+            continue;
+        if (nombreArchivo.find(".db") == std::string::npos)
+            continue;
+        // Extraer ID
+        std::string texto = nombreArchivo.substr(7);
+        const std::size_t finDb = texto.find(".db");
+        if (finDb == std::string::npos)
+            continue;
+        texto = texto.substr(0, finDb);
+        if (texto.empty())
+            continue;
+        // Validar que son solo dígitos
+        bool soloDigitos = true;
+        for (char c : texto) {
+            if (c < '0' || c > '9') {
+                soloDigitos = false;
+                break;
+            }
+        }
+        if (!soloDigitos)
+            continue;
+        int idArchivo = 0;
+        try {
+            idArchivo = std::stoi(texto);
+        } catch (...) {
+            continue;
+        }
+        if (idArchivo == 0)
+            continue; // Nunca borrar ObjectN0.db
+        if (idsActuales.find(idArchivo) == idsActuales.end()) {
+            std::error_code ecRemove;
+            if (!std::filesystem::remove(entry.path(), ecRemove)) {
+                std::cerr << "[escena] no se pudo eliminar binario huérfano: "
+                          << entry.path() << " (" << ecRemove.message() << ")\n";
+            } else {
+                std::cerr << "[escena] eliminado binario huérfano: "
+                          << entry.path() << "\n";
+            }
+        }
+    }
+}
 
 void publicarFalloEscena(RegistroDiagnosticos* diagnosticos,
                          const std::string& codigo,
@@ -319,6 +438,13 @@ void SceneSerializer::save(const std::string& filename)
         filename + "BBDDObjetos.txt";
 
     /*
+     * Limpiar binarios huérfanos antes de guardar.
+     * Se mantiene únicamente ObjectN0.db (raíz). Se eliminan ObjectN*.db
+     * cuyo ID no exista en el árbol actual.
+     */
+    limpiarBinariosHuérfanos(scene, filename);
+
+    /*
      * save() guarda un snapshot completo de la escena.
      *
      * Por lo tanto BBDDObjetos.txt debe reconstruirse
@@ -466,19 +592,22 @@ void SceneSerializer::loadPreOrder(
          *
          * La raiz (sin padre) es el GameObject "Scene": un contenedor sin
          * geometria (ObjetoEscena) que agrupa a todas las entidades. El resto
-         * de los nodos se cargan como Modelos3D con la fuente de mallas
-         * inyectada ANTES de loadEntity(): la deserializacion lee el path del
-         * modelo y carga la geometria; con el manager ya asignado se comparte
-         * el asset cacheado.
+         * de los nodos se cargan como GameObject con un componente Model, a
+         * quien se le inyecta el AssetManager antes de loadEntity(): la
+         * deserializacion lee el path del modelo y el componente Model carga
+         * la geometria; con el manager ya asignado se comparte el asset
+         * cacheado.
          */
         std::unique_ptr<GameObject> object;
         if (!parent) {
             object = std::make_unique<ObjetoEscena>();
         } else {
-            auto modelo = std::make_unique<Modelos3D>();
-            modelo->setAssetManager(assets);
-            modelo->setRegistroDiagnosticos(diagnosticos);
-            object = std::move(modelo);
+            auto objeto = std::make_unique<GameObject>();
+            auto* model = new Model();
+            model->setAssetManager(assets);
+            model->setRegistroDiagnosticos(diagnosticos);
+            objeto->addComponent(std::unique_ptr<Component>(model));
+            object = std::move(objeto);
         }
 
         /*

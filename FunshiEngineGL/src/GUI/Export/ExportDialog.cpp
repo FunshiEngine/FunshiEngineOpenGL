@@ -18,6 +18,8 @@
 */
 #include "ExportDialog.h"
 
+#include "Exportador/PrecondicionesExportacion.h"
+
 #include <imgui.h>
 #include <chrono>
 #include <memory>
@@ -35,6 +37,18 @@ ExportDialog::~ExportDialog() {
     exporter_.reset();
 }
 
+ExportDialog::Vista ExportDialog::vista() const noexcept {
+    switch (estado_.fase()) {
+    case EstadoExportacion::Fase::Exportando:
+        return Vista::Progreso;
+    case EstadoExportacion::Fase::Resultado:
+        return Vista::Resultado;
+    case EstadoExportacion::Fase::Configuracion:
+        break;
+    }
+    return Vista::Formulario;
+}
+
 void ExportDialog::render() {
     if (!abierto_) return;
 
@@ -48,60 +62,18 @@ void ExportDialog::render() {
     // El boton X del titulo solo esta disponible fuera de una exportacion:
     // cerrar a mitad uniria el hilo en el destructor y congelaria el editor.
     if (ImGui::BeginPopupModal("Exportar Juego",
-                               exportando_ ? nullptr : &abierto_,
+                               estado_.exportando() ? nullptr : &abierto_,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
-        if (!exportando_) {
-            ImGui::Text("Configuración de exportación");
-            ImGui::Separator();
-            ImGui::Spacing();
-
-            ImGui::InputText("Nombre del ejecutable", nombreEjecutable_, IM_ARRAYSIZE(nombreEjecutable_));
-            ImGui::InputText("Nombre del proyecto exportado", nombreProyectoExportado_, IM_ARRAYSIZE(nombreProyectoExportado_));
-
-            const char* plataformas[] = { "Linux (nativo)", "Windows (cross-compile MinGW)" };
-            ImGui::Combo("Plataforma objetivo", &plataformaIdx_, plataformas, IM_ARRAYSIZE(plataformas));
-
-            ImGui::Spacing();
-            ImGui::Separator();
-
-            if (ImGui::Button("Exportar", ImVec2(120, 0))) {
-                iniciarExportacion();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
-                abierto_ = false;
-            }
-        } else {
-            // UI de progreso con spinner indeterminado
-            ImGui::Text("Exportando: %s", nombreProyectoExportado_);
-            ImGui::Separator();
-            ImGui::Spacing();
-
-            // Spinner animado
-            renderSpinner();
-            ImGui::SameLine();
-            ImGui::Text("  %s", etapaActual_.c_str());
-
-            ImGui::ProgressBar(progreso_, ImVec2(300, 0), "");
-
-            if (!ultimoLog_.empty()) {
-                ImGui::Spacing();
-                ImGui::BeginChild("Log", ImVec2(400, 150), true);
-                ImGui::TextWrapped("%s", ultimoLog_.c_str());
-                ImGui::EndChild();
-            }
-
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::BeginDisabled(exportando_);
-            if (ImGui::Button("Cerrar", ImVec2(120, 0))) {
-                abierto_ = false;
-            }
-            ImGui::EndDisabled();
-            if (exportando_ &&
-                ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                ImGui::SetTooltip("La exportacion en curso debe terminar antes de cerrar");
-            }
+        switch (vista()) {
+        case Vista::Progreso:
+            renderProgreso();
+            break;
+        case Vista::Resultado:
+            renderResultado();
+            break;
+        case Vista::Formulario:
+            renderFormulario();
+            break;
         }
         // Cerrar el popup de ImGui junto con el dialogo: sin esto, el estado
         // del popup quedaria abierto en el contexto de ImGui aunque el
@@ -113,32 +85,145 @@ void ExportDialog::render() {
     if (!abierto_) cerrado_ = true;
 }
 
-void ExportDialog::iniciarExportacion() {
-    exportando_ = true;
-    progreso_ = 0.0f;
-    etapaActual_ = "Iniciando...";
-    ultimoLog_.clear();
+void ExportDialog::renderFormulario() {
+    ImGui::Text("Configuración de exportación");
+    ImGui::Separator();
+    ImGui::Spacing();
 
+    // De que proyecto se exporta: sin esta linea no se ve de donde sale la
+    // exportacion (y un proyecto sin nombre es un fallo silencioso).
     if (proyectoActual_.empty()) {
-        agregarLog("Error: No hay proyecto seleccionado");
-        finalizarExportacion(false, "No hay proyecto seleccionado");
-        return;
+        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f),
+                           "Proyecto: (ninguno)");
+    } else {
+        ImGui::Text("Proyecto: %s", proyectoActual_.c_str());
     }
 
-    // Usar la ruta absoluta del proyecto desde EditorConfig
-    std::string proyectoPath = EditorConfig::directorioProyecto(proyectoActual_);
-    if (!std::filesystem::exists(proyectoPath)) {
-        agregarLog("Error: El proyecto no existe: " + proyectoPath);
-        finalizarExportacion(false, "Proyecto no encontrado: " + proyectoActual_);
+    ImGui::InputText("Nombre del ejecutable", nombreEjecutable_, IM_ARRAYSIZE(nombreEjecutable_));
+    ImGui::InputText("Nombre del proyecto exportado", nombreProyectoExportado_, IM_ARRAYSIZE(nombreProyectoExportado_));
+
+    // La plataforma destino depende de la maquina: en Windows el toolchain
+    // es el nativo (sale un .exe con sus DLL al lado); en Linux se puede
+    // ademas cruzar a Windows.
+    const std::vector<GameExporter::Plataforma> plataformas =
+        GameExporter::plataformasDisponibles();
+    std::vector<const char*> etiquetas;
+    etiquetas.reserve(plataformas.size());
+    for (GameExporter::Plataforma plataforma : plataformas) {
+        etiquetas.push_back(GameExporter::etiquetaPlataforma(plataforma));
+    }
+    ImGui::Combo("Plataforma objetivo", &plataformaIdx_, etiquetas.data(),
+                 static_cast<int>(etiquetas.size()));
+
+    // El motivo de un intento anterior que no llego a exportarse: sin esto el
+    // fallo se pierde y el dialogo parece que no respondio.
+    if (estado_.hayMensaje() &&
+        estado_.resultado() == EstadoExportacion::Resultado::Error) {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "%s",
+                           estado_.mensaje().c_str());
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+
+    if (ImGui::Button("Exportar", ImVec2(120, 0))) {
+        iniciarExportacion();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+        abierto_ = false;
+    }
+}
+
+void ExportDialog::renderProgreso() {
+    // UI de progreso con spinner indeterminado
+    ImGui::Text("Exportando: %s", nombreProyectoExportado_);
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Spinner animado
+    renderSpinner();
+    ImGui::SameLine();
+    ImGui::Text("  %s", estado_.etapa().c_str());
+
+    ImGui::ProgressBar(estado_.progreso(), ImVec2(300, 0), "");
+
+    if (estado_.hayMensaje()) {
+        ImGui::Spacing();
+        ImGui::BeginChild("Log", ImVec2(400, 150), true);
+        ImGui::TextWrapped("%s", estado_.mensaje().c_str());
+        ImGui::EndChild();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::BeginDisabled(estado_.exportando());
+    if (ImGui::Button("Cerrar", ImVec2(120, 0))) {
+        abierto_ = false;
+    }
+    ImGui::EndDisabled();
+    if (estado_.exportando() &&
+        ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ImGui::SetTooltip("La exportacion en curso debe terminar antes de cerrar");
+    }
+}
+
+void ExportDialog::renderResultado() {
+    const bool exito = estado_.resultado() == EstadoExportacion::Resultado::Exito;
+    ImGui::Text("%s", exito ? "Exportación terminada" : "La exportación falló");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // El motivo (de exito o de error) queda siempre a la vista: es lo que
+    // explica al usuario que paso con lo que pidio.
+    if (estado_.hayMensaje()) {
+        const ImVec4 color = exito ? ImVec4(0.45f, 0.95f, 0.55f, 1.0f)
+                                   : ImVec4(1.0f, 0.45f, 0.45f, 1.0f);
+        ImGui::TextColored(color, "%s", estado_.mensaje().c_str());
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+
+    if (ImGui::Button("Cerrar", ImVec2(120, 0))) {
+        abierto_ = false;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Exportar otra vez", ImVec2(180, 0))) {
+        // Vuelta al formulario: el resultado anterior se descarta y el
+        // proyecto sigue siendo el mismo.
+        estado_.reiniciar();
+    }
+}
+
+void ExportDialog::iniciarExportacion() {
+    estado_.iniciar();
+
+    // Precondiciones: sin proyecto (o sin su carpeta) no hay nada que
+    // exportar. El motivo se conserva en el estado para que la interfaz lo
+    // muestre en vez de dejar al usuario sin saber que paso.
+    const std::string rutaProyecto =
+        EditorConfig::directorioProyecto(proyectoActual_);
+    std::string error;
+    if (!PrecondicionesExportacion::comprobar(proyectoActual_, rutaProyecto,
+                                              error)) {
+        estado_.finalizar(false, error);
         return;
     }
 
     GameExporter::Config cfg;
-    cfg.proyectoOrigen = proyectoPath;
+    cfg.proyectoOrigen = rutaProyecto;
     cfg.nombreProyecto = proyectoActual_;
     cfg.nombreEjecutable = nombreEjecutable_;
     cfg.nombreProyectoExportado = nombreProyectoExportado_;
-    cfg.plataforma = (plataformaIdx_ == 0) ? GameExporter::Plataforma::Linux : GameExporter::Plataforma::Windows;
+    const std::vector<GameExporter::Plataforma> plataformas =
+        GameExporter::plataformasDisponibles();
+    const int indice = (plataformaIdx_ >= 0 &&
+                        plataformaIdx_ < static_cast<int>(plataformas.size()))
+                           ? plataformaIdx_
+                           : 0;
+    cfg.plataforma = plataformas[static_cast<std::size_t>(indice)];
     cfg.directorioSalida = EditorConfig::directorioExportaciones() + "/" + std::string(nombreProyectoExportado_);
 
     // Callbacks thread-safe: usan cola para pasar mensajes al hilo principal
@@ -147,25 +232,12 @@ void ExportDialog::iniciarExportacion() {
     cfg.onFinalizado = [this](bool exito, const std::string& msg) { encolarFinalizado(exito, msg); };
 
     exporter_ = std::make_unique<GameExporter>(cfg);
+    // La exportacion corre en el pool de hilos del motor: el trabajo pesado
+    // (generar el proyecto, compilar, empaquetar) no bloquea el hilo del
+    // editor, que se entera por los callbacks.
+    if (!motorHilos_) motorHilos_ = std::make_unique<MotorHilos>(1);
+    exporter_->setMotorHilos(motorHilos_.get());
     exporter_->iniciar();
-}
-
-void ExportDialog::actualizarProgreso(float p, const std::string& etapa) {
-    progreso_ = p;
-    etapaActual_ = etapa;
-}
-
-void ExportDialog::finalizarExportacion(bool exito, const std::string& msg) {
-    exportando_ = false;
-    progreso_ = exito ? 1.0f : 0.0f;
-    etapaActual_ = exito ? "Completado" : "Error";
-    agregarLog(msg);
-    // El dialogo queda abierto con el resultado; lo cierra el usuario y el
-    // dueno lo destruye fuera de render() (debeCerrarse).
-}
-
-void ExportDialog::agregarLog(const std::string& msg) {
-    ultimoLog_ = msg;
 }
 
 // Thread-safe enqueue desde hilo de exportacion
@@ -188,15 +260,17 @@ void ExportDialog::encolarFinalizado(bool exito, const std::string& msg) {
 void ExportDialog::procesarColas() {
     std::lock_guard<std::mutex> lock(mtx_);
     while (!logQueue_.empty()) {
-        agregarLog(logQueue_.front().msg);
+        estado_.registrarLog(logQueue_.front().msg);
         logQueue_.pop();
     }
     while (!progresoQueue_.empty()) {
-        actualizarProgreso(progresoQueue_.front().p, progresoQueue_.front().etapa);
+        estado_.registrarProgreso(progresoQueue_.front().p,
+                                  progresoQueue_.front().etapa);
         progresoQueue_.pop();
     }
     while (!finalizadoQueue_.empty()) {
-        finalizarExportacion(finalizadoQueue_.front().exito, finalizadoQueue_.front().msg);
+        estado_.finalizar(finalizadoQueue_.front().exito,
+                           finalizadoQueue_.front().msg);
         finalizadoQueue_.pop();
     }
 }

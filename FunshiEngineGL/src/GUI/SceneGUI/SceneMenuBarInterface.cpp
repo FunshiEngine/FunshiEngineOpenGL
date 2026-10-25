@@ -61,6 +61,14 @@ void SceneMenuBarInterface::setProyectoActual(const std::string& proyecto) {
         exportDialog_->setProyectoActual(proyecto);
     }
 }
+
+void SceneMenuBarInterface::abrirDialogoExportacion() {
+    if (!exportDialog_) {
+        exportDialog_ = std::make_unique<ExportDialog>(proyectoActual_);
+    }
+    mostrarExportDialog_ = true;
+}
+
 void SceneMenuBarInterface::initGUI() {
     ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
     ImGui::PushID(this);
@@ -108,10 +116,7 @@ void SceneMenuBarInterface::contentGUI() {
     ImGui::BeginMenuBar();
     if (ImGui::BeginMenu("Archivo")) {
         if (ImGui::MenuItem("Exportar juego")) {
-            if (!exportDialog_) {
-                exportDialog_ = std::make_unique<ExportDialog>(proyectoActual_);
-            }
-            mostrarExportDialog_ = true;
+            abrirDialogoExportacion();
         }
         ImGui::EndMenu();
     }

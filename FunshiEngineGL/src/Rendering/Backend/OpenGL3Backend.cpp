@@ -25,6 +25,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "../LineBuilder.h"
+#include "../../Particulas/ParticulasBuilder.h"
 #include "../Shaders/ShaderException.h"
 
 namespace Rendering {
@@ -88,6 +89,12 @@ bool subirBuffer(GLenum target, GLuint buffer, const float* data,
     GLFuncs::pfnBufferData(
         target, static_cast<GLsizeiptr>(count * sizeof(float)), data,
         GL_STATIC_DRAW);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "[OpenGL3Backend] subirBuffer error: " << err
+                  << " target=" << target << " count=" << count << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -220,9 +227,19 @@ Handle OpenGL3Backend::createMesh(const MeshData& data) {
             GL_ELEMENT_ARRAY_BUFFER,
             static_cast<GLsizeiptr>(data.indexCount * sizeof(GLuint)),
             data.indices, GL_STATIC_DRAW);
+        GLenum err = glGetError();
+        if (err != GL_NO_ERROR) {
+            std::cerr << "[OpenGL3Backend] createMesh index buffer error: " << err
+                      << " indexCount=" << data.indexCount << std::endl;
+        }
     }
 
     GLFuncs::pfnBindVertexArray(0);
+
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "[OpenGL3Backend] createMesh final error: " << err << std::endl;
+    }
 
     const Handle handle = static_cast<Handle>(vao);
     meshes_[handle] = GpuMesh{vao, {buffers[0], buffers[1], buffers[2],
@@ -247,11 +264,40 @@ void OpenGL3Backend::destroyMesh(Handle mesh) {
     meshes_.erase(it);
 }
 
-void OpenGL3Backend::drawMesh(Handle mesh, unsigned int indexCount) {
+void OpenGL3Backend::drawMesh(Handle mesh, unsigned int firstIndex,
+                               unsigned int indexCount) {
     if (mesh == kInvalidHandle || indexCount == 0) return;
-    GLFuncs::pfnBindVertexArray(static_cast<GLuint>(mesh));
+    // Buscar la malla GPU para obtener el EBO (buffers[5]) y enlazarlo
+    // explicitamente: algunos drivers no restauran el GL_ELEMENT_ARRAY_BUFFER
+    // del VAO de forma fiable.
+    const auto it = meshes_.find(mesh);
+    if (it == meshes_.end()) {
+        std::cerr << "[OpenGL3Backend] drawMesh: mesh handle no encontrado: " << mesh << std::endl;
+        return;
+    }
+    const GpuMesh& g = it->second;
+    GLFuncs::pfnBindVertexArray(g.vao);
+    if (g.buffers[5] != 0) {
+        GLFuncs::pfnBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.buffers[5]);
+    }
+    // Verificar que hay un programa de shader activo
+    GLint currentProgram = 0;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &currentProgram);
+    if (currentProgram == 0) {
+        std::cerr << "[OpenGL3Backend] drawMesh: NO HAY PROGRAMA DE SHADER ACTIVO!" << std::endl;
+    }
+    // El puntero del EBO se desplaza al primer indice del rango: asi una
+    // region (una sub-malla con material propio) se dibuja sin tocar el resto.
+    const std::size_t offset = static_cast<std::size_t>(firstIndex) *
+                                sizeof(unsigned int);
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount),
-                   GL_UNSIGNED_INT, (const void*)nullptr);
+                   GL_UNSIGNED_INT, (const void*)offset);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "[OpenGL3Backend] drawMesh error: " << err
+                  << " mesh=" << mesh << " first=" << firstIndex
+                  << " count=" << indexCount << std::endl;
+    }
     GLFuncs::pfnBindVertexArray(0);
 }
 
@@ -350,6 +396,92 @@ void OpenGL3Backend::drawLineBatch(Handle batch, unsigned int vertexCount) {
 }
 
 // ---------------------------------------------------------------------------
+// Batch de particulas
+// ---------------------------------------------------------------------------
+
+Handle OpenGL3Backend::createParticulasBatch(const float* vertices,
+                                              std::size_t vertexCount) {
+    if (!vertices || vertexCount == 0) return kInvalidHandle;
+
+    GLuint vao = 0;
+    GLFuncs::pfnGenVertexArrays(1, &vao);
+    GLFuncs::pfnBindVertexArray(vao);
+
+    GLuint vbo = 0;
+    GLFuncs::pfnGenBuffers(1, &vbo);
+    GLFuncs::pfnBindBuffer(GL_ARRAY_BUFFER, vbo);
+    GLFuncs::pfnBufferData(
+        GL_ARRAY_BUFFER,
+        static_cast<GLsizeiptr>(vertexCount *
+                                ParticulasBuilder::kFloatsPorVertice *
+                                sizeof(float)),
+        vertices, GL_STATIC_DRAW);
+
+    // Un solo VBO interleaved; el layout lo define ParticulasBuilder (9 floats
+    // por vertice) y el shader los lee de los atributos 0..2.
+    const GLsizei stride = static_cast<GLsizei>(ParticulasBuilder::stride());
+    GLFuncs::pfnEnableVertexAttribArray(0);
+    GLFuncs::pfnVertexAttribPointer(
+        0, 3, GL_FLOAT, GL_FALSE, stride,
+        reinterpret_cast<const void*>(ParticulasBuilder::offsetPosicion()));
+    GLFuncs::pfnEnableVertexAttribArray(1);
+    GLFuncs::pfnVertexAttribPointer(
+        1, 2, GL_FLOAT, GL_FALSE, stride,
+        reinterpret_cast<const void*>(ParticulasBuilder::offsetUv()));
+    GLFuncs::pfnEnableVertexAttribArray(2);
+    GLFuncs::pfnVertexAttribPointer(
+        2, 4, GL_FLOAT, GL_FALSE, stride,
+        reinterpret_cast<const void*>(ParticulasBuilder::offsetColor()));
+
+    GLFuncs::pfnBindVertexArray(0);
+
+    const Handle handle = static_cast<Handle>(vao);
+    particulasBatches_[handle] = GpuParticulasBatch{vao, vbo};
+    return handle;
+}
+
+void OpenGL3Backend::destroyParticulasBatch(Handle batch) {
+    if (batch == kInvalidHandle) return;
+    const auto it = particulasBatches_.find(batch);
+    if (it == particulasBatches_.end()) return;
+    if (GLFuncs::pfnDeleteVertexArrays) {
+        GLuint vao = it->second.vao;
+        GLFuncs::pfnDeleteVertexArrays(1, &vao);
+    }
+    if (GLFuncs::pfnDeleteBuffers) {
+        GLuint vbo = it->second.vbo;
+        GLFuncs::pfnDeleteBuffers(1, &vbo);
+    }
+    particulasBatches_.erase(it);
+}
+
+void OpenGL3Backend::updateParticulasBatch(Handle batch, const float* vertices,
+                                           std::size_t vertexCount) {
+    if (batch == kInvalidHandle || !vertices || vertexCount == 0) return;
+    if (particulasBatches_.find(batch) == particulasBatches_.end()) return;
+
+    // Igual que el batch de lineas: glBufferData sobre el buffer ya enlazado
+    // en el VAO, que el driver reutiliza si la store anterior ya no lo
+    // referencia. El tamano del lote cambia cada frame.
+    GLFuncs::pfnBindVertexArray(static_cast<GLuint>(batch));
+    GLFuncs::pfnBindBuffer(GL_ARRAY_BUFFER, particulasBatches_[batch].vbo);
+    GLFuncs::pfnBufferData(
+        GL_ARRAY_BUFFER,
+        static_cast<GLsizeiptr>(vertexCount *
+                                ParticulasBuilder::kFloatsPorVertice *
+                                sizeof(float)),
+        vertices, GL_DYNAMIC_DRAW);
+    GLFuncs::pfnBindVertexArray(0);
+}
+
+void OpenGL3Backend::drawParticulasBatch(Handle batch, unsigned int vertexCount) {
+    if (batch == kInvalidHandle || vertexCount == 0) return;
+    GLFuncs::pfnBindVertexArray(static_cast<GLuint>(batch));
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertexCount));
+    GLFuncs::pfnBindVertexArray(0);
+}
+
+// ---------------------------------------------------------------------------
 // Textura 2D
 // ---------------------------------------------------------------------------
 
@@ -396,9 +528,9 @@ void OpenGL3Backend::destroyTexture2D(Handle texture) {
 }
 
 void OpenGL3Backend::bindTexture2D(Handle texture, int unit) {
-    if (texture == kInvalidHandle || !GLFuncs::pfnActiveTexture) return;
+    if (!GLFuncs::pfnActiveTexture) return;
     GLFuncs::pfnActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
-    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+    glBindTexture(GL_TEXTURE_2D, texture != kInvalidHandle ? static_cast<GLuint>(texture) : 0);
 }
 
 void OpenGL3Backend::updateTexture2D(Handle texture, const Image2D& image) {
@@ -478,9 +610,9 @@ void OpenGL3Backend::destroyTextureCube(Handle texture) {
 }
 
 void OpenGL3Backend::bindTextureCube(Handle texture, int unit) {
-    if (texture == kInvalidHandle || !GLFuncs::pfnActiveTexture) return;
+    if (!GLFuncs::pfnActiveTexture) return;
     GLFuncs::pfnActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
-    glBindTexture(GL_TEXTURE_CUBE_MAP, static_cast<GLuint>(texture));
+    glBindTexture(GL_TEXTURE_CUBE_MAP, texture != kInvalidHandle ? static_cast<GLuint>(texture) : 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -664,6 +796,172 @@ void* OpenGL3Backend::imguiTextureId(Handle texture) const {
 }
 
 // ---------------------------------------------------------------------------
+// Objetivo de profundidad (mapa de sombras)
+// ---------------------------------------------------------------------------
+
+Handle OpenGL3Backend::createDepthTarget(int size) {
+    if (size <= 0) return kInvalidHandle;
+    if (!fboFuncionesCargadas()) {
+        std::cerr << "[Sombras] FBO no disponible en este GPU.\n";
+        return kInvalidHandle;
+    }
+
+    GLuint fbo = 0, depthTex = 0;
+    pfnGenFramebuffers(1, &fbo);
+    glGenTextures(1, &depthTex);
+
+    glBindTexture(GL_TEXTURE_2D, depthTex);
+    // El modo de comparacion es lo que hace que la textura se pueda leer con
+    // un sampler2DShadow: el hardware compara la profundidad del fragmento con
+    // la del mapa y devuelve el porcentaje de cobertura (y con el filtrado
+    // lineal hace el PCF de 2x2 solo).
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE,
+                    GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // Fuera del mapa no hay sombra: con el borde a 1 (el plano lejano) la
+    // comparacion da "iluminado" y la sombra no se repite en el borde.
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    const float borde[4] = {1.f, 1.f, 1.f, 1.f};
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borde);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, size, size, 0,
+                 GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    pfnBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    pfnFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                            depthTex, 0);
+    // El mapa de sombras no tiene color: sin esto, algunos drivers escriben en
+    // el attachment 0 y el resultado es indefinido.
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    const GLenum estado = pfnCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (estado != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "[Sombras] Framebuffer de profundidad incompleto: " << estado
+                  << "\n";
+        pfnBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (pfnDeleteFramebuffers) pfnDeleteFramebuffers(1, &fbo);
+        glDeleteTextures(1, &depthTex);
+        return kInvalidHandle;
+    }
+    pfnBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    const Handle handle = static_cast<Handle>(fbo);
+    depthTargets_[handle] = GpuDepthTarget{fbo, depthTex, size};
+    return handle;
+}
+
+Handle OpenGL3Backend::createDepthTargetCubo(int size) {
+    if (size <= 0) return kInvalidHandle;
+    if (!fboFuncionesCargadas()) {
+        std::cerr << "[Sombras] FBO no disponible en este GPU.\n";
+        return kInvalidHandle;
+    }
+
+    GLuint fbo = 0, cuboTex = 0;
+    pfnGenFramebuffers(1, &fbo);
+    glGenTextures(1, &cuboTex);
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cuboTex);
+    for (int cara = 0; cara < 6; ++cara) {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + cara, 0,
+                     GL_DEPTH_COMPONENT24, size, size, 0,
+                     GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
+    }
+    // El modo de comparacion es lo que permite leer la textura con
+    // samplerCubeShadow: el hardware compara la profundidad del fragmento con
+    // la del mapa y devuelve el porcentaje de cobertura.
+    // Sin modo de comparacion: el shader usa samplerCube y compara manualmente
+    // la profundidad almacenada (normalized [0,1]) contra la distancia relativa.
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+    pfnBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    // Attach la cara +X para que el FBO sea completo desde el arranque; las
+    // demas caras se attachan por cara en bindDepthTargetCuboFace.
+    pfnFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                            GL_TEXTURE_CUBE_MAP_POSITIVE_X, cuboTex, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    const GLenum estado = pfnCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (estado != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "[Sombras] Framebuffer de profundidad cubemap incompleto: "
+                  << estado << "\n";
+        pfnBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (pfnDeleteFramebuffers) pfnDeleteFramebuffers(1, &fbo);
+        glDeleteTextures(1, &cuboTex);
+        return kInvalidHandle;
+    }
+    pfnBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    const Handle handle = static_cast<Handle>(fbo);
+    depthCuboTargets_[handle] = GpuDepthCuboTarget{fbo, cuboTex, size};
+    return handle;
+}
+
+void OpenGL3Backend::bindDepthTargetCuboFace(Handle fbo, int cara) {
+    if (fbo == kInvalidHandle || !pfnBindFramebuffer) return;
+    const auto it = depthCuboTargets_.find(static_cast<unsigned int>(fbo));
+    if (it == depthCuboTargets_.end()) return;
+    Handle cubemapTex = static_cast<Handle>(it->second.depthCuboTex);
+    pfnBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(fbo));
+    pfnFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                            GL_TEXTURE_CUBE_MAP_POSITIVE_X + cara,
+                            static_cast<GLuint>(cubemapTex), 0);
+    glViewport(0, 0, it->second.size, it->second.size);
+}
+
+void OpenGL3Backend::destroyDepthTarget(Handle target) {
+    if (target == kInvalidHandle) return;
+    // Puede ser un target de profundidad 2D o un cubemap: buscamos en ambos
+    // mapas.
+    auto it2d = depthTargets_.find(target);
+    auto itCubo = depthCuboTargets_.find(target);
+    if (it2d == depthTargets_.end() && itCubo == depthCuboTargets_.end()) return;
+
+    if (it2d != depthTargets_.end()) {
+        const GLuint fbo = it2d->second.fbo;
+        const GLuint depthTex = it2d->second.depthTex;
+        depthTargets_.erase(it2d);
+        if (pfnDeleteFramebuffers) pfnDeleteFramebuffers(1, &fbo);
+        if (depthTex) glDeleteTextures(1, &depthTex);
+    }
+    if (itCubo != depthCuboTargets_.end()) {
+        const GLuint fbo = itCubo->second.fbo;
+        const GLuint cuboTex = itCubo->second.depthCuboTex;
+        depthCuboTargets_.erase(itCubo);
+        if (pfnDeleteFramebuffers) pfnDeleteFramebuffers(1, &fbo);
+        if (cuboTex) glDeleteTextures(1, &cuboTex);
+    }
+}
+
+void OpenGL3Backend::bindDepthTarget(Handle target) {
+    if (target == kInvalidHandle || !pfnBindFramebuffer) return;
+    const auto it = depthTargets_.find(target);
+    if (it == depthTargets_.end()) return;
+    pfnBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(target));
+    // El mapa de sombras es cuadrado: el viewport tiene que ser el suyo, no el
+    // de la pantalla.
+    glViewport(0, 0, it->second.size, it->second.size);
+}
+
+Handle OpenGL3Backend::depthTargetTexture(Handle target) const {
+    auto it2d = depthTargets_.find(target);
+    if (it2d != depthTargets_.end()) return static_cast<Handle>(it2d->second.depthTex);
+    auto itCubo = depthCuboTargets_.find(target);
+    if (itCubo != depthCuboTargets_.end()) return static_cast<Handle>(itCubo->second.depthCuboTex);
+    return kInvalidHandle;
+}
+
+// ---------------------------------------------------------------------------
 // Estado de la pasada y del framebuffer
 // ---------------------------------------------------------------------------
 
@@ -729,9 +1027,25 @@ const char* OpenGL3Backend::diagnosticoGPU() const {
 void OpenGL3Backend::setBlendEnabled(bool enabled) {
     if (enabled) {
         glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        aplicarBlend();
     } else {
         glDisable(GL_BLEND);
+    }
+}
+
+void OpenGL3Backend::setBlendMode(BlendMode mode) {
+    modoBlend_ = mode;
+    aplicarBlend();
+}
+
+void OpenGL3Backend::aplicarBlend() {
+    // glBlendFunc es GL 1.1: esta en el gl.h de Windows y de Linux, asi que
+    // no hace falta cargarla por puntero como las funciones del perfil core.
+    if (modoBlend_ == BlendMode::Additive) {
+        // Sumar el color: el fuego y las chispas brillan sobre el fondo.
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    } else {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
 }
 

@@ -121,9 +121,18 @@ const char* SRC_NATIVO =
     "    public static native boolean interfazEstablecerEstado(long interfaz, String jsonEstado);\n"
     "    public static native boolean interfazEstablecerValor(long interfaz, String clave, String valorJson);\n"
     "    public static native String interfazValor(long interfaz, String rutaJson);\n"
+    "    public static native long interfazNativaDeObjeto(String nombreObjeto);\n"
+    "    public static native boolean interfazNativaVisible(long interfaz);\n"
+    "    public static native void interfazNativaEstablecerVisible(long interfaz, boolean visible);\n"
+    "    public static native boolean interfazNativaEstablecerTexto(long interfaz, String idWidget, String texto);\n"
+    "    public static native boolean interfazNativaEstablecerVisibleWidget(long interfaz, String idWidget, boolean visible);\n"
+    "    public static native boolean interfazNativaBotonPulsado(long interfaz, String idWidget);\n"
     "    public static native void imprimir(String texto);\n"
-    "    public static native int reproducirSonido(String clip, float volumen, boolean bucle);\n"
+    "    public static native int reproducirSonido(String ruta, float volumen, boolean bucle);\n"
     "    public static native void detenerSonido(int handle);\n"
+    "    public static native boolean reproducirMusica(String ruta, float volumen, float fundido);\n"
+    "    public static native void detenerMusica(float fundido);\n"
+    "    public static native void volumenMusica(float volumen);\n"
     "    public static native long objetoPorNombre(String nombre);\n"
     "    public static native long objetoPorId(int id);\n"
     "    public static native long objetoPorEtiqueta(String etiqueta);\n"
@@ -806,15 +815,30 @@ void nativoImprimir(JNIEnv* env, jclass, jstring texto) {
     const std::string mensaje = leerCadena(env, texto);
     MotorScript::tablaApi()->imprimirConsola(mensaje.c_str());
 }
-jint nativoReproducirSonido(JNIEnv* env, jclass, jstring clip, jfloat volumen,
+jint nativoReproducirSonido(JNIEnv* env, jclass, jstring ruta, jfloat volumen,
                             jboolean bucle) {
-    if (!clip) return -1;
-    const std::string nombre = leerCadena(env, clip);
+    if (!ruta) return -1;
+    const std::string archivo = leerCadena(env, ruta);
     return MotorScript::tablaServicios()->reproducirSonido(
-        nombre.c_str(), volumen, bucle == JNI_TRUE);
+        archivo.c_str(), volumen, bucle == JNI_TRUE);
 }
 void nativoDetenerSonido(JNIEnv*, jclass, jint handle) {
     MotorScript::tablaServicios()->detenerSonido(handle);
+}
+jboolean nativoReproducirMusica(JNIEnv* env, jclass, jstring ruta, jfloat volumen,
+                                jfloat fundido) {
+    if (!ruta) return JNI_FALSE;
+    const std::string archivo = leerCadena(env, ruta);
+    return MotorScript::tablaServicios()->reproducirMusica(
+               archivo.c_str(), volumen, fundido)
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+void nativoDetenerMusica(JNIEnv*, jclass, jfloat fundido) {
+    MotorScript::tablaServicios()->detenerMusica(fundido);
+}
+void nativoVolumenMusica(JNIEnv*, jclass, jfloat volumen) {
+    MotorScript::tablaServicios()->volumenMusica(volumen);
 }
 jlong nativoObjetoPorNombre(JNIEnv* env, jclass, jstring nombre) {
     if (!nombre) return 0;
@@ -1046,6 +1070,58 @@ jstring nativoInterfazValor(JNIEnv* env, jclass, jlong interfaz,
     return env->NewStringUTF(nuevoNombreUTF8(valor).c_str());
 }
 
+// --- Interfaz de juego NATIVA (HUD que dibuja el motor): el handle viaja como
+// long igual que el de la interfaz web, pero apunta al UIComponent.
+jlong nativoInterfazNativaDeObjeto(JNIEnv* env, jclass, jstring nombreObjeto) {
+    if (!nombreObjeto) return 0;
+    const std::string texto = leerCadena(env, nombreObjeto);
+    void* interfaz =
+        MotorScript::tablaServicios()->interfazNativaDeObjeto(texto.c_str());
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(interfaz));
+}
+jboolean nativoInterfazNativaVisible(JNIEnv*, jclass, jlong interfaz) {
+    return MotorScript::tablaServicios()->interfazNativaVisible(
+               comoObjeto(interfaz))
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+void nativoInterfazNativaEstablecerVisible(JNIEnv*, jclass, jlong interfaz,
+                                            jboolean visible) {
+    MotorScript::tablaServicios()->interfazNativaEstablecerVisible(
+        comoObjeto(interfaz), visible == JNI_TRUE);
+}
+jboolean nativoInterfazNativaEstablecerTexto(JNIEnv* env, jclass,
+                                              jlong interfaz, jstring idWidget,
+                                              jstring texto) {
+    if (!idWidget || !texto) return JNI_FALSE;
+    const std::string id = leerCadena(env, idWidget);
+    const std::string contenido = leerCadena(env, texto);
+    return MotorScript::tablaServicios()->interfazNativaEstablecerTexto(
+               comoObjeto(interfaz), id.c_str(), contenido.c_str())
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+jboolean nativoInterfazNativaEstablecerVisibleWidget(JNIEnv* env, jclass,
+                                                      jlong interfaz,
+                                                      jstring idWidget,
+                                                      jboolean visible) {
+    if (!idWidget) return JNI_FALSE;
+    const std::string id = leerCadena(env, idWidget);
+    return MotorScript::tablaServicios()->interfazNativaEstablecerVisibleWidget(
+               comoObjeto(interfaz), id.c_str(), visible == JNI_TRUE)
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+jboolean nativoInterfazNativaBotonPulsado(JNIEnv* env, jclass, jlong interfaz,
+                                          jstring idWidget) {
+    if (!idWidget) return JNI_FALSE;
+    const std::string id = leerCadena(env, idWidget);
+    return MotorScript::tablaServicios()->interfazNativaBotonPulsado(
+               comoObjeto(interfaz), id.c_str())
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+
 bool registrarNativos(const std::string& clasesDir, std::string& error) {
     JNIEnv* env = entorno();
     jclass nativo = env->FindClass("Nativo");
@@ -1104,6 +1180,13 @@ bool registrarNativos(const std::string& clasesDir, std::string& error) {
          reinterpret_cast<void*>(&nativoReproducirSonido)},
         {const_cast<char*>("detenerSonido"), const_cast<char*>("(I)V"),
          reinterpret_cast<void*>(&nativoDetenerSonido)},
+        {const_cast<char*>("reproducirMusica"),
+         const_cast<char*>("(Ljava/lang/String;FF)Z"),
+         reinterpret_cast<void*>(&nativoReproducirMusica)},
+        {const_cast<char*>("detenerMusica"), const_cast<char*>("(F)V"),
+         reinterpret_cast<void*>(&nativoDetenerMusica)},
+        {const_cast<char*>("volumenMusica"), const_cast<char*>("(F)V"),
+         reinterpret_cast<void*>(&nativoVolumenMusica)},
         {const_cast<char*>("objetoPorNombre"),
          const_cast<char*>("(Ljava/lang/String;)J"),
          reinterpret_cast<void*>(&nativoObjetoPorNombre)},
@@ -1197,6 +1280,24 @@ bool registrarNativos(const std::string& clasesDir, std::string& error) {
         {const_cast<char*>("interfazValor"),
          const_cast<char*>("(JLjava/lang/String;)Ljava/lang/String;"),
          reinterpret_cast<void*>(&nativoInterfazValor)},
+        {const_cast<char*>("interfazNativaDeObjeto"),
+         const_cast<char*>("(Ljava/lang/String;)J"),
+         reinterpret_cast<void*>(&nativoInterfazNativaDeObjeto)},
+        {const_cast<char*>("interfazNativaVisible"),
+         const_cast<char*>("(J)Z"),
+         reinterpret_cast<void*>(&nativoInterfazNativaVisible)},
+        {const_cast<char*>("interfazNativaEstablecerVisible"),
+         const_cast<char*>("(JZ)V"),
+         reinterpret_cast<void*>(&nativoInterfazNativaEstablecerVisible)},
+        {const_cast<char*>("interfazNativaEstablecerTexto"),
+         const_cast<char*>("(JLjava/lang/String;Ljava/lang/String;)Z"),
+         reinterpret_cast<void*>(&nativoInterfazNativaEstablecerTexto)},
+        {const_cast<char*>("interfazNativaEstablecerVisibleWidget"),
+         const_cast<char*>("(JLjava/lang/String;Z)Z"),
+         reinterpret_cast<void*>(&nativoInterfazNativaEstablecerVisibleWidget)},
+        {const_cast<char*>("interfazNativaBotonPulsado"),
+         const_cast<char*>("(JLjava/lang/String;)Z"),
+         reinterpret_cast<void*>(&nativoInterfazNativaBotonPulsado)},
     };
     if (env->RegisterNatives(nativo, metodos,
                              sizeof(metodos) / sizeof(metodos[0])) != JNI_OK) {

@@ -50,10 +50,6 @@ void Color::deserializeComponent(std::ifstream* file) {
     range[3] = 1.0f;
 }
 
-void Color::saveComponent(std::ofstream* file) { serializeComponent(file); }
-
-void Color::loadComponent(std::ifstream* file) { deserializeComponent(file); }
-
 void Color::setColor(const color cor) {
     f1 = cor[0];
     f2 = cor[1];

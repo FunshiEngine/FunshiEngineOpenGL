@@ -30,6 +30,7 @@ class GameObject;
 class SettingsComponent;
 class EditorController;
 class AudioEngine;
+class IPreviewMaterial;
 
 // Dimension del proyecto en la que un componente tiene sentido. El menu de
 // "agregar componente" solo ofrece los que aplican a la dimension vigente;
@@ -62,6 +63,9 @@ struct ContextoPanel {
     EditorController* editor = nullptr;
     AudioEngine* audio = nullptr;
     DimensionProyecto dimension = DimensionProyecto::TresD;
+    // Vista previa de material (la esfera de muestra). Puede ser nullptr:
+    // entonces el panel del material se dibuja sin vista previa.
+    IPreviewMaterial* preview = nullptr;
 };
 
 struct DescriptorComponente {
@@ -77,8 +81,18 @@ struct DescriptorComponente {
     // Submenu en el que se agrupa dentro de "Agregar componente"; vacio = nivel
     // raiz.
     std::string submenu;
+    // Icono del componente en el inspector, como ruta relativa a la carpeta de
+    // imagenes del motor (por ejemplo
+    // "GUI-Image/Component-Image/Transform/comp-transform-white.png"). Vacio si
+    // el componente no tiene icono propio. Se deriva del tipo, nunca se
+    // serializa: el nombre del tipo ya es el dato persistido.
+    std::string icono;
     // Requisito para poder agregarlo (p. ej. colisionador exige Transform).
     std::function<bool(GameObject&)> prerequisito;
+    // Texto que explica que falta para poder agregarlo ("necesita un
+    // Transform"). Vacio si el componente no tiene requisitos. La API de
+    // inspeccion lo usa para explicar por que no se pudo agregar.
+    std::string requisito;
     // Crea el componente; nullptr si el requisito no se cumple.
     std::function<std::unique_ptr<Component>(GameObject&)> crear;
     // Crea el panel del inspector para un componente ya presente; vacio si el

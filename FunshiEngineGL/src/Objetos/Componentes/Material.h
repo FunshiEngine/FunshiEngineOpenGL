@@ -21,13 +21,17 @@
 #include <string>
 
 #include "Component.h"
+#include "IMaterial.h"
 
 // Componente de material: datos del modelo de iluminacion de un objeto
 // (AMBIENT/DIFFUSE/SPECULAR/EMISSION/SHININESS) mas los paths de las texturas
 // (descriptores, todos opcionales): difusa, especular, normal y emision. Solo
 // data; el renderer (moderno via TextureManager, o legacy via la capa de
 // Rendering) lee estos valores al dibujar.
-class Material : public Component {
+//
+// Implementa IMaterial: la capa de render dibuja contra ese contrato, sin
+// saber si el material es el unico del objeto o el de una region de la malla.
+class Material : public Component, public IMaterial {
 private:
     float ambient[4];
     float diffuse[4];
@@ -50,20 +54,17 @@ protected:
 public:
     Material();
 
-    void saveComponent(std::ofstream* file) override;
-    void loadComponent(std::ifstream* file) override;
-
     void setAmbient(float r, float g, float b);
     void setDiffuse(float r, float g, float b);
     void setSpecular(float r, float g, float b);
     void setEmission(float r, float g, float b);
     void setShininess(float value);
 
-    const float* getAmbient() const { return ambient; }
-    const float* getDiffuse() const { return diffuse; }
-    const float* getSpecular() const { return specular; }
-    const float* getEmission() const { return emission; }
-    float getShininess() const { return shininess; }
+    const float* getAmbient() const override { return ambient; }
+    const float* getDiffuse() const override { return diffuse; }
+    const float* getSpecular() const override { return specular; }
+    const float* getEmission() const override { return emission; }
+    float getShininess() const override { return shininess; }
 
     // Slots de textura (descriptores): path a la imagen compartida por el
     // TextureManager. Vacio = slot sin textura.
@@ -72,14 +73,14 @@ public:
     void setNormalMapPath(const std::string& path) { normalMapPath_ = path; }
     void setEmissionMapPath(const std::string& path) { emissionMapPath_ = path; }
 
-    const std::string& getDiffuseMapPath() const { return diffuseMapPath_; }
-    const std::string& getSpecularMapPath() const { return specularMapPath_; }
-    const std::string& getNormalMapPath() const { return normalMapPath_; }
-    const std::string& getEmissionMapPath() const { return emissionMapPath_; }
+    const std::string& getDiffuseMapPath() const override { return diffuseMapPath_; }
+    const std::string& getSpecularMapPath() const override { return specularMapPath_; }
+    const std::string& getNormalMapPath() const override { return normalMapPath_; }
+    const std::string& getEmissionMapPath() const override { return emissionMapPath_; }
 
-    bool hasDiffuseMap() const { return !diffuseMapPath_.empty(); }
-    bool hasSpecularMap() const { return !specularMapPath_.empty(); }
-    bool hasNormalMap() const { return !normalMapPath_.empty(); }
-    bool hasEmissionMap() const { return !emissionMapPath_.empty(); }
+    bool hasDiffuseMap() const override { return !diffuseMapPath_.empty(); }
+    bool hasSpecularMap() const override { return !specularMapPath_.empty(); }
+    bool hasNormalMap() const override { return !normalMapPath_.empty(); }
+    bool hasEmissionMap() const override { return !emissionMapPath_.empty(); }
 };
 #endif

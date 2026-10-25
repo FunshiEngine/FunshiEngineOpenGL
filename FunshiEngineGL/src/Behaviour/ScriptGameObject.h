@@ -36,7 +36,10 @@ namespace MotorScript {
 // versionar la tabla; no promete compatibilidad binaria entre versiones del
 // motor. Incrementar esta version cuando cambie el contrato/API/runtime: el
 // cache la incorpora y recompila los scripts con el motor actualizado.
-constexpr int versionRuntimeScript = 11;
+// La tabla de servicios tambien es APPEND-ONLY y comparte este numero: la
+// v8 anadio las funciones de musica, asi que los scripts compilados contra
+// el contrato viejo se recompilan con la cabecera nueva.
+constexpr int versionRuntimeScript = 13;
 struct ApiScriptGameObject {
     // --- v1 (original) ---
     const char* (*nombre)(const void* objeto);
@@ -126,10 +129,12 @@ namespace MotorScript {
 // final para guardas `if (servicios->version >= N)`.
 struct ScriptServices {
     // --- v1 ---
-    // Reproduce un clip de la carpeta Sonidos/ del proyecto (por nombre).
-    // Devuelve -1 si el clip no existe o no hay motor (tolerante, no
-    // bloquea); sino un handle >= 0 usable con detenerSonido().
-    int (*reproducirSonido)(const char* clip, float volumen, bool bucle);
+    // Reproduce un archivo de audio del proyecto (por RUTA). La ruta es
+    // relativa a la raiz de assets (src<nombre>) o absoluta. Devuelve -1 si
+    // no hay motor o el archivo no existe (tolerante, no bloquea); sino un
+    // handle >= 0 usable con detenerSonido().
+    // (v7: la ruta sustituye al nombre del clip del catalogo.)
+    int (*reproducirSonido)(const char* ruta, float volumen, bool bucle);
     void (*detenerSonido)(int handle);
 
     // Busca un GameObject por nombre en la escena (recorrido en preorden del
@@ -177,7 +182,31 @@ struct ScriptServices {
     bool (*agregarColliderCubo)(void* objeto, float radio);
     bool (*agregarRigidBody)(void* objeto, float masa);
 
-    // --- v5: sistema de prefabs ---
+    // --- v5: colisiones y raycast (hitscan) ---
+    // Resuelve un Collider* a su GameObject duenio. Util en
+    // onCollisionEnter/onCollisionStay/onCollisionExit para saber qué objeto
+    // recibio el golpe.
+    void* (*objetoDeCollider)(const void* collider);
+    // Dispara un rayo (hitscan) desde origen en direccion con alcance dado.
+    // Llena punto/normal/distancia/collider si hubo impacto.
+    bool (*raycast)(float ox, float oy, float oz,
+                    float dx, float dy, float dz,
+                    float alcance,
+                    float* distancia, float* px, float* py, float* pz,
+                    float* nx, float* ny, float* nz,
+                    void** collider);
+    // Ultimo punto de impacto del rayo (valido tras raycast con impacto).
+    float (*puntoImpactoX)();
+    float (*puntoImpactoY)();
+    float (*puntoImpactoZ)();
+    // Ultima normal de impacto del rayo.
+    float (*normalImpactoX)();
+    float (*normalImpactoY)();
+    float (*normalImpactoZ)();
+    // Distancia al ultimo impacto.
+    float (*distanciaImpacto)();
+
+    // --- v6: sistema de prefabs ---
     // Instancia un prefab por nombre como hijo de `padre` (raiz si nulo).
     // Devuelve el puntero a la raiz de la instancia (valido al final del frame).
     void* (*instanciarPrefab)(const char* nombre, void* padre);
@@ -187,7 +216,7 @@ struct ScriptServices {
     // siguiente: copiarlos en el acto si deben retenerse.
     const char** (*listarPrefabs)();
 
-    // --- v6: interfaces web (HUD) ---
+    // --- v7: interfaces web (HUD) ---
     // Manipulacion de las interfaces de la escena desde los scripts. El handle
     // (`interfaz`) es opaco: un puntero al InterfaceComponent del objeto que la
     // tiene. En C++ se obtiene con un campo REFLECT_COMPONENTE (arrastrando el
@@ -211,6 +240,41 @@ struct ScriptServices {
     // o nullptr si no existe. El puntero vale hasta la proxima lectura de la
     // misma interfaz.
     const char* (*interfazValor)(void* interfaz, const char* rutaJson);
+
+    // --- v8: musica (por RUTA) ---
+    // Reproduce una pista de musica (por RUTA, como los efectos: relativa a la
+    // raiz de assets del proyecto o absoluta). Devuelve false si no hay motor
+    // o el archivo no existe (queda avisado en el log). Si la pista no esta en
+    // la lista del componente `Musica` de la escena, suena sola: al acabarse
+    // no hay pista siguiente.
+    bool (*reproducirMusica)(const char* ruta, float volumen, float fundido);
+    // Detiene la musica (con fundido de salida opcional).
+    void (*detenerMusica)(float fundido);
+    // Volumen del bus de musica (todas las pistas juntas, de 0 a 1).
+    void (*volumenMusica)(float volumen);
+
+    // --- v9: interfaz de juego NATIVA (HUD que dibuja el motor) ---
+    // Mismas reglas que las interfaces web: el handle (`interfaz`) es opaco
+    // (un puntero al UIComponent del objeto que la tiene) y toda funcion
+    // tolera un handle nulo (no hace nada). Se distingue de la interfaz web
+    // por el prefijo: son dos sistemas distintos que pueden convivir en la
+    // misma escena.
+    // Handle de la interfaz nativa del objeto `nombreObjeto`, o nullptr si no
+    // existe o no tiene UIComponent.
+    void* (*interfazNativaDeObjeto)(const char* nombreObjeto);
+    // Si la interfaz nativa esta activa (visible).
+    bool (*interfazNativaVisible)(const void* interfaz);
+    void (*interfazNativaEstablecerVisible)(void* interfaz, bool visible);
+    // Cambia el texto de un widget (por su identificador). Devuelve false si
+    // no hay ningun widget con ese identificador.
+    bool (*interfazNativaEstablecerTexto)(void* interfaz, const char* idWidget,
+                                           const char* texto);
+    // Muestra u oculta un widget. Devuelve false si no existe.
+    bool (*interfazNativaEstablecerVisibleWidget)(void* interfaz,
+                                                   const char* idWidget,
+                                                   bool visible);
+    // Si ese boton se pulso en el frame actual (flanco de pulsacion).
+    bool (*interfazNativaBotonPulsado)(void* interfaz, const char* idWidget);
 
     // Version de la tabla (siempre al final).
     int version;

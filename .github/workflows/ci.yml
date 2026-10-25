@@ -27,16 +27,23 @@ jobs:
             libbullet-dev \
             libasound2-dev \
             libxrandr-dev \
-            libxi-dev
+            libxi-dev \
+            glslang-tools
+
+      - name: Validar el GLSL embebido
+        # El GLSL va embebido en el binario: un error de sintaxis no lo ve el
+        # compilador de C++, solo el driver al compilar el programa. El
+        # validador lo comprueba sin necesidad de GPU.
+        run: python3 .github/scripts/validar-glsl.py
 
       - name: Configurar
         run: cmake -B build -S FunshiEngineGL -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=OFF -DFUNSHI_JAVA=ON
 
       - name: Compilar engine
-        run: cmake --build build --target FunshiEngineGL
+        run: cmake --build build --target FunshiEngineGL runtime-compile-check
 
       - name: Compilar pruebas
-        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests tilemap-tests interfaces-juego-tests barra-progreso-tests interface-component-tests webui-runtime-tests mods-tests
+        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests particulas-textura-tests particulas-perfil-tests interfaz-ui-tests shaders-tests sombras-tests iluminacion-tests scripts-tests scripts-runtime-tests audio-tests musica-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests inspeccion-escena-tests emisor-particulas-tests ui-component-tests serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests iconos-componentes-tests malla-regiones-tests materiales-regiones-tests primitivas3d-tests preview-material-tests tilemap-tests interfaces-juego-tests barra-progreso-tests interface-component-tests webui-runtime-tests mods-tests exportacion-tests
 
       - name: Ejecutar pruebas
         run: ctest --test-dir build -C Release --output-on-failure
@@ -47,8 +54,12 @@ jobs:
   # build hasta que el sistema multiplataforma este mas maduro.
   # NOTA: los targets que exigen el motor (BUILD_ENGINE=ON) NO se incluyen
   # aqui: catalogo-componentes-tests, comandos-tests, escena-serializacion-tests,
-  # interfaces-juego-tests, manifiesto-assets-tests, orquestador-estado-tests,
-  # prefab-tests, tema-tests y tilemap-tests. interface-component-tests y
+  # exportacion-tests, iconos-componentes-tests, iluminacion-tests,
+  # inspeccion-escena-tests, interfaces-juego-tests, malla-regiones-tests,
+  # materiales-regiones-tests, manifiesto-assets-tests, orquestador-estado-tests,
+  # prefab-tests, emisor-particulas-tests, preview-material-tests,
+  # primitivas3d-tests, serializacion-tests, tema-tests y tilemap-tests.
+  # interface-component-tests, shaders-tests, sombras-tests y
   # webui-runtime-tests tampoco entran: necesitan glm, que este build no trae.
   tests-multiplataforma:
     name: Pruebas headless (${{ matrix.os }})
@@ -64,7 +75,7 @@ jobs:
         run: cmake -B build -S FunshiEngineGL -G Ninja -DBUILD_ENGINE=OFF -DENABLE_ASAN=OFF -DFUNSHI_JAVA=OFF
 
       - name: Compilar pruebas headless
-        run: cmake --build build --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests model-serialization-tests proceso-tests barra-progreso-tests mods-tests
+        run: cmake --build build --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests particulas-textura-tests particulas-perfil-tests interfaz-ui-tests scripts-tests scripts-runtime-tests audio-tests musica-tests model-serialization-tests proceso-tests barra-progreso-tests mods-tests
 
       - name: Ejecutar pruebas
         run: ctest --test-dir build --output-on-failure
@@ -86,7 +97,7 @@ jobs:
         run: cmake -B build -S FunshiEngineGL -DBUILD_ENGINE=OFF -DENABLE_ASAN=OFF -DFUNSHI_JAVA=OFF
 
       - name: Compilar pruebas headless
-        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests model-serialization-tests proceso-tests barra-progreso-tests mods-tests
+        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests particulas-textura-tests particulas-perfil-tests interfaz-ui-tests scripts-tests scripts-runtime-tests audio-tests musica-tests model-serialization-tests proceso-tests barra-progreso-tests mods-tests
 
       - name: Ejecutar pruebas
         run: ctest --test-dir build -C Release --output-on-failure
@@ -131,10 +142,10 @@ jobs:
           -DFUNSHI_JAVA=ON
 
       - name: Compilar engine
-        run: cmake --build build --config Release --target FunshiEngineGL
+        run: cmake --build build --config Release --target FunshiEngineGL runtime-compile-check
 
       - name: Compilar pruebas
-        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests filemanager-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests rendering-tests scripts-tests scripts-runtime-tests audio-tests interface-component-tests barra-progreso-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests tilemap-tests interfaces-juego-tests webui-runtime-tests mods-tests
+        run: cmake --build build --config Release --target terminal-emulator-tests terminal-session-tests diagnostic-registry-tests hilos-tests filemanager-tests importar-archivos-tests configuracion-tests eventbus-tests menu-tests assetmanager-tests texturemanager-tests estructuras-tests editor-input-tests rendering-tests particulas-tests particulas-textura-tests particulas-perfil-tests interfaz-ui-tests shaders-tests sombras-tests iluminacion-tests scripts-tests scripts-runtime-tests audio-tests musica-tests interface-component-tests barra-progreso-tests scripts-java-tests model-serialization-tests manifiesto-assets-tests orquestador-estado-tests tema-tests comandos-tests escena-serializacion-tests inspeccion-escena-tests emisor-particulas-tests ui-component-tests serializacion-tests proceso-tests prefab-tests catalogo-componentes-tests iconos-componentes-tests malla-regiones-tests materiales-regiones-tests primitivas3d-tests preview-material-tests tilemap-tests interfaces-juego-tests webui-runtime-tests mods-tests exportacion-tests
 
       - name: Ejecutar pruebas
         uses: nick-fields/retry@v3

@@ -38,10 +38,6 @@ void Grid::deserializeComponent(std::ifstream* file) {
     file->read(reinterpret_cast<char*>(&separacion), sizeof(float));
 }
 
-void Grid::saveComponent(std::ofstream* file) { serializeComponent(file); }
-
-void Grid::loadComponent(std::ifstream* file) { deserializeComponent(file); }
-
 void Grid::setColor(float r, float g, float b) {
     color[0] = r;
     color[1] = g;

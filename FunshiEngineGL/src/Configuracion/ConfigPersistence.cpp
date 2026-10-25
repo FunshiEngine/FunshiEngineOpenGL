@@ -216,6 +216,8 @@ ConfigPersistence::General ConfigPersistence::cargarGeneral(const std::string& r
         g.sensibilidadCamara = j["sensibilidadCamara"].get<float>();
     if (j.contains("sensibilidadMovimientoCamara") && j["sensibilidadMovimientoCamara"].is_number())
         g.sensibilidadMovimientoCamara = j["sensibilidadMovimientoCamara"].get<float>();
+    if (j.contains("volumenMaestro") && j["volumenMaestro"].is_number())
+        g.volumenMaestro = j["volumenMaestro"].get<float>();
     if (j.contains("apariencia") && j["apariencia"].is_object())
         g.apariencia = jsonToApariencia(j["apariencia"]);
     if (j.contains("mods") && j["mods"].is_object()) {
@@ -236,6 +238,7 @@ void ConfigPersistence::guardarGeneral(const General& g, const std::string& ruta
     j["idioma"] = g.idioma;
     j["sensibilidadCamara"] = g.sensibilidadCamara;
     j["sensibilidadMovimientoCamara"] = g.sensibilidadMovimientoCamara;
+    j["volumenMaestro"] = g.volumenMaestro;
     j["apariencia"] = aparienciaToJson(g.apariencia);
     for (const auto& [id, activo] : g.mods)
         j["mods"][id] = activo;

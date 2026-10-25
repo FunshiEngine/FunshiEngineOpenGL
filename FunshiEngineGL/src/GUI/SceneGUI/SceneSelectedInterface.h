@@ -23,7 +23,7 @@
 #include <memory>
 #include "../ObjetosGUI/SettingsObjectInterface.h"
 #include "../../Estructuras/Trees/ArbolesEnlazados/ArbolEnlazado.h"
-#include "../../Objetos/Modelos3D.h"
+#include "../../Objetos/GameObject.h"
 #include "SceneObjectTree.h"
 
 using namespace std;

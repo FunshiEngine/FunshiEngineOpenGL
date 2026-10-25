@@ -107,7 +107,5 @@ public:
     bool estaEnPlay() const { return arrancado_; }
     std::string ultimoError() const { return error_; }
 
-    void saveComponent(std::ofstream* fileNamePathContentObject) override;
-    void loadComponent(std::ifstream* fileNamePathContentObject) override;
 };
 #endif

@@ -27,6 +27,10 @@ class LineBatch;
 class LineBuilder;
 class ShaderProgram;
 
+namespace Rendering {
+class GestorShaders;
+}  // namespace Rendering
+
 // Renderer de las lineas del engine con el pipeline moderno (VBO/VAO + shader
 // de lineas gruesas): cubre la grilla, los marcadores de luz/camara y los
 // wireframes de los colliders, y es la UNICA via de dibujo de lineas (el
@@ -57,6 +61,12 @@ public:
 
     bool available() const noexcept { return shader_ != nullptr; }
 
+    // Gestor de shaders del motor (dueno de los programas): sin el, el
+    // renderer no tiene programa y no dibuja.
+    void setGestorShaders(Rendering::GestorShaders* gestorShaders) noexcept {
+        gestorShaders_ = gestorShaders;
+    }
+
     // Matrices de vista y proyeccion del paso actual (las produce la camara).
     // Sin ellas no se dibuja nada.
     void setVista(const float view[16], const float projection[16]);
@@ -85,7 +95,8 @@ public:
     void reset();
 
 private:
-    std::unique_ptr<ShaderProgram> shader_;
+    std::shared_ptr<ShaderProgram> shader_;
+    Rendering::GestorShaders* gestorShaders_ = nullptr;
     glm::mat4 view_ = glm::mat4(1.0f);
     glm::mat4 projection_ = glm::mat4(1.0f);
     bool vistaValida_ = false;

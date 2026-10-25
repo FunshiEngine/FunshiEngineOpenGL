@@ -19,7 +19,8 @@
 #include "GUIManager.h"
 #include "../Configuracion/EditorConfig.h"
 #include "../Configuracion/ProjectPaths.h"
-#include "../Objetos/Modelos3D.h"
+#include "../Objetos/GameObject.h"
+#include "../Objetos/Componentes/Model.h"
 #include "../Scenes/EditorController.h"
 #include "../Scenes/SceneRegistry.h"
 #include "../Mods/RegistroPanelesMods.h"
@@ -29,7 +30,7 @@
 
 GUIManager::GUIManager(GLFWwindow* window)
     : menuGUI(new MenuGUI(window)),
-      modeloSettings(std::make_unique<Modelos3D>()),
+      modeloSettings(std::make_unique<GameObject>()),
       settingGUI(new SettingsObjectInterface(modeloSettings.get(), false)),
       selecteableGUI(new SceneSelectedInterface(true)),
       menuBarGUI(std::make_unique<SceneMenuBarInterface>(true)),
@@ -45,13 +46,52 @@ GUIManager::GUIManager(GLFWwindow* window)
     fileManager = std::make_unique<FileManager>(path, rootName);
     treeFilesGUI = std::make_unique<TreeFilesInterface>(true, fileManager.get());
     contentOfThisFolder = std::make_unique<ContentFolderInterface>(false, fileManager.get());
+    // Servicios del sistema operativo para el explorador: el portapapeles y
+    // la recepcion de archivos soltados sobre la ventana. El gestor los crea
+    // porque es quien tiene la ventana de GLFW, y los inyecta en la fachada
+    // del explorador, que es la unica que ve el contrato.
+    portapapeles = std::make_unique<PortapapelesSistema>(window);
+    receptorDrop = std::make_unique<ReceptorDropGlfw>();
+    fileManager->setPortapapeles(portapapeles.get());
+    fileManager->setReceptorDrop(receptorDrop.get());
+    if (window != nullptr) receptorDrop->registrar(window);
     dockSpaceGUI = std::make_unique<DockSpaceInterface>(true);
     iconosGUI = std::make_unique<IconosGUI>();
     iconosGUI->init();
+    // Los iconos de componente se resuelven por el catalogo (fuente unica) y
+    // se cargan a demanda en el inspector.
+    reglaIconos = std::make_unique<ReglaIconoCatalogo>();
+    resolutorIconos =
+        std::make_unique<CatalogoIconos>(*iconosGUI, *reglaIconos);
+    settingGUI->setResolutorIconos(resolutorIconos.get());
     menuBarGUI->setIconosGUI(iconosGUI.get());
     statusBarGUI = std::make_unique<StatusBarInterface>(true);
+    // La barra de estado es donde el explorador avisa del resultado de una
+    // importacion (archivos pegados o arrastrados, errores al copiar).
+    contentOfThisFolder->setStatusBar(statusBarGUI.get());
     terminalGUI = std::make_unique<TerminalInterface>(true);
+    // Cada ventana se registra al crearse: el gestor no lleva una lista fija,
+    // asi que agregar una ventana no obliga a tocar el estado ni el menu. La
+    // ventana se registra DESPUES de existir: registrarla antes guardaria un
+    // puntero nulo y la ventana quedaria fuera del registro (sin estado
+    // persistido y sin entrada en el menu de ventanas).
+    registrarVentana(selecteableGUI.get());
+    registrarVentana(menuBarGUI.get());
+    registrarVentana(treeFilesGUI.get());
+    registrarVentana(contentOfThisFolder.get());
+    registrarVentana(dockSpaceGUI.get());
+    registrarVentana(statusBarGUI.get());
+    registrarVentana(terminalGUI.get());
     panelesModsGUI = std::make_unique<PanelesModsInterface>();
+    // El taller de efectos se registra igual que el resto: su estado se
+    // persiste con el nombre de la ventana y el menu Ventanas la lista solo.
+    animacionesParticulasGUI =
+        std::make_unique<AnimacionesParticulasInterface>();
+    registrarVentana(animacionesParticulasGUI.get());
+    // El estado de la interfaz y la barra de la orbita son piezas de la GUI:
+    // las usa el input (que consulta el estado) y main (que dibuja la barra).
+    estadoInterfaz = std::make_unique<EstadoInterfazImGui>();
+    sidebarOrbitaGUI = std::make_unique<SidebarOrbitaGUI>();
     treeFilesGUI->setIconosGUI(iconosGUI.get());
     contentOfThisFolder->setIconosGUI(iconosGUI.get());
     selecteableGUI->setIconosGUI(iconosGUI.get());
@@ -129,6 +169,11 @@ void GUIManager::setAudioEngine(AudioEngine* motor) {
     if (settingGUI) settingGUI->setAudioEngine(motor);
 }
 
+void GUIManager::setPreviewMaterial(IPreviewMaterial* preview) {
+    previewMaterial = preview;
+    if (settingGUI) settingGUI->setPreviewMaterial(preview);
+}
+
 StatusBarInterface* GUIManager::getStatusBarGUI() { return statusBarGUI.get(); }
 
 void GUIManager::restaurarEstadosVentanas(const std::map<std::string, bool>& estados) {
@@ -149,12 +194,18 @@ void GUIManager::restaurarEstadosVentanas(const std::map<std::string, bool>& est
     }
 }
 
+void GUIManager::registrarVentana(GeneralUserInterface* ventana) {
+    if (!ventana) return;
+    for (GeneralUserInterface* existente : ventanas_) {
+        if (existente == ventana) return;
+    }
+    ventanas_.push_back(ventana);
+}
+
 std::vector<GeneralUserInterface*> GUIManager::ventanasPersistentes() const {
-    // La ventana Settings es dinamica (depende de la seleccion) y se deja
-    // fuera. El resto se persiste por su WindowName.
-    return {selecteableGUI.get(), menuBarGUI.get(), treeFilesGUI.get(),
-            contentOfThisFolder.get(), dockSpaceGUI.get(), statusBarGUI.get(),
-            terminalGUI.get()};
+    // Las ventanas registradas: la ventana Settings es dinamica (depende de la
+    // seleccion) y no se registra, asi que queda fuera.
+    return ventanas_;
 }
 
 std::map<std::string, bool> GUIManager::obtenerEstadosVentanas() const {

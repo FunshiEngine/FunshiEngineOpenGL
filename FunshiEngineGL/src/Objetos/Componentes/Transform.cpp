@@ -132,14 +132,6 @@ void Transform::setScalef(float x, float y, float z) {
     }
 }
 
-void Transform::saveComponent(std::ofstream* fileNamePathContentObject) {
-    serializeComponent(fileNamePathContentObject);
-}
-
-void Transform::loadComponent(std::ifstream* fileNamePathContentObject) {
-    deserializeComponent(fileNamePathContentObject);
-}
-
 void buildMatrixFromTransform(Transform* t, float outMatrix[16]) {
     glm::mat4 mat(1.0f);
     mat = glm::translate(

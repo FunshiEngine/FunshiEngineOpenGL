@@ -67,7 +67,7 @@ if errorlevel 1 (
 
 REM --------------------------------------------------------------------------
 REM  5. Montar packaging/dist: exe + dlls + Imagenes (sin assets demo: el
-REM     MotorGrafico del usuario solo contiene sus proyectos y configs).
+REM     FunshiEngine-DATA del usuario solo contiene sus proyectos y configs).
 REM --------------------------------------------------------------------------
 echo [5/5] Montando packaging/dist...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PKG_DIR%stage_dist_win.ps1" ^

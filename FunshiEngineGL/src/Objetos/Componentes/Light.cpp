@@ -53,10 +53,6 @@ void Light::deserializeComponent(std::ifstream* file) {
     file->read(reinterpret_cast<char*>(&spotCutOff), sizeof(float));
 }
 
-void Light::saveComponent(std::ofstream* file) { serializeComponent(file); }
-
-void Light::loadComponent(std::ifstream* file) { deserializeComponent(file); }
-
 void Light::setAmbient(float r, float g, float b) {
     ambient[0] = r; ambient[1] = g; ambient[2] = b;
 }

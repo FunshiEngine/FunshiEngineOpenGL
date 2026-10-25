@@ -71,9 +71,6 @@ public:
 	         GameObject* owner = nullptr);
 	~Collider() override;
 
-	void saveComponent(std::ofstream* fileNamePathContentObject) override;
-	void loadComponent(std::ifstream* fileNamePathContentObject) override;
-
 	// radio debe ser positivo
 	virtual void setRadio(float radio);
 	virtual float getRadio();

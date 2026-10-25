@@ -26,13 +26,26 @@
 #include "../../Comandos/ReparentarComando.h"
 #include "../../Comandos/DuplicarObjetoComando.h"
 #include "../../Comandos/GestorComandos.h"
+#include "../../Objetos/Prefab.h"
 #include "../../Objetos/PrefabLibrary.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/TypeUtils.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
 #include <cstring>
+#include <filesystem>
 #include <imgui.h>
 #include <typeinfo>
+
+namespace {
+
+bool esArchivoPrefab(const char* ruta) {
+    std::string extension = std::filesystem::path(ruta).extension().string();
+    for (char& c : extension)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return extension == ".prefab";
+}
+
+}  // namespace
 
 SceneObjectTree::~SceneObjectTree() { unbind(); }
 
@@ -250,10 +263,54 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
                 objetoPadreNuevo = object;
             }
         }
+        // Archivo .prefab soltado desde el explorador de contenido: se
+        // instancia en la raiz (no como hijo de la fila, para que el prefab
+        // conserve la jerarquia con la que se guardo).
+        const ImGuiPayload* archivo =
+            ImGui::AcceptDragDropPayload("PREFAB_ASSET");
+        if (!archivo) archivo = ImGui::AcceptDragDropPayload("ARCHIVO_PATH");
+        if (archivo) {
+            const char* rutaSoltada = static_cast<const char*>(archivo->Data);
+            if (rutaSoltada && *rutaSoltada && esArchivoPrefab(rutaSoltada))
+                instanciarPrefabDesdeRuta(rutaSoltada);
+            else if (rutaSoltada && *rutaSoltada)
+                std::cerr << "[SceneObjectTree] el archivo arrastrado no es "
+                             "un prefab: " << rutaSoltada << std::endl;
+        }
         ImGui::EndDragDropTarget();
     }
 
     return {nodeOpen, toggled};
+}
+
+bool SceneObjectTree::instanciarPrefabDesdeRuta(const char* ruta) {
+    if (!editor || !ruta || !*ruta) return false;
+    PrefabLibrary* biblioteca = editor->getPrefabLibrary();
+    if (!biblioteca) return false;
+    // Del archivo arrastrado se toma el nombre sin extension: es la clave con
+    // la que la biblioteca carga y cachea los prefabs (obtener() lo levanta
+    // del disco si no esta en cache, asi que alcanza con el nombre).
+    const std::string archivo =
+        std::filesystem::path(ruta).filename().string();
+    const std::string sufijo = ".prefab";
+    if (archivo.size() <= sufijo.size()) return false;
+    const std::string nombre = archivo.substr(0, archivo.size() - sufijo.size());
+    Prefab* prefab = biblioteca->obtener(nombre);
+    if (!prefab) {
+        std::cerr << "[SceneObjectTree] no se encontro el prefab '" << nombre
+                  << "': " << ruta << std::endl;
+        return false;
+    }
+    // La instancia nace en la raiz de la escena; el usuario la mueve donde
+    // quiera (el gizmo y el inspector la dejan a tiro al seleccionarla).
+    GameObject* instancia = prefab->instanciar(editor, nullptr);
+    if (!instancia) {
+        std::cerr << "[SceneObjectTree] no se pudo instanciar el prefab '"
+                  << nombre << "'" << std::endl;
+        return false;
+    }
+    editor->selectObject(instancia);
+    return true;
 }
 
 void SceneObjectTree::dibujarDialogosModales() {

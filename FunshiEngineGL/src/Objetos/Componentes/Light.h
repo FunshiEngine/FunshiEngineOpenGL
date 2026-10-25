@@ -47,9 +47,6 @@ protected:
 public:
     Light();
 
-    void saveComponent(std::ofstream* file) override;
-    void loadComponent(std::ifstream* file) override;
-
     LightType getType() const { return type; }
     void setType(LightType value) { type = value; }
 

@@ -31,7 +31,9 @@
 #include "../Input/InputScripts.h"
 #include "../Configuracion/Apariencia.h"
 #include "../Configuracion/DimensionProyecto.h"
-#include "../Audio/AudioClipsManager.h"
+#include "../Objetos/Componentes/ResolvedorMateriales.h"
+#include "../Particulas/SistemaParticulas.h"
+#include "OperacionGizmo.h"
 #include "../WebUI/VistasWebUI.h"
 #include "../WebUI/EstadoInterfaces.h"
 class CameraComponent;
@@ -52,10 +54,27 @@ class SceneRenderer;
 class AudioEngine;
 class MiniAudioBackend;
 class GizmoController;
+class PreviewMaterial;
+class UIRenderer;
+class UIComponent;
+
+namespace Rendering {
+class GestorShaders;
+}  // namespace Rendering
+
+// El backend de render se inyecta en la escena: lo usan el renderer y el
+// gestor de shaders.
+namespace Rendering {
+namespace Backend {
+class IRenderBackend;
+} // namespace Backend
+} // namespace Rendering
 
 class GameScene {
 private:
     GUIManager* managerGUI;
+    // Backend de render de la escena: se inyecta al construirla.
+    Rendering::Backend::IRenderBackend& backend_;
     SceneSelectedInterface* selecteableGUI = nullptr;
     SceneMenuBarInterface* menuBarGUI = nullptr;
     CameraComponent* activeCamera = nullptr;
@@ -71,6 +90,11 @@ private:
     // EditorController y SceneSerializer para que cada Modelos3D pida su
     // geometria al cache (Flyweight) en lugar de parsear Assimp por objeto.
     std::unique_ptr<AssetManager> assetManager;
+    // Gestor de shaders del motor (dueno de los programas). Se declara antes
+    // que el SceneRenderer porque C++ destruye los miembros en orden inverso
+    // al de declaracion: el gestor tiene que vivir mas que los renderers que
+    // le piden los programas.
+    std::unique_ptr<Rendering::GestorShaders> gestorShaders;
     // Pasada de render de la escena (Fase 3): el SceneRenderer es dueno del
     // MeshRenderer (VBO/VAO + shader), la grilla y las vistas previas; GameScene
     // solo le pasa el FrameContext por frame (objetos, luces CPU, apariencia).
@@ -82,6 +106,14 @@ private:
     // usa el MeshRenderer para convertir el path de textura de cada Material
     // en una imagen subida una sola vez a GPU.
     std::unique_ptr<TextureManager> textureManager;
+    // Resolvedor de materiales: decide que material se dibuja en cada region
+    // de la malla (los materiales por parte) y cual es el material unico del
+    // objeto. Se inyecta al renderer de la escena.
+    std::unique_ptr<ResolvedorMateriales> resolvedorMateriales_;
+    // Vista previa de material (la esfera de muestra del panel del material).
+    // Solo tiene uso en el editor: el juego exportado no tiene paneles que la
+    // pinten.
+    std::unique_ptr<PreviewMaterial> previewMaterial_;
     EventBus events;
     // Los constructores de EditorController y SceneSerializer reciben
     // pointers a los miembros anteriores (assetManager/events): deben estar
@@ -97,9 +129,11 @@ private:
     // main.cpp para la camara; este es un canal independiente de solo lectura
     // que se alimenta de los mismos callbacks.
     InputScripts inputScripts;
-    // Catalogo de clips del proyecto (explora Sonidos/ y registra por nombre).
-    AudioClipsManager clipsAudio;
     float deltaTime = 0.0f;
+    // Sistema de particulas de la escena: lo avanzan los emisores y lo dibuja
+    // el renderer. Vive en la escena (no es un singleton) para que cada
+    // escena tenga el suyo.
+    SistemaParticulas sistemaParticulas;
     bool start = false;
     // version anterior de start: detecta la transicion false->true para
     // sincronizar los cuerpos a la pose VISUAL del editor ANTES de que el
@@ -144,6 +178,13 @@ private:
     // lo que esta devuelve). Los scripts lo manipulan via la tabla de servicios;
     // pintarInterfacesJuego() lo sincroniza con las vistas.
     EstadoInterfaces estadoInterfaces_;
+    // Renderer de la interfaz de juego NATIVA (HUD que dibuja el motor, sin
+    // navegador web). Traduce el lienzo de cada UIComponent a primitivas de
+    // ImGui y cachea las texturas del proyecto que usa.
+    std::unique_ptr<UIRenderer> uiRenderer_;
+    // Interfaces nativas activas de la escena, recolectadas en el frame. Se
+    // ordenan por z (la de mayor z queda encima).
+    std::vector<UIComponent*> interfacesNativas_;
     // Dimension del proyecto (2D plano / 3D con profundidad). La fija main y el
     // gestor de proyectos antes de cargar la escena; gobierna la siembra de la
     // grilla, la posicion de la camara inicial y (fase de render) el modo 2D.
@@ -168,6 +209,15 @@ private:
     // desde gameScene() para que exista tambien en el juego exportado, donde no
     // hay GUI del editor.
     void pintarInterfacesJuego();
+
+    // Interfaz de juego NATIVA (HUD del motor). Recolecta las interfaces
+    // activas y actualiza su estado de interaccion con el raton del frame.
+    void actualizarInterfazNativa();
+    // Dibuja el overlay de las interfaces nativas.
+    void pintarInterfazNativa();
+    // Si la interfaz nativa se dibuja en este momento: en el juego exportado
+    // siempre; en el editor, solo en modo juego.
+    bool interfazNativaHabilitada() const noexcept;
 
     // Ventana dockable con la vista web de la interfaz del objeto seleccionado
     // (preview del editor). Solo corre con GUI del editor; en el juego
@@ -204,7 +254,9 @@ private:
     void limpiarColaCompilacion();
 
 public:
-    GameScene(GUIManager* managerGUI);
+    // El backend de render se inyecta: lo usan el renderer de la escena y el
+    // gestor de shaders (que crea los programas).
+    GameScene(GUIManager* managerGUI, Rendering::Backend::IRenderBackend& backend);
     ~GameScene();
 
     ListaDE<GameObject*>* getGameObjectsScene();
@@ -220,18 +272,25 @@ public:
     bool isSimulacionPausada() const noexcept;
     void setSimulacionPausada(bool pausada) noexcept;
     void loadScene(const std::string& pathTxt, const std::string& semiPath);
-    // Configura los assets de audio (Sonidos/) e interfaces (Memory/Interfaces)
-    // del proyecto. La llama main al arrancar y al cambiar de proyecto.
+    // Asegura la estructura de carpetas del proyecto (Memory/ y src<nombre>/).
+    // La llama main al arrancar y al cambiar de proyecto.
     void configurarProyecto(const std::string& nombreProyecto);
     AudioEngine* getAudioEngine() const noexcept;
     void GUI();
     void pintarVentanaCamaras();
     void update(float deltaTime);
+
+    // Recorre la escena y pide a cada emisor de particulas que suelte las
+    // suyas. Las particulas nacen en la posicion global del objeto dueno.
+    void emitirParticulas(float deltaTime);
     void registrarTeclaScript(int key, int action);
     void registrarMouseScript(double x, double y);
+    // Si el puntero esta encima de un boton del HUD nativo: el juego no debe
+    // seguir girando la camara con el raton mientras el boton lo tiene.
+    bool ratonSobreInterfazNativa() const noexcept;
     void gameScene();
-    void setGizmoOperation(int operation);
-    int getGizmoOperation() const;
+    void setGizmoOperation(OperacionGizmo operation);
+    OperacionGizmo getGizmoOperation() const;
     // Sistema de coordenadas del gizmo (LOCAL con rotacion de los ejes del
     // objeto, o GLOBAL con los ejes del mundo fijos). Se persiste por proyecto.
     bool isGizmoGlobal() const noexcept;
@@ -292,6 +351,14 @@ public:
     void clearSelection();
 
     // Acceso al controlador del editor para comandos (undo/redo)
+    // Sistema de particulas de la escena.
+    SistemaParticulas& getSistemaParticulas() noexcept {
+        return sistemaParticulas;
+    }
+    const SistemaParticulas& getSistemaParticulas() const noexcept {
+        return sistemaParticulas;
+    }
+
     EditorController* getEditorController() noexcept { return editorController.get(); }
     const EditorController* getEditorController() const noexcept { return editorController.get(); }
 

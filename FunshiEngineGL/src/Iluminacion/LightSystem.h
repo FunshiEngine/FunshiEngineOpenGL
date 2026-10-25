@@ -65,8 +65,13 @@ public:
     // la misma semantica que el backend parametriza en los slots GL_LIGHT0..7
     // (escaneo del arbol, posicion = Transform, direccional usa la rotacion
     // del forward). outCount queda con la cantidad de luces recogidas.
+    //
+    // Si se pasa 'duenos', se llena en paralelo con el objeto que lleva cada
+    // luz (mismo indice). El que necesita saber de que objeto sale cada luz
+    // (por ejemplo, para leer los ajustes de sombra que tiene adjuntos) lo
+    // tiene asi sin depender de que dos recorridos coincidence.
     void collectLights(ListaDE<GameObject*>* objects, LightData luces[],
-                       int& outCount) const;
+                       int& outCount, GameObject** duenos = nullptr) const;
 
 private:
     float globalAmbient_[4] = {0.15f, 0.15f, 0.15f, 1.f};

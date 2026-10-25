@@ -27,6 +27,7 @@
 #endif
 
 #include "../src/Scenes/GameScene.h"
+#include "../src/Audio/AudioEngine.h"
 #include "../src/GUIManager/GUIManager.h"
 #include "../src/Configuracion/EditorConfig.h"
 #include "../src/Configuracion/ProjectPaths.h"
@@ -39,7 +40,7 @@
 #include "EngineTime.h"
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-#include "../src/Objetos/Modelos3D.h"
+#include "../src/Objetos/GameObject.h"
 #include "../src/Objetos/Componentes/CameraComponent.h"
 #include "../src/Proyectos/GestorDeProyectos.h"
 #include "../src/States/ApplicationStateMachine.h"
@@ -48,7 +49,9 @@
 #include "../src/Events/EditorEventBus.h"
 #include "../src/Ventana.h"
 #include "../src/Input/EditorInput.h"
+#include "../src/Hilos/HiloActual.h"
 #include "../src/Rendering/Backend/IRenderBackend.h"
+#include "../src/Rendering/FondoEscena.h"
 #include "../src/Diagnosticos/RegistroDiagnosticos.h"
 #include "../src/Mods/GestorMods.h"
 #include "../src/Mods/CargadorMods.h"
@@ -267,6 +270,10 @@ static int EjecutarMotor(int argc, char* argv[])
     }
 #endif
     std::set_terminate(registrarExcepcionNoCapturada);
+    // El hilo principal del motor queda registrado: el contexto de OpenGL,
+    // ImGui, CEF y la JVM solo se pueden usar desde aqui (ver Hilos/
+    // HiloActual.h).
+    Hilos::fijarHiloPrincipal();
     // Parseo simple de --proyecto <nombre> para arrancar directo en editor
     // (skip menu). Usado para ejecutar un juego exportado: FunshiEngineGL
     // --proyecto MiJuego. --juego fuerza el modo juego, que es como arranca
@@ -312,18 +319,30 @@ static int EjecutarMotor(int argc, char* argv[])
     RegistroDiagnosticos::global().registrar(std::move(inicio));
 
     Ventana* auxVentana = new Ventana();
-    auxVentana->initVentana();
+    // Sin ventana no hay contexto de OpenGL ni entrada: seguir adelante
+    // dejaria el motor callingando sobre una ventana nula. Se corta el
+    // arranque con un mensaje claro.
+    if (auxVentana->initVentana() != 0) {
+        std::cerr << "No se pudo crear la ventana de OpenGL 3.3; el motor "
+                     "no puede arrancar\n";
+        delete auxVentana;
+        return -1;
+    }
     GLFWwindow* window = auxVentana->getWindow();
     GUIManager* managerOfGUI = new GUIManager(window);
-    GameScene* scene = new GameScene(managerOfGUI);
+    GameScene* scene = new GameScene(
+        managerOfGUI, Rendering::Backend::activeBackend());
     MenuGUI* mainMenu = managerOfGUI->getMenuGUI();
     TreeFilesInterface* treeFilesInterface = managerOfGUI->getTreeFilesGUI();
     ContentFolderInterface* contentFolderInterface = managerOfGUI->getContentFolderGUI();
     // Callbacks del editor (teclado/mouse) + navegacion de la camara: su
     // propio modulo (Input/EditorInput) las traduce a acciones y mantiene la
-    // maquina de estado de movimiento (diagonales WASD normalizadas).
+    // maquina de estado de movimiento (diagonales WASD normalizadas). El
+    // estado de la interfaz se le inyecta: el input no sabe que hay una GUI
+    // debajo, solo pregunta si el teclado es de un widget.
     EditorInput* input =
-        new EditorInput(scene, &appStateMachine, &orquestadorDeGUI);
+        new EditorInput(scene, &appStateMachine, &orquestadorDeGUI,
+                        managerOfGUI->getEstadoInterfaz());
     // Los controles del menu de escena piden transiciones al orquestador,
     // unica fuente de verdad para Depuracion, Juego, pausa, reset y fin.
     if (SceneMenuBarInterface* menuBarEscena = managerOfGUI->getMenuBarGUI())
@@ -457,12 +476,14 @@ static int EjecutarMotor(int argc, char* argv[])
     mainMenu->setSensibilidadCamara(editorConfig.datos().sensibilidadCamara);
     mainMenu->setSensibilidadMovimientoCamara(
         editorConfig.datos().sensibilidadMovimientoCamara);
+    mainMenu->setVolumenMaestro(editorConfig.datos().volumenMaestro);
 
     mainMenu->setApariencia(editorConfig.datos().apariencia);
     scene->setVentanaCamarasAbierta(editorConfig.datos().ventanaCamarasAbierta);
     scene->setSensibilidadMovimientoCamara(
         editorConfig.datos().sensibilidadMovimientoCamara);
-    scene->setGizmoOperation(editorConfig.datos().gizmoOperacion);
+    scene->setGizmoOperation(
+        operacionDesdeNumero(editorConfig.datos().gizmoOperacion));
     scene->setGizmoGlobal(editorConfig.datos().gizmoGlobal);
     scene->setApariencia(editorConfig.datos().apariencia);
     scene->setSensibilidadCamara(editorConfig.datos().sensibilidadCamara);
@@ -605,6 +626,14 @@ static int EjecutarMotor(int argc, char* argv[])
                 ev.sensibilidadMovimiento;
             editorConfig.solicitarGuardadoGeneral();
         });
+        // Volumen maestro de efectos de sonido: se aplica al bus de audio y
+        // se persiste en la configuracion general.
+        eventosGUI->subscribe([scene, &editorConfig](const EditorEvent& ev) {
+            if (ev.type != EditorEventType::VolumenCambio) return;
+            scene->getAudioEngine()->setVolumenMaestro(ev.volumen);
+            editorConfig.datos().volumenMaestro = ev.volumen;
+            editorConfig.solicitarGuardadoGeneral();
+        });
         // Restablecer configuracion: se reaplican los defaults en general
         // (idioma/apariencia/sensibilidad) y en el estado del proyecto
         // (ventanas, gizmo, camara). El nombre del proyecto se conserva: el
@@ -622,9 +651,10 @@ static int EjecutarMotor(int argc, char* argv[])
                 mainMenu->setSensibilidadCamara(cfg.sensibilidadCamara);
                 mainMenu->setSensibilidadMovimientoCamara(
                     cfg.sensibilidadMovimientoCamara);
+                mainMenu->setVolumenMaestro(cfg.volumenMaestro);
                 mainMenu->setApariencia(cfg.apariencia);
                 scene->setVentanaCamarasAbierta(cfg.ventanaCamarasAbierta);
-                scene->setGizmoOperation(cfg.gizmoOperacion);
+                scene->setGizmoOperation(operacionDesdeNumero(cfg.gizmoOperacion));
                 scene->setGizmoGlobal(cfg.gizmoGlobal);
                 scene->setActiveCameraById(cfg.camaraActivaId);
                 managerOfGUI->restaurarEstadosVentanas(cfg.estadoVentanas);
@@ -714,8 +744,10 @@ static int EjecutarMotor(int argc, char* argv[])
 
         // Limpieza del framebuffer de la ventana con el color de fondo vigente
         // (setClearColor). El backend lo limpia y queda el default framebuffer
-        // listo para ImGui y la pasada de la escena.
-        Rendering::Backend::activeBackend().clearScreen(nullptr);
+        // listo para ImGui y la pasada de la escena. El color sale del perfil
+        // de apariencia de la escena, el mismo que usa el juego exportado.
+        FondoEscena::limpiar(Rendering::Backend::activeBackend(),
+                             scene->getApariencia());
 
             // El frame del renderer solo si el backend arranco: con
             // ImGui_ImplOpenGL3_Init() fallido no hay backend data y en Release
@@ -800,7 +832,7 @@ static int EjecutarMotor(int argc, char* argv[])
             gestor.eliminarProyectoDesdeMenu();
 
             if (mainMenu->ConsultarMenu()) {
-                // Refresca el listado de proyectos (carpetas de MotorGrafico):
+                // Refresca el listado de proyectos (carpetas de FunshiEngine-DATA):
                 // recoge proyectos creados/borrados mientras el menu esta abierto.
                 mainMenu->actualizarProyectos();
                 mainMenu->Renderizar();             // la vista dibuja la vista activa del modelo
@@ -844,8 +876,10 @@ static int EjecutarMotor(int argc, char* argv[])
             // modelo del paquete MenuGUI (MenuModel), no un bool suelto de main.
 
         // Sidebar de radio de orbita (editor oculto + clic derecho): es una
-        // ayuda de navegacion del editor, no una superposicion del Juego.
-        if (!scene->isModoJuego()) input->dibujarSidebarOrbita();
+        // ayuda de navegacion del editor, no una superposicion del Juego. La
+        // dibuja la GUI con el estado que entrega el input.
+        if (!scene->isModoJuego())
+            managerOfGUI->getSidebarOrbitaGUI()->dibujar(input->estadoOrbita());
 
         ImGui::Render();
         // Mismo guardia que NewFrame: sin backend, RenderDrawData tambien

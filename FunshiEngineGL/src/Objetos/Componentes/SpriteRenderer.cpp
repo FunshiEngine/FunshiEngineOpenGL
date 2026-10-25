@@ -105,6 +105,3 @@ void SpriteRenderer::deserializeComponent(std::ifstream* file) {
     if (conPath) leerPath(file, rutaTextura_);
 }
 
-void SpriteRenderer::saveComponent(std::ofstream* file) { serializeComponent(file); }
-
-void SpriteRenderer::loadComponent(std::ifstream* file) { deserializeComponent(file); }

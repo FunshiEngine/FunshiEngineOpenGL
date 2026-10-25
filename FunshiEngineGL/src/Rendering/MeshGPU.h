@@ -31,13 +31,17 @@
 // 2 = UV (vec2), 3 = tangente (vec3), 4 = bitangente (vec3).
 class MeshGPU {
 private:
+    // Backend con el que se crean y destruyen los recursos: se inyecta, no se
+    // busca en un singleton.
+    Rendering::Backend::IRenderBackend* backend_ = nullptr;
     Rendering::Backend::Handle buffer_ = 0;
     std::size_t indexCount_ = 0;
 
     void destroy();
 
 public:
-    MeshGPU() = default;
+    explicit MeshGPU(Rendering::Backend::IRenderBackend& backend) noexcept
+        : backend_(&backend) {}
     ~MeshGPU();
     MeshGPU(const MeshGPU&) = delete;
     MeshGPU& operator=(const MeshGPU&) = delete;
@@ -59,6 +63,9 @@ public:
 
     // Dibuja la malla subida. No-op si no hay recurso/indices.
     void draw() const;
+    // Dibuja solo un rango de indices (una region de la malla, con su
+    // material propio). No-op si el rango no cabe en la malla.
+    void draw(unsigned int firstIndex, unsigned int indexCount) const;
 };
 
 #endif

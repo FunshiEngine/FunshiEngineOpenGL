@@ -22,13 +22,14 @@ TextureGL::~TextureGL() { destroy(); }
 
 void TextureGL::destroy() {
     if (texture_ != Rendering::Backend::kInvalidHandle) {
-        Rendering::Backend::activeBackend().destroyTexture2D(texture_);
+        backend_->destroyTexture2D(texture_);
         texture_ = Rendering::Backend::kInvalidHandle;
     }
     width_ = height_ = 0;
 }
 
 TextureGL::TextureGL(TextureGL&& other) noexcept {
+    backend_ = other.backend_;
     texture_ = other.texture_;
     width_ = other.width_;
     height_ = other.height_;
@@ -39,6 +40,7 @@ TextureGL::TextureGL(TextureGL&& other) noexcept {
 TextureGL& TextureGL::operator=(TextureGL&& other) noexcept {
     if (this != &other) {
         destroy();
+        backend_ = other.backend_;
         texture_ = other.texture_;
         width_ = other.width_;
         height_ = other.height_;
@@ -58,7 +60,7 @@ void TextureGL::upload(const Image& image) {
     gpuImage.height = image.height;
     gpuImage.pixels = image.pixels.data();
 
-    texture_ = Rendering::Backend::activeBackend().createTexture2D(gpuImage);
+    texture_ = backend_->createTexture2D(gpuImage);
     if (texture_ == Rendering::Backend::kInvalidHandle) return;
 
     width_ = image.width;
@@ -67,5 +69,5 @@ void TextureGL::upload(const Image& image) {
 
 void TextureGL::bindUnit(int unit) const {
     if (texture_ == Rendering::Backend::kInvalidHandle) return;
-    Rendering::Backend::activeBackend().bindTexture2D(texture_, unit);
+    backend_->bindTexture2D(texture_, unit);
 }

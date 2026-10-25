@@ -26,6 +26,7 @@
 #endif
 
 #include <string>
+#include <unordered_map>
 #include <imgui.h>
 
 #include "../../Rendering/Backend/IRenderBackend.h"
@@ -57,6 +58,12 @@ public:
         return altoLogo > 0 ? static_cast<float>(anchoLogo) / altoLogo : 1.f;
     }
     ImTextureID getIconoPorExtension(const std::string& extension) const;
+
+    // Icono de un componente, por su ruta relativa a la carpeta de imagenes
+    // (la que declara el catalogo de componentes). Se carga la primera vez que
+    // se pide y se queda en cache: los iconos de componente se usan a demanda
+    // (solo los que el inspector muestra), no todos de arranque.
+    ImTextureID getIconoComponente(const std::string& rutaRelativa);
 
 private:
     // La GUI nunca ve handles: los convierte el backend a ImTextureID.
@@ -111,6 +118,8 @@ private:
     Rendering::Backend::Handle iconoMtl = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoRar = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle iconoZip = Rendering::Backend::kInvalidHandle;
+    // Iconos de componente cargados a demanda, por ruta.
+    std::unordered_map<std::string, Rendering::Backend::Handle> iconosComponentes_;
     bool inicializado = false;
 };
 

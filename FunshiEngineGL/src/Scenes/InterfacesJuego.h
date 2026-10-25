@@ -25,6 +25,7 @@
 
 class GameObject;
 class InterfaceComponent;
+class UIComponent;
 
 // Recoleccion de las interfaces de juego (HUD) de una escena. Se extrae de
 // GameScene para poder probarla headless: es logica pura sobre la lista de
@@ -37,6 +38,10 @@ namespace InterfacesJuego {
 // despues de otra. Las interfaces sin referencia (nombre vacio) se omiten.
 std::vector<InterfaceComponent*> recolectarDeEscena(
     ListaDE<GameObject*>* objetos);
+
+// Devuelve las interfaces NATIVAS activas de la escena (las que dibuja el
+// motor, sin navegador web), ordenadas por z igual que las web.
+std::vector<UIComponent*> recolectarUINativas(ListaDE<GameObject*>* objetos);
 
 } // namespace InterfacesJuego
 

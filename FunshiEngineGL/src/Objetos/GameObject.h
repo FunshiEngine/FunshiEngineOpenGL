@@ -25,17 +25,13 @@
 
 #include "../Herramientas/TypeUtils.h"
 #include "../Objetos/Componentes/Transform.h"
-#include "../Objetos/Componentes/Color.h"
-#include "../GestorDeArchivos/Binario.h"
 #include "../Estructuras/Comparable.h"
-#include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
-#include "../Objetos/Componentes/Colliders/EsfereCollider.h"
-#include "../Objetos/Componentes/Colliders/CubeCollider.h"
-#include "../Objetos/Componentes/Colliders/MallaCollider.h"
-#include "../Objetos/Componentes/RigidBody/RigidBody.h"
-#include "../Objetos/Componentes/Script.h"
-#include "../Objetos/Componentes/Model.h"
 #include "../Entity/Entity.h"
+
+// El objeto del dominio no conoce los componentes concretos: solo los declara
+// para poder apuntarlos. Quien los usa incluye su propia cabecera (y el
+// CatalogoComponentes es quien los crea por nombre).
+class Color;
 
 class GameObject : public Comparable<GameObject>, public Entity {
 protected:
@@ -43,14 +39,7 @@ protected:
     int id = 0;
     int tam = 1;
     std::string tag_ = "Untagged";
-    // Buffer reutilizable para el global transform. NO puede ser un
-    // unique_ptr recreado por llamada: getGlobalTransform() devuelve puntero a
-    // este miembro y otros sistemas (gizmo, colliders, settings) lo guardan
-    // entre frames; si se reasignara, quedarian punteros a memoria liberada
-    // (heap-use-after-free). El valor se sobrescribe en cada llamada, pero la
-    // direccion es estable mientras el GameObject viva.
-    Transform globalTransformCache;
-
+    bool dirty_ = false;  // Para autosave de escena
 public:
     explicit GameObject(Entity* origin);
     GameObject();
@@ -59,13 +48,6 @@ public:
     char inputName[25] = "";
     color auxColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    void addComponent(Component* component) override;
-    void addComponent(std::unique_ptr<Component> component);
-    void deleteComponent(Component* component) override;
-    std::unique_ptr<Component> extractComponent(Component* component);
-    Component* getComponentByName(const std::string& typeName);
-    bool hasComponent(const std::string& typeName);
-    ListaDE<Component*>* getComponents() override;
     int compareTo(GameObject* other) override;
     float distanciaA(GameObject* other);
     void setId(int id);
@@ -85,24 +67,19 @@ public:
     // la entidad no necesita conocer la capa de Rendering.
     virtual void update(float deltaTime);
 
+    // Dirty tracking para autosave de escena
+    bool isDirty() const { return dirty_; }
+    void setDirty(bool value) { dirty_ = value; }
+
 protected:
-    void serializeGlobalAtributes() override;
+    // Atributos propios del objeto de juego (id, nombre, estado, tam y tag):
+    // los escribe el objeto porque su formato es parte del binario de escena.
     void serializeLocalAtributes() override;
-    void serializeExternalAtributes() override;
-    void serializeTransformOrigin() override;
-    void deserializeGlobalAtributes() override;
     void deserializeLocalAtributes() override;
-    void deserializeExternalAtributes() override;
-    void deserializeTransformOrigin() override;
-    void serializeEntityComponents() override;
-    void deserializeEntityComponents() override;
-    void serializeEntity() override;
-    void deserializeEntity() override;
 
 public:
     bool saveEntity(std::string filename) override;
     bool loadEntity(std::string filename) override;
-    Transform* getGlobalTransform() override;
 };
 
 #endif

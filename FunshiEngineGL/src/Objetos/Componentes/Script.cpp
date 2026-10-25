@@ -25,7 +25,9 @@
 #include "Configuracion/EditorConfig.h"
 #include "../Objetos/GameObject.h"
 #include "Diagnosticos/RegistroDiagnosticos.h"
+#include "Herramientas/LimitesSerializacion.h"
 
+#include <iostream>
 #include <utility>
 
 namespace {
@@ -90,23 +92,45 @@ void guardarMetadatos(std::ofstream& archivo,
 }
 
 std::vector<ReflejoScripts::DefCampo> cargarMetadatos(
-    std::ifstream& archivo) {
-    size_t cantidad = 0;
-    archivo.read(reinterpret_cast<char*>(&cantidad), sizeof(cantidad));
+    std::ifstream& archivo, unsigned profundidad = 0) {
     std::vector<ReflejoScripts::DefCampo> campos;
+    // Los metadatos se anidan recursivamente: sin tope de profundidad, un
+    // archivo corrupto con grupos anidados desborda la pila.
+    if (profundidad > LimitesSerializacion::kProfundidad) {
+        archivo.setstate(std::ios::failbit);
+        return campos;
+    }
+
+    size_t cantidad = 0;
+    if (!LimitesSerializacion::leerLongitud(archivo, cantidad,
+                                            LimitesSerializacion::kCantidad,
+                                            sizeof(size_t), 0)) {
+        archivo.setstate(std::ios::failbit);
+        return campos;
+    }
     campos.reserve(cantidad);
     for (size_t i = 0; i < cantidad; ++i) {
         ReflejoScripts::DefCampo campo;
         size_t largo = 0;
-        archivo.read(reinterpret_cast<char*>(&largo), sizeof(largo));
+        if (!LimitesSerializacion::leerLongitud(archivo, largo,
+                                                LimitesSerializacion::kNombre,
+                                                1)) {
+            archivo.setstate(std::ios::failbit);
+            return {};
+        }
         campo.nombre.resize(largo);
-        if (largo > 0)
-            archivo.read(&campo.nombre[0],
-                         static_cast<std::streamsize>(largo));
+        archivo.read(&campo.nombre[0], static_cast<std::streamsize>(largo));
         uint8_t tag = 0;
         archivo.read(reinterpret_cast<char*>(&tag), sizeof(tag));
+        if (!archivo || tag > static_cast<uint8_t>(ReflejoScripts::TagTipo::Componente)) {
+            // Etiqueta fuera de rango: el archivo esta corrupto y lo que
+            // sigue no se puede interpretar.
+            archivo.setstate(std::ios::failbit);
+            return {};
+        }
         campo.tag = static_cast<ReflejoScripts::TagTipo>(tag);
-        campo.subcampos = cargarMetadatos(archivo);
+        campo.subcampos = cargarMetadatos(archivo, profundidad + 1);
+        if (!archivo) return {};
         campos.push_back(std::move(campo));
     }
     return campos;
@@ -325,6 +349,7 @@ void Script::serializeComponent(std::ofstream* f) {
 }
 
 void Script::deserializeComponent(std::ifstream* f) {
+    if (!f || !f->is_open()) return;
     std::streampos inicio = f->tellg();
 
     uint32_t magic = 0;
@@ -335,23 +360,50 @@ void Script::deserializeComponent(std::ifstream* f) {
         f->read(reinterpret_cast<char*>(&version), sizeof(version));
 
         size_t pathLength = 0;
-        f->read(reinterpret_cast<char*>(&pathLength), sizeof(size_t));
+        if (!LimitesSerializacion::leerLongitud(*f, pathLength,
+                                                LimitesSerializacion::kRuta, 1,
+                                                0)) {
+            std::cerr << "Ruta de script invalida en el binario (len "
+                      << pathLength
+                      << "); se corta la lectura del componente\n";
+            f->setstate(std::ios::failbit);
+            return;
+        }
         dllPath.resize(pathLength);
-        f->read(&dllPath[0], pathLength);
+        if (pathLength > 0)
+            f->read(&dllPath[0], static_cast<std::streamsize>(pathLength));
         // Escena nueva: relativa a la raiz de assets; legacy: absoluta intacta.
         dllPath = EditorConfig::absolutizarRuta(dllPath);
 
         size_t nameLength = 0;
-        f->read(reinterpret_cast<char*>(&nameLength), sizeof(size_t));
+        if (!LimitesSerializacion::leerLongitud(*f, nameLength,
+                                                LimitesSerializacion::kNombre, 1,
+                                                0)) {
+            std::cerr << "Nombre de clase de script invalido en el binario "
+                         "(len "
+                      << nameLength
+                      << "); se corta la lectura del componente\n";
+            f->setstate(std::ios::failbit);
+            return;
+        }
         nameClass.resize(nameLength);
-        f->read(&nameClass[0], nameLength);
+        if (nameLength > 0)
+            f->read(&nameClass[0], static_cast<std::streamsize>(nameLength));
 
         if (version >= 1)
             valores_ = ReflejoScripts::cargarValoresCampos(*f);
         std::string nombreComponente;
         if (version >= 2) {
             size_t nombreLength = 0;
-            f->read(reinterpret_cast<char*>(&nombreLength), sizeof(size_t));
+            if (!LimitesSerializacion::leerLongitud(
+                    *f, nombreLength, LimitesSerializacion::kNombre, 1, 0)) {
+                std::cerr << "Nombre de componente de script invalido en el "
+                             "binario (len "
+                          << nombreLength
+                          << "); se corta la lectura del componente\n";
+                f->setstate(std::ios::failbit);
+                return;
+            }
             nombreComponente.resize(nombreLength);
             if (nombreLength > 0)
                 f->read(&nombreComponente[0],
@@ -375,15 +427,34 @@ void Script::deserializeComponent(std::ifstream* f) {
         f->seekg(inicio); // rebobinar para releer por el camino viejo
 
         size_t pathLength = 0;
-        f->read(reinterpret_cast<char*>(&pathLength), sizeof(size_t));
+        if (!LimitesSerializacion::leerLongitud(*f, pathLength,
+                                                LimitesSerializacion::kRuta, 1,
+                                                0)) {
+            std::cerr << "Ruta de script invalida en el binario (len "
+                      << pathLength
+                      << "); se corta la lectura del componente\n";
+            f->setstate(std::ios::failbit);
+            return;
+        }
         dllPath.resize(pathLength);
-        f->read(&dllPath[0], pathLength);
+        if (pathLength > 0)
+            f->read(&dllPath[0], static_cast<std::streamsize>(pathLength));
         dllPath = EditorConfig::absolutizarRuta(dllPath);
 
         size_t nameLength = 0;
-        f->read(reinterpret_cast<char*>(&nameLength), sizeof(size_t));
+        if (!LimitesSerializacion::leerLongitud(*f, nameLength,
+                                                LimitesSerializacion::kNombre, 1,
+                                                0)) {
+            std::cerr << "Nombre de clase de script invalido en el binario "
+                         "(len "
+                      << nameLength
+                      << "); se corta la lectura del componente\n";
+            f->setstate(std::ios::failbit);
+            return;
+        }
         nameClass.resize(nameLength);
-        f->read(&nameClass[0], nameLength);
+        if (nameLength > 0)
+            f->read(&nameClass[0], static_cast<std::streamsize>(nameLength));
         nombreComponente_.clear();
         setDllPath(dllPath);
         return; // setDllPath ya resetea cargado_ y comportamiento_
@@ -393,10 +464,3 @@ void Script::deserializeComponent(std::ifstream* f) {
     comportamiento_ = ComportamientoCargado{};
 }
 
-void Script::saveComponent(std::ofstream* fileNamePathContentObject) {
-    serializeComponent(fileNamePathContentObject);
-}
-
-void Script::loadComponent(std::ifstream* fileNamePathContentObject) {
-    deserializeComponent(fileNamePathContentObject);
-}

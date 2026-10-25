@@ -102,6 +102,8 @@ FunshiEngineGL/build-win/
 FunshiEngineGL_BACKUP/
 # Build dirs en la raiz del repo (build-release de desarrollo, build-java, etc.)
 /build-*/
+# Builds con la distribucion CEF
+FunshiEngineGL/build-cef/
 
 # Empaquetado Windows (montaje y setup generados por HacerInstalador.bat / CI)
 FunshiEngineGL/packaging/dist/
@@ -132,12 +134,14 @@ FunshiEngineGL/refactor_gui.py
 # necesita para retomar sin re-investigar, y que no es documentación del
 # proyecto. Contiene la memoria de contexto, el lote de correcciones, las
 # auditorías y los informes de depuración. Su estructura y las reglas de uso
-# están en la sección "Memoria de trabajo" de AGENTS.md; lo que se vuelva
-# regla estable del proyecto se promueve a los .md versionados (README.md,
-# MANUAL_DE_USO.md, PROJECT_STRUCTURE.md, DocuTecnicoBugs.md) en el commit
-# que lo justifica.
+# están en Skills/Arquitectura/Arquitectura.md; lo que se vuelva regla estable
+# del proyecto se promueve a los .md versionados (README.md,
+# doc/MANUAL_DE_USO.md, doc/PROJECT_STRUCTURE.md, doc/DocuTecnicoBugs.md) en el
+# commit que lo justifica.
 .agentes/pendiente-revision/
 .agentes/
+# Memoria de trabajo del agente kilo (planes locales)
+.kilo/
 
 
 # Local ImGui configuration
@@ -147,3 +151,8 @@ imgui.ini
 FunshiEngineGL/ImGuizmo/example/
 FunshiEngineGL/ImGuizmo/vcpkg-example/
 .aider*
+
+# Archivos locales de trabajo (no versionados): configuración de plugins,
+# tests, documentos y otros archivos independientes al código del repositorio
+# que sirven para trabajar con este proyecto.
+.local/

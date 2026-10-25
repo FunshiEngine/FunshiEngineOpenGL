@@ -31,8 +31,8 @@
 #include "../Iluminacion/LightSystem.h"
 #include "../Objetos/Componentes/Script.h"
 #include "../Objetos/Componentes/Transform.h"
+#include "../Objetos/Componentes/EmisorParticulas.h"
 #include "../Objetos/Componentes/Grid.h"
-#include "../Objetos/Modelos3D.h"
 #include "../Objetos/SimpleObject.h"
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../Objetos/Componentes/Colliders/Collider.h"
@@ -47,18 +47,23 @@
 #include "../Assets/StbImageLoader.h"
 #include "../Assets/TextureManager.h"
 #include "../Rendering/Backend/IRenderBackend.h"
+#include "../Rendering/Preview/PreviewMaterial.h"
 #include "../Rendering/RenderTarget.h"
 #include "../Rendering/SceneRenderer.h"
+#include "../Rendering/Shaders/GestorShaders.h"
 #include "../Rendering/GuiaEje.h"
 #include "../Objetos/Prefab.h"
 #include "../Objetos/PrefabLibrary.h"
 #include "../Audio/AudioEngine.h"
 #include "../Audio/MiniAudioBackend.h"
 #include "../Objetos/Componentes/AudioSource.h"
+#include "../Objetos/Componentes/Musica.h"
 #include "../Objetos/Componentes/InterfaceComponent.h"
+#include "../Objetos/Componentes/UIComponent.h"
 #include "../Configuracion/EditorConfig.h"
 #include "GizmoController.h"
 #include "InterfacesJuego.h"
+#include "../Rendering/UIRenderer.h"
 #include "../WebUI/WebUIRuntime.h"
 #include <cmath>
 #include <imgui.h>
@@ -75,15 +80,20 @@
 static constexpr float kOverlayProgresoMin = 0.7f;
 static constexpr float kOverlayResultadoSeg = 2.2f;
 
-GameScene::GameScene(GUIManager* manager)
+GameScene::GameScene(GUIManager* manager, Rendering::Backend::IRenderBackend& backend)
     : managerGUI(manager),
+      backend_(backend),
       sceneRegistry(std::make_unique<SceneRegistry>()),
       phisics(std::make_unique<PhysicsEngine>()),
       assetManager(
           std::make_unique<AssetManager>(std::make_unique<AssimpMeshLoader>())),
-      sceneRenderer(std::make_unique<SceneRenderer>()),
+      // El gestor de shaders es el dueno de los programas: el renderer de la
+      // escena y los demas renderers le piden el programa por nombre.
+      gestorShaders(std::make_unique<Rendering::GestorShaders>(backend)),
+      sceneRenderer(std::make_unique<SceneRenderer>(backend)),
       textureManager(std::make_unique<TextureManager>(
           std::make_unique<StbImageLoader>())),
+      resolvedorMateriales_(std::make_unique<ResolvedorMateriales>()),
       editorController(
           std::make_unique<EditorController>(sceneRegistry.get(), phisics.get(),
                                               &events, assetManager.get())),
@@ -127,12 +137,33 @@ GameScene::GameScene(GUIManager* manager)
     // El renderer resuelve la textura de cada Material con el cache de imagenes
     // de la escena (un solo decode por archivo, imagen compartida).
     sceneRenderer->setTextureManager(textureManager.get());
+    // El resolvedor decide que material se dibuja en cada region de la malla
+    // (materiales por parte) y cual es el material unico del objeto.
+    sceneRenderer->setResolvedorMateriales(resolvedorMateriales_.get());
+    // Los renderers piden los programas al gestor de shaders.
+    sceneRenderer->setGestorShaders(gestorShaders.get());
+    // Vista previa de material: la esfera de muestra que pinta el panel del
+    // material. Usa el cache de imagenes de la escena (las texturas del
+    // material salen de ahi) y su propio renderer, con luces fijas: asi la
+    // vista previa no depende de las luces de la escena.
+    previewMaterial_ = std::make_unique<PreviewMaterial>(
+        backend_, gestorShaders.get(), textureManager.get());
+    if (managerGUI) managerGUI->setPreviewMaterial(previewMaterial_.get());
+    // Renderer del HUD nativo: usa el backend de la escena para subir a GPU las
+    // texturas de los widgets de imagen y el cache de imagenes de la escena
+    // para decodificarlas (un solo decode por archivo).
+    uiRenderer_ = std::make_unique<UIRenderer>(backend_);
+    uiRenderer_->setTextureManager(textureManager.get());
 }
 
 GameScene::~GameScene() {
     ReflejoScripts::fijarResolverObjetos(nullptr);
     ReflejoScripts::fijarResolverComponentes({});
     eliminarSnapshotSimulacion();
+    // Los renderers sueltan el gestor de shaders antes de que este muera: el
+    // renderer de lineas es un unico global y si guardara el puntero, al
+    // final del programa usaria un gestor ya destruido.
+    if (sceneRenderer) sceneRenderer->setGestorShaders(nullptr);
     // Descarga las vistas web vivas antes de que muera la escena (con un backend
     // real libera sus recursos; con el nulo es no-op).
     vistasWebUI_.vaciar();
@@ -147,36 +178,43 @@ GameScene::~GameScene() {
 
 void GameScene::configurarProyecto(const std::string& nombreProyecto) {
     EditorConfig::asegurarEstructuraProyecto(nombreProyecto);
-    // Re-escanea Sonidos/ del proyecto: limpia el registro y lo repuebla por
-    // nombre (los widgets de AudioSource hablan por nombre, no ruta).
-    clipsAudio.configurarCarpeta(EditorConfig::directorioSonidos(nombreProyecto),
-                                 audioEngine.get());
+    // No hay catalogo de audio: cada componente guarda la ruta del archivo que
+    // el usuario le asigno, y el motor reproduce esa ruta.
 }
 
 AudioEngine* GameScene::getAudioEngine() const noexcept {
     return audioEngine.get();
 }
 
-// Reproduce o detiene los AudioSource de la escena segun la transicion de
-// modo play. Al ENTRAR en play: inyecta el motor y dispara los de reproduccion
-// automatica. Al SALIR de play: detiene todo (evita colas de audio en el
-// editor). El motor se inyecta siempre, para que el inspector pueda probar.
+// Reproduce o detiene los AudioSource y los Musica de la escena segun la
+// transicion de modo play. Al ENTRAR en play: inyecta el motor y dispara los
+// de reproduccion automatica. Al SALIR de play: detiene todo (evita colas de
+// audio en el editor). El motor se inyecta siempre, para que el inspector
+// pueda probar.
 void GameScene::sincronizarAudioPlay(bool entrarEnPlay) {
     auto* gameObjects = getGameObjectsScene();
     if (!gameObjects || gameObjects->isEmpty()) return;
     Position<GameObject*>* pos = gameObjects->first();
     while (pos && pos->getElement()) {
-        AudioSource* source = pos->getElement()->getComponent<AudioSource>();
-        if (!source) {
-            pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
-            continue;
+        GameObject* objeto = pos->getElement();
+        if (AudioSource* source = objeto->getComponent<AudioSource>()) {
+            source->setMotor(audioEngine.get());
+            if (entrarEnPlay) {
+                if (source->isReproduccionAutomatica() && !source->isReproduciendo())
+                    source->reproducir();
+            } else {
+                source->detener();
+            }
         }
-        source->setMotor(audioEngine.get());
-        if (entrarEnPlay) {
-            if (source->isReproduccionAutomatica() && !source->isReproduciendo())
-                source->reproducir();
-        } else {
-            source->detener();
+        // La musica lleva su propia lista de pistas: al entrar en play suena
+        // la primera y el motor va pasando a las siguientes.
+        if (Musica* musica = objeto->getComponent<Musica>()) {
+            musica->setMotor(audioEngine.get());
+            if (entrarEnPlay) {
+                if (musica->isReproduccionAutomatica()) musica->reproducir();
+            } else {
+                musica->detener();
+            }
         }
         pos = (pos != gameObjects->last()) ? gameObjects->next(pos) : nullptr;
     }
@@ -202,29 +240,38 @@ void GameScene::configurarResolverObjetosScripts() {
     ReflejoScripts::fijarResolverObjetos(buscarObjeto);
 
     // Referencias a componentes (TagTipo::Componente): un campo reflejado puede
-    // apuntar al InterfaceComponent de otro objeto. El tipo se especifica por
-    // nombre; hoy solo "InterfaceComponent".
+    // apuntar al InterfaceComponent (interfaz web) o al UIComponent (interfaz
+    // nativa) de otro objeto. El tipo se especifica por nombre.
     ReflejoScripts::fijarResolverComponentes(ReflejoScripts::ResolverComponentes{
         [buscarObjeto](const std::string& nombre,
                        const std::string& tipo) -> void* {
-            if (tipo != "InterfaceComponent") return nullptr;
             GameObject* objeto = buscarObjeto(nombre);
-            return objeto
-                       ? static_cast<void*>(
-                             objeto->getComponent<InterfaceComponent>())
-                       : nullptr;
+            if (!objeto) return nullptr;
+            if (tipo == "InterfaceComponent") {
+                return static_cast<void*>(
+                    objeto->getComponent<InterfaceComponent>());
+            }
+            if (tipo == "UIComponent") {
+                return static_cast<void*>(objeto->getComponent<UIComponent>());
+            }
+            return nullptr;
         },
         [this](const void* componente, const std::string& tipo) -> std::string {
-            if (tipo != "InterfaceComponent" || !componente) return std::string();
-            const auto* objetivo =
-                static_cast<const InterfaceComponent*>(componente);
+            if (!componente) return std::string();
+            if (tipo != "InterfaceComponent" && tipo != "UIComponent")
+                return std::string();
             auto* objetos = getGameObjectsScene();
             if (!objetos || objetos->isEmpty()) return std::string();
             Position<GameObject*>* pos = objetos->first();
             while (pos && pos->getElement()) {
                 GameObject* o = pos->getElement();
-                if (o && o->getComponent<InterfaceComponent>() == objetivo)
-                    return o->inputName;
+                const bool coincide =
+                    (tipo == "InterfaceComponent")
+                        ? (o->getComponent<InterfaceComponent>() ==
+                           static_cast<const InterfaceComponent*>(componente))
+                        : (o->getComponent<UIComponent>() ==
+                           static_cast<const UIComponent*>(componente));
+                if (coincide) return o->inputName;
                 pos = (pos != objetos->last()) ? objetos->next(pos) : nullptr;
             }
             return std::string();
@@ -747,6 +794,11 @@ void GameScene::GUI() {
     menuBarGUI->printGUI();
     if (TerminalInterface* terminal = managerGUI->getTerminalGUI())
         terminal->printGUI();
+    // Taller de efectos (animaciones y particulas): como el terminal, queda
+    // disponible mientras la GUI del editor este activa.
+    if (AnimacionesParticulasInterface* tallerEfectos =
+            managerGUI->getAnimacionesParticulasGUI())
+        tallerEfectos->printGUI();
     // El overlay de las interfaces de juego (HUD) se dibuja aparte en
     // pintarInterfacesJuego(), porque tambien corre en el juego exportado,
     // donde no existe la GUI del editor.
@@ -791,6 +843,66 @@ void GameScene::pintarInterfacesJuego() {
         dibujo->AddImage(vista->handleImGui, ImVec2(x, y),
                          ImVec2(x + vista->ancho, y + vista->alto));
     }
+}
+
+bool GameScene::interfazNativaHabilitada() const noexcept {
+    // En el juego exportado (sin GUI del editor) la interfaz nativa se dibuja
+    // siempre; en el editor, solo en modo juego, para no tapar los paneles
+    // mientras se edita la escena.
+    return managerGUI == nullptr || modoJuego;
+}
+
+void GameScene::actualizarInterfazNativa() {
+    interfacesNativas_.clear();
+    if (!interfazNativaHabilitada()) return;
+
+    interfacesNativas_ =
+        InterfacesJuego::recolectarUINativas(getGameObjectsScene());
+    if (interfacesNativas_.empty()) return;
+
+    // El raton llega por el mismo canal que el resto de la GUI (el ImGuiIO).
+    // Sin contexto de ImGui no hay puntero que mirar.
+    if (ImGui::GetCurrentContext() == nullptr) return;
+
+    const ImGuiIO& io = ImGui::GetIO();
+    EntradaUI entrada;
+    entrada.posicion.x = io.MousePos.x;
+    entrada.posicion.y = io.MousePos.y;
+    entrada.botonIzquierdo = io.MouseDown[0];
+    entrada.clicIzquierdo = io.MouseClicked[0];
+
+    const float ancho = io.DisplaySize.x;
+    const float alto = io.DisplaySize.y;
+    for (UIComponent* interfaz : interfacesNativas_) {
+        interfaz->actualizarInteraccion(entrada, ancho, alto);
+    }
+}
+
+void GameScene::pintarInterfazNativa() {
+    if (!interfazNativaHabilitada()) return;
+    if (!uiRenderer_) return;
+
+    if (interfacesNativas_.empty()) {
+        interfacesNativas_ =
+            InterfacesJuego::recolectarUINativas(getGameObjectsScene());
+    }
+    if (interfacesNativas_.empty()) return;
+
+    const ImGuiIO& io = ImGui::GetIO();
+    ImDrawList* dibujo = ImGui::GetForegroundDrawList();
+    for (UIComponent* interfaz : interfacesNativas_) {
+        // El layout se (re)calcula aqui por si el frame de entrada no corrio
+        // (por ejemplo, con la simulacion en pausa).
+        interfaz->lienzo().layout(io.DisplaySize.x, io.DisplaySize.y);
+        uiRenderer_->dibujar(interfaz->lienzo(), interfaz->sistema(), dibujo);
+    }
+}
+
+bool GameScene::ratonSobreInterfazNativa() const noexcept {
+    for (const UIComponent* interfaz : interfacesNativas_) {
+        if (interfaz && interfaz->sistema().hayInteractivoSobre()) return true;
+    }
+    return false;
 }
 
 void GameScene::pintarVistaInterfaz() {
@@ -914,8 +1026,8 @@ void GameScene::pintarViewportsGUI() {
         // vertical ("v" invertida) para que la vista previa no quede dada
         // vuelta. La GUI no ve handles concretos: pide al backend el descriptor
         // opaco (en GL el GLuint viaja como puntero = ImTextureID).
-        const void* imguiTex = Rendering::Backend::activeBackend()
-                                   .imguiTextureId(target->getColorTexture());
+        const void* imguiTex =
+            backend_.imguiTextureId(target->getColorTexture());
         ImGui::Image(
             static_cast<ImTextureID>(reinterpret_cast<std::intptr_t>(imguiTex)),
             ImVec2(static_cast<float>(target->getWidth()),
@@ -950,6 +1062,7 @@ void GameScene::pintarViewportsGUI() {
                         GameObject* creado = editorController->createGameObject(std::move(obj), nullptr);
                         if (creado) {
                             auto* model = new Model();
+                            model->setAssetManager(editorController->getAssetManager());
                             model->setPath(pathStr);
                             creado->addComponent(std::unique_ptr<Component>(model));
                             editorController->selectObject(creado);
@@ -1037,8 +1150,41 @@ void GameScene::pintarVentanaCamaras() {
     ImGui::End();
 }
 
+void GameScene::emitirParticulas(float deltaTime) {
+    if (deltaTime <= 0.0f) return;
+    auto* objetos = getGameObjectsScene();
+    if (!objetos || objetos->isEmpty()) return;
+    Position<GameObject*>* posicion = objetos->first();
+    while (posicion && posicion->getElement()) {
+        GameObject* objeto = posicion->getElement();
+        posicion = (posicion != objetos->last()) ? objetos->next(posicion)
+                                                  : nullptr;
+        if (!objeto) continue;
+        EmisorParticulas* emisor = objeto->getComponent<EmisorParticulas>();
+        if (!emisor) continue;
+        // La transformacion global se calcula en un buffer del objeto: la
+        // posicion se copia de inmediato (el emisor la usa ya).
+        Transform* global = objeto->getGlobalTransform();
+        if (!global) continue;
+        emisor->emitir(sistemaParticulas, global->getTranslatef(), deltaTime);
+    }
+}
+
 void GameScene::update(float value) {
     deltaTime = value;
+
+    // HUD nativo: se recoge el raton y se actualiza el estado de los widgets
+    // antes de que corran los scripts, para que un script vea el clic en el
+    // mismo frame en que ocurre. Fuera del modo juego no hay nada que
+    // recoger (la funcion vacia la lista y sale).
+    actualizarInterfazNativa();
+
+    // Particulas: primero se mueven las que viven y despues los emisores
+    // sueltan las nuevas. Corre en el editor y en juego (a diferencia de los
+    // componentes, que solo avanzan en play), asi que un efecto se ve mientras
+    // se edita.
+    sistemaParticulas.actualizar(value);
+    emitirParticulas(value);
     if (resetSimulacionPendiente && start) {
         resetSimulacionPendiente = false;
         if (!snapshotSimulacionDisponible()) {
@@ -1397,8 +1543,12 @@ void GameScene::gameScene() {
     // Luces CPU de la pasada (misma semantica que GL_LIGHT0..7): la escena
     // recoge y el SceneRenderer las aplica al backend y a los uniforms.
     LightData luces[LightSystem::kMaxLights];
+    // Dueno de cada luz, en el mismo orden que las luces: lo necesita el pase
+    // de sombras para leer los ajustes que tiene adjuntos la luz.
+    GameObject* duenosLuces[LightSystem::kMaxLights] = {};
     int numLuces = 0;
-    lightSystem.collectLights(getGameObjectsScene(), luces, numLuces);
+    lightSystem.collectLights(getGameObjectsScene(), luces, numLuces,
+                              duenosLuces);
 
     SceneRenderer::FrameContext ctx;
     ctx.gameObjects = getGameObjectsScene();
@@ -1409,6 +1559,7 @@ void GameScene::gameScene() {
         editorController ? editorController->getSelectedObject() : nullptr;
     ctx.lights = luces;
     ctx.lightCount = numLuces;
+    ctx.lightOwners = duenosLuces;
     ctx.globalAmbient = lightSystem.getGlobalAmbient();
     ctx.framebufferWidth = fbW;
     ctx.framebufferHeight = fbH;
@@ -1421,6 +1572,16 @@ void GameScene::gameScene() {
     ctx.assetManager = assetManager.get();
     // Proyecto 2D: la pasada omite el cielo y el difuminado por distancia.
     ctx.modo2D = dimensionProyecto == DimensionProyecto::DosD;
+    ctx.sistemaParticulas = &sistemaParticulas;
+
+    // Audio 3D: el listener vive en la camara activa, así su posición se
+    // refresca cada frame (tanto en el editor como en el juego).
+    if (audioEngine && activeCameraObject) {
+        if (Transform* t = activeCameraObject->getGlobalTransform()) {
+            const float* p = t->getTranslatef();
+            audioEngine->setListenerPosition(p[0], p[1], p[2]);
+        }
+    }
 
     // Pasada de la escena (vistas previas + pasada principal + diag) en la
     // capa de Rendering.
@@ -1447,6 +1608,9 @@ void GameScene::gameScene() {
     if (!managerGUI) {
         pintarInterfacesJuego();
     }
+    // El HUD nativo (widgets del motor) se dibuja encima de todo: es la
+    // interfaz del juego y no depende de la GUI del editor.
+    pintarInterfazNativa();
 
     if (!CameraFrameSafety::validarCamara(sceneRegistry.get(),
                                           activeCameraObject, camara)) {
@@ -1470,12 +1634,13 @@ void GameScene::mostrarMensaje(const std::string& mensaje) {
         barra->mostrarMensaje(mensaje);
 }
 
-void GameScene::setGizmoOperation(int operation) {
+void GameScene::setGizmoOperation(OperacionGizmo operation) {
     if (gizmoController_) gizmoController_->setGizmoOperation(operation);
 }
 
-int GameScene::getGizmoOperation() const {
-    return gizmoController_ ? gizmoController_->getGizmoOperation() : 7;
+OperacionGizmo GameScene::getGizmoOperation() const {
+    if (!gizmoController_) return OperacionGizmo::Trasladar;
+    return gizmoController_->getGizmoOperation();
 }
 
 bool GameScene::isGizmoGlobal() const noexcept {

@@ -19,8 +19,8 @@
 // Pruebas headless del sistema undo/redo basado en el patron Command.
 // Cubren: CrearObjetoComando, BorrarObjetoComando, ReparentarComando,
 // TransformComando, AgregarComponenteComando, QuitarComponenteComando,
-// LimpiarEscenaComando, DuplicarObjetoComando y la cadena de redo multiple
-// del GestorComandos.
+// LimpiarEscenaComando, DuplicarObjetoComando, AjustarVariableComando,
+// EstablecerTagComando y la cadena de redo multiple del GestorComandos.
 //
 // Cada test crea una SceneRegistry + EditorController frescos, ejecuta un
 // comando via GestorComandos, verifica el estado, deshace y verifica, luego
@@ -48,10 +48,12 @@
 #include "Comandos/QuitarComponenteComando.h"
 #include "Comandos/LimpiarEscenaComando.h"
 #include "Comandos/DuplicarObjetoComando.h"
+#include "Comandos/AjustarVariableComando.h"
+#include "Comandos/EstablecerTagComando.h"
 #include "Comandos/GestorComandos.h"
 #include "Fisicas/PhysicsEngine.h"
 
-#include "Objetos/Modelos3D.h"
+#include "Objetos/Componentes/Model.h"
 #include "Objetos/SimpleObject.h"
 #include "Objetos/GameObject.h"
 #include "Objetos/Componentes/Transform.h"
@@ -101,9 +103,12 @@ void probarCrearObjeto() {
     EditorController editor(&scene);
     GestorComandos* cmds = editor.getGestorComandos();
 
-    auto modelo = std::make_unique<Modelos3D>();
-    cmds->ejecutar(std::make_unique<CrearObjetoComando>(
-        &editor, &scene, std::move(modelo)));
+    auto modelo = std::make_unique<GameObject>();
+    auto comando = std::make_unique<CrearObjetoComando>(
+        &editor, &scene, std::move(modelo));
+    CrearObjetoComando* creado = comando.get();
+    cmds->ejecutar(std::move(comando));
+    CHECK(creado->idCreado() == 1, "Crear: el comando informa del id creado");
 
     GameObject* obj = scene.getObjectByID(1);
     CHECK(obj != nullptr, "Crear: objeto creado existe (id=1)");
@@ -351,7 +356,7 @@ void probarRedoCadena() {
 
     // Ejecutar 3 comandos de crear objeto
     for (int i = 0; i < 3; ++i) {
-        auto modelo = std::make_unique<Modelos3D>();
+        auto modelo = std::make_unique<GameObject>();
         cmds->ejecutar(std::make_unique<CrearObjetoComando>(
             &editor, &scene, std::move(modelo)));
     }
@@ -523,6 +528,95 @@ void probarComponentesConFisica() {
     (void)id;
 }
 
+// --- Caso 11: AjustarVariableComando ---
+// Ajusta una variable de un componente y la restituye al deshacer. El
+// comando no conoce el catalogo de propiedades: los accesores se inyectan.
+void probarAjustarVariable() {
+    SceneRegistry scene;
+    EditorController editor(&scene);
+    GestorComandos* cmds = editor.getGestorComandos();
+
+    auto objeto = std::make_unique<SimpleObject>();
+    std::snprintf(objeto->inputName, sizeof(objeto->inputName), "%s", "Caja");
+    cmds->ejecutar(std::make_unique<CrearObjetoComando>(
+        &editor, &scene, std::move(objeto)));
+
+    GameObject* obj = scene.getObjectByID(1);
+    CHECK(obj != nullptr, "AjustarVariable: el objeto existe");
+    if (!obj) return;
+
+    Transform* transform = obj->getComponent<Transform>();
+    CHECK(transform != nullptr, "AjustarVariable: el objeto tiene transform");
+    if (!transform) return;
+
+    // Lector y escritor: el mismo contrato que usa el catalogo de
+    // propiedades de la API de inspeccion.
+    auto lector = [](void* componente) -> std::string {
+        Transform* t = static_cast<Transform*>(componente);
+        return std::to_string(t->getTranslatef()[0]);
+    };
+    auto escritor = [](void* componente, const std::string& valor,
+                       std::string& error) -> bool {
+        Transform* t = static_cast<Transform*>(componente);
+        float x = 0.0f, y = 0.0f, z = 0.0f;
+        char* fin = nullptr;
+        x = std::strtof(valor.c_str(), &fin);
+        if (fin == valor.c_str() || *fin != '\0') {
+            error = "valor invalido";
+            return false;
+        }
+        y = x;
+        z = x;
+        t->setTranslatef(x, y, z);
+        return true;
+    };
+
+    auto comando = std::make_unique<AjustarVariableComando>(
+        &editor, &scene, obj->getId(), "Transform", "position", lector,
+        escritor, "5");
+    AjustarVariableComando* ajuste = comando.get();
+    cmds->ejecutar(std::move(comando));
+    CHECK(ajuste->valorAnterior().find("0") != std::string::npos,
+          "AjustarVariable: el valor anterior se captura al construir");
+    CHECK(transform->getTranslatef()[0] == 5.0f,
+          "AjustarVariable: el valor nuevo se escribe");
+    CHECK(ajuste->ultimoError().empty(),
+          "AjustarVariable: la escritura no dio error");
+
+    editor.deshacer();
+    CHECK(transform->getTranslatef()[0] == 0.0f,
+          "AjustarVariable: el deshacer restituye el valor anterior");
+
+    editor.rehacer();
+    CHECK(transform->getTranslatef()[0] == 5.0f,
+          "AjustarVariable: el rehacer vuelve a escribir el valor nuevo");
+}
+
+// --- Caso 12: EstablecerTagComando ---
+void probarEstablecerTag() {
+    SceneRegistry scene;
+    EditorController editor(&scene);
+    GestorComandos* cmds = editor.getGestorComandos();
+
+    auto objeto = std::make_unique<SimpleObject>();
+    std::snprintf(objeto->inputName, sizeof(objeto->inputName), "%s", "Enemigo");
+    cmds->ejecutar(std::make_unique<CrearObjetoComando>(
+        &editor, &scene, std::move(objeto)));
+
+    GameObject* obj = scene.getObjectByID(1);
+    CHECK(obj != nullptr, "EstablecerTag: el objeto existe");
+    if (!obj) return;
+    CHECK(obj->getTag() == "Untagged", "EstablecerTag: la etiqueta inicial");
+
+    cmds->ejecutar(std::make_unique<EstablecerTagComando>(
+        &editor, &scene, obj, "enemigo"));
+    CHECK(obj->getTag() == "enemigo", "EstablecerTag: la etiqueta se fija");
+
+    editor.deshacer();
+    CHECK(obj->getTag() == "Untagged",
+          "EstablecerTag: el deshacer restituye la etiqueta anterior");
+}
+
 } // namespace
 
 int main() {
@@ -538,6 +632,8 @@ int main() {
     probarBorrarConFisica();
     probarDuplicar();
     probarComponentesConFisica();
+    probarAjustarVariable();
+    probarEstablecerTag();
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;
     if (fallos == 0) std::cout << "COMANDOS TESTS OK" << std::endl;
     return fallos == 0 ? 0 : 1;

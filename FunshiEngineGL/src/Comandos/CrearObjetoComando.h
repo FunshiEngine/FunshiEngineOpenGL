@@ -27,26 +27,38 @@
 class EditorController;
 class SceneRegistry;
 class GameObject;
-class Modelos3D;
 
+// Crea un objeto de cualquier tipo (un modelo, un objeto simple...) y lo
+// mete en la escena.
+//
+// El objeto llega ya construido: la fabrica que lo crea decide su tipo y su
+// nombre (ver GameObjectFactory). Todo se guarda por id (nunca por puntero):
+// el padre se resuelve por id en cada ejecucion, para que un padre borrado
+// entre medias no deje un puntero colgando.
 class CrearObjetoComando : public IComando {
 private:
     EditorController* editorController;
     SceneRegistry* sceneRegistry;
-    std::unique_ptr<Modelos3D> modelo;
+    std::unique_ptr<GameObject> objeto;
     std::vector<std::unique_ptr<GameObject>> guardados;
-    GameObject* parent;
+    int parentId = 0;
     int createdId = -1;
     std::string nombreObjeto;
 
+    GameObject* resolverPadre() const;
+
 public:
     CrearObjetoComando(EditorController* ec, SceneRegistry* sr,
-                       std::unique_ptr<Modelos3D> m, GameObject* p = nullptr);
+                       std::unique_ptr<GameObject> o, GameObject* p = nullptr);
     ~CrearObjetoComando() override = default;
 
     void ejecutar() override;
     void deshacer() override;
     std::string descripcion() const override;
+
+    // Id del objeto creado en la ultima ejecucion (-1 si todavia no se
+    // ejecuto). Permite al quien lo encola conocer el objeto resultante.
+    int idCreado() const noexcept { return createdId; }
 };
 
 #endif

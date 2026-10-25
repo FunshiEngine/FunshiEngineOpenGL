@@ -22,6 +22,7 @@
 #include <string>
 
 #include "../Configuracion/EditorConfig.h"
+#include "LayoutInterfazProyecto.h"
 
 struct ImGuiIO;
 class GameScene;
@@ -32,18 +33,19 @@ class MenuGUI;
 // nombre vigente, entrar a otro proyecto, guardar su estado (ventanas, gizmo,
 // camara) y su escena+config (Ctrl+S), renombrarlo/conmutar y eliminarlo desde
 // el menu, exportarlo y reescibir rutas de la escena al mover archivos en el
-// explorador. Tambien gestiona el imgui.ini del proyecto activo (layout de
-// docks): ImGui guarda el puntero que le damos y debe vivir toda la app, por
-// eso este gestor es un objeto de vida completa en main y el string del ini es
-// un miembro suyo.
+// explorador.
+//
+// El layout de la interfaz del proyecto (imgui.ini) no es parte de ese ciclo:
+// vive en LayoutInterfazProyecto, que decide que archivo usa ImGui y carga el
+// del entrante de forma diferida.
 //
 // Las dependencias se inyectan (mismo patron que GameScene: no se acopla el
 // flujo de proyectos a la escena/GUI por includes directos): EditorConfig
 // (persistencia y CRUD de proyectos), la escena, el orquestador de GUI y la
 // fachada del menu de inicio. El ImGuiIO se fija despues (ImGui::CreateContext
-// corre mas tarde en el arranque) y a partir de ahi el gestor administra el
-// imgui.ini. La decision de QUEDARSE del usuario (que proyecto selecciono,
-// confirmo renombrar, pidio eliminar) la lee el gestor de la fachada MenuGUI.
+// corre mas tarde en el arranque). La decision de QUEDARSE del usuario (que
+// proyecto selecciono, confirmo renombrar, pidio eliminar) la lee el gestor de
+// la fachada MenuGUI.
 class GestorDeProyectos {
 public:
     GestorDeProyectos(EditorConfig& config, GameScene* escena, GUIManager* gui,
@@ -57,11 +59,12 @@ public:
 
     // ImGuiIO se crea con ImGui::CreateContext() en el arranque de main, por eso
     // aqui es un setter y no va en el constructor. Antes de llamarla, las
-    // operaciones que tocan el ini simplemente no lo administran.
-    void fijarImguiIO(ImGuiIO* io) noexcept { io_ = io; }
+    // operaciones que tocan el layout simplemente no lo administran.
+    void fijarImguiIO(ImGuiIO* io) noexcept { layout_.fijarImguiIO(io); }
 
-    // Aplica al imgui.ini el proyecto que main resolvio al arrancar (o lo deja
-    // sin ini si no hay proyecto: primer arranque sin "Nuevo Proyecto" fantasma).
+    // Aplica al layout el proyecto que main resolvio al arrancar (o lo deja
+    // sin layout si no hay proyecto: primer arranque sin "Nuevo Proyecto"
+    // fantasma).
     void aplicarImguiIniDelProyectoActual();
 
     // Arranque con proyecto: asegura su estructura de carpetas y configura GUI y
@@ -98,17 +101,10 @@ private:
     GUIManager* gui_;
     MenuGUI* menu_;
     std::string proyectoActual_;
-    std::string ini_;  // ruta del imgui.ini vigente (puntero estable para ImGui).
-    ImGuiIO* io_;
+    // Layout de la interfaz del proyecto (imgui.ini): que archivo usa ImGui y
+    // cuando se carga el del entrante.
+    LayoutInterfazProyecto layout_;
 
-    // Carga diferida de imgui.ini: LoadIniSettingsFromDisk debe ejecutarse
-    // DESPUÉS de NewFrame() del frame SIGUIENTE al switch, para que g.Windows
-    // contenga las ventanas del NUEVO proyecto (con stateGUI restaurado).
-    // Si se llama en medio de entrar(), g.Windows tiene ventanas del proyecto VIEJO.
-    bool pendingIniLoad_ = false;
-    std::string pendingIniPath_;
-
-    void fijarImguiIni(const std::string& nombreProyecto);
     void guardarEstadoActivo();
     void entrar(const std::string& destino);
 public:

@@ -20,6 +20,7 @@
 #define GAME_OBJECT_FACTORY_H
 
 #include <memory>
+#include <string>
 
 class GameObject;
 
@@ -38,6 +39,11 @@ public:
     // `raiz` es el arbol contra el que se evitan repetir nombres; puede ser
     // nulo (el objeto nace con un nombre libre igual).
     static std::unique_ptr<GameObject> createSimpleObject(const GameObject* raiz = nullptr);
+    // Crea un objeto simple con el nombre pedido. Si ese nombre ya esta en
+    // uso en el arbol, se le anade un sufijo numerico ("Enemigo 2"), con el
+    // mismo criterio que el nombre por defecto.
+    static std::unique_ptr<GameObject> createSimpleObject(const GameObject* raiz,
+                                                          const std::string& nombre);
 };
 
 #endif

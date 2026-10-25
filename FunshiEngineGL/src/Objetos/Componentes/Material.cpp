@@ -135,10 +135,6 @@ void Material::deserializeComponent(std::ifstream* file) {
     }
 }
 
-void Material::saveComponent(std::ofstream* file) { serializeComponent(file); }
-
-void Material::loadComponent(std::ifstream* file) { deserializeComponent(file); }
-
 void Material::setAmbient(float r, float g, float b) {
     ambient[0] = r; ambient[1] = g; ambient[2] = b; ambient[3] = 1.f;
 }

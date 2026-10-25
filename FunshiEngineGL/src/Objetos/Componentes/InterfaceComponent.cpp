@@ -120,10 +120,3 @@ void InterfaceComponent::deserializeComponent(std::ifstream* file) {
     file->read(reinterpret_cast<char*>(&z), sizeof(float));
 }
 
-void InterfaceComponent::saveComponent(std::ofstream* file) {
-    serializeComponent(file);
-}
-
-void InterfaceComponent::loadComponent(std::ifstream* file) {
-    deserializeComponent(file);
-}

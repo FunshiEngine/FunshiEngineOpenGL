@@ -30,16 +30,23 @@ private:
 	bool terminalSelectScript = false;
 	char name[25] = "";
 protected:
+	// Hooks de serializacion: lo que el componente escribe y lo que lee. Son los
+	// unicos dos metodos que un componente implementa.
 	virtual void serializeComponent(std::ofstream* fileNamePathContentObject) = 0;
 
 	virtual void deserializeComponent(std::ifstream* fileNamePathContentObject) = 0;
 public:
-	bool settingsObjectComponent = false;
-	virtual ~Component() {} // Destructor virtual para hacer que la clase sea polim�rfica.
+	virtual ~Component() {} // Destructor virtual para hacer que la clase sea polimórfica.
 
-	virtual void saveComponent(std::ofstream* fileNamePathContentObject) = 0;
+	// Entrada que usa el motor: reenvian a los hooks y no se reimplementan, de
+	// modo que la serializacion de un componente vive en un solo sitio.
+	void saveComponent(std::ofstream* fileNamePathContentObject) {
+		serializeComponent(fileNamePathContentObject);
+	}
 
-	virtual void loadComponent(std::ifstream* fileNamePathContentObject) = 0;
+	void loadComponent(std::ifstream* fileNamePathContentObject) {
+		deserializeComponent(fileNamePathContentObject);
+	}
 
 	// Hook polimorfico de post-carga: se invoca desde deserializeEntityComponents
 	// justo despues de loadComponent() y antes de entregar el componente al

@@ -48,4 +48,12 @@ public:
                            infoLog, "ShaderLinkException") {}
 };
 
+// Error al resolver un #include del fuente GLSL: el fragmento no existe, el
+// include es ciclico o se supera el tope de anidamiento.
+class ShaderIncludeException : public RuntimeException {
+public:
+    explicit ShaderIncludeException(const std::string& mensaje)
+        : RuntimeException(mensaje, "ShaderIncludeException") {}
+};
+
 #endif

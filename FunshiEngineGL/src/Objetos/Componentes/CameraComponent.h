@@ -77,9 +77,6 @@ public:
 
     void setUp(GameObject* objeto) { owner = objeto; }
 
-    void saveComponent(std::ofstream* file) override;
-    void loadComponent(std::ifstream* file) override;
-
     // Post-carga: vincula el dueno y deriva el estado de la vista local desde
     // su Transform global. Reemplaza el despacho por nombre de tipo que hacia
     // deserializeEntityComponents ("CameraComponent"/"Camera").

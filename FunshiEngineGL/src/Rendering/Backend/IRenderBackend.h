@@ -68,6 +68,13 @@ enum class DepthFunc { Less, LessEqual };
 constexpr DepthFunc kDepthFuncLess = DepthFunc::Less;
 constexpr DepthFunc kDepthFuncLessEqual = DepthFunc::LessEqual;
 
+// Modo de mezcla del lote. "Alfa" es la mezcla normal (el resultado se funde
+// con lo que hay debajo); "aditivo" suma el color (fuego, chispas, humo
+// caliente). El modo se elige por el consumidor del batch, no por el backend.
+enum class BlendMode { Alpha, Additive };
+constexpr BlendMode kBlendModeAlpha = BlendMode::Alpha;
+constexpr BlendMode kBlendModeAdditive = BlendMode::Additive;
+
 // Contrato de backend grafico. Los recursos se crean/destruyen por handle y
 // las operaciones de dibujado son el pipeline moderno completo: no queda
 // superficie fixed-function (ni glBegin/glEnd, ni stack de matrices, ni
@@ -85,7 +92,12 @@ public:
     // --- Malla GPU (VAO/VBO/EBO o su analogo nativo) -------------------------
     virtual Handle createMesh(const MeshData& data) = 0;
     virtual void destroyMesh(Handle mesh) = 0;
-    virtual void drawMesh(Handle mesh, unsigned int indexCount) = 0;
+    // Dibuja un rango de la malla: firstIndex es el indice del primer elemento
+    // del EBO y indexCount cuantos dibuja. Con firstIndex = 0 y el total de
+    // indices, es la malla entera; con un rango, es una region (una sub-malla
+    // con material propio).
+    virtual void drawMesh(Handle mesh, unsigned int firstIndex,
+                           unsigned int indexCount) = 0;
 
     // --- Batch de lineas (VAO/VBO de la geometria expandida por LineBuilder) --
     // Los vertices vienen en el layout de LineBuilder (12 floats: inicio, fin,
@@ -99,6 +111,19 @@ public:
     virtual void updateLineBatch(Handle batch, const float* vertices,
                                  std::size_t vertexCount) = 0;
     virtual void drawLineBatch(Handle batch, unsigned int vertexCount) = 0;
+
+    // --- Batch de particulas (VAO/VBO de la geometria expandida por
+    // ParticulasBuilder) ---------------------------------------------------
+    // Los vertices vienen en el layout de ParticulasBuilder (9 floats:
+    // posicion, uv y rgba) y se dibujan como triangulos con glDrawArrays (cada
+    // particula es un quad de dos triangulos). Es el mismo patron que el batch
+    // de lineas: un unico VBO interleaved que se vuelve a subir cada frame.
+    virtual Handle createParticulasBatch(const float* vertices,
+                                          std::size_t vertexCount) = 0;
+    virtual void destroyParticulasBatch(Handle batch) = 0;
+    virtual void updateParticulasBatch(Handle batch, const float* vertices,
+                                      std::size_t vertexCount) = 0;
+    virtual void drawParticulasBatch(Handle batch, unsigned int vertexCount) = 0;
 
     // --- Textura 2D ----------------------------------------------------------
     virtual Handle createTexture2D(const Image2D& image) = 0;
@@ -150,6 +175,30 @@ public:
     virtual void bindDefaultFramebuffer() = 0;
     // Handle de la textura de color del target (para mostrarla como ImTextureID).
     virtual Handle renderTargetColorTexture(Handle target) const = 0;
+
+    // --- Objetivo de profundidad (mapa de sombras) ---------------------------
+    // FBO con una textura de profundidad y sin color: el pase de sombras
+    // dibuja en el la profundidad de la escena y el shader de mallas la
+    // consulta con comparacion (sampler2DShadow, que es lo que permite el
+    // filtrado por hardware).
+    virtual Handle createDepthTarget(int size) = 0;
+    // Como createDepthTarget pero para un cubemap de 6 caras (luz puntual):
+    // crea un FBO por cara y una textura de profundidad de cubemap. Las caras
+    // van en orden +X, -X, +Y, -Y, +Z, -Z.
+    virtual Handle createDepthTargetCubo(int size) = 0;
+    // Liga el FBO del cubemap y configura el attachment de profundidad para
+    // la cara indicada (0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z) antes de dibujar
+    // la geometria vista desde esa cara. La textura de cubemap ya se conoce
+    // por el FBO.
+    virtual void bindDepthTargetCuboFace(Handle fbo, int cara) = 0;
+    virtual void destroyDepthTarget(Handle target) = 0;
+    // Liga el target como framebuffer de destino y ajusta el viewport a su
+    // lado (el mapa de sombras es cuadrado).
+    virtual void bindDepthTarget(Handle target) = 0;
+    // Handle de la textura de profundidad del target: la que consulta el
+    // shader de mallas.
+    virtual Handle depthTargetTexture(Handle target) const = 0;
+
     // Handle como descriptor opaco para la GUI (ImGui::Image): en GL vuelve el
     // GLuint como puntero. La GUI nunca ve el valor concreto, solo lo reenvia
     // como ImTextureID.
@@ -175,6 +224,9 @@ public:
     // fondo). No se confunde con el suavizado de lineas: glLineSmooth no existe
     // en un perfil core y el ancho ya no se toma de glLineWidth.
     virtual void setBlendEnabled(bool enabled) = 0;
+    // Modo de mezcla con el que se dibuja el lote. El modo se recuerda: al
+    // volver a habilitar la mezcla se conserva el ultimo puesto.
+    virtual void setBlendMode(BlendMode mode) = 0;
 
     // --- Estado de profundidad (para el cielo: depth test on + depth mask off)
     virtual void setDepthTestEnabled(bool enabled) = 0;

@@ -24,6 +24,20 @@
 
 #include "../Matematicas/StructVec3.h"
 
+// Region de la malla con material propio: un rango contiguo de indices y el
+// nombre del material que traia el archivo. Un archivo con varios materiales
+// (un .obj con varios "usemtl", un .fbx con materiales por malla) produce una
+// sub-malla por region: el motor las dibuja por separado, asi cada una puede
+// llevar su propio material y sus propias texturas.
+struct SubMalla {
+    // Nombre del material en el archivo (el que se puede emparejar con el
+    // material del motor). Vacio si el archivo no lo declara.
+    std::string nombreMaterial;
+    // Rango de indices (en la lista global de la malla) que dibuja la region.
+    unsigned int indiceInicio = 0;
+    unsigned int indiceCantidad = 0;
+};
+
 // Geometria de una malla en CPU, independiente de OpenGL. Es el asset que
 // comparte AssetManager entre objetos: lo genera el loader (Assimp en la
 // integracion con Modelos3D) o procedimentalmente, y el renderer moderno lo
@@ -37,12 +51,24 @@ struct Mesh {
     std::vector<vec3> bitangents;
     std::vector<vec2> uvs;
     std::vector<unsigned int> indices;
+    // Regiones con material propio (vacio si el archivo trae una sola).
+    std::vector<SubMalla> subMallas;
 
     bool isEmpty() const { return vertices.empty(); }
 
-    // Las normales valen solo si hay una por vertice.
+    // Las normales valen solo si hay una por vertice (compatibilidad con tests:
+    // computeNormals puede devolver true aunque las normales queden en cero).
     bool hasNormals() const {
         return !normals.empty() && normals.size() == vertices.size();
+    }
+
+    // Normales validas: hay una por vertice Y al menos una es no-nula.
+    bool hasValidNormals() const {
+        if (!hasNormals()) return false;
+        for (const vec3& n : normals) {
+            if (n.magnitude() > 1e-6f) return true;
+        }
+        return false;
     }
 
     // El marco tangente vale solo si hay tangente Y bitangente por vertice.
@@ -78,6 +104,11 @@ struct Mesh {
 
     // AABB en espacio local. Devuelve false si la malla no tiene vertices.
     bool computeBounds(vec3& outMin, vec3& outMax) const;
+
+    // Region que contiene un indice dado (nullptr si el indice no pertenece a
+    // ninguna region). Con una sola region (el caso de una malla sin
+    // materiales) devuelve esa region.
+    const SubMalla* regionDeIndice(unsigned int indice) const;
 };
 
 #endif

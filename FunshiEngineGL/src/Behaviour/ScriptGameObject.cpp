@@ -37,6 +37,7 @@
 #include "../Objetos/Componentes/Colliders/CubeCollider.h"
 #include "../Objetos/Componentes/Colliders/EsfereCollider.h"
 #include "../Audio/AudioEngine.h"
+#include "../Configuracion/EditorConfig.h"
 #include "../Scenes/SceneRegistry.h"
 #include "../Scenes/EditorController.h"
 #include "../Objetos/Prefab.h"
@@ -45,6 +46,7 @@
 #include "../Input/InputScripts.h"
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
 #include "../Objetos/Componentes/InterfaceComponent.h"
+#include "../Objetos/Componentes/UIComponent.h"
 #include "../WebUI/EstadoInterfaces.h"
 
 namespace MotorScript {
@@ -274,9 +276,13 @@ EditorController* g_editor = nullptr;
 EstadoInterfaces* g_interfaces = nullptr;
 ScriptAudioHandles g_sonidosScript;
 
-int serviciosReproducirSonido(const char* clip, float volumen, bool bucle) {
-    if (!g_audio || !clip) return -1;
-    const int handle = g_audio->reproducir(clip, volumen, bucle);
+int serviciosReproducirSonido(const char* ruta, float volumen, bool bucle) {
+    if (!g_audio || !ruta) return -1;
+    // La ruta se resuelve contra la raiz de assets del proyecto (src<nombre>):
+    // el script pide "sonidos/disparo.wav" sin saber donde esta el proyecto.
+    // Una ruta absoluta se deja tal cual.
+    const std::string archivo = EditorConfig::absolutizarRuta(ruta);
+    const int handle = g_audio->reproducir(archivo, volumen, bucle);
     g_sonidosScript.registrar(handle);
     return handle;
 }
@@ -284,6 +290,22 @@ int serviciosReproducirSonido(const char* clip, float volumen, bool bucle) {
 void serviciosDetenerSonido(int handle) {
     if (g_audio) g_audio->detener(handle);
     g_sonidosScript.retirar(handle);
+}
+
+bool serviciosReproducirMusica(const char* ruta, float volumen, float fundido) {
+    if (!g_audio || !ruta) return false;
+    // La ruta se resuelve contra la raiz de assets del proyecto (src<nombre>),
+    // igual que los efectos de sonido.
+    const std::string archivo = EditorConfig::absolutizarRuta(ruta);
+    return g_audio->reproducirMusica(archivo, volumen, fundido);
+}
+
+void serviciosDetenerMusica(float fundido) {
+    if (g_audio) g_audio->detenerMusica(fundido);
+}
+
+void serviciosVolumenMusica(float volumen) {
+    if (g_audio) g_audio->setVolumenMusica(volumen);
 }
 
 void* serviciosObjetoPorNombre(const char* nombre) {
@@ -514,6 +536,53 @@ bool serviciosAgregarRigidBody(void* objeto, float masa) {
                              std::make_unique<RigidBody>(collider, masa));
 }
 
+// --- v5: colisiones y raycast ---
+
+void* serviciosObjetoDeCollider(const void* collider) {
+    const Collider* c = static_cast<const Collider*>(collider);
+    return c ? c->getOwner() : nullptr;
+}
+
+// Ultimo resultado de raycast (almacenado para consultas posteriores).
+namespace {
+ResultadoRaycast g_ultimoRaycast;
+}
+
+bool serviciosRaycast(float ox, float oy, float oz,
+                      float dx, float dy, float dz,
+                      float alcance,
+                      float* distancia, float* px, float* py, float* pz,
+                      float* nx, float* ny, float* nz,
+                      void** collider) {
+    g_ultimoRaycast = ResultadoRaycast{};
+    if (!g_fisica) return false;
+
+    ResultadoRaycast r = g_fisica->raycast(ox, oy, oz, dx, dy, dz, alcance);
+    g_ultimoRaycast = r;
+
+    if (!r.impacto) return false;
+
+    if (distancia) *distancia = r.distancia;
+    if (px) *px = r.puntoX;
+    if (py) *py = r.puntoY;
+    if (pz) *pz = r.puntoZ;
+    if (nx) *nx = r.normalX;
+    if (ny) *ny = r.normalY;
+    if (nz) *nz = r.normalZ;
+    if (collider) *collider = r.collider;
+    return true;
+}
+
+float serviciosPuntoImpactoX() { return g_ultimoRaycast.puntoX; }
+float serviciosPuntoImpactoY() { return g_ultimoRaycast.puntoY; }
+float serviciosPuntoImpactoZ() { return g_ultimoRaycast.puntoZ; }
+
+float serviciosNormalImpactoX() { return g_ultimoRaycast.normalX; }
+float serviciosNormalImpactoY() { return g_ultimoRaycast.normalY; }
+float serviciosNormalImpactoZ() { return g_ultimoRaycast.normalZ; }
+
+float serviciosDistanciaImpacto() { return g_ultimoRaycast.distancia; }
+
 void* serviciosInstanciarPrefab(const char* nombre, void* padre) {
     if (!g_editor || !g_escena || !nombre || !*nombre) return nullptr;
     GameObject* padreObj = static_cast<GameObject*>(padre);
@@ -585,6 +654,55 @@ const char* serviciosInterfazValor(void* interfaz, const char* rutaJson) {
     return g_interfaces->valor(componenteInterfaz(interfaz), rutaJson);
 }
 
+// --- Interfaz de juego NATIVA (HUD que dibuja el motor) --------------------
+// Mismas reglas que la interfaz web: el handle es opaco (un puntero al
+// UIComponent del objeto) y toda funcion tolera un handle nulo.
+UIComponent* componenteInterfazNativa(const void* interfaz) {
+    return const_cast<UIComponent*>(
+        static_cast<const UIComponent*>(interfaz));
+}
+
+void* serviciosInterfazNativaDeObjeto(const char* nombreObjeto) {
+    if (!nombreObjeto) return nullptr;
+    GameObject* objeto =
+        static_cast<GameObject*>(serviciosObjetoPorNombre(nombreObjeto));
+    return objeto ? objeto->getComponent<UIComponent>() : nullptr;
+}
+
+bool serviciosInterfazNativaVisible(const void* interfaz) {
+    const UIComponent* c = static_cast<const UIComponent*>(interfaz);
+    return c ? c->estaActivo() : false;
+}
+
+void serviciosInterfazNativaEstablecerVisible(void* interfaz, bool visible) {
+    UIComponent* c = componenteInterfazNativa(interfaz);
+    if (!c) return;
+    c->setActivo(visible);
+}
+
+bool serviciosInterfazNativaEstablecerTexto(void* interfaz,
+                                              const char* idWidget,
+                                              const char* texto) {
+    UIComponent* c = componenteInterfazNativa(interfaz);
+    if (!c || !idWidget || !texto) return false;
+    return c->lienzo().establecerTexto(idWidget, texto);
+}
+
+bool serviciosInterfazNativaEstablecerVisibleWidget(void* interfaz,
+                                                      const char* idWidget,
+                                                      bool visible) {
+    UIComponent* c = componenteInterfazNativa(interfaz);
+    if (!c || !idWidget) return false;
+    return c->lienzo().establecerVisible(idWidget, visible);
+}
+
+bool serviciosInterfazNativaBotonPulsado(void* interfaz,
+                                          const char* idWidget) {
+    UIComponent* c = componenteInterfazNativa(interfaz);
+    if (!c || !idWidget) return false;
+    return c->sistema().fuePulsado(idWidget);
+}
+
 } // namespace
 
 const ScriptServices* tablaServicios() {
@@ -612,6 +730,15 @@ const ScriptServices* tablaServicios() {
         /* .agregarColliderEsfera = */ serviciosAgregarColliderEsfera,
         /* .agregarColliderCubo = */ serviciosAgregarColliderCubo,
         /* .agregarRigidBody  = */ serviciosAgregarRigidBody,
+        /* .objetoDeCollider  = */ serviciosObjetoDeCollider,
+        /* .raycast           = */ serviciosRaycast,
+        /* .puntoImpactoX     = */ serviciosPuntoImpactoX,
+        /* .puntoImpactoY     = */ serviciosPuntoImpactoY,
+        /* .puntoImpactoZ     = */ serviciosPuntoImpactoZ,
+        /* .normalImpactoX    = */ serviciosNormalImpactoX,
+        /* .normalImpactoY    = */ serviciosNormalImpactoY,
+        /* .normalImpactoZ    = */ serviciosNormalImpactoZ,
+        /* .distanciaImpacto  = */ serviciosDistanciaImpacto,
         /* .instanciarPrefab  = */ serviciosInstanciarPrefab,
         /* .listarPrefabs     = */ serviciosListarPrefabs,
         /* .interfazDeObjeto  = */ serviciosInterfazDeObjeto,
@@ -620,7 +747,20 @@ const ScriptServices* tablaServicios() {
         /* .interfazEstablecerEstado = */ serviciosInterfazEstablecerEstado,
         /* .interfazEstablecerValor  = */ serviciosInterfazEstablecerValor,
         /* .interfazValor     = */ serviciosInterfazValor,
-        /* .version           = */ 6,
+        /* .reproducirMusica  = */ serviciosReproducirMusica,
+        /* .detenerMusica     = */ serviciosDetenerMusica,
+        /* .volumenMusica     = */ serviciosVolumenMusica,
+        /* .interfazNativaDeObjeto = */ serviciosInterfazNativaDeObjeto,
+        /* .interfazNativaVisible = */ serviciosInterfazNativaVisible,
+        /* .interfazNativaEstablecerVisible = */
+        serviciosInterfazNativaEstablecerVisible,
+        /* .interfazNativaEstablecerTexto = */
+        serviciosInterfazNativaEstablecerTexto,
+        /* .interfazNativaEstablecerVisibleWidget = */
+        serviciosInterfazNativaEstablecerVisibleWidget,
+        /* .interfazNativaBotonPulsado = */
+        serviciosInterfazNativaBotonPulsado,
+        /* .version           = */ 10,
     };
     return &tabla;
 }

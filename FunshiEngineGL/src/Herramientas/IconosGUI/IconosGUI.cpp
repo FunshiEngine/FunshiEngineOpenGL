@@ -27,6 +27,7 @@
 #endif
 
 #include "IconosGUI.h"
+#include "RutasIconos.h"
 #include <fstream>
 #include <iostream>
 #include <cctype>
@@ -34,35 +35,9 @@
 #include <string>
 #include <vector>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
-namespace {
-
-// Directorio del ejecutable (sin el nombre del binario, con separador final).
-// Refleja donde quedo el build y NO depende del directorio desde el que se
-// lance el engine: hasta ahora los iconos se resolvian 100% relativo al cwd y
-// segun quien corriera el exe se veian las imagenes de una carpeta u otra.
-std::string directorioEjecutable() {
-#ifdef _WIN32
-    char exe[4096] = {};
-    DWORD n = GetModuleFileNameA(nullptr, exe, sizeof(exe));
-    if (n == 0 || n >= sizeof(exe)) return "";
-    const std::string path(exe, static_cast<std::size_t>(n));
-    const std::size_t sep = path.find_last_of("\\/");
-    return (sep == std::string::npos) ? "" : path.substr(0, sep + 1);
-#else
-    char link[4096] = {};
-    const ssize_t n = readlink("/proc/self/exe", link, sizeof(link) - 1);
-    if (n <= 0) return "";
-    link[n] = '\0';
-    const std::string path(link);
-    const std::size_t sep = path.find_last_of('/');
-    return (sep == std::string::npos) ? "" : path.substr(0, sep + 1);
-#endif
-}
-
-} // namespace
+// Solo las declaraciones: la implementacion de stb_image vive en su propia
+// unidad (External/stb_image/stb_image_impl.cpp).
+#include <stb_image/stb_image.h>
 
 IconosGUI::IconosGUI() {}
 
@@ -84,6 +59,13 @@ IconosGUI::~IconosGUI() {
             *icono = Rendering::Backend::kInvalidHandle;
         }
     }
+    // Los iconos de componente se cargaron a demanda: se liberan tambien.
+    for (auto& par : iconosComponentes_) {
+        if (par.second != Rendering::Backend::kInvalidHandle) {
+            Rendering::Backend::activeBackend().destroyTexture2D(par.second);
+        }
+    }
+    iconosComponentes_.clear();
 }
 
 void IconosGUI::init() {
@@ -151,38 +133,13 @@ Rendering::Backend::Handle IconosGUI::cargarPNG(const char* nombrePNG) {
 
 Rendering::Backend::Handle IconosGUI::cargarPNG(const char* nombrePNG,
                                                 int* ancho, int* alto) {
-    // Orden de busqueda:
-    //  1) Relativo al directorio del ejecutable (determinista): los vectores
-    //     de build activo suelen quedar junto al binario o un nivel arriba
-    //     (build/ -> ../Imagenes, build-java/ -> ../FunshiEngineGL/Imagenes).
-    //  2) Relativo al cwd (fallback historico): si el exe se corre desde
-    //     build/, la raiz del proyecto o la raiz del proyecto del usuario.
-    const std::string exeDir = directorioEjecutable();
-    std::vector<std::string> carpetas;
-    if (!exeDir.empty()) {
-        carpetas.push_back(exeDir + "Imagenes/");
-        carpetas.push_back(exeDir + "../Imagenes/");
-        carpetas.push_back(exeDir + "../FunshiEngineGL/Imagenes/");
-        carpetas.push_back(exeDir + "../../Imagenes/");
-        carpetas.push_back(exeDir + "../../../Imagenes/");
-    }
-    const char* rutasCwd[] = {
-        "Imagenes/", "../Imagenes/", "../../Imagenes/", "../../../Imagenes/"
-    };
-    for (const char* carpeta : rutasCwd) carpetas.emplace_back(carpeta);
-
-    std::string rutaEncontrada;
-    for (const std::string& carpeta : carpetas) {
-        const std::string ruta = carpeta + nombrePNG;
-        std::ifstream archivo(ruta.c_str(), std::ios::binary);
-        if (archivo.good()) {
-            rutaEncontrada = ruta;
-            break;
-        }
-    }
+    // El orden de busqueda vive en RutasIconos (compartido con las pruebas
+    // headless, que comprueban que cada icono declarado exista en disco).
+    const std::string rutaEncontrada = RutasIconos::resolverRuta(nombrePNG);
     if (rutaEncontrada.empty()) {
         std::cerr << "[IconosGUI] No se encontro la imagen '" << nombrePNG
-                  << "' (se probaron varias rutas relativas al cwd).\n";
+                  << "' (se probaron varias rutas relativas al ejecutable y al "
+                     "directorio de trabajo).\n";
         return Rendering::Backend::kInvalidHandle;
     }
 
@@ -254,4 +211,19 @@ ImTextureID IconosGUI::getIconoPorExtension(const std::string& extension) const 
     if (ext == ".rar" || ext == ".7z" || ext == ".tar" || ext == ".gz") return aImTexture(iconoRar);
     if (ext == ".zip") return aImTexture(iconoZip);
     return aImTexture(iconoArchivo);
+}
+
+ImTextureID IconosGUI::getIconoComponente(const std::string& rutaRelativa) {
+    if (rutaRelativa.empty()) return ImTextureID_Invalid;
+    auto it = iconosComponentes_.find(rutaRelativa);
+    if (it != iconosComponentes_.end()) {
+        return aImTexture(it->second);
+    }
+    // Primera vez que se pide ese icono: se carga y se cachea.
+    const Rendering::Backend::Handle handle = cargarPNG(rutaRelativa.c_str());
+    if (handle == Rendering::Backend::kInvalidHandle) {
+        return ImTextureID_Invalid;
+    }
+    iconosComponentes_.emplace(rutaRelativa, handle);
+    return aImTexture(handle);
 }

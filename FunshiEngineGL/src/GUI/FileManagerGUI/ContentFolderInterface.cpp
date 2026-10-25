@@ -28,9 +28,13 @@
 #include "../../Events/EditorEventBus.h"
 #include "../../FileManager/FileManager.h"
 #include "../../FileManager/FileSelection.h"
+#include "../../FileManager/IServicioDrop.h"
+#include "../../FileManager/IServicioPortapapeles.h"
+#include "../Estado/StatusBarInterface.h"
 #include "../WindowNames.h"
 #include "SoltarEnCarpeta.h"
 #include "CrearCarpeta.h"
+#include "ImportarArchivos.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
 #include <imgui.h>
 
@@ -44,6 +48,93 @@ void ContentFolderInterface::setIconosGUI(IconosGUI* iconosG) { iconosGUI = icon
 
 void ContentFolderInterface::setEditorEventBus(EditorEventBus* bus) noexcept {
     eventoArchivos_ = bus;
+}
+
+void ContentFolderInterface::setStatusBar(StatusBarInterface* barra) noexcept {
+    statusBar_ = barra;
+}
+
+void ContentFolderInterface::importarRutas(
+    const std::vector<std::string>& rutas, const std::string& destino) {
+    if (rutas.empty()) return;
+
+    const ImportarArchivos::Resultado resultado =
+        ImportarArchivos::pegar(fileManager, destino, rutas);
+
+    if (resultado.copiados > 0) {
+        // Invalidacion explicita del cache del grid: el mtime del directorio
+        // puede no haberse actualizado todavia y el archivo nuevo no
+        // apareceria hasta el siguiente cambio (mismo criterio que el resto
+        // de operaciones del panel).
+        invalidarCache();
+    }
+    // Las carpetas aparecen en el arbol de navegacion, asi que hay que
+    // rescanearlo. Los archivos no: por ellos el contador no se toca, para no
+    // colapsar el arbol de carpetas por un pegado.
+    if (resultado.carpetasCopiadas > 0) {
+        fileManager->getSelection()->contadorCambios++;
+    }
+
+    if (statusBar_ == nullptr) return;
+
+    if (!resultado.errores.empty()) {
+        std::string mensaje = "No se pudo importar ";
+        if (resultado.copiados > 0) {
+            mensaje = "Se importaron " + std::to_string(resultado.copiados) +
+                       " elementos y ";
+        }
+        mensaje += resultado.errores.front();
+        if (resultado.errores.size() > 1) {
+            mensaje += " (y " + std::to_string(resultado.errores.size() - 1) +
+                       " mas)";
+        }
+        statusBar_->mostrarMensaje(mensaje);
+        return;
+    }
+
+    statusBar_->mostrarMensaje("Se importaron " +
+                                std::to_string(resultado.copiados) +
+                                " elementos en la carpeta visible.");
+}
+
+void ContentFolderInterface::atenderPegadoDelSistema(
+    const std::string& destino) {
+    // Con un campo de texto activo (por ejemplo el nombre de un elemento
+    // nuevo), el Ctrl+V es del texto, no del portapapeles de archivos.
+    if (ImGui::IsAnyItemActive()) return;
+    if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) return;
+    if (!ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_V)) return;
+
+    IServicioPortapapeles* portapapeles = fileManager->getPortapapeles();
+    if (portapapeles == nullptr) {
+        if (statusBar_ != nullptr) {
+            statusBar_->mostrarMensaje(
+                "El portapapeles del sistema no esta disponible en este "
+                "motor.");
+        }
+        return;
+    }
+
+    std::string motivo;
+    if (!portapapeles->disponible(&motivo)) {
+        if (statusBar_ != nullptr) {
+            statusBar_->mostrarMensaje(
+                motivo.empty()
+                    ? "El portapapeles del sistema no esta disponible."
+                    : motivo);
+        }
+        return;
+    }
+
+    const std::vector<std::string> rutas = portapapeles->archivosEnPortapapeles();
+    if (rutas.empty()) {
+        if (statusBar_ != nullptr) {
+            statusBar_->mostrarMensaje(
+                "El portapapeles del sistema no tiene archivos.");
+        }
+        return;
+    }
+    importarRutas(rutas, destino);
 }
 
 std::string ContentFolderInterface::crearNuevoElemento() {
@@ -111,7 +202,7 @@ void ContentFolderInterface::recorrer(const std::string& path) {
     }
 
     // Dibujo del grid desde el cache (mismo layout del grid de iconos).
-    const float iconSize = 87.0f;
+    const float iconSize = 113.1f;
     const float spacing = 16.0f;
     const float stepX = iconSize + spacing;
     const float altoTexto = ImGui::GetTextLineHeightWithSpacing();
@@ -210,6 +301,18 @@ void ContentFolderInterface::recorrer(const std::string& path) {
 
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
             ImGui::SetDragDropPayload("ARCHIVO_PATH", fullPath.c_str(), fullPath.size() + 1);
+            // Payloads semanticos segun la extension: los destinos pueden
+            // aceptar solo el tipo que les interesa (p. ej. una textura de
+            // particulas acepta TEXTURA_ASSET, un campo de prefab acepta
+            // PREFAB_ASSET) sin confundirse con el arrastre de carpetas.
+            std::filesystem::path p(fullPath);
+            std::string ext = p.extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (ext == ".prefab")
+                ImGui::SetDragDropPayload("PREFAB_ASSET", fullPath.c_str(), fullPath.size() + 1);
+            else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" || ext == ".bmp")
+                ImGui::SetDragDropPayload("TEXTURA_ASSET", fullPath.c_str(), fullPath.size() + 1);
             ImGui::Text("Soltar en zona de destino");
             ImGui::Text("%s", nombre.c_str());
             ImGui::EndDragDropSource();
@@ -306,16 +409,45 @@ void ContentFolderInterface::initGUI() {
     // abiertas no habia forma de saber donde estabas.
     if (ImGui::BeginMenuBar()) {
         if (sel->carpetaActual) {
-            const std::string& nombre = sel->carpetaActual->getPathName();
-            ImGui::TextUnformatted(nombre.empty() ? "(raiz)" : nombre.c_str());
+            // Guardar ruta antes de cualquier modificación para evitar
+            // desreferenciar tras poner carpetaActual a nullptr
+            const std::string pathRoot = sel->carpetaActual->getPathRoot();
+            const std::string pathName = sel->carpetaActual->getPathName();
+            const std::string pathCompleta =
+                pathRoot + PATH_SEP + pathName;
+
+            // Botón para subir al padre (más pequeño)
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, 1.0f));
+            if (ImGui::SmallButton("..")) {
+                fs::path padrePath(pathName);
+                padrePath = padrePath.parent_path();
+                if (!padrePath.empty() && padrePath != padrePath.root_name()) {
+                    std::string rutaPadre = pathRoot + PATH_SEP + padrePath.string();
+                    sel->rutaVisible = rutaPadre;
+                } else {
+                    // Si no hay padre (raiz), ir a la raiz del proyecto
+                    if (fileManager) {
+                        sel->rutaVisible = pathRoot + PATH_SEP + fileManager->getRootName();
+                    } else {
+                        sel->rutaVisible = pathRoot;
+                    }
+                }
+                sel->carpetaActual = nullptr;
+                sel->contadorCambios++;
+                cacheCarpeta.clear();
+                cacheMtime = std::filesystem::file_time_type{};
+            }
+            ImGui::PopStyleVar();
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Subir a carpeta padre");
+            }
+            ImGui::SameLine();
+            ImGui::TextUnformatted(pathName.empty() ? "(raiz)" : pathName.c_str());
             // La ruta completa en el tooltip: dos carpetas de sitios distintos
             // pueden llamarse igual, y con varias abiertas el nombre solo no
             // dice donde estas.
             if (ImGui::IsItemHovered()) {
-                const std::string completa =
-                    sel->carpetaActual->getPathRoot() + PATH_SEP +
-                    sel->carpetaActual->getPathName();
-                ImGui::SetTooltip("%s", completa.c_str());
+                ImGui::SetTooltip("%s", pathCompleta.c_str());
             }
         }
         ImGui::EndMenuBar();
@@ -370,6 +502,11 @@ void ContentFolderInterface::initGUI() {
                 const std::string finalDest = destFolder + PATH_SEP + fileName;
                 // Sin contador: copiar un archivo no modifica el arbol.
                 fileManager->copiarArchivo(sourceFile, finalDest);
+                // Invalidacion explicita del cache del grid: el mtime del
+                // directorio puede no haberse actualizado todavia, y el
+                // archivo copiado tiene que aparecer en el panel (mismo
+                // criterio que el resto de operaciones del panel).
+                invalidarCache();
             }
         }
         ImGui::EndPopup();
@@ -550,6 +687,18 @@ void ContentFolderInterface::contentGUI() {
         invalidarCache();
         carpetaAEliminarGridConfirmada.clear();
     }
+
+    // Archivos soltados sobre la ventana del editor desde el explorador del
+    // sistema: el sistema los entrega fuera del frame de la GUI, asi que el
+    // servicio los encola y aqui se drenan, cuando ya se sabe que carpeta
+    // esta viendo (la visible es el destino).
+    if (IServicioDrop* receptor = fileManager->getReceptorDrop()) {
+        const std::vector<std::string> rutas = receptor->drenar();
+        if (!rutas.empty()) importarRutas(rutas, destFolder);
+    }
+
+    // Pegar con Ctrl+V lo que el sistema tiene en el portapapeles.
+    atenderPegadoDelSistema(destFolder);
 
     recorrer(destFolder);
 

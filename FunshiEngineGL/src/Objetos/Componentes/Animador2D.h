@@ -72,9 +72,6 @@ protected:
     void deserializeComponent(std::ifstream* file) override;
 
 public:
-    void saveComponent(std::ofstream* file) override;
-    void loadComponent(std::ifstream* file) override;
-
 private:
     // Ultimo fotograma valido de la grilla (ultimoFrame_ < 0 = el ultimo).
     int finEfectivo() const;

@@ -123,7 +123,8 @@ void LightSystem::setGlobalAmbient(float r, float g, float b) {
 }
 
 void LightSystem::collectLights(ListaDE<GameObject*>* objects,
-                                LightData luces[], int& outCount) const {
+                                LightData luces[], int& outCount,
+                                GameObject** duenos) const {
     outCount = 0;
     if (!objects || objects->isEmpty()) return;
 
@@ -133,6 +134,7 @@ void LightSystem::collectLights(ListaDE<GameObject*>* objects,
         if (Light* light = object->getComponent<Light>()) {
             extraerDatosLuz(light, object->getGlobalTransform(),
                             luces[outCount]);
+            if (duenos) duenos[outCount] = object;
             ++outCount;
         }
         pos = (pos != objects->last()) ? objects->next(pos) : nullptr;

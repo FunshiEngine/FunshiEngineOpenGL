@@ -39,7 +39,7 @@ public:
         right = nullptr;
     }
 
-    // Implementaci�n del m�todo virtual puro
+    // Implementación del método virtual puro
     E getElement() override {
         return element;
     }
@@ -48,17 +48,17 @@ public:
         this->element = element;
     }
 
-    // M�todos para acceder a los nodos hijos
+    // Métodos para acceder a los nodos hijos
     DNodo<E>* getLeft() { return left; }
     DNodo<E>* getRight() { return right; }
 
-    // M�todos para modificar los nodos hijos
+    // Métodos para modificar los nodos hijos
     void setLeft(DNodo<E>* l) { left = l; }
     void setRight(DNodo<E>* r) { right = r; }
 
     // Destructor
     ~DNodo() {
-        // Aqu� normalmente se manejar�a la liberaci�n de memoria
+        // Aquí normalmente se manejará la liberación de memoria
         // si los nodos hijos son propiedad de este nodo
     }
 };

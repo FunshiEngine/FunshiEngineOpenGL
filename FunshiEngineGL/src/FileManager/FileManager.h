@@ -35,6 +35,8 @@
 
 class GestorDeArchivos;
 class FileSystemWatcher;
+class IServicioPortapapeles;
+class IServicioDrop;
 
 // Fachada del explorador de archivos (mismo patron que EditorController y la
 // fachada MenuGUI): es DUENA del modelo (GestorDeArchivos) y del estado de
@@ -54,7 +56,7 @@ public:
         std::string extension;
     };
 
-    explicit FileManager(const std::string& pathProyect, const std::string& rootName = "MotorGrafico");
+    explicit FileManager(const std::string& pathProyect, const std::string& rootName = "FunshiEngine-DATA");
     ~FileManager();
 
     FileManager(const FileManager&) = delete;
@@ -89,6 +91,36 @@ public:
     // Mueve un archivo o carpeta a la ruta completa `destino`. Se niega a pisar
     // un destino existente y a meter una carpeta dentro de si misma.
     bool mover(const std::string& origen, const std::string& destino);
+
+    // ---- Servicios del sistema operativo (inyectados) ----
+    //
+    // Son implementaciones concretas de la plataforma (portapapeles del
+    // sistema, archivos soltados sobre la ventana) que el EDITOR inyecta:
+    // este modulo no conoce ni la API del sistema ni la biblioteca de
+    // ventanas, solo el contrato. Asi el explorador se puede probar en
+    // headless con un servicio simulado.
+
+    // Archivos que el sistema tiene en el portapapeles (nullptr si no hay).
+    void setPortapapeles(IServicioPortapapeles* servicio) noexcept {
+        portapapeles = servicio;
+    }
+    IServicioPortapapeles* getPortapapeles() const noexcept {
+        return portapapeles;
+    }
+
+    // Archivos soltados sobre la ventana del editor (nullptr si no hay).
+    void setReceptorDrop(IServicioDrop* servicio) noexcept {
+        receptorDrop = servicio;
+    }
+    IServicioDrop* getReceptorDrop() const noexcept { return receptorDrop; }
+
+    // Nombre libre en `carpetaDestino` para `nombre`: si ya existe, se
+    // devuelve uno unico ("a.txt" -> "a (1).txt", "a (2).txt"...). Es la
+    // politica de no pisar que se aplica al pegar archivos del sistema: el
+    // explorador de archivos del sistema tampoco pisa, y un pegado accidental
+    // no puede perder el archivo que ya estaba.
+    static std::string nombreUnico(const std::string& carpetaDestino,
+                                   const std::string& nombre);
 
     // Busca por ruta completa en el arbol vigente (navegacion diferida del
     // doble clic). Devuelve nullptr si la ruta ya no existe (carpeta borrada
@@ -131,6 +163,11 @@ private:
     std::unique_ptr<GestorDeArchivos> gestor;
     std::unique_ptr<FileSystemWatcher> vigilante;
     FileSelection selection;
+    // Servicios del sistema operativo: los usa el explorador para pegar lo
+    // que hay en el portapapeles y lo que se suelta sobre la ventana. No son
+    // duenos: los inyecta el editor, que es quien tiene la ventana.
+    IServicioPortapapeles* portapapeles = nullptr;
+    IServicioDrop* receptorDrop = nullptr;
 };
 
 #endif

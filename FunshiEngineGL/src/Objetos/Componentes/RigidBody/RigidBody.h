@@ -63,6 +63,9 @@ private:
 
     void serializeComponent(std::ofstream* fileNamePathContentObject) override;
     void deserializeComponent(std::ifstream* fileNamePathContentObject) override;
+    // Lee el estado del cuerpo del archivo; el hook crea despues el cuerpo
+    // fisico con esos datos.
+    void leerEstado(std::ifstream* fileNamePathContentObject);
     // Empuja friccion, freeze y gravedad a la instancia Bullet actual.
     void aplicarPropiedades();
 
@@ -118,9 +121,6 @@ public:
     // La llama el backend con la gravedad vigente del mundo (al registrar el
     // cuerpo y al cambiar la gravedad global). Cachea y aplica.
     void aplicarGravedadMundo(float x, float y, float z);
-
-    void saveComponent(std::ofstream* fileNamePathContentObject) override;
-    void loadComponent(std::ifstream* fileNamePathContentObject) override;
 
     btRigidBody* getRigidBody() { return rigidBody.get(); }
     Collider* getCollider() const { return collider; }

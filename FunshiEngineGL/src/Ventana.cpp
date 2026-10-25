@@ -33,7 +33,7 @@
 #include <vector>
 
 #include "Rendering/Backend/IRenderBackend.h"
-#include "Herramientas/IconosGUI/stb_image.h"
+#include <stb_image/stb_image.h>
 
 namespace {
 

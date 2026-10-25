@@ -18,9 +18,6 @@
 */
 #include "GestorDeProyectos.h"
 
-#include <imgui.h>
-#include <imgui_internal.h>
-
 #include <filesystem>
 #include <iostream>
 
@@ -33,10 +30,10 @@ namespace fs = std::filesystem;
 
 GestorDeProyectos::GestorDeProyectos(EditorConfig& config, GameScene* escena,
                                      GUIManager* gui, MenuGUI* menu) noexcept
-    : config_(config), scene_(escena), gui_(gui), menu_(menu), io_(nullptr) {}
+    : config_(config), scene_(escena), gui_(gui), menu_(menu) {}
 
 void GestorDeProyectos::aplicarImguiIniDelProyectoActual() {
-    fijarImguiIni(proyectoActual_);
+    layout_.aplicarProyecto(proyectoActual_);
 }
 
 void GestorDeProyectos::prepararProyectoAlArrancar() {
@@ -50,9 +47,13 @@ void GestorDeProyectos::prepararProyectoAlArrancar() {
     // proyecto pedido.
     config_.cargarProyecto(proyectoActual_);
     gui_->configurarProyecto(proyectoActual_);
-    // Audio + interfaces: explora Sonidos/ y apunta el creador a
-    // Memory/Interfaces del proyecto (debe correr antes del primer frame).
+    // Estructura del proyecto y puntero del creador a Memory/Interfaces
+    // (debe correr antes del primer frame).
     scene_->configurarProyecto(proyectoActual_);
+    // La barra de menu tiene que saber que proyecto esta activo: el dialogo
+    // de exportacion sale de ahi. Sin este reflejo, arrancar con --proyecto
+    // dejaba el dialogo sin proyecto y la exportacion no se podia lanzar.
+    reflejarProyectoEnMenuBar();
 }
 
 void GestorDeProyectos::guardarProyectoCompleto() {
@@ -74,7 +75,7 @@ void GestorDeProyectos::guardarProyectoCompleto() {
     cfg.sensibilidadCamara = menu_->getSensibilidadCamara();
     cfg.ventanaCamarasAbierta = scene_->getVentanaCamarasAbierta();
     cfg.sensibilidadMovimientoCamara = scene_->getSensibilidadMovimientoCamara();
-    cfg.gizmoOperacion = scene_->getGizmoOperation();
+    cfg.gizmoOperacion = numeroDeOperacion(scene_->getGizmoOperation());
     cfg.gizmoGlobal = scene_->isGizmoGlobal();
     cfg.camaraActivaId = scene_->getActiveCameraId();
     cfg.estadoVentanas = gui_->obtenerEstadosVentanas();
@@ -208,9 +209,9 @@ void GestorDeProyectos::eliminarProyectoDesdeMenu() {
                 // Sin proyecto: las rutas se guardan/cargan sin relativizar
                 // (passthrough) hasta elegir uno nuevo.
                 EditorConfig::limpiarRaizAssets();
-                // Olvidar el imgui.ini del proyecto borrado: ImGui no debe
+                // Olvidar el layout del proyecto borrado: ImGui no debe
                 // reescribirlo (ni recrear su folder) al salir.
-                fijarImguiIni("");
+                layout_.aplicarProyecto("");
             }
         }
         menu_->limpiarProyectoAEliminar();
@@ -218,20 +219,7 @@ void GestorDeProyectos::eliminarProyectoDesdeMenu() {
 }
 
 void GestorDeProyectos::procesarCargaIniDiferida() {
-    if (!pendingIniLoad_ || pendingIniPath_.empty() || !io_) return;
-    // Ejecutar DESPUÉS de NewFrame(): g.Windows ya tiene ventanas del nuevo
-    // proyecto con stateGUI restaurado. LoadIniSettingsFromDisk itera g.Windows
-    // y re-aplica DockId correctamente.
-    ImGui::LoadIniSettingsFromDisk(pendingIniPath_.c_str());
-    // Fix LastFrameAlive: nodos creados desde ini empiezan en 0 -> undock.
-    ImGuiContext& g = *GImGui;
-    for (int n = 0; n < g.DockContext.Nodes.Data.Size; ++n) {
-        if (ImGuiDockNode* node = (ImGuiDockNode*)g.DockContext.Nodes.Data[n].val_p) {
-            node->LastFrameAlive = g.FrameCount;
-        }
-    }
-    pendingIniLoad_ = false;
-    pendingIniPath_.clear();
+    layout_.procesarCargaDiferida();
 }
 
 void GestorDeProyectos::reflejarProyectoEnMenuBar() const {
@@ -261,26 +249,14 @@ void GestorDeProyectos::manejarArchivosReubicados(
     }
 }
 
-void GestorDeProyectos::fijarImguiIni(const std::string& nombreProyecto) {
-    // El imgui.ini (layout de docks y geometria de ventanas) se guarda en
-    // Memory del proyecto del usuario, no en el directorio actual de
-    // lanzamiento. Sin proyecto se deja ImGui sin ini en disco (primer
-    // arranque: no se crean carpetas de "Nuevo Proyecto" por el camino). El
-    // puntero que guarda ImGui apunta a este string (miembro de la clase): el
-    // gestor vive toda la app, asi que es estable.
-    ini_ =
-        nombreProyecto.empty() ? std::string() : EditorConfig::rutaImguiIni(nombreProyecto);
-    if (io_)
-        io_->IniFilename = ini_.empty() ? nullptr : ini_.c_str();
-}
-
 void GestorDeProyectos::guardarEstadoActivo() {
     // Guardar el estado del proyecto actual antes de cambiar (solo si ya habia
     // un proyecto cargado).
     if (proyectoActual_.empty())
         return;
     config_.datos().ventanaCamarasAbierta = scene_->getVentanaCamarasAbierta();
-    config_.datos().gizmoOperacion = scene_->getGizmoOperation();
+    config_.datos().gizmoOperacion =
+        numeroDeOperacion(scene_->getGizmoOperation());
     config_.datos().gizmoGlobal = scene_->isGizmoGlobal();
     config_.datos().camaraActivaId = scene_->getActiveCameraId();
     config_.datos().estadoVentanas = gui_->obtenerEstadosVentanas();
@@ -298,20 +274,13 @@ void GestorDeProyectos::entrar(const std::string& destino) {
     gui_->configurarProyecto(proyectoActual_);
     // Actualizar proyecto actual en el menu bar para exportación.
     reflejarProyectoEnMenuBar();
-    // Re-explorar Sonidos/ e interfaces del proyecto entrante.
+    // Completar la estructura del proyecto entrante.
     scene_->configurarProyecto(proyectoActual_);
     config_.datos().nombreProyecto = proyectoActual_;
-    // Antes de conmutar el ini, persistir el layout del proyecto que se
-    // abandona: ImGui solo carga el ini una vez por proceso (UpdateSettings,
-    // en el primer NewFrame, pese a haber cargado SettingsLoaded, y ya ser
-    // true con la bandera). Su guardado diferido escribe sobre la ruta
-    // ACTIVA en el momento del volcado. Sin esto el layout no viaja con el
-    // proyecto: el entrante nunca se restaura (las ventanas quedan en las
-    // posiciones del anterior) y el volcado en curso contamina el ini ajeno.
-    if (io_ && io_->IniFilename != nullptr) {
-        ImGui::SaveIniSettingsToDisk(io_->IniFilename);
-    }
-    fijarImguiIni(proyectoActual_);
+    // Conmutar el layout de la interfaz: se vuelca el del proyecto que se
+    // abandona y se deja preparado el del entrante (la carga se difiere al
+    // frame siguiente, cuando sus ventanas ya existen).
+    layout_.conmutarProyecto(proyectoActual_);
     // Cargar la configuracion del proyecto entrante ANTES de restaurar el dock:
     // necesitamos estadoVentanas (visibilidad) para que las ventanas existan
     // en g.Windows ANTES de LoadIniSettingsFromDisk, que itera g.Windows
@@ -319,15 +288,6 @@ void GestorDeProyectos::entrar(const std::string& destino) {
     // ventanas no están en g.Windows y nacen flotando (se separan del dock).
     config_.cargarProyecto(proyectoActual_);
     gui_->restaurarEstadosVentanas(config_.datos().estadoVentanas);
-
-    // Carga diferida: LoadIniSettingsFromDisk debe ejecutarse DESPUÉS de
-    // NewFrame() del frame SIGUIENTE. En ese momento g.Windows ya contiene
-    // las ventanas del nuevo proyecto (con stateGUI restaurado) y ImGui
-    // puede re-aplicar correctamente los DockId.
-    if (io_ && io_->IniFilename != nullptr) {
-        pendingIniLoad_ = true;
-        pendingIniPath_ = io_->IniFilename;
-    }
 
     // Cargar la escena del nuevo proyecto si existe. La dimension se fija ANTES
     // de cargar: la siembra de la grilla y la camara inicial dependen de ella.
@@ -337,7 +297,8 @@ void GestorDeProyectos::entrar(const std::string& destino) {
 
     // Aplicar resto de estado de la escena (gizmo, cámara, etc.)
     scene_->setVentanaCamarasAbierta(config_.datos().ventanaCamarasAbierta);
-    scene_->setGizmoOperation(config_.datos().gizmoOperacion);
+    scene_->setGizmoOperation(
+        operacionDesdeNumero(config_.datos().gizmoOperacion));
     scene_->setGizmoGlobal(config_.datos().gizmoGlobal);
     scene_->setActiveCameraById(config_.datos().camaraActivaId);
 }

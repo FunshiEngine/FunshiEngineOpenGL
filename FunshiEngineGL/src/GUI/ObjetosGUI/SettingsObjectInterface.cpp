@@ -69,6 +69,13 @@
 #include <cstring>
 #include <vector>
 
+namespace {
+// Tamano del icono del componente en el inspector (en pixeles). Se dibuja al
+// 15% mas grande que antes (16 -> 18.4): a 16 se perdia el detalle del icono
+// de los componentes pequenos.
+constexpr float kTamanoIconoComponente = 18.4f;
+} // namespace
+
 SettingsObjectInterface::SettingsObjectInterface(GameObject* object,
                                                  bool stateGUI)
 	: GeneralUserInterface("Settings", stateGUI, ImGuiWindowFlags_MenuBar) {
@@ -230,6 +237,7 @@ void SettingsObjectInterface::crearSettingsFaltantes() {
 	contexto.editor = editor;
 	contexto.audio = audioMotor;
 	contexto.dimension = dimensionProyecto();
+	contexto.preview = previewMaterial_;
 
 	ListaDE<Component*>* componentes = object->getComponents();
 	if (componentes && !componentes->isEmpty()) {
@@ -408,6 +416,20 @@ void SettingsObjectInterface::contentGUI() {
 			// Asegurar que compName no esté vacío
 			if (compName.empty()) compName = "Componente";
 
+			// Icono del componente a la izquierda de su nombre. Se dibuja antes
+			// del encabezado (y antes de SetNextItemOpen, que aplica al
+			// encabezado): si se dibujara despues, el popup contextual y el
+			// arrastre quedarian anclados al icono y no al nombre.
+			if (resolutorIconos_) {
+				const ImTextureID icono =
+				    resolutorIconos_->iconoPara(comp->getTipoComponente());
+				if (icono != ImTextureID_Invalid) {
+					ImGui::Image(icono, ImVec2(kTamanoIconoComponente,
+					                          kTamanoIconoComponente));
+					ImGui::SameLine();
+				}
+			}
+
 			SettingsScript* scriptSettings =
 			    dynamic_cast<SettingsScript*>(comp);
 			if (scriptSettings && scriptSettings->estaEditandoNombre())
@@ -498,6 +520,7 @@ void SettingsObjectInterface::contentGUI() {
 							    editor->createGameObject(std::move(obj), nullptr);
 							if (creado) {
 								auto* model = new Model();
+								model->setAssetManager(editor->getAssetManager());
 								model->setPath(pathStr);
 								creado->addComponent(
 								    std::unique_ptr<Component>(model));

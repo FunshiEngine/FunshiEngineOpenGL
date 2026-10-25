@@ -32,6 +32,13 @@ class BackendNullWebUI : public IWebUIBackend {
 public:
     const char* nombre() const override { return "null"; }
 
+    // Sin motor web: no hay subproceso, no se arranca nada, no hay bucle que
+    // bombear y no hay motor web que apagar.
+    int ejecutarSubproceso(int, char**) override { return -1; }
+    bool inicializar(int, char**) override { return true; }
+    void bombear() override {}
+    void apagar() override {}
+
     bool cargar(VistaWebUI& vista, const std::string& rutaHtml, int ancho,
                 int alto, std::string& error) override {
         vista.ruta = rutaHtml;

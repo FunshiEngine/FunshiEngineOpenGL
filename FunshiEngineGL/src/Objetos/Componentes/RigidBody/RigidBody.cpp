@@ -373,17 +373,6 @@ void RigidBody::aplicarGravedadMundo(float x, float y, float z) {
     aplicarPropiedades();
 }
 
-void RigidBody::saveComponent(std::ofstream* fileNamePathContentObject) {
-    serializeComponent(fileNamePathContentObject);
-}
-
-void RigidBody::loadComponent(std::ifstream* fileNamePathContentObject) {
-    deserializeComponent(fileNamePathContentObject);
-
-    // Luego crea el rigidBody con estos datos (reentrante)
-    createRigidBody();
-}
-
 void RigidBody::serializeComponent(std::ofstream* fileNamePathContentObject) {
     fileNamePathContentObject->write(
         reinterpret_cast<const char*>(&kRigidBodyMagic),
@@ -418,7 +407,7 @@ void RigidBody::serializeComponent(std::ofstream* fileNamePathContentObject) {
     // Tambien deberia guardar el tipo de collider para reconstruirlo al cargar
 }
 
-void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
+void RigidBody::leerEstado(std::ifstream* fileNamePathContentObject) {
     const std::streampos inicio = fileNamePathContentObject->tellg();
     std::uint32_t magic = 0;
     fileNamePathContentObject->read(reinterpret_cast<char*>(&magic),
@@ -486,4 +475,11 @@ void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
     freezePos[0] = freezePos[1] = freezePos[2] = false;
     freezeRot[0] = freezeRot[1] = freezeRot[2] = false;
     sensor = false;
+}
+
+void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
+    leerEstado(fileNamePathContentObject);
+
+    // Con los datos ya leidos se crea el cuerpo fisico (reentrante).
+    createRigidBody();
 }

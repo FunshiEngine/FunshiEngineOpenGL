@@ -22,6 +22,11 @@
 #include <string>
 #include <typeinfo>
 
+// Color en coma flotante (RGBA). Es un tipo plano compartido, no un
+// componente: vive aqui para que el dominio no tenga que incluir el
+// componente `Color` solo para nombrarlo.
+typedef float color[4];
+
 // Demangling del nombre de clase RTTI. Definido en TypeUtils.cpp.
 std::string demangle(const char* name);
 

@@ -55,7 +55,5 @@ public:
 	float* getScalef() { return arrScalef; }
 	float* getRotatef() { return arrRotatef; }
 
-	void saveComponent(std::ofstream* fileNamePathContentObject) override;
-	void loadComponent(std::ifstream* fileNamePathContentObject) override;
 };
 #endif

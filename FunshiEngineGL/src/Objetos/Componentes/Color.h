@@ -18,9 +18,8 @@
 */
 #ifndef COLOR_H
 #define COLOR_H
+#include "../../Herramientas/TypeUtils.h"
 #include "Component.h"
-
-typedef float color[4];
 
 class Color : public Component {
 private:
@@ -35,9 +34,6 @@ protected:
 
 public:
     Color();
-
-    void saveComponent(std::ofstream* file) override;
-    void loadComponent(std::ifstream* file) override;
 
     void setColor(const color cor);
     void setColor(float r, float g, float b);

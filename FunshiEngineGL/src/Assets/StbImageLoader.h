@@ -21,12 +21,18 @@
 
 #include "TextureManager.h"
 
-// Loader de imagenes con stb_image (vendoriado en Herramientas/IconosGUI).
+// Loader de imagenes con stb_image (vendoriado en External/stb_image).
 // Decodifica a RGBA (4 canales, estandar para el upload a GPU) y vueltea
 // verticalmente: OpenGL espera la primera fila abajo y los decoders comunes
 // (PNG/JPG) entregan la primera fila arriba.
 class StbImageLoader : public ITextureLoader {
 public:
+    // Voltea la imagen en vertical (intercambia la primera fila con la ultima).
+    // Se hace sobre la imagen ya decodificada y no con la opcion global de
+    // stb_image, que es compartida por toda la libreria: con dos
+    // decodificaciones a la vez una desactiva el volteo de la otra.
+    static void voltearVertical(Image& imagen);
+
     // Lanza TextureLoadException si el archivo no existe o no decodifica.
     std::shared_ptr<Image> load(const std::string& path) override;
 

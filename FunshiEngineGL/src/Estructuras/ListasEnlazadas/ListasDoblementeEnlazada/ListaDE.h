@@ -258,7 +258,7 @@ public:
 		}
 
 		if (nodo1->getRight() == nodo2) {
-			// nodo1 est� antes de nodo2
+			// nodo1 está antes de nodo2
 			DNodo<E>* prev = nodo1->getLeft();
 			DNodo<E>* next = nodo2->getRight();
 
@@ -272,7 +272,7 @@ public:
 			next->setLeft(nodo1);
 		}
 		else if (nodo2->getRight() == nodo1) {
-			// nodo2 est� antes de nodo1
+			// nodo2 está antes de nodo1
 			swapPositions(p2, p1);  // Reutilizamos el caso anterior
 		}
 		else {
@@ -283,13 +283,13 @@ public:
 			DNodo<E>* nodo2Prev = nodo2->getLeft();
 			DNodo<E>* nodo2Next = nodo2->getRight();
 
-			// Reenlazar nodo1 en posici�n de nodo2
+			// Reenlazar nodo1 en posición de nodo2
 			nodo1Prev->setRight(nodo2);
 			nodo1Next->setLeft(nodo2);
 			nodo2->setLeft(nodo1Prev);
 			nodo2->setRight(nodo1Next);
 
-			// Reenlazar nodo2 en posici�n de nodo1
+			// Reenlazar nodo2 en posición de nodo1
 			nodo2Prev->setRight(nodo1);
 			nodo2Next->setLeft(nodo1);
 			nodo1->setLeft(nodo2Prev);

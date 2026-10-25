@@ -27,12 +27,14 @@
 
 #include "Configuracion/EditorConfig.h"
 #include "Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
+#include "Objetos/Componentes/AudioSource.h"
 #include "Objetos/Componentes/Material.h"
+#include "Objetos/Componentes/Musica.h"
 #include "Objetos/Componentes/Model.h"
 #include "Objetos/Componentes/Script.h"
 #include "Objetos/Componentes/Skybox.h"
 #include "Objetos/GameObject.h"
-#include "Objetos/Modelos3D.h"
+#include "Objetos/Componentes/Model.h"
 
 namespace {
 
@@ -175,6 +177,20 @@ int paraSlotsDe(Component& componente, Operar&& operar) {
             script->getPath(),
             [script](const std::string& p) { script->setDllPath(p); });
     }
+    if (auto* audio = dynamic_cast<AudioSource*>(&componente)) {
+        return operar(audio->getRutaClip(),
+                      [audio](const std::string& p) { audio->setRutaClip(p); });
+    }
+    if (auto* musica = dynamic_cast<Musica*>(&componente)) {
+        // La musica lleva una lista de pistas: cada una es un slot de ruta.
+        int cambios = 0;
+        std::vector<std::string> rutas = musica->getRutas();
+        for (std::string& ruta : rutas) {
+            cambios += operar(ruta, [&ruta](const std::string& p) { ruta = p; });
+        }
+        if (cambios > 0) musica->setRutas(rutas);
+        return cambios;
+    }
     if (auto* skybox = dynamic_cast<Skybox*>(&componente)) {
         int cambios = 0;
         cambios += operar(skybox->getCaraMasX(),
@@ -199,7 +215,7 @@ int paraSlotsDe(Component& componente, Operar&& operar) {
 template <typename Operar>
 int paraSlotsDeObjeto(GameObject& objeto, Operar&& operar) {
     int cambios = 0;
-    if (auto* modelo = dynamic_cast<Modelos3D*>(&objeto)) {
+    if (auto* modelo = objeto.getComponent<Model>()) {
         cambios += operar(modelo->getPath(),
                           [modelo](const std::string& p) {
                               modelo->setPath(p);

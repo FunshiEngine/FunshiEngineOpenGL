@@ -30,13 +30,15 @@
 #include "../Assets/TextureManager.h"
 #include "../Iluminacion/LightSystem.h"
 #include "../Objetos/Componentes/Color.h"
+#include "../Objetos/Componentes/IMaterial.h"
+#include "../Objetos/Componentes/IResolutorMateriales.h"
 #include "../Objetos/Componentes/Material.h"
 #include "../Objetos/Componentes/Model.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
 #include "MeshGPU.h"
 #include "Shaders/ShaderProgram.h"
-#include "Shaders/ShaderSources.h"
+#include "Shaders/GestorShaders.h"
+#include "Sombras/MapaSombras.h"
 #include "TextureGL.h"
 #include "Backend/IRenderBackend.h"
 
@@ -49,6 +51,16 @@ bool matrizFinita(const glm::mat3& m) {
     return true;
 }
 
+// Unidades fijas de textura para cada tipo de sampler: evita colisiones de
+// tipo en la misma unidad de textura (lo cual causa GL_INVALID_OPERATION 1282
+// en glDrawElements al mezclar sampler2D, sampler2DShadow y samplerCube en unidad 0).
+constexpr int kUnidadTexturaDifusa = 0;
+constexpr int kUnidadTexturaEspecular = 1;
+constexpr int kUnidadTexturaEmision = 2;
+constexpr int kUnidadTexturaNormal = 3;
+constexpr int kUnidadTexturaSombra = 4;      // 4..7 para sampler2DShadow (kMaxProyectoresSombra = 4)
+constexpr int kUnidadTexturaSombraCubo = 8;  // 8..11 para samplerCube (kMaxProyectoresSombra = 4)
+
 } // namespace
 
 MeshRenderer::MeshRenderer() = default;
@@ -57,12 +69,34 @@ MeshRenderer::~MeshRenderer() = default;
 
 bool MeshRenderer::inicializar() {
     if (shader_) return true;
-    if (!Rendering::Backend::activeBackend().init()) return false;
+    // El fuente del shader va embebido: si el driver no lo compilo una vez, no
+    // lo compila nunca. Recordar el fallo evita reintentar la compilacion y
+    // releer el error en cada pasada de dibujo (el reintento por frame llego a
+    // escribir 319.030 lineas de log en una sesion y compilar el programa una
+    // vez por frame).
+    if (falloShader_) return false;
+    if (!backend_ || !backend_->init()) return false;
+    // Sin gestor de shaders no hay de donde pedir el programa.
+    if (!gestorShaders_) return false;
     try {
-        shader_ = std::make_unique<ShaderProgram>(
-            ShaderProgram::fromSource(kDefaultVertexShader,
-                                      kDefaultFragmentShader));
+        shader_ = gestorShaders_->obtener("malla");
+        // El programa del pase de profundidad es opcional: si no compila, el
+        // motor dibuja sin sombras en vez de no dibujar nada.
+        try {
+            shaderSombra_ = gestorShaders_->obtener("profundidad");
+        } catch (const std::exception& e) {
+            registrarExcepcionDiagnostica("Rendering/MeshRenderer", e,
+                                          NivelDiagnostico::Advertencia);
+            std::cerr << "[MeshRenderer] Programa de profundidad no disponible: "
+                      << e.what() << '\n';
+            shaderSombra_.reset();
+        }
+        configurarSamplers();
         aplicarLuces();
+        // Los mapas de sombra tambien se suben aqui: el programa puede
+        // aparecer despues de que la escena ya tuviera proyectores (el
+        // renderer de la escena prepara las sombras antes del primer dibujado).
+        aplicarSombras();
     } catch (const std::exception& e) {
         registrarExcepcionDiagnostica("Rendering/MeshRenderer", e,
                                       NivelDiagnostico::Error);
@@ -72,6 +106,7 @@ bool MeshRenderer::inicializar() {
         std::cerr << "[MeshRenderer] Shader por defecto no disponible: "
                   << e.what() << '\n';
         shader_.reset();
+        falloShader_ = true;
     }
     return shader_ != nullptr;
 }
@@ -85,9 +120,15 @@ void MeshRenderer::clearCache() {
 
 void MeshRenderer::setLuces(const LightData* luces, int lucesCount,
                             const float* globalAmbient) {
-    globalAmbient_[0] = globalAmbient[0];
-    globalAmbient_[1] = globalAmbient[1];
-    globalAmbient_[2] = globalAmbient[2];
+    // El ambiente global puede no venir (el contexto de frame lo deja en
+    // null por defecto): leerlo sin comprobar seria desreferenciar un
+    // puntero nulo. Sin ambiente se usa el mismo valor por defecto que
+    // declara el sistema de luces.
+    static const float kAmbientePorDefecto[3] = {0.15f, 0.15f, 0.15f};
+    const float* ambiente = globalAmbient ? globalAmbient : kAmbientePorDefecto;
+    globalAmbient_[0] = ambiente[0];
+    globalAmbient_[1] = ambiente[1];
+    globalAmbient_[2] = ambiente[2];
 
     luces_.clear();
     if (luces && lucesCount > 0)
@@ -142,8 +183,105 @@ void MeshRenderer::aplicarLuces() {
     }
 }
 
-void MeshRenderer::aplicarMaterial(GameObject* objeto) {
-    if (Material* material = objeto->getComponent<Material>()) {
+void MeshRenderer::setSombras(const Rendering::ProyectorSombra* proyectores,
+                              int cantidad) {
+    sombras_.clear();
+    if (proyectores && cantidad > 0) {
+        for (int i = 0; i < cantidad; ++i) {
+            const Rendering::ProyectorSombra& proyector = proyectores[i];
+            // Un proyector sin mapa (el backend no pudo crearlo) no sombrea:
+            // dejarlo en la lista haria que el shader consultara una unidad de
+            // textura sin mapa, con lo que la sombra saldria de otra escena.
+            if (proyector.textura == Rendering::Backend::kInvalidHandle) continue;
+            sombras_.push_back(proyector);
+        }
+    }
+
+    if (shader_) aplicarSombras();
+}
+
+void MeshRenderer::configurarSamplers() {
+    if (!shader_) return;
+    shader_->use();
+
+    // 1. Texturas 2D del material (unidades 0..3)
+    shader_->setInt("uDiffuseTex", kUnidadTexturaDifusa);
+    shader_->setInt("uSpecularTex", kUnidadTexturaEspecular);
+    shader_->setInt("uEmissionTex", kUnidadTexturaEmision);
+    shader_->setInt("uNormalTex", kUnidadTexturaNormal);
+
+    // 2. Mapas de sombra 2D (sampler2DShadow, unidades 4..7)
+    for (int i = 0; i < Rendering::kMaxProyectoresSombra; ++i) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "uShadowMap%d", i);
+        shader_->setInt(name, kUnidadTexturaSombra + i);
+    }
+
+    // 3. Mapas de sombra puntuales (samplerCube, unidades 8..11)
+    for (int i = 0; i < Rendering::kMaxProyectoresSombra; ++i) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "uShadowCube%d", i);
+        shader_->setInt(name, kUnidadTexturaSombraCubo + i);
+    }
+}
+
+void MeshRenderer::aplicarSombras() {
+    if (!shader_) return;
+    // Los uniforms se suben con el programa activo: sin use() se descartan.
+    shader_->use();
+
+    const int count =
+        std::min(Rendering::kMaxProyectoresSombra,
+                 static_cast<int>(sombras_.size()));
+    shader_->setInt("uShadowCount", count);
+
+    for (int i = 0; i < count; ++i) {
+        const Rendering::ProyectorSombra& proyector =
+            sombras_[static_cast<std::size_t>(i)];
+        char name[32];
+
+        // El sampler de cada mapa (uShadowMap0..3: GLSL 3.30 no deja indexar un
+        // array de samplers con una variable).
+        std::snprintf(name, sizeof(name), "uShadowMap%d", i);
+        shader_->setInt(name, kUnidadTexturaSombra + i);
+
+        std::snprintf(name, sizeof(name), "uShadowMatrix[%d]", i);
+        shader_->setMat4(name, proyector.matrizLuz);
+        std::snprintf(name, sizeof(name), "uShadowBias[%d]", i);
+        shader_->setFloat(name, proyector.sesgo);
+        std::snprintf(name, sizeof(name), "uShadowStrength[%d]", i);
+        shader_->setFloat(name, proyector.fuerza);
+        std::snprintf(name, sizeof(name), "uShadowTexel[%d]", i);
+        shader_->setFloat(name,
+                          1.f / static_cast<float>(proyector.resolucion > 0
+                                                       ? proyector.resolucion
+                                                       : 1));
+        std::snprintf(name, sizeof(name), "uShadowLightIndex[%d]", i);
+        shader_->setInt(name, proyector.indiceLuz);
+    }
+
+    // Luces puntuales (cubemap): subir las 6 matrices por luz, la distancia
+    // de alcance y vincular el sampler de cubemap a su unidad de textura.
+    for (int i = 0; i < count; ++i) {
+        const Rendering::ProyectorSombra& proyector =
+            sombras_[static_cast<std::size_t>(i)];
+        if (!proyector.esCubemap) continue;
+        char name[48];
+        const int base = proyector.indiceLuz * Rendering::kCarasCubemap;
+        for (int cara = 0; cara < Rendering::kCarasCubemap; ++cara) {
+            std::snprintf(name, sizeof(name), "uShadowMatrixCubo[%d]", base + cara);
+            shader_->setMat4(name, proyector.matricesLuz[cara]);
+        }
+        std::snprintf(name, sizeof(name), "uShadowDistancia[%d]", proyector.indiceLuz);
+        shader_->setFloat(name, proyector.distancia);
+        const int idxCubo = std::min(proyector.indiceLuz, Rendering::kMaxProyectoresSombra - 1);
+        std::snprintf(name, sizeof(name), "uShadowCube%d", idxCubo);
+        shader_->setInt(name, kUnidadTexturaSombraCubo + idxCubo);
+    }
+}
+
+void MeshRenderer::aplicarMaterial(GameObject* objeto, const IMaterial* material) {
+    if (material) {
         shader_->setVec4("uMaterialAmbient", material->getAmbient());
         shader_->setVec4("uMaterialDiffuse", material->getDiffuse());
         shader_->setVec4("uMaterialSpecular", material->getSpecular());
@@ -152,19 +290,21 @@ void MeshRenderer::aplicarMaterial(GameObject* objeto) {
         return;
     }
 
-    if (Color* color = objeto->getComponent<Color>()) {
-        // El pipeline inmediato solo seteaba GL_DIFFUSE al color; el resto
-        // quedaba con el default GL (ambiente gris tenue, sin especular).
-        const float* c = color->getColor();
-        const float ambient[4] = {0.2f, 0.2f, 0.2f, 1.f};
-        const float specular[4] = {0.f, 0.f, 0.f, 1.f};
-        const float emission[4] = {0.f, 0.f, 0.f, 1.f};
-        shader_->setVec4("uMaterialAmbient", ambient);
-        shader_->setVec4("uMaterialDiffuse", c);
-        shader_->setVec4("uMaterialSpecular", specular);
-        shader_->setVec4("uMaterialEmission", emission);
-        shader_->setFloat("uMaterialShininess", 0.f);
-        return;
+    if (objeto) {
+        if (Color* color = objeto->getComponent<Color>()) {
+            // El pipeline inmediato solo seteaba GL_DIFFUSE al color; el resto
+            // quedaba con el default GL (ambiente gris tenue, sin especular).
+            const float* c = color->getColor();
+            const float ambient[4] = {0.2f, 0.2f, 0.2f, 1.f};
+            const float specular[4] = {0.f, 0.f, 0.f, 1.f};
+            const float emission[4] = {0.f, 0.f, 0.f, 1.f};
+            shader_->setVec4("uMaterialAmbient", ambient);
+            shader_->setVec4("uMaterialDiffuse", c);
+            shader_->setVec4("uMaterialSpecular", specular);
+            shader_->setVec4("uMaterialEmission", emission);
+            shader_->setFloat("uMaterialShininess", 0.f);
+            return;
+        }
     }
 
     // Sin material ni color: defaults del componente Material.
@@ -183,7 +323,8 @@ bool MeshRenderer::enlazarSlotTextura(const std::string& path, int unit,
         std::shared_ptr<const Image> image = textureManager_->getTexture(path);
         auto it = gpuTexturas_.find(image.get());
         if (it == gpuTexturas_.end()) {
-            auto gpu = std::make_unique<TextureGL>();
+            if (!backend_) return false;
+            auto gpu = std::make_unique<TextureGL>(*backend_);
             gpu->upload(*image);
             it = gpuTexturas_.emplace(image.get(), std::move(gpu)).first;
         }
@@ -200,7 +341,7 @@ bool MeshRenderer::enlazarSlotTextura(const std::string& path, int unit,
     }
 }
 
-void MeshRenderer::aplicarTexturas(GameObject* objeto, const Mesh* mesh) {
+void MeshRenderer::aplicarTexturas(const IMaterial* material, const Mesh* mesh) {
     // Por defecto: sin texturas en ningun slot.
     shader_->setInt("uUseTexture", 0);
     shader_->setInt("uUseSpecularMap", 0);
@@ -210,56 +351,33 @@ void MeshRenderer::aplicarTexturas(GameObject* objeto, const Mesh* mesh) {
     if (!textureManager_ || !mesh || !mesh->hasUvs()) {
         return;
     }
-
-    Material* material = objeto->getComponent<Material>();
     if (!material) return;
 
     shader_->setInt("uUseTexture",
-                    enlazarSlotTextura(material->getDiffuseMapPath(), 0,
-                                       "uDiffuseTex")
+                    enlazarSlotTextura(material->getDiffuseMapPath(),
+                                       kUnidadTexturaDifusa, "uDiffuseTex")
                         ? 1
                         : 0);
     shader_->setInt("uUseSpecularMap",
-                    enlazarSlotTextura(material->getSpecularMapPath(), 1,
-                                       "uSpecularTex")
+                    enlazarSlotTextura(material->getSpecularMapPath(),
+                                       kUnidadTexturaEspecular, "uSpecularTex")
                         ? 1
                         : 0);
     shader_->setInt("uUseEmissionMap",
-                    enlazarSlotTextura(material->getEmissionMapPath(), 2,
-                                       "uEmissionTex")
+                    enlazarSlotTextura(material->getEmissionMapPath(),
+                                       kUnidadTexturaEmision, "uEmissionTex")
                         ? 1
                         : 0);
 
     // El normal map ademas exige el marco tangente de la malla.
     shader_->setInt("uUseNormalMap",
                     mesh->hasTangents()
-                        ? (enlazarSlotTextura(material->getNormalMapPath(), 3,
+                        ? (enlazarSlotTextura(material->getNormalMapPath(),
+                                              kUnidadTexturaNormal,
                                               "uNormalTex")
                                ? 1
                                : 0)
                         : 0);
-}
-
-bool MeshRenderer::intentarRender(Modelos3D* objeto, const float view[16],
-                                  const float projection[16],
-                                  float deltaTime) {
-    if (!objeto) return false;
-
-    // El componente Model (path) manda sobre el path actual. Se toma el
-    // puntero a la malla DESPUES de este paso, porque setPath() puede
-    // reemplazar la malla compartida (y el AssetManager eviccionar la
-    // anterior).
-    if (Model* model = objeto->getComponent<Model>();
-        model && model->getPath() != objeto->getPath())
-        objeto->setPath(model->getPath());
-
-    Transform* transform = objeto->getGlobalTransform();
-    if (!transform) return false;
-
-    float modelo[16];
-    buildMatrixFromTransform(transform, modelo);
-    return intentarRenderMesh(objeto, objeto->getMesh(), modelo, view,
-                              projection, deltaTime);
 }
 
 bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
@@ -267,8 +385,6 @@ bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
                                       const float view[16],
                                       const float projection[16],
                                       float deltaTime) {
-    if (!inicializar()) return false;
-
     // El render NO simula: los scripts y la fisica se actualizan una sola vez
     // por frame en GameScene::update (y solo en play). Antes se llamaba aca a
     // objeto->update(), lo que corria los scripts tambien en el editor, los
@@ -276,6 +392,34 @@ bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
     (void)deltaTime;
 
     if (!contexto) return false;
+
+    // Cada region de la malla se dibuja con el material que le corresponde: lo
+    // decide el resolvedor con el objeto como contexto.
+    return renderMesh(contexto, mesh, modelo, view, projection,
+                      [this, contexto](const std::string& nombreRegion) {
+                          return resolvedorMateriales_
+                                     ? resolvedorMateriales_->materialDeRegion(
+                                           contexto, nombreRegion)
+                                     : nullptr;
+                      });
+}
+
+bool MeshRenderer::renderMeshConMaterial(const Mesh* mesh,
+                                         const IMaterial* material,
+                                         const float modelo[16],
+                                         const float view[16],
+                                         const float projection[16]) {
+    // Un unico material para toda la malla: es la vista previa de un material
+    // (la esfera de muestra), donde las regiones no aplican.
+    return renderMesh(nullptr, mesh, modelo, view, projection,
+                      [material](const std::string&) { return material; });
+}
+
+bool MeshRenderer::renderMesh(GameObject* contexto, const Mesh* mesh,
+                              const float modelo[16], const float view[16],
+                              const float projection[16],
+                              const ProveedorMaterial& proveedor) {
+    if (!inicializar()) return false;
 
     // Sin malla, vacia o sin normales no hay nada que pintar. Ya no existe el
     // modo inmediato de respaldo, asi que se avisa una vez por malla (el loader
@@ -292,6 +436,9 @@ bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
     }
 
     const glm::mat4 model = glm::make_mat4(modelo);
+    const glm::mat4 viewMat = glm::make_mat4(view);
+    const glm::mat4 proj = glm::make_mat4(projection);
+    const glm::mat4 modelView = viewMat * model;
 
     // Deja la matriz normal como transpose(inverse(model)) pero identidad si la
     // inversa degenero (fracciones no finitas); evita NaN en el shader.
@@ -301,42 +448,126 @@ bool MeshRenderer::intentarRenderMesh(GameObject* contexto, const Mesh* mesh,
 
     shader_->use();
     shader_->setMat4("uModel", model);
-    shader_->setMat4("uView", glm::make_mat4(view));
-    shader_->setMat4("uProjection", glm::make_mat4(projection));
+    shader_->setMat4("uView", viewMat);
+    shader_->setMat4("uProjection", proj);
+    shader_->setMat4("uModelView", modelView);
     shader_->setMat3("uNormalMatrix", normalMatrix);
 
-    const glm::mat4 invView = glm::inverse(glm::make_mat4(view));
+    const glm::mat4 invView = glm::inverse(viewMat);
     shader_->setVec3("uCameraPosition",
                      glm::vec3(invView[3][0], invView[3][1], invView[3][2]));
     shader_->setFloat("uDistanceFadeStart", horizonteInicio_);
     shader_->setFloat("uDistanceFadeEnd", horizonteFin_);
 
-    aplicarMaterial(contexto);
-    aplicarTexturas(contexto, mesh);
-
-    auto it = gpu_.find(mesh);
-    if (it == gpu_.end()) {
-        auto gpu = std::make_unique<MeshGPU>();
-        gpu->upload(&mesh->vertices[0].x, mesh->vertices.size(),
-                    mesh->hasNormals() ? &mesh->normals[0].x : nullptr,
-                    mesh->normals.size(),
-                    mesh->hasUvs() ? &mesh->uvs[0].x : nullptr,
-                    mesh->uvs.size(),
-                    mesh->hasTangents() ? &mesh->tangents[0].x : nullptr,
-                    mesh->tangents.size(),
-                    mesh->hasTangents() ? &mesh->bitangents[0].x : nullptr,
-                    mesh->bitangents.size(),
-                    mesh->indices.empty() ? nullptr : &mesh->indices[0],
-                    mesh->indices.size());
-        it = gpu_.emplace(mesh, std::move(gpu)).first;
-    }
-
     // El relleno de poligonos es el unico estado valido en un contexto core
     // (no hay glPolygonMode) y el depth test ya lo activa applyBaseState().
-    auto& backend = Rendering::Backend::activeBackend();
+    if (!backend_) return false;
+    auto& backend = *backend_;
     backend.setBlendEnabled(true);
-    it->second->draw();
+
+    const MeshGPU* gpu = obtenerGpu(mesh);
+    if (!gpu) {
+        backend.setBlendEnabled(false);
+        return false;
+    }
+
+    // Malla con regiones (materiales por parte): cada region se dibuja con su
+    // material, en el rango de indices que le corresponde. Sin regiones, la
+    // malla entera se dibuja de una vez con el material del objeto.
+    if (mesh->subMallas.empty()) {
+        const IMaterial* material = proveedor("");
+        aplicarMaterial(contexto, material);
+        aplicarTexturas(material, mesh);
+        enlazarTexturasSombra();
+        gpu->draw();
+    } else {
+        for (const SubMalla& region : mesh->subMallas) {
+            if (region.indiceCantidad == 0) continue;
+            const IMaterial* material = proveedor(region.nombreMaterial);
+            aplicarMaterial(contexto, material);
+            aplicarTexturas(material, mesh);
+            enlazarTexturasSombra();
+            gpu->draw(region.indiceInicio, region.indiceCantidad);
+        }
+    }
+
     backend.setBlendEnabled(false);
-    ShaderProgram::unbind();
+    ShaderProgram::unbind(backend);
+    return true;
+}
+
+// Sube la malla a GPU si no estaba ya (la cache es por identidad de la malla
+// CPU, que el AssetManager comparte entre objetos). Devuelve nullptr si la
+// malla no se puede dibujar.
+const MeshGPU* MeshRenderer::obtenerGpu(const Mesh* mesh) {
+    if (!mesh) return nullptr;
+    auto it = gpu_.find(mesh);
+    if (it != gpu_.end()) return it->second.get();
+
+    if (!backend_) return nullptr;
+    auto gpu = std::make_unique<MeshGPU>(*backend_);
+    gpu->upload(&mesh->vertices[0].x, mesh->vertices.size(),
+                mesh->hasNormals() ? &mesh->normals[0].x : nullptr,
+                mesh->normals.size(),
+                mesh->hasUvs() ? &mesh->uvs[0].x : nullptr,
+                mesh->uvs.size(),
+                mesh->hasTangents() ? &mesh->tangents[0].x : nullptr,
+                mesh->tangents.size(),
+                mesh->hasTangents() ? &mesh->bitangents[0].x : nullptr,
+                mesh->bitangents.size(),
+                mesh->indices.empty() ? nullptr : &mesh->indices[0],
+                mesh->indices.size());
+    it = gpu_.emplace(mesh, std::move(gpu)).first;
+    return it->second.get();
+}
+
+void MeshRenderer::enlazarTexturasSombra() {
+    if (!shader_) return;
+    if (!backend_) return;
+    auto& backend = *backend_;
+    const int count =
+        std::min(Rendering::kMaxProyectoresSombra,
+                 static_cast<int>(sombras_.size()));
+    for (int i = 0; i < count; ++i) {
+        const Rendering::Backend::Handle textura =
+            sombras_[static_cast<std::size_t>(i)].textura;
+        if (textura == Rendering::Backend::kInvalidHandle) continue;
+        if (sombras_[static_cast<std::size_t>(i)].esCubemap) {
+            const int idxCubo = std::min(sombras_[static_cast<std::size_t>(i)].indiceLuz,
+                                         Rendering::kMaxProyectoresSombra - 1);
+            backend.bindTextureCube(textura, kUnidadTexturaSombraCubo + idxCubo);
+        } else {
+            backend.bindTexture2D(textura, kUnidadTexturaSombra + i);
+        }
+    }
+}
+
+bool MeshRenderer::intentarRenderSombra(const Mesh* mesh, const float modelo[16],
+                                        const glm::mat4& matrizLuz) {
+    if (!mesh || mesh->isEmpty()) return false;
+    if (!inicializar()) return false;
+    // Sin programa de profundidad no hay pase de sombras, pero el resto de la
+    // escena se dibuja igual.
+    if (!shaderSombra_) return false;
+
+    const glm::mat4 model = glm::make_mat4(modelo);
+    if (!matrizFinita(glm::mat3(model))) return false;
+
+    const glm::mat4 modelLight = matrizLuz * model;
+
+    const MeshGPU* gpu = obtenerGpu(mesh);
+    if (!gpu) return false;
+
+    shaderSombra_->use();
+    shaderSombra_->setMat4("uModel", model);
+    shaderSombra_->setMat4("uLightMatrix", matrizLuz);
+    shaderSombra_->setMat4("uModelLight", modelLight);
+
+    // El pase de profundidad no escribe color: el blend se apaga.
+    if (!backend_) return false;
+    auto& backend = *backend_;
+    backend.setBlendEnabled(false);
+    gpu->draw();
+    ShaderProgram::unbind(backend);
     return true;
 }

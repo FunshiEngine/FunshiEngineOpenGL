@@ -24,9 +24,8 @@ using Rendering::Backend::kInvalidHandle;
 RenderTarget::~RenderTarget() { destroy(); }
 
 void RenderTarget::destroy() {
-    IRenderBackend& backend = Rendering::Backend::activeBackend();
     if (target_ != kInvalidHandle) {
-        backend.destroyRenderTarget(target_);
+        backend_->destroyRenderTarget(target_);
         target_ = kInvalidHandle;
     }
     colorTex_ = kInvalidHandle;
@@ -40,23 +39,22 @@ void RenderTarget::resize(int w, int h) {
 
     destroy();
 
-    target_ = Rendering::Backend::activeBackend().createRenderTarget(w, h);
+    target_ = backend_->createRenderTarget(w, h);
     if (target_ == kInvalidHandle) {
         colorTex_ = kInvalidHandle;
         width = height = 0;
         return;
     }
-    colorTex_ = Rendering::Backend::activeBackend().renderTargetColorTexture(
-        target_);
+    colorTex_ = backend_->renderTargetColorTexture(target_);
     width = w;
     height = h;
 }
 
 void RenderTarget::bind() {
     if (target_ == kInvalidHandle) return;
-    Rendering::Backend::activeBackend().bindRenderTarget(target_);
+    backend_->bindRenderTarget(target_);
 }
 
 void RenderTarget::unbind() {
-    Rendering::Backend::activeBackend().bindDefaultFramebuffer();
+    backend_->bindDefaultFramebuffer();
 }

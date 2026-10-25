@@ -22,6 +22,7 @@
 #include <memory>
 
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
+#include "OperacionGizmo.h"
 
 struct ImGuiIO;
 class CameraComponent;
@@ -51,7 +52,7 @@ private:
     // el gizmo NO rota con el objeto). Alternable con G o el menu "Gizmo".
     bool listo_ = false;
     bool global_ = false;
-    int operation_ = 7; // ImGuizmo::TRANSLATE
+    OperacionGizmo operation_ = OperacionGizmo::Trasladar;
 
     // Arrastre del gizmo en curso: se toma una foto del transform al iniciar el
     // arrastre y otra al terminar, para registrar UN TransformComando por
@@ -88,8 +89,8 @@ public:
     ~GizmoController();
 
     // Estado del gizmo (lo persisten los proyectos / lo alternan G y el menu).
-    void setGizmoOperation(int operation);
-    int getGizmoOperation() const noexcept { return operation_; }
+    void setGizmoOperation(OperacionGizmo operation);
+    OperacionGizmo getGizmoOperation() const noexcept { return operation_; }
     void setGizmoGlobal(bool global) noexcept { global_ = global; }
     bool isGizmoGlobal() const noexcept { return global_; }
 

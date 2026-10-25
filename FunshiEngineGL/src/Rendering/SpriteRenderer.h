@@ -27,6 +27,10 @@
 #include "Backend/IRenderBackend.h"
 
 class ShaderProgram;
+
+namespace Rendering {
+class GestorShaders;
+}  // namespace Rendering
 class TextureGL;
 class TextureManager;
 
@@ -68,6 +72,17 @@ public:
         textureManager_ = textureManager;
     }
 
+    // Backend de render: con el se crean y destruyen los recursos GPU.
+    void setBackend(Rendering::Backend::IRenderBackend& backend) noexcept {
+        backend_ = &backend;
+    }
+
+    // Gestor de shaders del motor (dueno de los programas): sin el, el
+    // renderer no tiene programa y no dibuja.
+    void setGestorShaders(Rendering::GestorShaders* gestorShaders) noexcept {
+        gestorShaders_ = gestorShaders;
+    }
+
     // Dibuja un sprite. Devuelve false si no dibujo (pipeline no disponible o
     // datos incompletos); un fallo de textura no es fatal: cae a color plano.
     bool dibujar(const SpriteDraw& sprite);
@@ -79,7 +94,10 @@ private:
     bool inicializar();
     bool enlazarTextura(const std::string& path);
 
-    std::unique_ptr<ShaderProgram> shader_;
+    std::shared_ptr<ShaderProgram> shader_;
+    Rendering::GestorShaders* gestorShaders_ = nullptr;
+    // Backend de render inyectado (crea y destruye los recursos GPU).
+    Rendering::Backend::IRenderBackend* backend_ = nullptr;
     bool shaderFallado_ = false;
     Rendering::Backend::Handle quadMalla_ = Rendering::Backend::kInvalidHandle;
     TextureManager* textureManager_ = nullptr;

@@ -63,6 +63,22 @@ typedef char GLchar;
 #ifndef GL_CLAMP_TO_EDGE
 #define GL_CLAMP_TO_EDGE 0x812F
 #endif
+// Recorte al borde: lo usa la textura de profundidad del mapa de sombras (lo
+// que hay fuera del mapa no esta en sombra).
+#ifndef GL_CLAMP_TO_BORDER
+#define GL_CLAMP_TO_BORDER 0x812D
+#endif
+// Modo de comparacion de la textura de profundidad: es lo que permite leerla
+// con un sampler2DShadow (el hardware compara y devuelve la cobertura).
+#ifndef GL_TEXTURE_COMPARE_MODE
+#define GL_TEXTURE_COMPARE_MODE 0x884C
+#endif
+#ifndef GL_TEXTURE_COMPARE_FUNC
+#define GL_TEXTURE_COMPARE_FUNC 0x884D
+#endif
+#ifndef GL_COMPARE_REF_TO_TEXTURE
+#define GL_COMPARE_REF_TO_TEXTURE 0x884E
+#endif
 #ifndef GL_TEXTURE0
 #define GL_TEXTURE0 0x84C0
 #endif
@@ -203,6 +219,10 @@ inline FN_DeleteBuffers pfnDeleteBuffers = nullptr;
 inline FN_BindBuffer pfnBindBuffer = nullptr;
 inline FN_BufferData pfnBufferData = nullptr;
 
+// true solo si `init()` pudo resolver todas las funciones de OpenGL que el
+// backend usa. Lo consultan los renderers antes de dibujar.
+inline bool inicializado = false;
+
 template <typename T>
 inline void cargarFuncion(const char* nombre, T& destino) {
     if (!destino) destino = reinterpret_cast<T>(glfwGetProcAddress(nombre));
@@ -241,20 +261,28 @@ inline bool init() {
     cargarFuncion("glBindBuffer", pfnBindBuffer);
     cargarFuncion("glBufferData", pfnBufferData);
 
-    return pfnCreateShader && pfnShaderSource && pfnCompileShader &&
-           pfnGetShaderiv && pfnGetShaderInfoLog && pfnDeleteShader &&
-           pfnCreateProgram && pfnAttachShader && pfnLinkProgram &&
-           pfnGetProgramiv && pfnGetProgramInfoLog && pfnDeleteProgram &&
-           pfnUseProgram && pfnGetUniformLocation && pfnGetAttribLocation &&
-           pfnUniformMatrix4fv && pfnUniformMatrix3fv && pfnUniform3fv &&
-           pfnUniform4fv && pfnUniform1f && pfnUniform1i && pfnActiveTexture &&
-           pfnGenVertexArrays &&
-           pfnDeleteVertexArrays && pfnBindVertexArray &&
-           pfnEnableVertexAttribArray && pfnVertexAttribPointer &&
-           pfnGenBuffers && pfnDeleteBuffers && pfnBindBuffer && pfnBufferData;
+    // Resultado de la carga: el backend esta disponible solo si se pudieron
+    // resolver TODAS las funciones que usa. Queda en una variable para que
+    // `available()` no pueda discrepar con el retorno de `init()`.
+    inicializado = pfnCreateShader && pfnShaderSource && pfnCompileShader &&
+                   pfnGetShaderiv && pfnGetShaderInfoLog && pfnDeleteShader &&
+                   pfnCreateProgram && pfnAttachShader && pfnLinkProgram &&
+                   pfnGetProgramiv && pfnGetProgramInfoLog &&
+                   pfnDeleteProgram && pfnUseProgram && pfnGetUniformLocation &&
+                   pfnGetAttribLocation && pfnUniformMatrix4fv &&
+                   pfnUniformMatrix3fv && pfnUniform3fv && pfnUniform4fv &&
+                   pfnUniform1f && pfnUniform1i && pfnActiveTexture &&
+                   pfnGenVertexArrays && pfnDeleteVertexArrays &&
+                   pfnBindVertexArray && pfnEnableVertexAttribArray &&
+                   pfnVertexAttribPointer && pfnGenBuffers &&
+                   pfnDeleteBuffers && pfnBindBuffer && pfnBufferData;
+    return inicializado;
 }
 
-inline bool available() { return pfnCreateShader != nullptr; }
+// El backend esta disponible si la carga fue completa y exitosa. Comprobar
+// una sola funcion dejaria pasar el caso en que falte cualquiera de las
+// demas: los renderers avanzarian y llamarian un puntero de funcion nulo.
+inline bool available() { return inicializado; }
 
 } // namespace GLFuncs
 

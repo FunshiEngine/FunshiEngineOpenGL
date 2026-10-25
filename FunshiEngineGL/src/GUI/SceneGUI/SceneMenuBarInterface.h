@@ -76,6 +76,24 @@ public:
     void setPanelesMods(
         const std::vector<std::pair<std::string, std::string>>& paneles);
     void setProyectoActual(const std::string& proyecto);
+
+    // Proyecto activo que la barra refleja (lo usa el dialogo de exportacion
+    // para saber que proyecto exportar).
+    const std::string& proyectoActual() const noexcept {
+        return proyectoActual_;
+    }
+
+    // Abre el dialogo de exportacion (lo crea si no existe). El dialogo
+    // nasce con el proyecto activo: sin el, la exportacion no se puede
+    // lanzar.
+    void abrirDialogoExportacion();
+
+    // Dialogo de exportacion abierto (nullptr si todavia no se abrio). Permite
+    // consultar su estado (proyecto, fase) sin depender del ImGui.
+    ExportDialog* dialogoExportacion() const noexcept {
+        return exportDialog_.get();
+    }
+
     virtual void initGUI() override;
     virtual void contentGUI() override;
     virtual void endGUI() override;

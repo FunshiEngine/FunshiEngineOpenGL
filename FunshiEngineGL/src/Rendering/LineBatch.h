@@ -32,13 +32,17 @@ class LineBuilder;
 // draw call por pase en vez de uno por linea.
 class LineBatch {
 private:
+    // Backend con el que se crean y destruyen los recursos: se inyecta, no se
+    // busca en un singleton.
+    Rendering::Backend::IRenderBackend* backend_ = nullptr;
     Rendering::Backend::Handle buffer_ = Rendering::Backend::kInvalidHandle;
     std::size_t vertexCount_ = 0;
 
     void destroy();
 
 public:
-    LineBatch() = default;
+    explicit LineBatch(Rendering::Backend::IRenderBackend& backend) noexcept
+        : backend_(&backend) {}
     ~LineBatch();
     LineBatch(const LineBatch&) = delete;
     LineBatch& operator=(const LineBatch&) = delete;

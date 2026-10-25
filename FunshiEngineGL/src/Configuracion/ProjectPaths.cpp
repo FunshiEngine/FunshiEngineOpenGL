@@ -67,7 +67,16 @@ bool esReservado(const std::string& nombre) {
     static const char* reservados[] = {
         "Proyects", "Configuraciones", "Exportaciones",
         "Binarios", "Memory", "Interfaces", "Sonidos",
-        "Configuracion.json", "imgui.ini", "logs"
+        "Configuracion.json", "imgui.ini", "logs",
+        // Carpeta global de mods del motor: asegurarEstructuraBase la crea en
+        // cada arranque; si no estuviera reservada, la migracion de proyectos
+        // legacy la movia a Proyects/ y el listado mostraba un proyecto falso
+        // llamado "Mods".
+        "Mods",
+        // Cache de los mods (CargadorMods::directorioCacheMods): se crea al
+        // cargar mods, tambien en la raiz de datos; sin reserva, la migracion
+        // la movia a Proyects/ como un proyecto falso llamado "cache".
+        "cache"
     };
     for (const char* r : reservados) {
         if (nombre == r) return true;
@@ -79,7 +88,7 @@ bool esReservado(const std::string& nombre) {
 // ---------------------------------------------------------------------------
 // Resolucion de la raiz de datos (vease la nota de ProjectPaths.h)
 //
-// La raiz MotorGrafico vivio historicamente junto al ejecutable. Con el
+// La raiz FunshiEngine-DATA vivio historicamente junto al ejecutable. Con el
 // instalador de Windows eso la deja en "C:\Program Files\FunshiEngineGL\", que
 // el proceso NO puede escribir sin elevar: el ejecutable no lleva manifest
 // requestedExecutionLevel, asi que corre como usuario normal mientras la
@@ -131,7 +140,7 @@ bool esEscribible(const std::string& dir) {
 // de donde quedan sus datos y para la migracion).
 std::string baseOriginal() {
     const std::string d = exeDir();
-    return d.empty() ? std::string("MotorGrafico") : d + "MotorGrafico";
+    return d.empty() ? std::string("FunshiEngine-DATA") : d + "FunshiEngine-DATA";
 }
 
 } // namespace
@@ -163,7 +172,7 @@ std::string baseResuelta() {
     static const std::string base = [] {
         const std::string usuario = directorioDatosUsuario();
         return ProjectPathsDetalle::elegirRaizDeDatos(
-            baseOriginal(), usuario.empty() ? usuario : usuario + "/MotorGrafico");
+            baseOriginal(), usuario.empty() ? usuario : usuario + "/FunshiEngine-DATA");
     }();
     return base;
 }
@@ -317,10 +326,6 @@ std::string nombreRaizSrc(const std::string& nombreProyecto) {
 
 std::string directorioSrc(const std::string& nombreProyecto) {
     return directorioProyecto(nombreProyecto) + "/" + nombreRaizSrc(nombreProyecto);
-}
-
-std::string directorioSonidos(const std::string& nombreProyecto) {
-    return directorioSrc(nombreProyecto) + "/Sonidos";
 }
 
 std::string directorioScripts(const std::string& nombreProyecto) {

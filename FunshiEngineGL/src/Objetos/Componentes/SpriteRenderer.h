@@ -58,9 +58,6 @@ protected:
     void deserializeComponent(std::ifstream* file) override;
 
 public:
-    void saveComponent(std::ofstream* file) override;
-    void loadComponent(std::ifstream* file) override;
-
 private:
     std::string rutaTextura_;
     float tint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};

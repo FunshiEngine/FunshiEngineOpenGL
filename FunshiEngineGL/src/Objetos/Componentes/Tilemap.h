@@ -96,9 +96,6 @@ public:
 
     void onLoaded(GameObject& dueno) override;
 
-    void saveComponent(std::ofstream* file) override;
-    void loadComponent(std::ifstream* file) override;
-
 protected:
     void serializeComponent(std::ofstream* file) override;
     void deserializeComponent(std::ifstream* file) override;

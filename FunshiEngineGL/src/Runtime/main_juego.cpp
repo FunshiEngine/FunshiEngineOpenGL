@@ -21,12 +21,21 @@
 // NO incluye codigo del editor (GUIManager, MenuGUI, paneles, atajos de editor).
 // Solo lo que corre en modo "Play": escena, fisica, scripts, render, input de juego.
 
+// Windows.h ANTES del header propio y de la stdlib, para que _HAS_STD_BYTE=0
+// surta efecto antes de que la stdlib defina std::byte (mismo baile que
+// Proceso.cpp y TerminalSession.cpp). Ademas, windows.h declara un "byte" global
+// que, con el "using namespace std;" de las estructuras del motor, choca con
+// std::byte: si se incluye despues, el archivo no compila.
+#if defined(_WIN32)
+#define _HAS_STD_BYTE 0
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <shellapi.h>
+#endif
+
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-
-#ifdef _WIN32
-#define _HAS_STD_BYTE 0
-#endif
 
 #include "../Scenes/GameScene.h"
 #include "../Configuracion/EditorConfig.h"
@@ -36,7 +45,10 @@
 #include "../EngineTime.h"
 #include "../Ventana.h"
 #include "../Input/EditorInput.h"
+#include "../GUI/Estado/EstadoInterfazImGui.h"
+#include "../Hilos/HiloActual.h"
 #include "../Rendering/Backend/IRenderBackend.h"
+#include "../Rendering/FondoEscena.h"
 #include "../Behaviour/ScriptRuntime.h"
 #include "../States/ApplicationStateMachine.h"
 #include "../States/OrquestadorEstadoGUI.h"
@@ -81,7 +93,9 @@ static std::string redirigirSalidaALog(char* argv0) {
             const std::string ruta = (fs::path(carpeta) / nombre).string();
             g_logSalida = std::freopen(ruta.c_str(), "a", stdout);
             if (!g_logSalida) continue;
-            std::freopen(ruta.c_str(), "a", stderr);
+            // stderr va al mismo archivo. Si su redireccion falla, el log
+            // sigue saliendo por stdout: no es motivo para no arrancar.
+            (void)std::freopen(ruta.c_str(), "a", stderr);
             std::cout << "\n========== Arranque JuegoExportado " << sufijo
                       << " ==========\n";
             std::cout << "Log en: " << ruta << "\n";
@@ -95,11 +109,12 @@ static std::string redirigirSalidaALog(char* argv0) {
 
 // Windows GUI entry point (sin consola)
 #ifdef _WIN32
-#include <windows.h>
-#include <shellapi.h>
 static int EjecutarJuego(int argc, char* argv[]);
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
+    // argc lo cuenta CommandLineToArgvW: el cuarto parametro de la firma de
+    // WinMain es como se muestra la ventana, no el numero de argumentos.
+    int argc = 0;
     LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &argc);
     std::vector<char*> argvAnsi;
     if (wargv) {
@@ -137,6 +152,11 @@ int EjecutarJuego(int argc, char* argv[]) {
     std::string rutaLog = redirigirSalidaALog(argc > 0 ? argv[0] : nullptr);
     (void)rutaLog;
 
+    // El hilo principal del motor queda registrado: el contexto de OpenGL,
+    // ImGui, CEF y la JVM solo se pueden usar desde aqui (ver Hilos/
+    // HiloActual.h).
+    Hilos::fijarHiloPrincipal();
+
     // 2. Registrar el callback de errores de GLFW antes de crear la ventana.
     // Ventana::initVentana llama a glfwInit(); no se duplica aqui.
     glfwSetErrorCallback([](int error, const char* desc) {
@@ -146,7 +166,14 @@ int EjecutarJuego(int argc, char* argv[]) {
     // 3. Crear ventana (Ventana llama a glfwInit internamente, crea la ventana,
     // inicializa el contexto 3.3 core y carga las funciones de OpenGL).
     Ventana* auxVentana = new Ventana();
-    auxVentana->initVentana();
+    // Sin ventana no hay contexto de OpenGL ni entrada: seguir adelante
+    // dejaria el motor operando sobre una ventana nula.
+    if (auxVentana->initVentana() != 0) {
+        std::cerr << "No se pudo crear la ventana de OpenGL 3.3; el juego "
+                     "no puede arrancar\n";
+        delete auxVentana;
+        return -1;
+    }
     GLFWwindow* window = auxVentana->getWindow();
 
     // 4. ImGui init (contexto básico, SIN GUIManager del editor)
@@ -165,11 +192,13 @@ int EjecutarJuego(int argc, char* argv[]) {
     ImGui_ImplOpenGL3_Init("#version 330 core");
 
     // 5. GameScene (nucleo: render, fisica, scripts, input)
-    // El constructor que NO requiere GUIManager - solo para runtime
-    GameScene* scene = new GameScene(nullptr);
+    // El constructor que NO requiere GUIManager - solo para runtime. El backend
+    // de render se le pasa igual: sin el, la escena no tiene con que dibujar.
+    GameScene* scene = new GameScene(nullptr,
+                                     Rendering::Backend::activeBackend());
 
     // 6. Leer manifiesto JuegoExportado.json junto al binario para obtener metadatos
-    // El juego exportado NO replica la estructura MotorGrafico/Proyects: las escenas
+    // El juego exportado NO replica la estructura FunshiEngine-DATA/Proyects: las escenas
     // y assets están directamente en scenes/ y assets/ junto al ejecutable.
     std::string dirEjecutable = ProjectPaths::directorioEjecutable();
     std::string nombreProyecto;
@@ -190,7 +219,7 @@ int EjecutarJuego(int argc, char* argv[]) {
     fs::create_directories(cacheDir, ec);
 
     // 8. Cargar escena desde la estructura simplificada del juego exportado
-    // Las escenas están en scenes/ junto al ejecutable, NO en MotorGrafico/Proyects.
+    // Las escenas están en scenes/ junto al ejecutable, NO en FunshiEngine-DATA/Proyects.
     // Las rutas de assets de la escena se guardan RELATIVAS a la raiz del
     // juego (p. ej. "Assets/Modelos/Cube.obj"): se fija esa raiz ANTES de
     // cargar, para que se resuelvan contra el directorio del juego y no
@@ -209,21 +238,30 @@ int EjecutarJuego(int argc, char* argv[]) {
         // No cargar escena - GameScene arranca con una escena vacía por defecto
     }
 
-    // configurarProyecto() inicializa el catalogo de clips de audio
-    // (Sonidos/) y las interfaces de la escena (Memory/Interfaces).
-    // Debe llamarse DESPUES de loadScene para que la escena ya exista.
+    // configurarProyecto() asegura la estructura de carpetas del proyecto
+    // (Memory/ y src<nombre>/). Debe llamarse DESPUES de loadScene para que la
+    // escena ya exista.
     scene->configurarProyecto(nombreProyecto);
 
     // 9. Maquina de estados y orquestador
     ApplicationStateMachine appStateMachine;
     OrquestadorEstadoGUI orquestadorDeGUI(&appStateMachine);
 
+    // Estado base del pipeline (test de profundidad, multisample): el editor
+    // lo deja igual al arrancar la ventana.
+    Rendering::Backend::activeBackend().applyBaseState();
+
     // 10. Entrar DIRECTAMENTE en modo Playing (Juego)
     appStateMachine.transitionTo(ApplicationState::Playing);
     scene->setModoJuego(true);
 
-    // 11. Input para juego (EditorInput maneja input de juego SIN GUI de editor)
-    EditorInput* input = new EditorInput(scene, &appStateMachine, &orquestadorDeGUI);
+    // 11. Input para juego (EditorInput maneja input de juego SIN GUI de editor).
+    // El estado de la interfaz se inyecta: el juego exportado si tiene contexto
+    // de ImGui (para el HUD web), asi que el input puede preguntar si el
+    // teclado es de un widget.
+    EstadoInterfazImGui estadoInterfaz;
+    EditorInput* input = new EditorInput(scene, &appStateMachine,
+                                          &orquestadorDeGUI, &estadoInterfaz);
 
     // 12. Registrar callbacks de input (antes del loop)
     input->registrarCallbacks(window);
@@ -262,6 +300,16 @@ int EjecutarJuego(int argc, char* argv[]) {
         // update() avanza la fisica, los scripts y las animaciones.
         // gameScene() dibuja el frame con el estado ya actualizado.
         scene->update(Time::getDeltaTime());
+
+        // El frame arranca limpio: el color de fondo del perfil y el buffer de
+        // profundidad a cero. Sin esta limpieza el test de profundidad
+        // compara contra el valor inicial del buffer (que no es 1.0 en todos
+        // los drivers) y ni el cielo ni la geometria se dibujan: la pantalla
+        // queda en negro. El editor hace lo mismo desde el arranque del
+        // frame; el juego exportado lo hace aqui.
+        FondoEscena::limpiar(Rendering::Backend::activeBackend(),
+                             scene->getApariencia());
+
         scene->gameScene();
 
         ImGui::Render();

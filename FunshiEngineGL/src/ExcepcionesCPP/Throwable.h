@@ -29,11 +29,15 @@ protected:
     std::string stackTrace;
 
 public:
-    Throwable(const std::string& msg = "") : std::runtime_error("Error gráfico: " + msg) {
-        // Aquí podrías capturar el stack trace (usando librerías como backward-cpp)
+    // El mensaje se guarda tal cual lo entrega quien lanza la excepcion: la
+    // clase base lo recibe y la anulacion de what() lo devuelve, de modo que
+    // el texto nunca se pierde al atrapar la excepcion como std::exception.
+    Throwable(const std::string& msg = "")
+        : std::runtime_error(msg), message(msg) {
+        // AquÃ­ podrÃ­as capturar el stack trace (usando librerÃ­as como backward-cpp)
     }
 
-    virtual const char* what() const noexcept override {
+    const char* what() const noexcept override {
         return message.c_str();
     }
 

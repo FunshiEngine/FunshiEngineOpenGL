@@ -42,9 +42,6 @@ protected:
 public:
     Grid() = default;
 
-    void saveComponent(std::ofstream* file) override;
-    void loadComponent(std::ifstream* file) override;
-
     bool getVisible() const { return visible; }
     void setVisible(bool value) { visible = value; }
 

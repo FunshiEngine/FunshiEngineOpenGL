@@ -29,6 +29,9 @@
 // en cada frame.
 class TextureGL {
 private:
+    // Backend con el que se crean y destruyen los recursos: se inyecta, no se
+    // busca en un singleton.
+    Rendering::Backend::IRenderBackend* backend_ = nullptr;
     Rendering::Backend::Handle texture_ = Rendering::Backend::kInvalidHandle;
     int width_ = 0;
     int height_ = 0;
@@ -36,7 +39,8 @@ private:
     void destroy();
 
 public:
-    TextureGL() = default;
+    explicit TextureGL(Rendering::Backend::IRenderBackend& backend) noexcept
+        : backend_(&backend) {}
     ~TextureGL();
     TextureGL(const TextureGL&) = delete;
     TextureGL& operator=(const TextureGL&) = delete;

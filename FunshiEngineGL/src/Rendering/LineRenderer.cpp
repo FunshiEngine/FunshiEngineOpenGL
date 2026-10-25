@@ -31,7 +31,7 @@
 #include "LineBuilder.h"
 #include "ProyeccionCamara.h"
 #include "Shaders/ShaderProgram.h"
-#include "Shaders/ShaderSources.h"
+#include "Shaders/GestorShaders.h"
 
 LineRenderer::LineRenderer() = default;
 
@@ -70,9 +70,10 @@ void LineRenderer::setHorizonteVisual(float inicio, float fin) noexcept {
 bool LineRenderer::inicializar() {
     if (shader_) return true;
     if (!Rendering::Backend::activeBackend().init()) return false;
+    // Sin gestor de shaders no hay de donde pedir el programa.
+    if (!gestorShaders_) return false;
     try {
-        shader_ = std::make_unique<ShaderProgram>(
-            ShaderProgram::fromSource(kLineVertexShader, kLineFragmentShader));
+        shader_ = gestorShaders_->obtener("linea");
     } catch (const std::exception& e) {
         registrarExcepcionDiagnostica("Rendering/LineRenderer", e,
                                       NivelDiagnostico::Error);
@@ -115,7 +116,7 @@ void LineRenderer::dibujar(const LineBatch& batch, const float model[16],
     backend.setBlendEnabled(true);
     batch.draw();
     backend.setBlendEnabled(false);
-    ShaderProgram::unbind();
+    ShaderProgram::unbind(backend);
 }
 
 void LineRenderer::dibujar(LineBuilder& builder, LineBatch& batch,

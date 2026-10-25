@@ -66,9 +66,6 @@ protected:
 public:
     InterfaceComponent() = default;
 
-    void saveComponent(std::ofstream* file) override;
-    void loadComponent(std::ifstream* file) override;
-
     const std::string& getRutaHtml() const noexcept { return rutaHtml; }
     void setRutaHtml(const std::string& ruta) noexcept { rutaHtml = ruta; }
 

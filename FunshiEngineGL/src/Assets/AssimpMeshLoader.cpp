@@ -35,6 +35,23 @@ bool AssimpMeshLoader::puedeLeerFormato(const std::string& path) {
     return aiIsExtensionSupported(("." + ext).c_str()) == AI_TRUE;
 }
 
+namespace {
+
+// Nombre del material de una sub-malla. El archivo puede no declararlo (o
+// declarar un material sin nombre): en ese caso se devuelve una cadena vacia
+// y el motor usa el material por defecto del objeto.
+std::string nombreMaterial(const aiScene* scene, unsigned int indice) {
+    if (!scene || indice >= scene->mNumMaterials) return std::string();
+    const aiMaterial* material = scene->mMaterials[indice];
+    if (!material) return std::string();
+    const aiString nombre = material->GetName();
+    const char* texto = nombre.C_Str();
+    if (!texto) return std::string();
+    return std::string(texto);
+}
+
+} // namespace
+
 std::shared_ptr<Mesh> AssimpMeshLoader::load(const std::string& path) {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(
@@ -51,6 +68,10 @@ std::shared_ptr<Mesh> AssimpMeshLoader::load(const std::string& path) {
 
     auto mesh = std::make_shared<Mesh>();
     mesh->name = AssetPath::basename(path);
+
+    // Indice global del primer indice de la sub-malla en curso: cada region
+    // ocupa un rango contiguo de la lista de indices.
+    unsigned int inicioIndices = 0;
 
     // El importador pide aiProcess_GenSmoothNormals, pero no siempre puede
     // generarlas (mallas no manifoldes, caras degeneradas): las sub-mallas que
@@ -114,6 +135,21 @@ std::shared_ptr<Mesh> AssimpMeshLoader::load(const std::string& path) {
                 mesh->indices.push_back(base + face.mIndices[2]);
             }
         }
+
+        // La region de esta sub-malla: el rango de indices que se acaba de
+        // escribir y el nombre del material que el archivo declara. Antes el
+        // cargador concatenaba todas las sub-mallas y perdia esa informacion
+        // (mMaterialIndex y el nombre del material nunca se leian), asi que un
+        // modelo con varios materiales llegaba al motor como uno solo.
+        if (mesh->indices.size() > inicioIndices) {
+            SubMalla region;
+            region.nombreMaterial = nombreMaterial(scene, src->mMaterialIndex);
+            region.indiceInicio = inicioIndices;
+            region.indiceCantidad =
+                static_cast<unsigned int>(mesh->indices.size() - inicioIndices);
+            mesh->subMallas.push_back(std::move(region));
+        }
+        inicioIndices = static_cast<unsigned int>(mesh->indices.size());
     }
 
     if (mesh->vertices.empty())

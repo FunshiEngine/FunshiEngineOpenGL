@@ -25,9 +25,10 @@
 
 class AudioEngine;
 
-// Inspector del componente AudioSource: nombre del clip (se completa con el
-// catalogo de clips del proyecto), volumen, loop, reproduccion automatica y
-// botones Reproducir/Detener (requieren el motor inyectado por Settings).
+// Inspector del componente AudioSource: el archivo de audio (se asigna
+// arrastrandolo desde el explorador, como con los scripts), volumen, loop,
+// reproduccion automatica y botones Reproducir/Detener (requieren el motor
+// inyectado por Settings).
 class SettingsAudioSource : public SettingsComponent {
 private:
 	GameObject* gameObject = nullptr;

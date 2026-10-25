@@ -93,17 +93,9 @@ Collider::~Collider() = default;
 
 LineBatch& Collider::obtenerWireBatch() {
     if (!wireBatch_) {
-        wireBatch_.reset(new LineBatch());
+        wireBatch_.reset(new LineBatch(Rendering::Backend::activeBackend()));
     }
     return *wireBatch_;
-}
-
-void Collider::saveComponent(std::ofstream* fileNamePathContentObject) {
-    serializeComponent(fileNamePathContentObject);
-}
-
-void Collider::loadComponent(std::ifstream* fileNamePathContentObject) {
-    deserializeComponent(fileNamePathContentObject);
 }
 
 void Collider::setRadio(float radio) {

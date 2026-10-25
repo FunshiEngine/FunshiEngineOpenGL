@@ -136,3 +136,14 @@ bool Mesh::computeTangents() {
     }
     return hasTangents();
 }
+
+const SubMalla* Mesh::regionDeIndice(unsigned int indice) const {
+    for (const SubMalla& region : subMallas) {
+        if (indice < region.indiceInicio) continue;
+        if (indice >= region.indiceInicio + region.indiceCantidad) continue;
+        return &region;
+    }
+    // Malla sin regiones (un solo material): no hay region a la que
+    // pertenece el indice, y el llamador dibuja la malla entera de una vez.
+    return nullptr;
+}

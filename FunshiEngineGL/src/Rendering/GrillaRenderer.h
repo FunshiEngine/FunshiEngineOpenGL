@@ -66,6 +66,11 @@ public:
     // (el batch interpola el alpha entre extremos de cada trozo).
     static constexpr int kSubdivisiones = 6;
 
+    // El backend se inyecta: los batches de lineas crean sus recursos con el.
+    explicit GrillaRenderer(Rendering::Backend::IRenderBackend& backend)
+        : backend_(backend),
+          secundarioBatch_(backend), principalBatch_(backend), ejesBatch_(backend) {}
+
     ~GrillaRenderer() { destruir(); }
 
     // Dibuja la grilla infinita en el espacio local del objeto "Grilla" (la
@@ -85,6 +90,8 @@ private:
     LineBuilder secundario_;
     LineBuilder principal_;
     LineBuilder ejes_;
+    // Backend de render de la pasada: se inyecta al construir la grilla.
+    Rendering::Backend::IRenderBackend& backend_;
     LineBatch secundarioBatch_;
     LineBatch principalBatch_;
     LineBatch ejesBatch_;

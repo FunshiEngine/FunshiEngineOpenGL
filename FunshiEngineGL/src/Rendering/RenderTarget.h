@@ -27,6 +27,9 @@
 // OpenGL3Backend, asi funciona igual en Linux y Windows sin GLAD/glew externo.
 class RenderTarget {
 private:
+    // Backend con el que se crean y destruyen los recursos: se inyecta, no se
+    // busca en un singleton.
+    Rendering::Backend::IRenderBackend* backend_ = nullptr;
     Rendering::Backend::Handle target_ = Rendering::Backend::kInvalidHandle;
     Rendering::Backend::Handle colorTex_ = Rendering::Backend::kInvalidHandle;
     int width = 0;
@@ -35,7 +38,8 @@ private:
     void destroy();
 
 public:
-    RenderTarget() = default;
+    explicit RenderTarget(Rendering::Backend::IRenderBackend& backend) noexcept
+        : backend_(&backend) {}
     ~RenderTarget();
 
     RenderTarget(const RenderTarget&) = delete;
@@ -43,7 +47,7 @@ public:
 
     void resize(int w, int h);
     void bind();
-    static void unbind();
+    void unbind();
 
     Rendering::Backend::Handle getColorTexture() const { return colorTex_; }
     int getWidth() const { return width; }

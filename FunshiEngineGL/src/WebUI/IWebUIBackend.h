@@ -40,6 +40,10 @@ class IWebUIBackend {
 public:
     virtual ~IWebUIBackend() = default;
 
+    // Sin comportamiento por defecto: cada backend declara que hace en el
+    // arranque, en el bucle y en el cierre. Un backend que no implemente esto
+    // no compila, en vez de heredar un silencio que el motor no ve.
+
     // Nombre corto y estable del backend ("null", "cef", ...).
     virtual const char* nombre() const = 0;
 
@@ -49,27 +53,19 @@ public:
     // y el motor debe seguir arrancando normal. Se llama una sola vez, al
     // comienzo de main y antes de cualquier inicializacion del motor (ventana,
     // log, GL). El backend nulo no tiene subprocesos y devuelve -1.
-    virtual int ejecutarSubproceso(int argc, char** argv) {
-        (void)argc;
-        (void)argv;
-        return -1;
-    }
+    virtual int ejecutarSubproceso(int argc, char** argv) = 0;
 
     // Arranca el motor web global del backend (una vez por proceso, despues de
     // ejecutarSubproceso y ya con el contexto grafico de la ventana listo).
     // Devuelve false si no pudo arrancar; el motor sigue corriendo con las
     // vistas sin textura. El backend nulo no arranca nada y devuelve true.
-    virtual bool inicializar(int argc, char** argv) {
-        (void)argc;
-        (void)argv;
-        return true;
-    }
+    virtual bool inicializar(int argc, char** argv) = 0;
 
     // Bombea el bucle de mensajes del motor web (una vez por frame, en el hilo
     // principal). Los backends que corren su propio bucle no hacen nada; los que
     // usan bomba externa (CEF con external_message_pump) procesan aqui los
     // callbacks pendientes. El backend nulo no hace nada.
-    virtual void bombear() {}
+    virtual void bombear() = 0;
 
     // Crea la vista, carga el .html y reserva el area de dibujo (ancho/alto en
     // pixeles del contenedor). Devuelve false y describe `error` si no pudo.
@@ -116,7 +112,7 @@ public:
 
     // Cierre de la aplicacion: apaga el motor web global del backend (p. ej. el
     // proceso de CEF). Debe invocarse despues de descargar todas las vistas.
-    virtual void apagar() {}
+    virtual void apagar() = 0;
 };
 
 #endif // IWEBUIBACKEND_H

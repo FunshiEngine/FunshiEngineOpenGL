@@ -567,6 +567,127 @@ static void testAlinearValores() {
     }
 }
 
+// El script cambio el TIPO de un campo entre la guardado y la carga (por
+// ejemplo, un texto que pasa a ser un entero). El valor guardado no se puede
+// reinterpretar: la alternativa activa del variant no corresponde a la
+// etiqueta del campo. Si se conservara tal cual, el inspector haria un
+// std::get sobre la alternativa equivocada y lanzaria
+// std::bad_variant_access DENTRO del render de ImGui (el motor aborta).
+static void testAlinearValoresConTipoDistinto() {
+    std::cout << "-- alinearValores: un campo que cambio de tipo toma el "
+                 "valor por defecto del campo actual"
+              << std::endl;
+
+    DefCampo def;
+    def.nombre = "campo";
+    def.tag = TagTipo::Entero;
+    const std::vector<DefCampo> defs{def};
+
+    ValorCampo leido;
+    leido.nombre = "campo";
+    leido.tag = TagTipo::Texto;
+    leido.contenido = std::string("hola");
+
+    const std::vector<ValorCampo> alineados =
+        alinearValores({leido}, defs);
+    CHECK(alineados.size() == 1, "el campo queda alineado");
+    if (alineados.size() == 1) {
+        CHECK(alineados[0].tag == TagTipo::Entero,
+              "la etiqueta pasa a ser la del campo actual");
+        // El acceso no puede lanzar: la etiqueta y el contenido coinciden.
+        CHECK(alineados[0].como<int>() == 0,
+              "el valor que no se puede reinterpretar pasa al valor por defecto");
+    }
+}
+
+// --- Lectura de un archivo corrupto -------------------------------------------
+// La longitud y la etiqueta las controla el archivo. Si estan corruptas, la
+// lectura se corta con un error limpio: nunca se reserva una memoria absurda
+// (que abortaba el motor) ni se deja el payload sin consumir (lo que venia
+// detras era basura).
+
+static void testLecturaCorrupta() {
+    std::cout << "-- lectura corrupta: una longitud o una etiqueta invalida se "
+                 "corta sin abortar"
+              << std::endl;
+
+    TempPruebas::CarpetaPrueba carpeta("funshi_reflexion_corrupta");
+    const std::filesystem::path ruta = carpeta.ruta() / "corrupto.bin";
+
+    // 1. Cantidad de valores enorme.
+    {
+        std::ofstream out(ruta, std::ios::binary | std::ios::trunc);
+        const uint32_t n = 0xFFFFFFFFu;
+        out.write(reinterpret_cast<const char*>(&n), sizeof(n));
+        out.close();
+
+        std::ifstream in(ruta, std::ios::binary);
+        const std::vector<ValorCampo> leidos = cargarValoresCampos(in);
+        CHECK(leidos.empty(), "una cantidad enorme de valores se rechaza");
+        CHECK(!in.good(), "el stream queda marcado como fallido");
+    }
+
+    // 2. Longitud de texto enorme (el nombre del primer valor).
+    {
+        std::ofstream out(ruta, std::ios::binary | std::ios::trunc);
+        const uint32_t n = 1;
+        out.write(reinterpret_cast<const char*>(&n), sizeof(n));
+        const uint32_t largo = 0xFFFFFFFFu;
+        out.write(reinterpret_cast<const char*>(&largo), sizeof(largo));
+        out.close();
+
+        std::ifstream in(ruta, std::ios::binary);
+        const std::vector<ValorCampo> leidos = cargarValoresCampos(in);
+        CHECK(leidos.empty(), "un texto de longitud enorme se rechaza");
+    }
+
+    // 3. Etiqueta fuera de rango: el payload no se podria interpretar.
+    {
+        std::ofstream out(ruta, std::ios::binary | std::ios::trunc);
+        const uint32_t n = 1;
+        out.write(reinterpret_cast<const char*>(&n), sizeof(n));
+        const uint32_t largo = 1;
+        out.write(reinterpret_cast<const char*>(&largo), sizeof(largo));
+        out.write("x", 1);
+        const uint8_t tag = 250;
+        out.write(reinterpret_cast<const char*>(&tag), sizeof(tag));
+        out.close();
+
+        std::ifstream in(ruta, std::ios::binary);
+        const std::vector<ValorCampo> leidos = cargarValoresCampos(in);
+        CHECK(leidos.empty(), "una etiqueta fuera de rango se rechaza");
+    }
+
+    // 4. Anidamiento profundo: el tope de profundidad corta la lectura en vez
+    //    de desbordar la pila.
+    {
+        std::ofstream out(ruta, std::ios::binary | std::ios::trunc);
+        const uint32_t n = 1;
+        out.write(reinterpret_cast<const char*>(&n), sizeof(n));
+        const uint32_t largo = 1;
+        out.write(reinterpret_cast<const char*>(&largo), sizeof(largo));
+        out.write("x", 1);
+        const uint8_t tagGrupo = static_cast<uint8_t>(TagTipo::Grupo);
+        out.write(reinterpret_cast<const char*>(&tagGrupo), sizeof(tagGrupo));
+        // El valor es un Grupo con un unico subcampo, que a su vez es un Grupo:
+        // se repite el patron para superar el tope de profundidad.
+        const uint32_t subcampos = 1;
+        for (int nivel = 0; nivel < 200; ++nivel) {
+            out.write(reinterpret_cast<const char*>(&subcampos),
+                      sizeof(subcampos));
+            out.write(reinterpret_cast<const char*>(&largo), sizeof(largo));
+            out.write("x", 1);
+            out.write(reinterpret_cast<const char*>(&tagGrupo), sizeof(tagGrupo));
+        }
+        out.close();
+
+        std::ifstream in(ruta, std::ios::binary);
+        const std::vector<ValorCampo> leidos = cargarValoresCampos(in);
+        CHECK(leidos.empty(),
+              "un anidamiento profundo se corta por el tope de profundidad");
+    }
+}
+
 static void testEntradaDeScripts() {
     InputScripts input;
     input.reset();
@@ -1173,6 +1294,8 @@ int main(int argc, char** argv) {
     testComponenteResolucion();
     testSerializacionBinaria();
     testAlinearValores();
+    testAlinearValoresConTipoDistinto();
+    testLecturaCorrupta();
     testEntradaDeScripts();
     testAudioIniciadoPorScripts();
     testContratoCompilacion();

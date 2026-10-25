@@ -29,6 +29,7 @@
 
 class IconosGUI;
 class EditorEventBus;
+class StatusBarInterface;
 
 // Panel "ShowFolder": muestra el contenido de la carpeta seleccionada en el
 // arbol. Ya no se enlaza al arbol por puntero ni le pide el contenido: lee
@@ -86,8 +87,26 @@ private:
     std::filesystem::file_time_type cacheMtime{};
     unsigned long ultimoContadorVisto = 0;  // Para detectar cambios en el arbol y refrescar antes de initGUI
 
+    // Barra de estado del editor (puntero NO propietario, lo inyecta
+    // GUIManager): es donde se avisa del resultado de una importacion
+    // (archivos pegados, error al copiar) sin abrir un modal.
+    StatusBarInterface* statusBar_ = nullptr;
+
     std::string crearNuevoElemento();
     void recorrer(const std::string& path);
+
+    // Importa en `destino` los archivos que vienen de fuera del proyecto
+    // (soltados sobre la ventana o pegados desde el portapapeles del
+    // sistema) y deja la vista al dia: invalida el cache del grid y avisa
+    // del resultado.
+    void importarRutas(const std::vector<std::string>& rutas,
+                       const std::string& destino);
+
+    // Ctrl+V: pega en la carpeta visible lo que el sistema tiene en el
+    // portapapeles. Se atiende en el frame de la ventana, con el foco en
+    // ella, para que un Ctrl+V dentro de un campo de texto siga siendo del
+    // texto.
+    void atenderPegadoDelSistema(const std::string& destino);
 
     // Invalida el cache del grid: la entrada desaparecio de hecho de la
     // carpeta visible y el mtime puede no haberse actualizado todavia.
@@ -103,6 +122,8 @@ public:
     // Bus de eventos del editor: notifica ArchivosReubicados tras un rename
     // exitoso del grid (lo inyecta GUIManager; opcional, default nullptr).
     void setEditorEventBus(EditorEventBus* bus) noexcept;
+    // Barra de estado del editor para los avisos de importacion (opcional).
+    void setStatusBar(StatusBarInterface* barra) noexcept;
 
     virtual void initGUI() override;
     virtual void contentGUI() override;

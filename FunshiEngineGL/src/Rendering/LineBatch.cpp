@@ -26,13 +26,14 @@ LineBatch::~LineBatch() { destroy(); }
 
 void LineBatch::destroy() {
     if (buffer_ != kInvalidHandle) {
-        Rendering::Backend::activeBackend().destroyLineBatch(buffer_);
+        backend_->destroyLineBatch(buffer_);
         buffer_ = kInvalidHandle;
     }
     vertexCount_ = 0;
 }
 
 LineBatch::LineBatch(LineBatch&& other) noexcept {
+    backend_ = other.backend_;
     buffer_ = other.buffer_;
     vertexCount_ = other.vertexCount_;
     other.buffer_ = kInvalidHandle;
@@ -42,6 +43,7 @@ LineBatch::LineBatch(LineBatch&& other) noexcept {
 LineBatch& LineBatch::operator=(LineBatch&& other) noexcept {
     if (this != &other) {
         destroy();
+        backend_ = other.backend_;
         buffer_ = other.buffer_;
         vertexCount_ = other.vertexCount_;
         other.buffer_ = kInvalidHandle;
@@ -54,7 +56,7 @@ void LineBatch::upload(const LineBuilder& builder) {
     if (builder.vacio()) return;
 
     destroy();
-    buffer_ = Rendering::Backend::activeBackend().createLineBatch(
+    buffer_ = backend_->createLineBatch(
         builder.vertices(), builder.cantidadVertices());
     vertexCount_ = builder.cantidadVertices();
 }
@@ -71,13 +73,13 @@ void LineBatch::update(const LineBuilder& builder) {
         return;
     }
 
-    Rendering::Backend::activeBackend().updateLineBatch(
+    backend_->updateLineBatch(
         buffer_, builder.vertices(), count);
     vertexCount_ = count;
 }
 
 void LineBatch::draw() const {
     if (buffer_ == kInvalidHandle || vertexCount_ == 0) return;
-    Rendering::Backend::activeBackend().drawLineBatch(
+    backend_->drawLineBatch(
         buffer_, static_cast<unsigned int>(vertexCount_));
 }

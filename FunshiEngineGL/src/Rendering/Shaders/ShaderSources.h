@@ -19,17 +19,21 @@
 #ifndef SHADERSOURCES_H
 #define SHADERSOURCES_H
 
-// Shader por defecto del renderer moderno: Blinn-Phong en espacio mundo que
-// replica el modelo de iluminacion fixed-function que ya usa el motor
-// (LightSystem + Material), para que el pasaje a VBO/VAO no sea una regresion
-// visual. El renderer sube luces/material/camara como uniforms; la grilla y
-// los gizmos siguen siendo modo inmediato.
+// Fuentes de los shaders incorporados al motor.
+//
+// Van embebidas en el binario (no en archivos): el ejecutable exportado no
+// puede depender de assets extra. Solo las incluye el gestor de shaders,
+// que es el dueno de los programas: el resto del motor pide el programa por
+// nombre y no necesita saber de donde sale el GLSL.
+//
+// Las variables son inline (C++17) para que exista una sola copia en todo el
+// programa, no una por unidad de traduccion que las incluya.
 
 // Atributos: 0 = posicion (vec3), 1 = normal (vec3), 2 = uv (vec2),
 // 3 = tangente (vec3), 4 = bitangente (vec3). Las UVs alimentan vUv y el muestreo
 // de texturas; tangente/bitangente arman el marco TBN para el normal mapping
 // cuando el Material define una mapa de normales.
-static const char* const kDefaultVertexShader = R"(#version 330 core
+inline const char* const kDefaultVertexShader = R"(#version 330 core
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUv;
@@ -39,6 +43,7 @@ layout(location = 4) in vec3 aBitangent;
 uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProjection;
+uniform mat4 uModelView;
 uniform mat3 uNormalMatrix;
 
 out vec3 vNormalWorld;
@@ -63,11 +68,11 @@ void main() {
     if (dot(cross(n, t), uNormalMatrix * aBitangent) < 0.0) b = -b;
     vTbn = mat3(t, b, n);
 
-    gl_Position = uProjection * uView * world;
+    gl_Position = uProjection * uModelView * vec4(aPosition, 1.0);
 }
 )";
 
-static const char* const kDefaultFragmentShader = R"(#version 330 core
+inline const char* const kDefaultFragmentShader = R"(#version 330 core
 in vec3 vNormalWorld;
 in vec3 vWorldPos;
 in vec2 vUv;
@@ -91,6 +96,36 @@ uniform float uLightLinear[MAX_LIGHTS];
 uniform float uLightQuadratic[MAX_LIGHTS];
 uniform float uSpotCutoffCos[MAX_LIGHTS];
 
+// Sombras: un mapa de profundidad por luz que proyecta. MAX_SHADOWS tiene que
+// coincidir con el limite de proyectores del motor (kMaxProyectoresSombra).
+//
+// Cada mapa 2D (direccional/spot) tiene su propio sampler (uShadowMap0..3) y
+// no un array: GLSL 3.30 no deja indexar un array de samplers con una variable.
+// Las luces puntuales usan un cubemap de profundidad (samplerCube uShadowCube0..3)
+// y sus 6 matrices viven en el array plano uShadowMatrixCubo[] (indice = luz*6 + cara).
+// uShadowLightIndex dice a que luz de las de arriba pertenece cada mapa: la
+// sombra oscurece solo la contribucion de esa luz, no la de las demas.
+// uShadowTexel es 1/resolucion del mapa (el PCF necesita el tamano del texel).
+// uShadowDistancia es el alcance de la luz (para puntuales).
+const int MAX_SHADOWS = 4;
+const int kCarasCubemap = 6;
+uniform sampler2DShadow uShadowMap0;
+uniform sampler2DShadow uShadowMap1;
+uniform sampler2DShadow uShadowMap2;
+uniform sampler2DShadow uShadowMap3;
+uniform samplerCube uShadowCube0;
+uniform samplerCube uShadowCube1;
+uniform samplerCube uShadowCube2;
+uniform samplerCube uShadowCube3;
+uniform mat4 uShadowMatrix[MAX_SHADOWS];
+uniform mat4 uShadowMatrixCubo[MAX_SHADOWS * kCarasCubemap];
+uniform float uShadowBias[MAX_SHADOWS];
+uniform float uShadowStrength[MAX_SHADOWS];
+uniform float uShadowTexel[MAX_SHADOWS];
+uniform float uShadowDistancia[MAX_SHADOWS];
+uniform int uShadowLightIndex[MAX_SHADOWS];
+uniform int uShadowCount;
+
 uniform vec4 uMaterialAmbient;
 uniform vec4 uMaterialDiffuse;
 uniform vec4 uMaterialSpecular;
@@ -113,6 +148,95 @@ uniform int uUseNormalMap;
 vec3 normalizarSeguro(vec3 v) {
     float len = length(v);
     return (len < 1e-8) ? vec3(0.0) : v / len;
+}
+
+// PCF 3x3 sobre un mapa: promedia nueve muestras alrededor del texel para que
+// el borde de la sombra no sea un escalon.
+float pcf3x3(sampler2DShadow mapa, vec2 uv, float ref, float texel) {
+    float suma = 0.0;
+    for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+            vec2 offset = vec2(float(dx), float(dy)) * texel;
+            suma += texture(mapa, vec3(uv + offset, ref));
+        }
+    }
+    return suma / 9.0;
+}
+
+// Cobertura del mapa que toca el indice dado. El sampler se elige con una
+// cadena de if porque el indice del mapa no puede ser una variable.
+float coberturaSombra(int indice, vec2 uv, float ref, float texel) {
+    if (indice == 0) return pcf3x3(uShadowMap0, uv, ref, texel);
+    if (indice == 1) return pcf3x3(uShadowMap1, uv, ref, texel);
+    if (indice == 2) return pcf3x3(uShadowMap2, uv, ref, texel);
+    return pcf3x3(uShadowMap3, uv, ref, texel);
+}
+
+// Profundidad guardada en el cubemap de una luz puntual, leida en la direccion
+// desde la luz al fragmento. El sampler va como parametro: GLSL 3.30 no deja
+// elegir el sampler con un if y guardarlo en una variable local (los samplers
+// no son asignables ni declarables fuera de uniforms o parametros).
+float profundidadCubemap(samplerCube cubo, vec3 direccion) {
+    return texture(cubo, direccion).r;
+}
+
+// Factor de sombra de una luz: 1.0 = iluminado, 0.0 = en sombra.
+//
+// Las luces direccionales y spot usan un mapa 2D (sampler2DShadow) con
+// comparacion por hardware y PCF. Las luces puntuales usan un cubemap de
+// profundidad (samplerCube): se lee la profundidad almacenada en la direccion
+// desde la luz al fragmento y se compara contra la distancia del fragmento.
+float factorSombra(int indiceLuz, vec3 fragPos) {
+    // --- Luz puntual: cubemap de profundidad -------------------------------
+    if (uLightTypes[indiceLuz] == 1) {
+        for (int s = 0; s < MAX_SHADOWS; ++s) {
+            if (s >= uShadowCount) break;
+            if (uShadowLightIndex[s] != indiceLuz) continue;
+            vec3 dir = fragPos - uLightWorldPos[indiceLuz];
+            float distancia = length(dir);
+            if (distancia > uShadowDistancia[indiceLuz]) return 1.0;
+            vec3 dirNorm = normalize(dir);
+            // ref en [0,1]: distancia relativa al alcance de la luz.
+            float ref = distancia / uShadowDistancia[indiceLuz];
+            float profundidad;
+            if (indiceLuz == 0) profundidad = profundidadCubemap(uShadowCube0, dirNorm);
+            else if (indiceLuz == 1) profundidad = profundidadCubemap(uShadowCube1, dirNorm);
+            else if (indiceLuz == 2) profundidad = profundidadCubemap(uShadowCube2, dirNorm);
+            else profundidad = profundidadCubemap(uShadowCube3, dirNorm);
+            float cobertura = (profundidad < ref) ? 0.0 : 1.0;
+            return mix(1.0, cobertura, uShadowStrength[s]);
+        }
+        return 1.0;
+    }
+
+    // --- Luz direccional/spot: mapa 2D con comparacion por hardware --------
+    //
+    // El mapa es una sampler2DShadow en modo de comparacion: el hardware compara
+    // la profundidad del fragmento con la del mapa y devuelve el porcentaje de
+    // cobertura.
+    //
+    // Si el fragmento cae fuera del mapa, o detras del plano lejano, no hay nada
+    // que compare y se queda iluminado: la sombra no se repite en el borde.
+    for (int s = 0; s < MAX_SHADOWS; ++s) {
+        if (s >= uShadowCount) break;
+        if (uShadowLightIndex[s] != indiceLuz) continue;
+
+        vec4 clip = uShadowMatrix[s] * vec4(fragPos, 1.0);
+        if (clip.w <= 0.0) return 1.0;
+        vec3 ndc = clip.xyz / clip.w;
+        vec2 uv = ndc.xy * 0.5 + 0.5;
+        float z = ndc.z * 0.5 + 0.5;
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+        if (z > 1.0) return 1.0;
+
+        // El sesgo se resta en profundidad: acerca el fragmento a la luz para
+        // que el mapa no lo de por tapado por su propia superficie.
+        float ref = z - uShadowBias[s];
+        float cobertura = coberturaSombra(s, uv, ref, uShadowTexel[s]);
+        // La fuerza va de 0 (sin sombra) a 1 (sombra plena).
+        return mix(1.0, cobertura, uShadowStrength[s]);
+    }
+    return 1.0;
 }
 
 vec3 contribucionLuz(int i, vec3 N, vec3 V, vec3 fragPos, vec3 baseDiffuse,
@@ -157,7 +281,10 @@ vec3 contribucionLuz(int i, vec3 N, vec3 V, vec3 fragPos, vec3 baseDiffuse,
                     uLightSpecular[i] * baseSpecular;
     }
 
-    resultado += (difuso + especular) * (atenuacion * factorSpot);
+    // La sombra de la luz (si esta la proyecta) atenua su difuso y su
+    // especular; el ambiente no se toca.
+    float sombra = factorSombra(i, fragPos);
+    resultado += (difuso + especular) * (atenuacion * factorSpot * sombra);
     return resultado;
 }
 
@@ -215,7 +342,7 @@ void main() {
 // colapsa fuera del frustum (asi la grilla no "explota" al cruzarse con la
 // camara). El tamano del viewport va en un vec4 (anchoPx, altoPx) y no en un
 // vec2 porque el backend solo carga glUniform{1,3,4}fv.
-static const char* const kLineVertexShader = R"(#version 330 core
+inline const char* const kLineVertexShader = R"(#version 330 core
 layout(location = 0) in vec3 aStart;
 layout(location = 1) in vec3 aEnd;
 layout(location = 2) in float aSide;
@@ -284,7 +411,7 @@ void main() {
 }
 )";
 
-static const char* const kLineFragmentShader = R"(#version 330 core
+inline const char* const kLineFragmentShader = R"(#version 330 core
 in vec4 vColor;
 in vec3 vWorldPosition;
 out vec4 FragColor;
@@ -314,7 +441,7 @@ void main() {
 // malla compartida sirve para cualquier region, sin duplicar geometria. El tinte
 // y la opacidad (fade del componente) van en uTint y se multiplican sobre el
 // texel (modo MODULATE, igual que el material 3D).
-static const char* const kSpriteVertexShader = R"(#version 330 core
+inline const char* const kSpriteVertexShader = R"(#version 330 core
 layout(location = 0) in vec3 aPosition;
 layout(location = 2) in vec2 aUv;
 
@@ -331,7 +458,7 @@ void main() {
 }
 )";
 
-static const char* const kSpriteFragmentShader = R"(#version 330 core
+inline const char* const kSpriteFragmentShader = R"(#version 330 core
 in vec2 vUv;
 out vec4 FragColor;
 
@@ -347,7 +474,45 @@ void main() {
 }
 )";
 
-static const char* const kSkyVertexShader = R"(#version 330 core
+// Particulas: el quad de cada particula ya viene expandido en el mundo (con
+// su tamano y su rotacion aplicados), asi que el vertex shader solo proyecta.
+// El color va por vertice (cada particula tiene el suyo, y lo cambia la curva
+// del perfil a lo largo de la vida) y la textura es opcional.
+inline const char* const kParticulasVertexShader = R"(#version 330 core
+layout(location = 0) in vec3 aPosicion;
+layout(location = 1) in vec2 aUv;
+layout(location = 2) in vec4 aColor;
+
+uniform mat4 uView;
+uniform mat4 uProjection;
+
+out vec2 vUv;
+out vec4 vColor;
+
+void main() {
+    vUv = aUv;
+    vColor = aColor;
+    gl_Position = uProjection * uView * vec4(aPosicion, 1.0);
+}
+)";
+
+inline const char* const kParticulasFragmentShader = R"(#version 330 core
+in vec2 vUv;
+in vec4 vColor;
+out vec4 FragColor;
+
+uniform sampler2D uTexture;
+uniform int uUseTexture;
+
+void main() {
+    vec4 color = vColor;
+    if (uUseTexture == 1) color *= texture(uTexture, vUv);
+    if (color.a <= 0.0001) discard;
+    FragColor = color;
+}
+)";
+
+inline const char* const kSkyVertexShader = R"(#version 330 core
 // Fullscreen triangle (no VBO needed): gl_VertexID 0..2 maps to the three
 // corners of a triangle that covers the viewport. Solo emite la coordenada NDC
 // del pixel: el color sale de la DIRECCION de vista de ese pixel, no de su
@@ -365,7 +530,7 @@ void main() {
 }
 )";
 
-static const char* const kSkyFragmentShader = R"(#version 330 core
+inline const char* const kSkyFragmentShader = R"(#version 330 core
 in vec2 vNdc;
 out vec4 FragColor;
 uniform vec3 uColorTop;    // color del cenit (mirando bien hacia arriba)
@@ -384,6 +549,58 @@ void main() {
     // se reparte alrededor del horizonte y satura en los dos extremos.
     float t = clamp(dir.y / uTransicion * 0.5 + 0.5, 0.0, 1.0);
     FragColor = vec4(mix(uColorBottom, uColorTop, t), 1.0);
+}
+)";
+
+// Cubemap del cielo (el cubo centrado en la camara, con las caras del
+// Skybox). El vertice deja el cubo en el plano lejano (z = w).
+inline const char* const kCubemapVertexShader = R"(#version 330 core
+layout(location = 0) in vec3 aPos;
+out vec3 vTexCoord;
+uniform mat4 uView;
+uniform mat4 uProjection;
+void main() {
+    vTexCoord = aPos;
+    vec4 pos = uProjection * uView * vec4(aPos, 1.0);
+    gl_Position = pos.xyww; // z = w para estar en el plano lejano
+}
+)";
+
+inline const char* const kCubemapFragmentShader = R"(#version 330 core
+in vec3 vTexCoord;
+out vec4 FragColor;
+uniform samplerCube uSkybox;
+void main() {
+    FragColor = texture(uSkybox, vTexCoord);
+}
+)";
+
+// Pases de profundidad del mapa de sombras.
+//
+ // El vertex shader solo proyecta la geometria con la matriz de la luz: la
+ // posicion del vertice en el mapa es lo que se guarda en la textura de
+ // profundidad. No hay colores ni materiales, asi que solo usa el atributo de
+ // posicion (el resto del VAO queda sin usar).
+ inline const char* const kDepthVertexShader = R"(#version 330 core
+ layout(location = 0) in vec3 aPosition;
+
+ uniform mat4 uModel;
+ uniform mat4 uLightMatrix;
+ uniform mat4 uModelLight;
+
+ void main() {
+     gl_Position = uModelLight * vec4(aPosition, 1.0);
+ }
+ )";
+
+// El fragment shader no escribe nada util: el mapa es solo de profundidad y el
+// destino de dibujo no tiene buffer de color (glDrawBuffer(GL_NONE)). Se
+// declara la salida igualmente, para no depender de que el driver acepte un
+// fragment shader sin color.
+inline const char* const kDepthFragmentShader = R"(#version 330 core
+out vec4 FragColor;
+void main() {
+    FragColor = vec4(1.0);
 }
 )";
 

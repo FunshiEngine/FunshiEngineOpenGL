@@ -37,18 +37,19 @@
 #include "CacheCubemap.h"
 #include "Cielo.h"
 #include "DibujoModelo.h"
+#include "../Objetos/Componentes/Model.h"
 #include "../Objetos/Componentes/Skybox.h"
 #include "../Objetos/Componentes/SpriteRenderer.h"
 #include "../Objetos/Componentes/Tilemap.h"
 
-#include "../Herramientas/IconosGUI/stb_image.h"
+#include <stb_image/stb_image.h>
 #include "LineBatch.h"
 #include "LineBuilder.h"
 #include "LineRenderer.h"
 #include "MeshRenderer.h"
 #include "RenderTarget.h"
 #include "Shaders/ShaderProgram.h"
-#include "Shaders/ShaderSources.h"
+#include "Shaders/GestorShaders.h"
 
 #include "../Configuracion/Apariencia.h"
 #include "../Configuracion/EditorConfig.h"
@@ -58,9 +59,9 @@
 #include "../Objetos/Componentes/Colliders/Collider.h"
 #include "../Objetos/Componentes/Grid.h"
 #include "../Objetos/Componentes/Light.h"
+#include "../Objetos/Componentes/Sombras/Sombras.h"
 #include "../Objetos/Componentes/Transform.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Modelos3D.h"
 #include "../Objetos/Componentes/Material.h"
 #include "../Assets/AssetManager.h"
 
@@ -75,7 +76,17 @@ constexpr float kCieloTransicion = 0.35f;
 
 }  // namespace
 
-SceneRenderer::SceneRenderer() : meshRenderer_(std::make_unique<MeshRenderer>()) {}
+SceneRenderer::SceneRenderer(Rendering::Backend::IRenderBackend& backend)
+    : backend_(backend),
+      meshRenderer_(std::make_unique<MeshRenderer>()),
+      grillaRenderer_(backend),
+      mapaSombras_(backend),
+      marcadoresBatch_(backend) {
+    meshRenderer_->setBackend(backend);
+    spriteRenderer_.setBackend(backend);
+    tilemapRenderer_.setBackend(backend);
+    particulasRenderer_.setBackend(&backend);
+}
 
 SceneRenderer::~SceneRenderer() = default;
 
@@ -83,6 +94,23 @@ void SceneRenderer::setTextureManager(TextureManager* textureManager) noexcept {
     if (meshRenderer_) meshRenderer_->setTextureManager(textureManager);
     spriteRenderer_.setTextureManager(textureManager);
     tilemapRenderer_.setTextureManager(textureManager);
+    particulasRenderer_.setTextureManager(textureManager);
+}
+
+void SceneRenderer::setResolvedorMateriales(
+    IResolutorMateriales* resolvedor) noexcept {
+    if (meshRenderer_) meshRenderer_->setResolvedorMateriales(resolvedor);
+}
+
+void SceneRenderer::setGestorShaders(Rendering::GestorShaders* gestorShaders) noexcept {
+    gestorShaders_ = gestorShaders;
+    if (meshRenderer_) meshRenderer_->setGestorShaders(gestorShaders);
+    // El renderer de lineas es un unico para el motor (los gizmos de colision
+    // lo usan sin recibirlo por parametro).
+    lineRenderer().setGestorShaders(gestorShaders);
+    spriteRenderer_.setGestorShaders(gestorShaders);
+    tilemapRenderer_.setGestorShaders(gestorShaders);
+    particulasRenderer_.setGestorShaders(gestorShaders);
 }
 
 void SceneRenderer::destruir() {
@@ -91,7 +119,7 @@ void SceneRenderer::destruir() {
     // Se libera aca con el contexto vivo y se vacia la clave, para que si la
     // escena vuelve a dibujar la pasada suba el cubemap de nuevo en lugar de
     // dar por buena una textura ya borrada.
-    auto& backend = Rendering::Backend::activeBackend();
+    auto& backend = backend_;
     if (skyboxCubemap_ != Rendering::Backend::kInvalidHandle) {
         backend.destroyTextureCube(skyboxCubemap_);
         skyboxCubemap_ = Rendering::Backend::kInvalidHandle;
@@ -104,6 +132,7 @@ void SceneRenderer::destruir() {
     // Malla, shader y texturas del renderer de sprites (mismo criterio: el
     // contexto GL todavia vive).
     spriteRenderer_.destruir();
+    particulasRenderer_.destruir();
     // Mallas horneadas por tilemap, su shader y sus texturas de atlas.
     tilemapRenderer_.destruir();
 }
@@ -114,9 +143,14 @@ void SceneRenderer::destruir() {
 
 void SceneRenderer::render(const FrameContext& ctx, GameObject* activeCameraObject,
                            CameraComponent* camara) {
+    // Sombras: el mapa se calcula una vez por frame y lo usan todas las
+    // pasadas (el mapa depende de la luz, no de la camara). Va antes que las
+    // vistas previas para que estas tambien vean la sombra.
+    prepararSombras(ctx, camara);
+
     dibujarViewportsPrevios(ctx);
 
-    auto& backend = Rendering::Backend::activeBackend();
+    auto& backend = backend_;
 
     // Pass principal: vuelve al framebuffer de la ventana con su viewport.
     backend.bindDefaultFramebuffer();
@@ -135,65 +169,8 @@ void SceneRenderer::render(const FrameContext& ctx, GameObject* activeCameraObje
             static_cast<float>(ctx.framebufferHeight),
         radioDifuminado(ctx));
 
-    static bool diagMatricesPendiente = true;
-    if (diagMatricesPendiente) {
-        diagMatricesPendiente = false;
-        bool noFinita = false;
-        for (int i = 0; i < 16; ++i) {
-            if (!std::isfinite(view[i]) || !std::isfinite(projection[i])) {
-                noFinita = true;
-                break;
-            }
-        }
-        const float* diagPos = camara->getPosition();
-        const float fwd[3] = {-view[2], -view[6], -view[10]};
-        std::cout << "[diag] matrices camara finitas: "
-                  << (noFinita ? "NO (NaN/Inf)" : "si") << "; pos camara = ("
-                  << diagPos[0] << ", " << diagPos[1] << ", " << diagPos[2]
-                  << ") fwd=(" << fwd[0] << ", " << fwd[1] << ", " << fwd[2]
-                  << ") fov=" << camara->getFov()
-                  << " near=" << camara->getNearPlane()
-                  << " far=" << camara->getFarPlane() << std::endl;
-
-        // Inventario de la escena: cuantas luces y cuantas mallas dibujables
-        // (con normales) hay, para contrastar con lo que se ve en pantalla.
-        std::cout << "[diag] luces_en_escena=";
-        auto* diagObjects = ctx.gameObjects;
-        int diagLuces = 0;
-        int diagObjs = 0;
-        int diagConMalla = 0;
-        int diagConMallaYNormales = 0;
-        if (diagObjects && !diagObjects->isEmpty()) {
-            Position<GameObject*>* pos = diagObjects->first();
-            while (pos && pos->getElement()) {
-                GameObject* o = pos->getElement();
-                ++diagObjs;
-                if (o->getComponent<Light>()) ++diagLuces;
-                auto* m = dynamic_cast<Modelos3D*>(o);
-                if (m && m->getMesh() && !m->getMesh()->isEmpty()) {
-                    ++diagConMalla;
-                    if (m->getMesh()->hasNormals()) ++diagConMallaYNormales;
-                }
-                pos = (pos != diagObjects->last()) ? diagObjects->next(pos)
-                                                   : nullptr;
-            }
-        }
-        std::cout << diagLuces << " objetos=" << diagObjs
-                  << " conMalla=" << diagConMalla
-                  << " conMallaYNormales=" << diagConMallaYNormales
-                  << std::endl;
-    }
-
     dibujarEscena(ctx, view, projection, activeCameraObject, ctx.framebufferWidth,
                   ctx.framebufferHeight, true);
-
-    static bool diagPostPassPendiente = true;
-    if (diagPostPassPendiente) {
-        diagPostPassPendiente = false;
-        std::cout << "[diag] MeshRenderer moderno disponible="
-                  << (meshRenderer_ && meshRenderer_->available() ? "si" : "no")
-                  << std::endl;
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -205,7 +182,7 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
                                   const float projection[16],
                                   GameObject* camaraOjo, int viewportAncho,
                                   int viewportAlto, bool esPasadaPrincipal) {
-    auto& backend = Rendering::Backend::activeBackend();
+    auto& backend = backend_;
 
     // Estado de la pasada de lineas: el shader de lineas grosses necesita las
     // matrices de la camara y el tamano del viewport para pasar el ancho de
@@ -268,11 +245,15 @@ void SceneRenderer::dibujarEscena(const FrameContext& ctx,
     // antes de la guia de eje, para que la recta del editor quede por encima.
     dibujarSprites(ctx, view, projection);
 
+    // Particululas: despues de los sprites, para que el humo y las chispas
+    // queden por encima del plano de juego.
+    dibujarParticulas(ctx, view, projection);
+
     // Guia de eje: despues de los objetos para que la recta se vea por encima
     // de la malla, y solo en la pasada principal.
     if (esPasadaPrincipal) dibujarGuiaEje(ctx, camaraMundo);
 
-    ShaderProgram::unbind();
+    ShaderProgram::unbind(backend);
 }
 
 // Cielo degradado: fullscreen triangle con interpolacion vertical entre
@@ -292,7 +273,7 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
                                  const float camaraMundo[3]) {
     if (!ctx.apariencia || !camaraMundo) return;
 
-    auto& backend = Rendering::Backend::activeBackend();
+    auto& backend = backend_;
 
     // Buscar el primer componente Skybox visible en la escena.
     Skybox* skybox = nullptr;
@@ -310,10 +291,9 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
     }
 
     // Creacion perezosa del programa del cielo degradado.
-    if (!cieloProgram_ && !cieloShaderFallado_) {
+    if (!cieloProgram_ && !cieloShaderFallado_ && gestorShaders_) {
         try {
-            cieloProgram_ = std::make_unique<ShaderProgram>(
-                ShaderProgram::fromSource(kSkyVertexShader, kSkyFragmentShader));
+            cieloProgram_ = gestorShaders_->obtener("cielo");
         } catch (const std::exception& e) {
             registrarExcepcionDiagnostica("Rendering/SceneRenderer", e,
                                           NivelDiagnostico::Error);
@@ -381,7 +361,7 @@ void SceneRenderer::dibujarCielo(const FrameContext& ctx, const float view[16],
 
     // Restaurar estado base para la siguiente pasada.
     backend.setDepthMask(true);
-    ShaderProgram::unbind();
+    ShaderProgram::unbind(backend);
 }
 
 // Ultima modificacion del archivo en unidades del reloj de la filesystem
@@ -403,7 +383,7 @@ bool SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
                                          const float projection[16]) {
     if (!skybox) return false;
 
-    auto& backend = Rendering::Backend::activeBackend();
+    auto& backend = backend_;
 
     // Caras del cubemap en el orden del backend (+X, -X, +Y, -Y, +Z, -Z).
     // Se resuelven contra la raiz de assets antes de usarlas: al deserializar
@@ -444,29 +424,9 @@ bool SceneRenderer::dibujarSkyboxCubemap(const Skybox* skybox,
     if (skyboxCubemap_ == Rendering::Backend::kInvalidHandle) return false;
 
     // Programa del cubemap (cubo centrado en la camara), creacion perezosa.
-    if (!skyboxProgram_ && !skyboxShaderFallado_) {
-        static const char* skyboxVert = R"(#version 330 core
-layout(location = 0) in vec3 aPos;
-out vec3 vTexCoord;
-uniform mat4 uView;
-uniform mat4 uProjection;
-void main() {
-    vTexCoord = aPos;
-    vec4 pos = uProjection * uView * vec4(aPos, 1.0);
-    gl_Position = pos.xyww; // z = w para estar en el plano lejano
-}
-)";
-        static const char* skyboxFrag = R"(#version 330 core
-in vec3 vTexCoord;
-out vec4 FragColor;
-uniform samplerCube uSkybox;
-void main() {
-    FragColor = texture(uSkybox, vTexCoord);
-}
-)";
+    if (!skyboxProgram_ && !skyboxShaderFallado_ && gestorShaders_) {
         try {
-            skyboxProgram_ = std::make_unique<ShaderProgram>(
-                ShaderProgram::fromSource(skyboxVert, skyboxFrag));
+            skyboxProgram_ = gestorShaders_->obtener("cubemap");
         } catch (const std::exception& e) {
             registrarExcepcionDiagnostica("Rendering/SceneRenderer", e,
                                           NivelDiagnostico::Error);
@@ -547,12 +507,13 @@ void main() {
     skyboxProgram_->setInt("uSkybox", 0);
 
     backend.bindTextureCube(skyboxCubemap_, 0);
-    backend.drawMesh(skyboxCuboMalla_, 36);
+    backend.drawMesh(skyboxCuboMalla_, 0, 36);
+    backend.bindTextureCube(Rendering::Backend::kInvalidHandle, 0);
 
     // Restaurar estado.
     backend.setDepthMask(true);
     backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
-    ShaderProgram::unbind();
+    ShaderProgram::unbind(backend);
 
     return true;
 }
@@ -567,7 +528,7 @@ void main() {
 // backend no puede crear la textura: la pasada cae al degradado. El aviso es
 // una sola vez por clave de caras, no por frame.
 bool SceneRenderer::cargarCubemap(const std::string rutas[6]) {
-    auto& backend = Rendering::Backend::activeBackend();
+    auto& backend = backend_;
 
     int width = 0, height = 0;
     unsigned char* facePixels[6] = {nullptr, nullptr, nullptr,
@@ -660,6 +621,171 @@ void SceneRenderer::prepararLucesFrame(const FrameContext& ctx) {
     meshRenderer_->setLuces(ctx.lights, ctx.lightCount, ctx.globalAmbient);
 }
 
+// Pasada de sombras.
+//
+// Las luces que proyectan sombra son las que tienen el componente Sombras
+// adjunto. Se recorren las luces ya recogidas (no la escena otra vez): el
+// dueno de cada luz es el mismo objeto del que salio la luz, asi que el
+// indice del proyector es el indice de su luz en los uniforms de iluminacion
+// (asi la sombra atenua la contribucion de esa luz y no la de las demas).
+void SceneRenderer::prepararSombras(const FrameContext& ctx,
+                                    CameraComponent* camara) {
+    if (!meshRenderer_) return;
+
+    auto& backend = backend_;
+
+    candidatosSombra_.clear();
+    // Sin luces o sin duenos no hay nada que proyecte sombra. Se sigue igual
+    // con el resto de la pasada para que los mapas anteriores se liberen y el
+    // shader no consulte sombras de un frame que ya no existe.
+    const int count = (ctx.lights && ctx.lightOwners)
+                          ? std::min(ctx.lightCount, LightSystem::kMaxLights)
+                          : 0;
+    for (int i = 0; i < count; ++i) {
+        GameObject* dueno = ctx.lightOwners[i];
+        if (!dueno) continue;
+
+        Sombras* ajustes = dueno->getComponent<Sombras>();
+        if (!ajustes || !ajustes->estaActivado()) continue;
+
+        const LightData& luz = ctx.lights[i];
+        Rendering::CandidatoProyector candidato;
+        candidato.indiceLuz = i;
+        candidato.posicion =
+            glm::vec3(luz.worldPos[0], luz.worldPos[1], luz.worldPos[2]);
+        candidato.direccion =
+            glm::vec3(luz.direction[0], luz.direction[1], luz.direction[2]);
+        // El tipo de luz en el shader: 0 direccional, 1 punto, 2 spot.
+        if (luz.type == 0)
+            candidato.tipo = Rendering::TipoLuzProyector::Direccional;
+        else if (luz.type == 2)
+            candidato.tipo = Rendering::TipoLuzProyector::Spot;
+        else
+            candidato.tipo = Rendering::TipoLuzProyector::Puntual;
+        candidato.resolucion = ajustes->getResolucion();
+        candidato.sesgo = ajustes->getSesgo();
+        candidato.fuerza = ajustes->getFuerza();
+        candidato.radio = ajustes->getRadio();
+        candidato.distancia = ajustes->getDistancia();
+        candidatosSombra_.push_back(candidato);
+    }
+
+    proyectoresSombra_.assign(
+        static_cast<std::size_t>(Rendering::kMaxProyectoresSombra),
+        Rendering::ProyectorSombra());
+
+    // El centro del frustum de una luz direccional: la camara (es lo que el
+    // jugador ve). Las luces posicionales usan su propia posicion.
+    glm::vec3 centroEscena(0.f);
+    if (camara) {
+        const float* pos = camara->getPosition();
+        if (pos) centroEscena = glm::vec3(pos[0], pos[1], pos[2]);
+    }
+
+    const Rendering::ResultadoSeleccion seleccion = seleccionarProyectores(
+        candidatosSombra_.data(), static_cast<int>(candidatosSombra_.size()),
+        Rendering::kMaxProyectoresSombra, centroEscena,
+        proyectoresSombra_.data());
+
+    if (seleccion.noSoportados > 0) {
+        std::cerr << "[Sombras] " << seleccion.noSoportados
+                  << " luz(es) punuales no proyectan sombra (hacen falta un "
+                     "mapa por cara).\n";
+    }
+    if (seleccion.porLimite > 0) {
+        std::cerr << "[Sombras] " << seleccion.porLimite
+                  << " luz(es) con sombra se quedaron fuera por el limite de "
+                     "mapas (" << Rendering::kMaxProyectoresSombra << ").\n";
+    }
+
+    // Cada proyector necesita su mapa de profundidad: se prepara (o se
+    // rehace si cambio la resolucion) y se dibuja la escena desde la luz.
+    // Los proyectores que sí tienen mapa se guardan aparte: si uno falla
+    // (el backend no pudo crear el objetivo), los de detras no deben ocupar su
+    // lugar, porque el shader los leeria con los datos de otro mapa.
+    proyectoresConMapa_.clear();
+    for (int i = 0; i < seleccion.elegidos; ++i) {
+        Rendering::ProyectorSombra& proyector =
+            proyectoresSombra_[static_cast<std::size_t>(i)];
+        if (!mapaSombras_.preparar(i, proyector.resolucion,
+                                   proyector.esCubemap)) {
+            // El backend no pudo crear el objetivo: esa luz se dibuja sin
+            // sombra y el motor sigue.
+            std::cerr << "[Sombras] No se pudo crear el mapa de sombra ("
+                      << proyector.resolucion << "px).\n";
+            continue;
+        }
+        const Rendering::MapaSombras::Mapa& mapa = mapaSombras_.mapa(i);
+        proyector.textura = mapa.textura;
+
+        if (proyector.esCubemap) {
+            // Luz puntual: dibujar la geometria una vez por cara del cubemap
+            // (+X, -X, +Y, -Y, +Z, -Z), cada una con su propia matriz de luz.
+            for (int cara = 0; cara < Rendering::kCarasCubemap; ++cara) {
+                backend.bindDepthTargetCuboFace(mapa.target, cara);
+                backend.setDepthTestEnabled(true);
+                backend.setDepthMask(true);
+                backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
+                backend.clearScreen(nullptr);
+                dibujarGeometriaParaSombra(ctx,
+                                           proyector.matricesLuz[cara]);
+            }
+        } else {
+            // Luz direccional/spot: un solo mapa 2D.
+            backend.bindDepthTarget(mapa.target);
+            backend.setDepthTestEnabled(true);
+            backend.setDepthMask(true);
+            backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
+            // El destino no tiene color: limpiar el bit de color no hace nada.
+            backend.clearScreen(nullptr);
+            dibujarGeometriaParaSombra(ctx, proyector.matrizLuz);
+        }
+
+        proyectoresConMapa_.push_back(proyector);
+    }
+
+    // Los mapas de los proyectores que ya no se usan se sueltan.
+    mapaSombras_.liberarDesde(seleccion.elegidos);
+
+    // Vuelta al framebuffer de la ventana con su viewport: el mapa de sombras
+    // es cuadrado y dejo el viewport en su lado.
+    backend.bindDefaultFramebuffer();
+    if (ctx.framebufferWidth > 0 && ctx.framebufferHeight > 0)
+        backend.setViewport(0, 0, ctx.framebufferWidth, ctx.framebufferHeight);
+
+    meshRenderer_->setSombras(proyectoresConMapa_.data(),
+                               static_cast<int>(proyectoresConMapa_.size()));
+}
+
+// Geometria de la escena vista desde la luz: solo escribe profundidad. Cada
+// objeto con malla (Modelos3D o componente Model) se dibuja con el programa
+// de profundidad y la matriz de la luz. Las condiciones son las mismas que en
+// la pasada normal: lo que se ve, sombra.
+void SceneRenderer::dibujarGeometriaParaSombra(const FrameContext& ctx,
+                                                const glm::mat4& matrizLuz) {
+    if (!meshRenderer_ || !ctx.gameObjects || ctx.gameObjects->isEmpty()) return;
+
+    Position<GameObject*>* pos = ctx.gameObjects->first();
+    while (pos && pos->getElement()) {
+        GameObject* objeto = pos->getElement();
+        if (static_cast<Transform*>(
+                objeto->getComponentByName("Transform"))) {
+            auto* modeloComp = objeto->getComponent<Model>();
+            if (modeloComp) {
+                const Mesh* malla = modeloComp->getMesh();
+                Transform* transform = objeto->getGlobalTransform();
+                if (malla && !malla->isEmpty() && transform) {
+                    float matriz[16];
+                    buildMatrixFromTransform(transform, matriz);
+                    meshRenderer_->intentarRenderSombra(malla, matriz, matrizLuz);
+                }
+            }
+        }
+        pos = (pos != ctx.gameObjects->last()) ? ctx.gameObjects->next(pos)
+                                               : nullptr;
+    }
+}
+
 void SceneRenderer::dibujarGameObjectsConOjo(const FrameContext& ctx,
                                              GameObject* camaraOjo,
                                              const float view[16],
@@ -685,25 +811,16 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
         // El dibujado va siempre por el pipeline moderno (MeshRenderer: VBO/VAO
         // + shader). Si el objeto no tiene malla con normales, simplemente no
         // se dibuja (MeshRenderer lo avisa una vez por malla).
-        auto* modelo = dynamic_cast<Modelos3D*>(object);
-        if (modelo && meshRenderer_) {
-            meshRenderer_->intentarRender(modelo, view, projection,
-                                          ctx.deltaTime);
-        } else {
-            // Tambien renderizar GameObjects con componente Model (no Modelos3D)
-            if (object->getComponent<Model>() && meshRenderer_ && ctx.assetManager) {
-                // El componente Model no es un Modelos3D: se resuelve la malla
-                // y la matriz mundo del propio objeto (jerarquia incluida) y se
-                // dibuja con la sobrecarga que recibe ambas ya calculadas. Antes
-                // se fabricaba un Modelos3D temporal, que duplicaba el Transform
-                // y dejaba el modelo pegado al origen.
-                const DibujoModelo dibujo =
-                    resolverDibujoModelo(object, *ctx.assetManager);
-                if (dibujo.valido) {
-                    meshRenderer_->intentarRenderMesh(
-                        object, dibujo.malla, dibujo.modelo, view, projection,
-                        ctx.deltaTime);
-                }
+        // Todos los objetos con malla usan el componente Model; la malla se
+        // resuelve via resolverDibujoModelo (que usa getGlobalTransform para
+        // respetar la jerarquia padre/hijo).
+        if (object->getComponent<Model>() && meshRenderer_ && ctx.assetManager) {
+            const DibujoModelo dibujo =
+                resolverDibujoModelo(object, *ctx.assetManager);
+            if (dibujo.valido) {
+                meshRenderer_->intentarRenderMesh(
+                    object, dibujo.malla, dibujo.modelo, view, projection,
+                    ctx.deltaTime);
             }
         }
     }
@@ -731,6 +848,13 @@ void SceneRenderer::dibujarObjectConOjo(const FrameContext& ctx,
             collider->dibujarCollider();
         }
     }
+}
+
+void SceneRenderer::dibujarParticulas(const FrameContext& ctx, const float view[16],
+                                    const float projection[16]) {
+    if (!ctx.sistemaParticulas) return;
+    if (ctx.sistemaParticulas->particulas().empty()) return;
+    particulasRenderer_.dibujar(*ctx.sistemaParticulas, view, projection);
 }
 
 void SceneRenderer::dibujarSprites(const FrameContext& ctx, const float view[16],
@@ -1018,58 +1142,65 @@ void SceneRenderer::dibujarViewportsPrevios(const FrameContext& ctx) {
     auto* gameObjects = ctx.gameObjects;
     std::vector<std::unique_ptr<RenderTarget>> nuevos;
     std::vector<GameObject*> nuevosObjetos;
+
+    auto& backend = backend_;
+    // Sin backend no hay nada que dibujar en la vista previa: se sale antes de
+    // crear y enlazar ningun objetivo de render (enlazar uno sin backend
+    // llamaria punteros de funcion nulos).
+    if (!backend.available()) return;
+
     if (gameObjects && !gameObjects->isEmpty()) {
-        Position<GameObject*>* pos = gameObjects->first();
-        while (pos && pos->getElement()) {
+        // El avance del iterador va en la clausula de incremento del for: si
+        // esta en el cuerpo, un `continue` puede saltarselo y el bucle queda
+        // girando sobre el mismo elemento indefinidamente.
+        for (Position<GameObject*>* pos = gameObjects->first();
+             pos && pos->getElement();
+             pos = (pos != gameObjects->last()) ? gameObjects->next(pos)
+                                                : nullptr) {
             GameObject* objeto = pos->getElement();
             CameraComponent* camara = objeto->getComponent<CameraComponent>();
-            if (camara && camara->getPintar()) {
-                camara->setUp(objeto);
+            if (!camara || !camara->getPintar()) continue;
 
-                // Reutilizar el FBO del frame anterior del mismo objeto en
-                // lugar de recrearlo (evita churn de texturas en el GPU).
-                std::unique_ptr<RenderTarget> target;
-                for (size_t i = 0; i < viewportsCamaras_.size(); ++i) {
-                    if (viewportsObjetos_[i] == objeto) {
-                        target.reset(viewportsCamaras_[i].release());
-                        break;
-                    }
+            camara->setUp(objeto);
+
+            // Reutilizar el FBO del frame anterior del mismo objeto en
+            // lugar de recrearlo (evita churn de texturas en el GPU).
+            std::unique_ptr<RenderTarget> target;
+            for (size_t i = 0; i < viewportsCamaras_.size(); ++i) {
+                if (viewportsObjetos_[i] == objeto) {
+                    target.reset(viewportsCamaras_[i].release());
+                    break;
                 }
-                if (!target) target = std::make_unique<RenderTarget>();
-
-                target->resize(kPreviewW, kPreviewH);
-                target->bind();
-
-                auto& backend = Rendering::Backend::activeBackend();
-                if (!backend.available()) continue;  // Guard: backend no disponible
-                backend.setViewport(0, 0, kPreviewW, kPreviewH);
-                // El FBO hereda el estado GL; se fija el fondo del perfil para
-                // que la vista previa use el mismo color que la pasada principal.
-                float fondoPreview[3] = {0.f, 0.f, 0.f};
-                if (ctx.apariencia)
-                    AparienciaUtil::fondoEfectivo(*ctx.apariencia, fondoPreview);
-                backend.clearScreen(fondoPreview);
-
-                float view[16], projection[16];
-                camara->getViewMatrix(view);
-                camara->getProjectionMatrix(
-                    projection,
-                    static_cast<float>(kPreviewW) /
-                        static_cast<float>(kPreviewH),
-                    radioDifuminado(ctx));
-                // La vista previa de camara NO muestra la guia de eje: es una
-                // ayuda del editor sobre la pasada principal (en el preview
-                // ocuparia la imagen sin que el usuario la haya pedido).
-                dibujarEscena(ctx, view, projection, objeto, kPreviewW,
-                              kPreviewH, false);
-
-                if (backend.available()) backend.bindDefaultFramebuffer();
-
-                nuevos.push_back(std::move(target));
-                nuevosObjetos.push_back(objeto);
             }
-            pos = (pos != gameObjects->last()) ? gameObjects->next(pos)
-                                               : nullptr;
+            if (!target) target = std::make_unique<RenderTarget>(backend_);
+
+            target->resize(kPreviewW, kPreviewH);
+            target->bind();
+
+            backend.setViewport(0, 0, kPreviewW, kPreviewH);
+            // El FBO hereda el estado GL; se fija el fondo del perfil para
+            // que la vista previa use el mismo color que la pasada principal.
+            float fondoPreview[3] = {0.f, 0.f, 0.f};
+            if (ctx.apariencia)
+                AparienciaUtil::fondoEfectivo(*ctx.apariencia, fondoPreview);
+            backend.clearScreen(fondoPreview);
+
+            float view[16], projection[16];
+            camara->getViewMatrix(view);
+            camara->getProjectionMatrix(
+                projection,
+                static_cast<float>(kPreviewW) / static_cast<float>(kPreviewH),
+                radioDifuminado(ctx));
+            // La vista previa de camara NO muestra la guia de eje: es una
+            // ayuda del editor sobre la pasada principal (en el preview
+            // ocuparia la imagen sin que el usuario la haya pedido).
+            dibujarEscena(ctx, view, projection, objeto, kPreviewW, kPreviewH,
+                          false);
+
+            backend.bindDefaultFramebuffer();
+
+            nuevos.push_back(std::move(target));
+            nuevosObjetos.push_back(objeto);
         }
     }
     viewportsCamaras_ = std::move(nuevos);

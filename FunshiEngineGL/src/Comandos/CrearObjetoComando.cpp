@@ -19,38 +19,46 @@
 #include "CrearObjetoComando.h"
 #include "Scenes/EditorController.h"
 #include "Scenes/SceneRegistry.h"
-#include "Objetos/Modelos3D.h"
 #include "Objetos/GameObject.h"
 #include "Objetos/ObjetoEscena.h"
 #include <sstream>
 #include <vector>
 
 CrearObjetoComando::CrearObjetoComando(EditorController* ec, SceneRegistry* sr,
-                                       std::unique_ptr<Modelos3D> m,
+                                       std::unique_ptr<GameObject> o,
                                        GameObject* p)
     : editorController(ec), sceneRegistry(sr),
-      modelo(std::move(m)), parent(p) {
-    if (modelo) {
-        nombreObjeto = modelo->inputName;
+      objeto(std::move(o)), parentId(p ? p->getId() : 0) {
+    if (objeto) {
+        nombreObjeto = objeto->inputName;
         if (nombreObjeto.empty()) {
-            nombreObjeto = demangle(typeid(*modelo).name());
+            nombreObjeto = demangle(typeid(*objeto).name());
         }
     }
+}
+
+GameObject* CrearObjetoComando::resolverPadre() const {
+    if (!sceneRegistry) return nullptr;
+    // El id 0 es la raiz de la escena; si el padre ya no existe (se borro
+    // entre medias) el objeto vuelve a la raiz en vez de dejar un puntero
+    // colgando.
+    GameObject* padre = sceneRegistry->getObjectByID(parentId);
+    if (!padre) padre = sceneRegistry->getRoot();
+    return padre;
 }
 
 void CrearObjetoComando::ejecutar() {
     if (!sceneRegistry || !editorController) return;
 
-    if (modelo) {
-        std::unique_ptr<GameObject> objPtr(modelo.release());
+    if (objeto) {
         GameObject* obj =
-            editorController->createGameObject(std::move(objPtr), parent);
+            editorController->createGameObject(std::move(objeto), resolverPadre());
         if (obj) {
             createdId = obj->getId();
         }
     } else if (!guardados.empty()) {
         GameObject* obj = editorController->restaurarSubarbol(
-            std::move(guardados), parent);
+            std::move(guardados), resolverPadre());
         guardados.clear();
         if (obj) {
             createdId = obj->getId();

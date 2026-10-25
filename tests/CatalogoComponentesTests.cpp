@@ -27,7 +27,7 @@
 //   - los tipos desconocidos y los requisitos incumplidos devuelvan nullptr,
 //   - el filtro por dimension y los submenus sean los esperados.
 //
-// Patron de autoria (ver AGENTS.md): CHECK definido en este archivo, sin
+// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
 // dependencias de GUI, y salida final "OK/FALLOS: N comprobaciones".
 
 #include <iostream>
@@ -40,6 +40,7 @@
 #include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/EsfereCollider.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/ComponentFactory.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/RigidBody/RigidBody.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Sombras/Sombras.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/SpriteRenderer.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
@@ -290,6 +291,35 @@ void animador2D() {
           "sin bucle la animacion se detiene en el ultimo fotograma");
 }
 
+// Las sombras se agregan al objeto de la luz: sin luz no se crean, y con luz
+// se crean. El componente es propio (no una propiedad de Light) porque el
+// formato binario de los componentes no tiene versionado.
+void sombras() {
+    const auto& cat = CatalogoComponentes::instancia();
+    const DescriptorComponente* sombras = cat.buscar("Sombras");
+    CHECK(sombras != nullptr, "Sombras esta en el catalogo");
+    CHECK(dimensionesIncluyen(sombras->dimensiones, DimensionProyecto::TresD),
+          "Sombras se ofrece en 3D");
+    CHECK(!dimensionesIncluyen(sombras->dimensiones, DimensionProyecto::DosD),
+          "Sombras no se ofrece en 2D");
+
+    auto sinLuz = GameObjectFactory::createSimpleObject(nullptr);
+    CHECK(sombras->prerequisito != nullptr && !sombras->prerequisito(*sinLuz),
+          "sin luz el requisito de Sombras no se cumple");
+    CHECK(ComponentFactory::create("Sombras", *sinLuz) == nullptr,
+          "sin luz el componente de sombras no se crea");
+
+    auto conLuz = GameObjectFactory::createSimpleObject(nullptr);
+    conLuz->addComponent(ComponentFactory::create("Light", *conLuz));
+    CHECK(sombras->prerequisito(*conLuz),
+          "con luz el requisito de Sombras se cumple");
+    auto creado = ComponentFactory::create("Sombras", *conLuz);
+    auto* componente = dynamic_cast<Sombras*>(creado.get());
+    CHECK(componente != nullptr, "con luz el componente de sombras se crea");
+    CHECK(componente && componente->getResolucion() > 0,
+          "el componente de sombras nace con mapa");
+}
+
 int main() {
     catalogoCompleto();
     factoryCreaDesdeCatalogo();
@@ -297,6 +327,7 @@ int main() {
     requisitos();
     restricciones2D();
     animador2D();
+    sombras();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

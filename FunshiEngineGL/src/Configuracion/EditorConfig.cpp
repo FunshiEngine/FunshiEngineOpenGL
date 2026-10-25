@@ -41,7 +41,7 @@
 // vive en ProjectPaths.
 // ============================================================================
 
-std::string EditorConfig::directorioBaseMotorGrafico() {
+std::string EditorConfig::directorioBaseDatos() {
     return ProjectPaths::directorioBase();
 }
 
@@ -102,10 +102,6 @@ std::string EditorConfig::rutaImguiIni(const std::string& nombreProyecto) {
     return ProjectPaths::rutaImguiIni(nombreProyecto);
 }
 
-std::string EditorConfig::directorioSonidos(const std::string& nombreProyecto) {
-    return ProjectPaths::directorioSonidos(nombreProyecto);
-}
-
 std::string EditorConfig::directorioScripts(const std::string& nombreProyecto) {
     return ProjectPaths::directorioScripts(nombreProyecto);
 }
@@ -130,7 +126,7 @@ void EditorConfig::asegurarEstructuraProyecto(const std::string& nombreProyecto)
 
 std::string EditorConfig::rutaPorDefecto() {
     // La "ruta por defecto" al arrancar sin argumento es la config general,
-    // que vive en la raiz de MotorGrafico junto a las carpetas de proyecto.
+    // que vive en la raiz de FunshiEngine-DATA junto a las carpetas de proyecto.
     // Desde ahi se lee el ultimo proyecto abierto para saber que proyecto cargar.
     return rutaConfiguracionGeneral();
 }
@@ -250,6 +246,7 @@ void EditorConfig::cargarGeneral(const std::string& ruta) {
     datos_.idioma = g.idioma;
     datos_.sensibilidadCamara = g.sensibilidadCamara;
     datos_.sensibilidadMovimientoCamara = g.sensibilidadMovimientoCamara;
+    datos_.volumenMaestro = g.volumenMaestro;
     datos_.apariencia = g.apariencia;
     datos_.modsMotor = g.mods;
 }
@@ -293,6 +290,7 @@ void EditorConfig::guardarGeneral(const std::string& ruta) {
     g.idioma = datos_.idioma;
     g.sensibilidadCamara = datos_.sensibilidadCamara;
     g.sensibilidadMovimientoCamara = datos_.sensibilidadMovimientoCamara;
+    g.volumenMaestro = datos_.volumenMaestro;
     g.apariencia = datos_.apariencia;
     g.mods = datos_.modsMotor;
 

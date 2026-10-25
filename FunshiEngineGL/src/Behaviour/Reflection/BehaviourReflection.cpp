@@ -21,6 +21,7 @@
 #include <algorithm>
 
 #include "../../Objetos/GameObject.h"
+#include "../../Herramientas/LimitesSerializacion.h"
 
 namespace ReflejoScripts {
 
@@ -348,7 +349,13 @@ void escribirCadena(std::ofstream& out, const std::string& texto) {
 
 std::string leerCadena(std::ifstream& in) {
     uint32_t n = 0;
-    in.read(reinterpret_cast<char*>(&n), sizeof(n));
+    // La longitud la controla el archivo: sin cota, un valor enorme hace que
+    // la reserva lance `std::length_error` y el motor aborte.
+    if (!LimitesSerializacion::leerLongitud(
+            in, n, LimitesSerializacion::kTexto, 1, 0)) {
+        in.setstate(std::ios::failbit);
+        return std::string{};
+    }
     std::string texto;
     if (n > 0) {
         texto.resize(n);
@@ -365,6 +372,16 @@ void escribirTag(std::ofstream& out, TagTipo tag) {
 TagTipo leerTag(std::ifstream& in) {
     uint8_t byte = 0;
     in.read(reinterpret_cast<char*>(&byte), sizeof(byte));
+    if (!in) {
+        in.setstate(std::ios::failbit);
+        return TagTipo::Entero;
+    }
+    // Una etiqueta fuera de rango no corresponde a ningun `case`: el payload
+    // no se consumiria y todo lo que sigue en el archivo seria basura.
+    if (byte > static_cast<uint8_t>(TagTipo::Componente)) {
+        in.setstate(std::ios::failbit);
+        return TagTipo::Entero;
+    }
     return static_cast<TagTipo>(byte);
 }
 
@@ -497,7 +514,17 @@ void guardarValoresCampos(std::ofstream& out,
 // El arbol se reconstruye de forma autodescriptiva (los grupos llevan sus
 // valores hijo con nombre + tag).
 namespace {
-void leerValor(std::ifstream& in, ValorCampo& valor) {
+// Tope de anidamiento de los grupos reflejados. Sin el, un archivo corrupto
+// con grupos profundamente anidados desborda la pila al leerlos.
+constexpr unsigned kProfundidadMaxima =
+    static_cast<unsigned>(LimitesSerializacion::kProfundidad);
+
+void leerValor(std::ifstream& in, ValorCampo& valor,
+               unsigned profundidad = 0) {
+    if (profundidad > kProfundidadMaxima) {
+        in.setstate(std::ios::failbit);
+        return;
+    }
     switch (valor.tag) {
         case TagTipo::Entero: {
             int x = 0;
@@ -534,7 +561,11 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
         }
         case TagTipo::Enteros: {
             uint32_t n = 0;
-            in.read(reinterpret_cast<char*>(&n), sizeof(n));
+            if (!LimitesSerializacion::leerLongitud(
+                    in, n, LimitesSerializacion::kCantidad, sizeof(int), 0)) {
+                in.setstate(std::ios::failbit);
+                break;
+            }
             std::vector<int> lista(n);
             for (auto& e : lista) in.read(reinterpret_cast<char*>(&e), sizeof(e));
             valor.contenido = std::move(lista);
@@ -542,7 +573,11 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
         }
         case TagTipo::Flotantes: {
             uint32_t n = 0;
-            in.read(reinterpret_cast<char*>(&n), sizeof(n));
+            if (!LimitesSerializacion::leerLongitud(
+                    in, n, LimitesSerializacion::kCantidad, sizeof(float), 0)) {
+                in.setstate(std::ios::failbit);
+                break;
+            }
             std::vector<float> lista(n);
             for (auto& e : lista) in.read(reinterpret_cast<char*>(&e), sizeof(e));
             valor.contenido = std::move(lista);
@@ -550,7 +585,11 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
         }
         case TagTipo::Dobles: {
             uint32_t n = 0;
-            in.read(reinterpret_cast<char*>(&n), sizeof(n));
+            if (!LimitesSerializacion::leerLongitud(
+                    in, n, LimitesSerializacion::kCantidad, sizeof(double), 0)) {
+                in.setstate(std::ios::failbit);
+                break;
+            }
             std::vector<double> lista(n);
             for (auto& e : lista) in.read(reinterpret_cast<char*>(&e), sizeof(e));
             valor.contenido = std::move(lista);
@@ -558,7 +597,11 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
         }
         case TagTipo::Booleanos: {
             uint32_t n = 0;
-            in.read(reinterpret_cast<char*>(&n), sizeof(n));
+            if (!LimitesSerializacion::leerLongitud(
+                    in, n, LimitesSerializacion::kCantidad, 1, 0)) {
+                in.setstate(std::ios::failbit);
+                break;
+            }
             std::vector<bool> lista(n);
             for (size_t i = 0; i < n; ++i) {
                 uint8_t x = 0;
@@ -570,7 +613,11 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
         }
         case TagTipo::Textos: {
             uint32_t n = 0;
-            in.read(reinterpret_cast<char*>(&n), sizeof(n));
+            if (!LimitesSerializacion::leerLongitud(
+                    in, n, LimitesSerializacion::kCantidad, 1, 0)) {
+                in.setstate(std::ios::failbit);
+                break;
+            }
             std::vector<std::string> lista(n);
             for (auto& e : lista) e = leerCadena(in);
             valor.contenido = std::move(lista);
@@ -578,7 +625,11 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
         }
         case TagTipo::Vec3s: {
             uint32_t n = 0;
-            in.read(reinterpret_cast<char*>(&n), sizeof(n));
+            if (!LimitesSerializacion::leerLongitud(
+                    in, n, LimitesSerializacion::kCantidad, sizeof(vec3), 0)) {
+                in.setstate(std::ios::failbit);
+                break;
+            }
             std::vector<vec3> lista(n);
             for (auto& e : lista) {
                 in.read(reinterpret_cast<char*>(&e.x), sizeof(e.x));
@@ -590,14 +641,20 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
         }
         case TagTipo::Grupo: {
             uint32_t n = 0;
-            in.read(reinterpret_cast<char*>(&n), sizeof(n));
+            if (!LimitesSerializacion::leerLongitud(
+                    in, n, LimitesSerializacion::kCantidad, sizeof(uint32_t),
+                    0)) {
+                in.setstate(std::ios::failbit);
+                break;
+            }
             std::vector<ValorCampo> subs;
             subs.reserve(n);
             for (uint32_t i = 0; i < n; ++i) {
                 ValorCampo sub;
                 sub.nombre = leerCadena(in);
                 sub.tag = leerTag(in);
-                leerValor(in, sub);
+                leerValor(in, sub, profundidad + 1);
+                if (!in) return;
                 subs.push_back(std::move(sub));
             }
             valor.contenido = std::move(subs);
@@ -605,19 +662,30 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
         }
         case TagTipo::Grupos: {
             uint32_t n = 0;
-            in.read(reinterpret_cast<char*>(&n), sizeof(n));
+            if (!LimitesSerializacion::leerLongitud(
+                    in, n, LimitesSerializacion::kCantidad, sizeof(uint32_t),
+                    0)) {
+                in.setstate(std::ios::failbit);
+                break;
+            }
             std::vector<std::vector<ValorCampo>> grupos;
             grupos.reserve(n);
             for (uint32_t g = 0; g < n; ++g) {
                 uint32_t m = 0;
-                in.read(reinterpret_cast<char*>(&m), sizeof(m));
+                if (!LimitesSerializacion::leerLongitud(
+                        in, m, LimitesSerializacion::kCantidad,
+                        sizeof(uint32_t), 0)) {
+                    in.setstate(std::ios::failbit);
+                    return;
+                }
                 std::vector<ValorCampo> subs;
                 subs.reserve(m);
                 for (uint32_t i = 0; i < m; ++i) {
                     ValorCampo sub;
                     sub.nombre = leerCadena(in);
                     sub.tag = leerTag(in);
-                    leerValor(in, sub);
+                    leerValor(in, sub, profundidad + 1);
+                    if (!in) return;
                     subs.push_back(std::move(sub));
                 }
                 grupos.push_back(std::move(subs));
@@ -628,7 +696,11 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
         case TagTipo::Objeto: valor.contenido = leerCadena(in); break;
         case TagTipo::Objetos: {
             uint32_t n = 0;
-            in.read(reinterpret_cast<char*>(&n), sizeof(n));
+            if (!LimitesSerializacion::leerLongitud(
+                    in, n, LimitesSerializacion::kCantidad, 1, 0)) {
+                in.setstate(std::ios::failbit);
+                break;
+            }
             std::vector<std::string> lista(n);
             for (auto& e : lista) e = leerCadena(in);
             valor.contenido = std::move(lista);
@@ -641,7 +713,11 @@ void leerValor(std::ifstream& in, ValorCampo& valor) {
 
 std::vector<ValorCampo> leerValoresCrudos(std::ifstream& in) {
     uint32_t n = 0;
-    in.read(reinterpret_cast<char*>(&n), sizeof(n));
+    if (!LimitesSerializacion::leerLongitud(
+            in, n, LimitesSerializacion::kCantidad, sizeof(uint32_t), 0)) {
+        in.setstate(std::ios::failbit);
+        return {};
+    }
     std::vector<ValorCampo> leidos;
     leidos.reserve(n);
     for (uint32_t i = 0; i < n; ++i) {
@@ -649,6 +725,7 @@ std::vector<ValorCampo> leerValoresCrudos(std::ifstream& in) {
         valor.nombre = leerCadena(in);
         valor.tag = leerTag(in);
         leerValor(in, valor);
+        if (!in) return {};
         leidos.push_back(std::move(valor));
     }
     return leidos;
@@ -671,7 +748,16 @@ std::vector<ValorCampo> alinearValores(std::vector<ValorCampo> leidos,
         bool casado = false;
         for (size_t i = 0; i < leidos.size(); ++i) {
             if (leidos[i].nombre == def.nombre) {
-                resultado.push_back(std::move(leidos[i]));
+                ValorCampo valor = std::move(leidos[i]);
+                if (valor.tag != def.tag) {
+                    // El tipo del campo cambio en el script: el valor guardado
+                    // no se puede reinterpretar (la alternativa activa del
+                    // variant no corresponde a su etiqueta) y el inspector
+                    // lanzaria `std::bad_variant_access` al leerlo. Se usa el
+                    // valor por defecto del campo actual.
+                    valor = valorPorDefecto(def);
+                }
+                resultado.push_back(std::move(valor));
                 casado = true;
                 break;
             }

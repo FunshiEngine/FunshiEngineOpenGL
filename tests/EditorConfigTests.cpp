@@ -38,6 +38,7 @@
 
 #include "TempPruebas.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
+#include "../FunshiEngineGL/src/Configuracion/ProjectManager.h"
 #include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
 #include "../FunshiEngineGL/src/Exportador/RutasExportacion.h"
 #include "../FunshiEngineGL/src/Configuracion/ProyectoInicial.h"
@@ -505,12 +506,12 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
     }
 
     // 5. Nuevo sistema de guardado por proyecto:
-    // Cada proyecto genera su carpeta en MotorGrafico, con Memory (escena, config, imgui)
+    // Cada proyecto genera su carpeta en FunshiEngine-DATA, con Memory (escena, config, imgui)
     // y su hermano srcProyectName como raiz del explorador de archivos.
-    // La config general vive en la raiz de MotorGrafico (hermana de los proyectos).
+    // La config general vive en la raiz de FunshiEngine-DATA (hermana de los proyectos).
     {
-        const std::string baseMotor = EditorConfig::directorioBaseMotorGrafico();
-        CHECK(!baseMotor.empty(), "directorioBaseMotorGrafico no vacio");
+        const std::string baseMotor = EditorConfig::directorioBaseDatos();
+        CHECK(!baseMotor.empty(), "directorioBaseDatos no vacio");
 
         const std::string proyNombre = "JuegoPrueba";
         const std::string proyDir  = EditorConfig::directorioProyecto(proyNombre);
@@ -533,8 +534,8 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
 
     // 5b. Rutas que el exportador copia a la distribucion del juego standalone.
     // El proyecto viaja COMPLETO con la disposicion del motor: el binario del
-    // juego resuelve MotorGrafico/ junto a si mismo, asi que escenas, Memory,
-    // Sonidos y src<nombre>/ tienen que quedar bajo Proyects/<nombre>/.
+    // juego resuelve FunshiEngine-DATA/ junto a si mismo, asi que escenas, Memory y
+    // src<nombre>/ tienen que quedar bajo Proyects/<nombre>/.
     {
         const std::string nombre = "JuegoExport";
         const std::string salida = EditorConfig::directorioExportacion("JuegoExportado");
@@ -548,14 +549,13 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         };
 
         CHECK(destinoDe(EditorConfig::directorioProyecto(nombre)) ==
-                  salida + "/MotorGrafico/Proyects/" + nombre,
+                  salida + "/FunshiEngine-DATA/Proyects/" + nombre,
               "el proyecto se copia completo bajo Proyects/ del juego");
         // El material clave del juego queda cubierto por esa copia: todos sus
         // origenes son subcarpetas del proyecto.
         const std::string prefijo = EditorConfig::directorioProyecto(nombre) + "/";
         for (const std::string clave :
              {EditorConfig::directorioMemory(nombre),
-              EditorConfig::directorioSonidos(nombre),
               EditorConfig::rutaConfiguracionProyecto(nombre)}) {
             CHECK(clave.rfind(prefijo, 0) == 0,
                   "el origen vive dentro del proyecto: " + clave);
@@ -582,37 +582,35 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "asegurarEstructuraProyecto creo Memory/Binarios/Scene");
         CHECK(fs::is_directory(srcDir),
               "asegurarEstructuraProyecto creo srcJuegoPrueba");
-        // Sonidos es un asset: el usuario decide cuando crearlo (no auto-creado).
-        const std::string sonidosDir = EditorConfig::directorioSonidos(proyNombre);
-        CHECK(sonidosDir == srcDir + "/Sonidos",
-              "directorioSonidos dentro de src<proyecto>");
-        // El directorio NO se crea automaticamente: lo decide el usuario.
+        // Las carpetas de assets las crea el usuario: el motor no las crea.
+        CHECK(!fs::is_directory(srcDir + "/Sonidos"),
+              "el motor no crea la carpeta de sonidos");
+        CHECK(!fs::is_directory(srcDir + "/Scripts"),
+              "el motor no crea la carpeta de scripts");
+        CHECK(!fs::is_directory(proyDir + "/Mods"),
+              "el motor no crea la carpeta de mods");
 
         // Limpieza de prueba
         std::error_code ec;
         fs::remove_all(proyDir, ec);
     }
 
-    // 5b. Migracion de Sonidos: si el usuario habia creado la carpeta en la raiz,
-    //     se mueve al src conservando sus clips.
+    // 5b. Las carpetas de assets las crea el usuario: el motor no mueve lo que
+    //     el usuario tenga en la raiz del proyecto.
     {
         const std::string proyNombre = "JuegoMigracion";
         const std::string proyDir = EditorConfig::directorioProyecto(proyNombre);
-        const std::string sonidosViejo = proyDir + "/Sonidos";
+        const std::string sonidosRaiz = proyDir + "/Sonidos";
         std::error_code ec;
-        fs::create_directories(sonidosViejo, ec);
-        { std::ofstream out(sonidosViejo + "/tema.wav"); out << "clip"; }
+        fs::create_directories(sonidosRaiz, ec);
+        { std::ofstream out(sonidosRaiz + "/tema.wav"); out << "clip"; }
 
         EditorConfig::asegurarEstructuraProyecto(proyNombre);
 
-        const std::string sonidosNuevo =
-            EditorConfig::directorioSonidos(proyNombre);
-        CHECK(!fs::exists(sonidosViejo),
-              "migracion retira Sonidos de la raiz del proyecto");
-        CHECK(fs::is_directory(sonidosNuevo),
-              "migracion crea Sonidos dentro del src");
-        CHECK(fs::exists(sonidosNuevo + "/tema.wav"),
-              "migracion conserva los clips de audio");
+        CHECK(fs::is_directory(sonidosRaiz),
+              "el motor deja la carpeta de assets donde la puso el usuario");
+        CHECK(fs::exists(sonidosRaiz + "/tema.wav"),
+              "el motor no mueve los archivos de assets del usuario");
 
         fs::remove_all(proyDir, ec);
     }
@@ -692,7 +690,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
     //     rutas de la escena se guardan relativas y se resuelven al cargar.
     //     Las escenas legacy (absolutas) se dejan intactas.
     {
-        const std::string raiz = "/dato/MotorGrafico/JuegoX/srcJuegoX";
+        const std::string raiz = "/dato/FunshiEngine-DATA/JuegoX/srcJuegoX";
         EditorConfig::fijarRaizAssets(raiz);
         CHECK(EditorConfig::hayRaizAssets(), "con proyecto hay raiz de assets");
 
@@ -737,7 +735,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
     {
         EditorConfig::limpiarRaizAssets();
         const std::string raiz =
-            "C:\\base\\MotorGrafico/Proyects/JuegoX/srcJuegoX";
+            "C:\\base\\FunshiEngine-DATA/Proyects/JuegoX/srcJuegoX";
         EditorConfig::fijarRaizAssets(raiz);
 
         // Ruta en memoria tal como queda al cargar la escena.
@@ -909,16 +907,16 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
 
         CHECK(!raizDatos.empty(), "directorioBase no vacio");
         CHECK(!original.empty(), "directorioBaseOriginal no vacio");
-        // Termina en MotorGrafico: las dos son la MISMA raiz, solo cambia donde
+        // Termina en FunshiEngine-DATA: las dos son la MISMA raiz, solo cambia donde
         // esta. Si esto se cumpliera, el resto de la comprobacion es coherente.
-        const std::string sufijo = "MotorGrafico";
+        const std::string sufijo = "FunshiEngine-DATA";
         auto terminaEn = [&sufijo](const std::string& ruta) {
             return ruta.size() >= sufijo.size() &&
                    ruta.compare(ruta.size() - sufijo.size(), sufijo.size(),
                                 sufijo) == 0;
         };
-        CHECK(terminaEn(raizDatos), "directorioBase termina en MotorGrafico");
-        CHECK(terminaEn(original), "directorioBaseOriginal termina en MotorGrafico");
+        CHECK(terminaEn(raizDatos), "directorioBase termina en FunshiEngine-DATA");
+        CHECK(terminaEn(original), "directorioBaseOriginal termina en FunshiEngine-DATA");
 
         // Coherencia de datosEnRutaDeUsuario con las dos rutas: solo puede ser
         // true si resolvio a OTRO sitio, y ese otro no puede ser el de siempre.
@@ -1059,7 +1057,7 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
     //    Program Files el motor se queda sin log ni consola que lo muestre.
     {
         const std::string exe = "/opt/FunshiEngineGL";
-        const std::string datosUsuario = "/home/usuario/.local/share/FunshiEngineGL/MotorGrafico";
+        const std::string datosUsuario = "/home/usuario/.local/share/FunshiEngineGL/FunshiEngine-DATA";
         const std::string temp = "/tmp";
 
         const std::vector<std::string> rutas = RutasLog::candidatas(
@@ -1098,6 +1096,49 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "'logs' no es un proyecto: queda reservada en la raiz de datos");
         CHECK(ProjectPaths::esNombreValido("Loges del Pueblo"),
               "un nombre de proyecto corriente sigue siendo valido");
+    }
+
+    // 11. La carpeta global de mods del motor NO es un proyecto legacy: la raiz
+    //     de datos la crea en cada arranque (asegurarEstructuraBase) y la
+    //     migracion de proyectos antiguos la movia a Proyects/, de modo que el
+    //     listado mostraba un proyecto falso llamado "Mods" y la carpeta real
+    //     de mods volvia a aparecer vacia en la raiz.
+    {
+        CHECK(!ProjectPaths::esNombreValido("Mods"),
+              "'Mods' no es un proyecto: queda reservada en la raiz de datos");
+        CHECK(ProjectPaths::esNombreValido("Mods del Juego"),
+              "un proyecto del usuario puede llamarse parecido sin chocar");
+        // La cache de mods (CargadorMods::directorioCacheMods) tambien vive en
+        // la raiz de datos y se crea al cargar mods, antes de elegir proyecto:
+        // sin reserva, la misma migracion la movia a Proyects/ como un
+        // proyecto falso llamado "cache".
+        CHECK(!ProjectPaths::esNombreValido("cache"),
+              "'cache' no es un proyecto: es la cache de mods, reservada");
+
+        // Migracion con rutas inyectadas: la carpeta reservada se queda en la
+        // raiz y el proyecto legacy de verdad sigue migrando a Proyects/.
+        TempPruebas::CarpetaPrueba carpetaMigracion("funshi_migracion_reservados");
+        const fs::path raizMigracion = carpetaMigracion.ruta();
+        fs::create_directories(raizMigracion / "Mods");
+        fs::create_directories(raizMigracion / "cache" / "mods");
+        fs::create_directories(raizMigracion / "MiJuego" / "Memory");
+        fs::create_directories(raizMigracion / "MiJuego" / "srcMiJuego");
+
+        ProjectManager::migrarProyectosAntiguosEn(
+            raizMigracion.string(), (raizMigracion / "Proyects").string());
+
+        CHECK(fs::is_directory(raizMigracion / "Mods"),
+              "la carpeta global de mods se queda en la raiz de datos");
+        CHECK(!fs::is_directory(raizMigracion / "Proyects" / "Mods"),
+              "la migracion no crea un proyecto llamado Mods");
+        CHECK(fs::is_directory(raizMigracion / "cache" / "mods"),
+              "la cache de mods se queda en la raiz de datos");
+        CHECK(!fs::is_directory(raizMigracion / "Proyects" / "cache"),
+              "la migracion no crea un proyecto llamado cache");
+        CHECK(fs::is_directory(raizMigracion / "Proyects" / "MiJuego"),
+              "el proyecto legacy de verdad si migra a Proyects/");
+        CHECK(!fs::exists(raizMigracion / "MiJuego"),
+              "el proyecto legacy sale de la raiz de datos");
     }
 
     fs::remove_all(base);

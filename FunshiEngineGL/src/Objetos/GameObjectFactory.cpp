@@ -18,6 +18,7 @@
 */
 #include "GameObjectFactory.h"
 
+#include <algorithm>
 #include <cstdio>
 
 #include "NombreUnico.h"
@@ -33,5 +34,28 @@ std::unique_ptr<GameObject> GameObjectFactory::createSimpleObject(
         NombresUnicos::porDefecto("Objeto", contadorObjetos, raiz);
     std::snprintf(objeto->inputName, sizeof(objeto->inputName), "%s",
                   nombre.c_str());
+    return objeto;
+}
+
+std::unique_ptr<GameObject> GameObjectFactory::createSimpleObject(
+    const GameObject* raiz, const std::string& nombre) {
+    auto objeto = std::make_unique<SimpleObject>();
+    std::string elegido = nombre;
+    if (elegido.empty()) {
+        static int contadorObjetos = 0;
+        elegido = NombresUnicos::porDefecto("Objeto", contadorObjetos, raiz);
+    } else {
+        // El nombre pedido se respeta tal cual si esta libre; si ya lo usa
+        // otro objeto del arbol, se le anade un sufijo numerico.
+        const std::vector<std::string> nombres = NombresUnicos::enUso(raiz);
+        for (int sufijo = 2;; ++sufijo) {
+            const bool libre =
+                std::find(nombres.begin(), nombres.end(), elegido) == nombres.end();
+            if (libre) break;
+            elegido = nombre + " " + std::to_string(sufijo);
+        }
+    }
+    std::snprintf(objeto->inputName, sizeof(objeto->inputName), "%s",
+                  elegido.c_str());
     return objeto;
 }

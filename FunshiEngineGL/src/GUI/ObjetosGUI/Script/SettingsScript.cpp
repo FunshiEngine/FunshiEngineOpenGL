@@ -77,7 +77,9 @@ bool editarReferenciaComponente(std::string& nombre, const std::string& tipo) {
 	if (ImGui::BeginDragDropTarget()) {
 		if (const ImGuiPayload* payload =
 		        ImGui::AcceptDragDropPayload("COMPONENTE_INTERFAZ")) {
-			if (tipo == "InterfaceComponent") {
+			// El payload lleva el nombre del objeto dueno del componente
+			// (la interfaz web o la nativa).
+			if (tipo == "InterfaceComponent" || tipo == "UIComponent") {
 				const char* dueno = static_cast<const char*>(payload->Data);
 				if (dueno && *dueno) {
 					nombre = dueno;

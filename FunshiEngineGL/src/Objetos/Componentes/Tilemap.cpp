@@ -302,6 +302,3 @@ void Tilemap::deserializeComponent(std::ifstream* file) {
     ++revision_;
 }
 
-void Tilemap::saveComponent(std::ofstream* file) { serializeComponent(file); }
-
-void Tilemap::loadComponent(std::ifstream* file) { deserializeComponent(file); }

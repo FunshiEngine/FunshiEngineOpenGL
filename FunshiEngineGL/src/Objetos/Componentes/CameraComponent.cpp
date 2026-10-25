@@ -136,14 +136,6 @@ void CameraComponent::deserializeComponent(std::ifstream* file) {
     orthoSize = 5.0f;
 }
 
-void CameraComponent::saveComponent(std::ofstream* file) {
-    serializeComponent(file);
-}
-
-void CameraComponent::loadComponent(std::ifstream* file) {
-    deserializeComponent(file);
-}
-
 void CameraComponent::onLoaded(GameObject& owner) {
     setUp(&owner);
     sincronizarConTransform();

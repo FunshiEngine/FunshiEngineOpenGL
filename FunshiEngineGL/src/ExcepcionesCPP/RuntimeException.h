@@ -35,7 +35,7 @@ private:
     std::vector<std::string> stackTrace;
     std::string tipoExcepcion;
 
-    // Declaraci�n correcta de los m�todos privados
+    // Declaración correcta de los métodos privados
     std::vector<std::string> generateStackTrace();
     std::string formatStackTrace();
 

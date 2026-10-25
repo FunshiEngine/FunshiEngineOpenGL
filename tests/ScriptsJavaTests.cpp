@@ -67,6 +67,9 @@ bool freezeR[3] = {false, false, false};
 float gravMundo[3] = {0.0f, -1.0f, 0.0f};
 void* objetoCreado = reinterpret_cast<void*>(static_cast<intptr_t>(0x4000));
 void* objetoClonado = reinterpret_cast<void*>(static_cast<intptr_t>(0x5000));
+bool musicaReproducida = false;
+float fundidoSalida = -1.0f;
+float volumenBus = -1.0f;
 }
 
 const ApiScriptGameObject* tablaApi() {
@@ -173,21 +176,22 @@ const ApiScriptGameObject* tablaApi() {
 
 const ScriptServices* tablaServicios() {
     static const ScriptServices servicios = {
-        [](const char* clip, float volumen, bool bucle) {
-            return clip && std::string(clip) == "disparo.wav" &&
+        // --- v1 ---
+        [](const char* ruta, float volumen, bool bucle) {
+            return ruta && std::string(ruta) == "disparo.wav" &&
                            volumen == 0.5f && !bucle
                        ? 73
                        : -1;
         },
         [](int handle) { handleSonidoDetenido = handle; },
+        // --- v3 ---
         [](const char* nombre) {
             return nombre && std::string(nombre) == "Meta"
                        ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
                        : nullptr;
         },
         [](int id) {
-            return id == 7 ? reinterpret_cast<void*>(
-                                 static_cast<intptr_t>(0x1234))
+            return id == 7 ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
                            : nullptr;
         },
         [](const char* etiqueta) {
@@ -195,11 +199,14 @@ const ScriptServices* tablaServicios() {
                        ? reinterpret_cast<void*>(static_cast<intptr_t>(0x1234))
                        : nullptr;
         },
+        // teclado
         [](const char* tecla) { return tecla && std::string(tecla) == "W"; },
         [](const char* tecla) { return tecla && std::string(tecla) == "SPACE"; },
         [](const char* tecla) { return tecla && std::string(tecla) == "D0"; },
+        // mouse
         []() { return 12.5f; },
         []() { return -4.0f; },
+        // --- v4: gravedad global y gestion de objetos ---
         [](float x, float y, float z) {
             gravMundo[0] = x;
             gravMundo[1] = y;
@@ -211,22 +218,54 @@ const ScriptServices* tablaServicios() {
         [](const char*, void*) { return objetoCreado; },
         [](void* o) { return o == objetoCreado || o == objetoClonado; },
         [](const void*, void*) { return objetoClonado; },
-        [](void*, float) { return true; },
-        [](void*, float) { return true; },
-        [](void*, float) { return true; },
-        [](const char*, void*) { return objetoCreado; },
-        []() { 
+        // v4 continuacion: colliders y rigidbody
+        [](void*, float) { return true; },  // agregarColliderEsfera
+        [](void*, float) { return true; },  // agregarColliderCubo
+        [](void*, float) { return true; },  // agregarRigidBody
+        // --- v5: colisiones y raycast ---
+        [](const void*) { return objetoCreado; },  // objetoDeCollider
+        [](float, float, float, float, float, float, float,
+             float*, float*, float*, float*, float*, float*, float*, void**)
+            { return false; },  // raycaste
+        []() { return 0.0f; },  // puntoImpactoX
+        []() { return 0.0f; },  // puntoImpactoY
+        []() { return 0.0f; },  // puntoImpactoZ
+        []() { return 0.0f; },  // normalImpactoX
+        []() { return 0.0f; },  // normalImpactoY
+        []() { return 0.0f; },  // normalImpactoZ
+        []() { return 0.0f; },  // distanciaImpacto
+        // --- v6: prefabs e interfaz web ---
+        [](const char*, void*) { return objetoCreado; },  // instanciarPrefab
+        []() {
             static const char* prefabs[] = { "Enemigo", "Jugador", nullptr };
             return prefabs;
-        },
-        [](const char*) { return reinterpret_cast<void*>(
-                               static_cast<intptr_t>(0x1234)); },
-        [](const void*) { return true; },
-        [](void*, bool) {},
-        [](void*, const char*) { return true; },
-        [](void*, const char*, const char*) { return true; },
-        [](void*, const char*) { return "3"; },
-        6,
+        },  // listarPrefabs
+        [](const char*) { return reinterpret_cast<void*>(static_cast<intptr_t>(0x1234)); },  // interfazDeObjeto
+        [](const void*) { return true; },  // interfazActiva
+        [](void*, bool) {},  // interfazEstablecerActiva
+        [](void*, const char*) { return true; },  // interfazEstablecerEstado
+        [](void*, const char*, const char*) { return true; },  // interfazEstablecerValor
+        [](void*, const char*) { return "3"; },  // interfazValor
+        // --- v8: musica ---
+        [](const char* ruta, float volumen, float fundido) {
+            musicaReproducida = ruta && std::string(ruta) == "tema.ogg" &&
+                                volumen == 0.8f && fundido == 0.0f;
+            return musicaReproducida;
+        },  // reproducirMusica
+        [](float fundido) { fundidoSalida = fundido; },  // detenerMusica
+        [](float volumen) { volumenBus = volumen; },  // volumenMusica
+        // --- v9: interfaz de juego nativa ---
+        [](const char* nombre) {
+            return nombre && std::string(nombre) == "HUD"
+                       ? reinterpret_cast<void*>(static_cast<intptr_t>(0x5678))
+                       : nullptr;
+        },  // interfazNativaDeObjeto
+        [](const void*) { return true; },  // interfazNativaVisible
+        [](void*, bool) {},  // interfazNativaEstablecerVisible
+        [](void*, const char*, const char*) { return true; },  // interfazNativaEstablecerTexto
+        [](void*, const char*, bool) { return true; },  // interfazNativaEstablecerVisibleWidget
+        [](void*, const char*) { return false; },  // interfazNativaBotonPulsado
+        10,  // version
     };
     return &servicios;
 }
@@ -257,6 +296,7 @@ static const char* FUENTE_JAVA =
     "    public long hud;\n"
     "    public boolean hudActiva, hudEstadoOk, hudValorOk;\n"
     "    public String hudSalida;\n"
+    "    public boolean musicaOk;\n"
     "    @Override public void iniciar(long o) {\n"
     "        vidas = 100;\n"
     "        nombreObjeto = Nativo.nombre(o);\n"
@@ -298,6 +338,9 @@ static const char* FUENTE_JAVA =
     "        destruirOk = Nativo.destruirObjeto(nuevo);\n"
     "        clonarOk = Nativo.clonarObjeto(o, 0) != 0;\n"
     "        agregarOk = Nativo.agregarColliderEsfera(o, 1.0f) && Nativo.agregarColliderCubo(o, 1.0f) && Nativo.agregarRigidBody(o, 1.0f);\n"
+    "        musicaOk = Nativo.reproducirMusica(\"tema.ogg\", 0.8f, 0.0f);\n"
+    "        Nativo.detenerMusica(0.0f);\n"
+    "        Nativo.volumenMusica(0.5f);\n"
     "        Nativo.detenerSonido(sonido);\n"
     "    }\n"
     "    @Override public void actualizar(long o, double dt) {\n"
@@ -364,7 +407,7 @@ int main() {
 
     CHECK(comportamiento.valido(), "objeto Java creado");
     CHECK(comportamiento.lenguaje == "java", "lenguaje = java");
-    CHECK(comportamiento.campos.size() == 52,
+    CHECK(comportamiento.campos.size() == 53,
           "campos publicos Java soportados reflejados (con long como objeto)");
 
     // Inyectar SerializeField y verificar por lectura.
@@ -445,6 +488,11 @@ int main() {
     CHECK(sonido && sonido->como<int>() == 73 &&
               MotorScript::handleSonidoDetenido == 73,
           "Java reproduce y detiene sonido por servicio");
+    const ValorCampo* musicaOk = buscar(valores, "musicaOk");
+    CHECK(musicaOk && musicaOk->como<bool>() &&
+              MotorScript::fundidoSalida == 0.0f &&
+              MotorScript::volumenBus == 0.5f,
+          "Java reproduce la musica por ruta, la detiene y ajusta el bus");
     CHECK(nombreMeta && nombreMeta->como<std::string>() == "meta",
           "Java usa el handle opaco del objeto encontrado en la API");
     CHECK(sostenida && pulsada && soltada && sostenida->como<bool>() &&

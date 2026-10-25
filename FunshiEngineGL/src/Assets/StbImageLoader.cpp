@@ -18,18 +18,18 @@
 */
 #include "StbImageLoader.h"
 
-// stb_image se usa con su implementacion en una unica TU: IconosGUI.cpp ya la
-// define (STB_IMAGE_IMPLEMENTATION). Aqui se incluye solo el header con las
-// declaraciones (STBIDEF = extern) y se enlazan esas funciones.
-#include "../Herramientas/IconosGUI/stb_image.h"
+// Solo las declaraciones de stb_image: su implementacion esta en la unidad
+// propia de la libreria (External/stb_image/stb_image_impl.cpp).
+#include <stb_image/stb_image.h>
 
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <vector>
 
 #include "TextureException.h"
 
 std::shared_ptr<Image> StbImageLoader::load(const std::string& path) {
-    stbi_set_flip_vertically_on_load(1);
-
     int width = 0, height = 0, channels = 0;
     stbi_uc* data = stbi_load(path.c_str(), &width, &height, &channels,
                               STBI_rgb_alpha);
@@ -45,11 +45,32 @@ std::shared_ptr<Image> StbImageLoader::load(const std::string& path) {
     image->width = width;
     image->height = height;
     image->channels = 4; // pedimos explícitamente RGBA
-    image->pixels.assign(data, data + static_cast<std::size_t>(width) *
-                                          static_cast<std::size_t>(height) * 4);
+    const std::size_t fila = static_cast<std::size_t>(width) * 4;
+    image->pixels.assign(data, data + fila * static_cast<std::size_t>(height));
+
+    // Voltea la imagen en vertical (el origen abajo-izquierda que espera GL).
+    voltearVertical(*image);
+
     stbi_image_free(data);
-    stbi_set_flip_vertically_on_load(0);
     return image;
+}
+
+void StbImageLoader::voltearVertical(Image& imagen) {
+    if (imagen.width <= 0 || imagen.height <= 0) return;
+    const std::size_t fila = static_cast<std::size_t>(imagen.width) * 4;
+    if (imagen.pixels.size() < fila * static_cast<std::size_t>(imagen.height)) {
+        return;
+    }
+    std::vector<std::uint8_t> copia(imagen.pixels);
+    for (int y = 0; y < imagen.height; ++y) {
+        const std::size_t origen = static_cast<std::size_t>(y) * fila;
+        const std::size_t destino =
+            static_cast<std::size_t>(imagen.height - 1 - y) * fila;
+        std::copy(copia.begin() + static_cast<std::ptrdiff_t>(origen),
+                  copia.begin() + static_cast<std::ptrdiff_t>(origen + fila),
+                  imagen.pixels.begin() +
+                      static_cast<std::ptrdiff_t>(destino));
+    }
 }
 
 bool StbImageLoader::dimensiones(const std::string& path, int& ancho,

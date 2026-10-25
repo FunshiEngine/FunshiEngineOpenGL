@@ -27,7 +27,9 @@
 #include "Cielo.h"
 #include "GrillaRenderer.h"
 #include "GuiaEje.h"
+#include "Sombras/MapaSombras.h"
 #include "SpriteRenderer.h"
+#include "ParticulasRenderer.h"
 #include "TilemapRenderer.h"
 
 // Clases de otras capas que la pasada de render necesita (solo data CPU).
@@ -35,7 +37,12 @@ class GameObject;
 class CameraComponent;
 class RenderTarget;
 class TextureManager;
+class IResolutorMateriales;
 class ShaderProgram;
+
+namespace Rendering {
+class GestorShaders;
+}  // namespace Rendering
 struct Apariencia;
 struct LightData;
 class Skybox;
@@ -57,12 +64,22 @@ class AssetManager;
 
 class SceneRenderer {
 public:
-    SceneRenderer();
+    // El backend de render se inyecta: los recursos GPU (mallas, texturas,
+    // batches y objetivos de render) se crean y se destruyen con el.
+    explicit SceneRenderer(Rendering::Backend::IRenderBackend& backend);
     ~SceneRenderer();
 
     // Manager de imagenes compartidas: se inyecta al MeshRenderer para que
     // los materiales con textura se suban una sola vez a GPU.
     void setTextureManager(TextureManager* textureManager) noexcept;
+
+    // Resolvedor de materiales por region: decide el material de cada region
+    // de la malla (sub-malla con material propio).
+    void setResolvedorMateriales(IResolutorMateriales* resolvedor) noexcept;
+
+    // Gestor de shaders del motor (dueno de los programas): se reparte a los
+    // renderers de la pasada y a los programas del cielo.
+    void setGestorShaders(Rendering::GestorShaders* gestorShaders) noexcept;
 
     // Datos CPU de la pasada que el renderer necesita de la escena. Los punteros
     // apuntan a memoria del llamador y solo valen durante render().
@@ -79,6 +96,10 @@ class AssetManager;
         // Luces ya recogidas (LightSystem::collectLights) con el modelo global.
         const LightData* lights = nullptr;
         int lightCount = 0;
+        // Objeto dueno de cada luz, en el mismo orden que lights. Lo rellena
+        // la misma llamada que recoge las luces, asi que el indice de una luz
+        // y el de su dueno no pueden separarse.
+        GameObject** lightOwners = nullptr;
         const float* globalAmbient = nullptr;
         // Tamano del framebuffer de la ventana (pasada principal).
         int framebufferWidth = 0;
@@ -97,6 +118,9 @@ class AssetManager;
         // difuminado por distancia (en ortografica el horizonte de la grilla no
         // aplica: la vista no converge).
         bool modo2D = false;
+        // Sistema de particulas de la escena: el renderer dibuja lo que hay
+        // sin saber de donde viene (el emisor es de la capa de entidades).
+        const SistemaParticulas* sistemaParticulas = nullptr;
     };
 
     // Renderiza las vistas previas y la pasada principal de la escena desde la
@@ -127,6 +151,16 @@ private:
                        int viewportAncho, int viewportAlto,
                        bool esPasadaPrincipal);
     void prepararLucesFrame(const FrameContext& ctx);
+    // Pasada de sombras: elige las luces que proyectan sombra, dibuja la
+    // escena desde cada una hacia su mapa de profundidad y deja los mapas
+    // listos para que el shader de mallas los consulte. Se hace una vez por
+    // frame (el mapa depende de la luz, no de la camara) y antes de las
+    // vistas previas, para que todas las pasadas vean las mismas sombras.
+    void prepararSombras(const FrameContext& ctx, CameraComponent* camara);
+    // Dibuja la geometria de la escena con el programa de profundidad, desde
+    // el punto de vista de la luz.
+    void dibujarGeometriaParaSombra(const FrameContext& ctx,
+                                    const glm::mat4& matrizLuz);
     void dibujarGameObjectsConOjo(const FrameContext& ctx, GameObject* camaraOjo,
                                   const float view[16],
                                   const float projection[16]);
@@ -137,6 +171,10 @@ private:
     // los ordena por la Z de su Transform (atras->adelante) y los dibuja con
     // blend activo y sin escritura de profundidad. Va despues de las mallas 3D
     // para que un sprite no quede tapado por el estado del pipeline anterior.
+    // Particululas: se dibujan despues de los sprites, con el mismo criterio
+    // (no escriben profundidad; el orden de dibujo decide el solapamiento).
+    void dibujarParticulas(const FrameContext& ctx, const float view[16],
+                           const float projection[16]);
     void dibujarSprites(const FrameContext& ctx, const float view[16],
                         const float projection[16]);
     // Pasada de tilemaps 2D: recoge los objetos con componente Tilemap, ordena
@@ -188,14 +226,25 @@ private:
     // apariencia.
     bool colorReferenciaGuia(const FrameContext& ctx, float out[3]) const;
 
+    // Backend de render de la pasada: se inyecta al construir el renderer.
+    Rendering::Backend::IRenderBackend& backend_;
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;
+    // Mapas de sombra de la pasada: los objetivos de profundidad por luz que
+    // proyecta sombra y los proyectores con los que el shader de mallas los
+    // consulta.
+    Rendering::MapaSombras mapaSombras_;
+    std::vector<Rendering::CandidatoProyector> candidatosSombra_;
+    std::vector<Rendering::ProyectorSombra> proyectoresSombra_;
+    // Los proyectores que tienen mapa de verdad (los que el shader consulta).
+    std::vector<Rendering::ProyectorSombra> proyectoresConMapa_;
     // Pasada de sprites 2D (componente SpriteRenderer): mismo pipeline moderno
     // sobre su propio shader y malla de quad.
     Rendering::SpriteRenderer spriteRenderer_;
     // Pasada de tilemaps 2D (componente Tilemap): sube una malla horneada por
     // tilemap y la reutiliza hasta que cambia su revision.
     Rendering::TilemapRenderer tilemapRenderer_;
+    Rendering::ParticulasRenderer particulasRenderer_;
     // Programas del cielo: el del degradado (triangulo a pantalla completa) y el
     // del cubemap del componente Skybox. Se crean en la primera pasada que los
     // necesita y se reusan: ShaderProgram cachea las locations de los uniforms
@@ -203,10 +252,12 @@ private:
     // destruirse. El flag de fallo evita reintentar compilar un shader roto
     // frame a frame (el texto de origen no cambia, no puede pasar de rojo a
     // verde) y con el, tambien, repetir su mensaje de error.
-    std::unique_ptr<ShaderProgram> cieloProgram_;
+    std::shared_ptr<ShaderProgram> cieloProgram_;
     bool cieloShaderFallado_ = false;
-    std::unique_ptr<ShaderProgram> skyboxProgram_;
+    std::shared_ptr<ShaderProgram> skyboxProgram_;
     bool skyboxShaderFallado_ = false;
+    // Gestor de shaders (dueno de los programas de la pasada).
+    Rendering::GestorShaders* gestorShaders_ = nullptr;
     // Cubemap cacheado del componente Skybox: la textura GPU, la malla del cubo
     // y la clave (rutas + fechas de modificacion de las 6 caras) que valido la
     // textura. Se sube una sola vez por conjunto de caras y se reemplaza solo si

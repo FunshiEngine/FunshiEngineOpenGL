@@ -34,7 +34,7 @@
 // a la stdlib sin heredar el baile de headers de Windows. Mismo criterio que
 // FileSystemWatcher: la abstraccion de SO vive en FileManager.
 //
-// Paridad multiplataforma (AGENTS.md): los argumentos pasan como bytes en
+// Paridad multiplataforma (Skills): los argumentos pasan como bytes en
 // las dos ramas; en Windows la linea se convierte CP_ACP -> ancho, la misma
 // conversion que hacian std::system/LoadLibraryA.
 
@@ -90,12 +90,15 @@ inline std::string lineaDeArgumentos(const std::vector<std::string>& argv) {
 }
 
 // Lanza argv[0] con argv[1..] SIN shell y espera a que termine.
-//  - log: archivo que recibe stdout+stderr (se trunca); vacio = el hijo
-//    hereda los std del motor (igual que std::system).
+//  - log: archivo que recibe stdout+stderr; vacio = el hijo hereda los std del
+//    motor (igual que std::system).
 //  - cwd: directorio de trabajo del hijo; vacio = el del motor.
 //  - entornoExtra: variables que se agregan o sobreescriben en el entorno
 //    del hijo (Windows: bloque montado sobre el entorno actual y ordenado
 //    alfabeticamente; POSIX: se fijan en el hijo antes del exec).
+//  - truncarLog: true (por defecto) vacia el log antes de escribir; false lo
+//    abre en modo "agregar al final", para que varios pasos (por ejemplo, las
+//    etapas de una compilacion) dejen su salida en el MISMO archivo.
 // Devuelve el exit code del hijo. Si no arranco: -1 en Windows y 127 en
 // POSIX (el hijo fallo en el exec); en las dos ramas alcanza con != 0 para
 // tratarlo como error.
@@ -103,7 +106,8 @@ int ejecutar(const std::vector<std::string>& argv,
              const std::string& log = std::string(),
              const std::string& cwd = std::string(),
              const std::vector<std::pair<std::string, std::string>>&
-                 entornoExtra = {});
+                 entornoExtra = {},
+             bool truncarLog = true);
 
 #if defined(_WIN32)
 // Igual que ejecutar() pero con un bloque de entorno COMPLETO ya construido

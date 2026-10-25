@@ -18,13 +18,16 @@
 */
 #include "SceneSelectedInterface.h"
 
+#include <iostream>
+#include <memory>
+
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/GameObjectFactory.h"
+#include "../../Comandos/CrearObjetoComando.h"
 #include "../../Scenes/EditorController.h"
 #include "../../Scenes/SceneRegistry.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
-#include <memory>
 
 SceneSelectedInterface::SceneSelectedInterface(bool state)
     : GeneralUserInterface("SelectedObjects", state, ImGuiWindowFlags_MenuBar) {}
@@ -75,11 +78,22 @@ void SceneSelectedInterface::contentGUI() {
             if (editor) {
                 // El raiz se pasa a la factoria para que el nombre por defecto
                 // no repita el de ningun objeto del arbol (H-6).
-                GameObject* created = editor->createGameObject(
+                //
+                // La creacion pasa por el comando (y no por una llamada
+                // directa al editor): asi el objeto nuevo se puede deshacer
+                // con Ctrl+Z, como las demas acciones del editor.
+                auto comando = std::make_unique<CrearObjetoComando>(
+                    editor, scene,
                     GameObjectFactory::createSimpleObject(
                         scene ? scene->getRoot() : nullptr),
                     scene ? scene->getRoot() : nullptr);
-                if (created) setReturnableEntity(created);
+                // El comando pasa al historial del gestor y sigue vivo
+                // mientras el historial lo tenga: su id se lee de inmediato.
+                CrearObjetoComando* creado = comando.get();
+                editor->getGestorComandos()->ejecutar(std::move(comando));
+                GameObject* objeto =
+                    scene ? scene->getObjectByID(creado->idCreado()) : nullptr;
+                if (objeto) setReturnableEntity(objeto);
             }
         }
         ImGui::EndPopup();

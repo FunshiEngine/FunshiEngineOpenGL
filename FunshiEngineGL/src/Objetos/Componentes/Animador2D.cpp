@@ -139,6 +139,3 @@ void Animador2D::deserializeComponent(std::ifstream* file) {
     acumulador_ = 0.0f;
 }
 
-void Animador2D::saveComponent(std::ofstream* file) { serializeComponent(file); }
-
-void Animador2D::loadComponent(std::ifstream* file) { deserializeComponent(file); }

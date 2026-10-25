@@ -92,7 +92,8 @@ std::wstring bloqueConExtra(
 int lanzar(const std::wstring& linea,
            const std::string& log,
            const std::string& cwd,
-           const wchar_t* bloque) {
+           const wchar_t* bloque,
+           bool truncarLog) {
     STARTUPINFOW si{};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi{};
@@ -105,9 +106,17 @@ int lanzar(const std::wstring& linea,
         atributos.bInheritHandle = TRUE; // el hijo lo recibe via STARTF
         hLog = CreateFileW(ancho(log).c_str(), GENERIC_WRITE,
                            FILE_SHARE_READ | FILE_SHARE_WRITE, &atributos,
-                           CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+                           truncarLog ? CREATE_ALWAYS : OPEN_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
         if (hLog == INVALID_HANDLE_VALUE)
             return -1;
+        if (!truncarLog) {
+            // Agregar al final: el puntero de escritura va al final del
+            // archivo (si no, el hijo escribiria encima de lo anterior).
+            LARGE_INTEGER distancia{};
+            if (!SetFilePointerEx(hLog, distancia, nullptr, FILE_END))
+                SetFilePointer(hLog, 0, nullptr, FILE_END);
+        }
         si.dwFlags = STARTF_USESTDHANDLES;
         si.hStdInput = nullptr;
         si.hStdOutput = hLog;
@@ -173,20 +182,25 @@ int ejecutar(const std::vector<std::string>& argv,
              const std::string& log,
              const std::string& cwd,
              const std::vector<std::pair<std::string, std::string>>&
-                 entornoExtra) {
+                 entornoExtra,
+             bool truncarLog) {
     if (argv.empty())
         return -1;
 
 #if defined(_WIN32)
     const std::wstring linea = ancho(lineaDeArgumentos(argv));
     if (entornoExtra.empty())
-        return lanzar(linea, log, cwd, nullptr);
+        return lanzar(linea, log, cwd, nullptr, truncarLog);
     const std::wstring bloque = bloqueConExtra(entornoExtra);
-    return lanzar(linea, log, cwd, bloque.c_str());
+    return lanzar(linea, log, cwd, bloque.c_str(), truncarLog);
 #else
     int fdLog = -1;
     if (!log.empty()) {
-        fdLog = open(log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        // truncarLog=false: la salida se agrega al final del archivo, para
+        // que varias etapas compartan el mismo log.
+        fdLog = open(log.c_str(),
+                     O_WRONLY | O_CREAT | (truncarLog ? O_TRUNC : O_APPEND),
+                     0644);
         if (fdLog < 0)
             return -1;
     }
@@ -259,13 +273,14 @@ int ejecutarConBloque(const std::vector<std::string>& argv,
         return -1;
     // Copia propia: CreateProcessW puede escribir en los buffers que recibe.
     std::wstring bloque = bloqueEntorno;
-    return lanzar(ancho(lineaDeArgumentos(argv)), log, cwd, &bloque[0]);
+    return lanzar(ancho(lineaDeArgumentos(argv)), log, cwd, &bloque[0], true);
 }
 
 int ejecutarCmdCrudo(const std::string& receta, const std::string& log) {
     // Sin citar: la receta viene armada a mano con sus comillas balanceadas
     // (cmd.exe no entiende el escape \" de la CRT).
-    return lanzar(ancho("cmd.exe " + receta), log, std::string(), nullptr);
+    return lanzar(ancho("cmd.exe " + receta), log, std::string(), nullptr,
+                  true);
 }
 
 #endif

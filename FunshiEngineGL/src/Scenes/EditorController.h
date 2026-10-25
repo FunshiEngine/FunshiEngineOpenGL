@@ -110,6 +110,9 @@ public:
     void setPhysics(PhysicsEngine* physics) noexcept;
     void setEventBus(EventBus* events) noexcept;
     void setAssetManager(AssetManager* assetsManager) noexcept;
+    // Proveedor de assets de malla: lo consultan los paneles que necesitan los
+    // datos del modelo (por ejemplo, las regiones con material de una malla).
+    AssetManager* getAssetManager() const noexcept { return assets; }
     PrefabLibrary* getPrefabLibrary() noexcept { return prefabLibrary.get(); }
     const PrefabLibrary* getPrefabLibrary() const noexcept { return prefabLibrary.get(); }
 
