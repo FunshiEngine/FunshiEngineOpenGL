@@ -1,7 +1,7 @@
 # FunshiEngineGL
 
-<div align="center">
-  <img src="FunshiEngineGL/Imagenes/Logo/FunshiEngineGL_Logo_Principal_Blanco.png" alt="FunshiEngineGL Logo" width="400"/>
+<div align="center" style="background:#1a1a2e;padding:20px;border-radius:8px">
+  <img src="FunshiEngineGL/Imagenes/Logo/FunshiEngineGL_Logo_Principal_Blanco.svg" alt="FunshiEngineGL Logo" width="400"/>
   <br/>
   <strong>Motor y editor de juegos en tiempo real</strong>
   <br/>
