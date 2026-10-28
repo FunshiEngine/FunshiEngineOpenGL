@@ -100,6 +100,16 @@ En CI (GitHub Actions) se ejecutan en Ubuntu, Windows (MSVC) y multi-config (Deb
 
 ---
 
+## Capturas del editor
+
+<div align="center">
+  <img src="FunshiEngineGL/Imagenes/Logo/FunshiEngineGL_Demo_Escritorio.png" alt="FunshiEngineGL Demo - Editor en ejecución" width="800"/>
+  <br/>
+  <em>Editor FunshiEngineGL con escena cargada (imagen de referencia)</em>
+</div>
+
+---
+
 ## Documentación
 
 - [doc/MANUAL_DE_USO.md](doc/MANUAL_DE_USO.md) – Guía de uso del editor y scripting
