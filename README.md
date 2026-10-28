@@ -5,7 +5,7 @@
   <br/>
   <strong>Motor y editor de juegos en tiempo real</strong>
   <br/>
-  Escrito en C++17 · Dear ImGui · OpenGL 3.3 Core · Arquitectura modular (backends intercambiables)
+  Escrito en C++17 · Dear ImGui · OpenGL 3.3 Core
 </div>
 
 ---
