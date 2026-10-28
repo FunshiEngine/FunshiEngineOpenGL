@@ -67,17 +67,9 @@ public:
     bool isDirty() const noexcept { return dirty_; }
     void setDirty(bool sucio) { dirty_ = sucio; }
 
-protected:
-    bool dirty_ = false;
-
     // El dibujado no es responsabilidad de la entidad: SceneRenderer recorre la
     // escena y dibuja cada Modelos3D con MeshRenderer (VBO/VAO + shader). Asi
     // la entidad no necesita conocer la capa de Rendering.
-    virtual void update(float deltaTime);
-
-    // Dirty tracking para autosave de escena
-    bool isDirty() const { return dirty_; }
-    void setDirty(bool value) { dirty_ = value; }
 
 protected:
     // Atributos propios del objeto de juego (id, nombre, estado, tam y tag):
