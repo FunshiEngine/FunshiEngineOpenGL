@@ -1,0 +1,47 @@
+name: Documentación
+description: Reportar error, mejora o adición en la documentación
+title: "[DOCS] "
+labels: ["documentation"]
+body:
+  - type: dropdown
+    id: doc_type
+    attributes:
+      label: Tipo de cambio
+      options:
+        - Corrección (typo, info incorrecta, enlace roto)
+        - Mejora (expandir, clarificar, ejemplos)
+        - Nueva sección / archivo
+        - Traducción
+    required: true
+  - type: input
+    id: files
+    attributes:
+      label: Archivo(s) afectados
+      description: Ruta relativa desde la raíz del repo
+      placeholder: ej. README.md, doc/MANUAL_DE_USO.md
+    required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Qué cambiar
+      description: Detalla el cambio propuesto
+      placeholder: |
+        En la sección X, el comando Y está desactualizado...
+    required: true
+  - type: checkboxes
+    id: branch
+    attributes:
+      label: Flujo de ramas
+      description: Confirma que seguirás el flujo documentado
+      options:
+        - label: Crearé rama `docs/<tema>` desde `develop`
+          required: true
+        - label: Crearé mi rama personal `personal/<usuario>/<tema>` desde la rama de tema
+          required: true
+        - label: Abriré PR a la rama de tema, no directo a develop
+          required: true
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Referencia**: [FLUJO_DE_RAMAS.md](../doc/FLUJO_DE_RAMAS.md)
