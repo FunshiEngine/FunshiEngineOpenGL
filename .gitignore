@@ -156,3 +156,6 @@ FunshiEngineGL/ImGuizmo/vcpkg-example/
 # tests, documentos y otros archivos independientes al código del repositorio
 # que sirven para trabajar con este proyecto.
 .local/
+
+# CTest temporary files
+Testing/Temporary/
