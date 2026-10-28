@@ -1,0 +1,68 @@
+name: Bug Report
+description: Reportar un error en el motor o editor
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportar un bug. Completa los campos abajo para ayudarnos a reproducir y corregirlo.
+  - type: input
+    id: version
+    attributes:
+      label: Versión / Commit
+      description: Commit SHA, tag o rama donde ocurre el bug
+      placeholder: ej. aa0b5d6 o v0.5.6
+    required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Plataforma
+      options:
+        - Linux (Ubuntu/Debian)
+        - Windows (MSVC)
+        - macOS
+        - Otra
+    required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción del bug
+      description: Qué pasa vs qué se espera
+      placeholder: |
+        Comportamiento actual: ...
+        Comportamiento esperado: ...
+    required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Pasos para reproducir
+      description: Pasos mínimos y determinísticos
+      placeholder: |
+        1. Abrir editor
+        2. Crear entidad...
+        3. Observar error...
+    required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Errores / Capturas
+      description: Pega aquí el output de consola, stack trace o captura de pantalla
+      render: shell
+  - type: checkboxes
+    id: branch
+    attributes:
+      label: Flujo de ramas
+      description: Confirma que seguirás el flujo documentado
+      options:
+        - label: Crearé rama `fix/<tema>` desde `develop` (o `master` si es hotfix urgente)
+          required: true
+        - label: Crearé mi rama personal `personal/<usuario>/<tema>` desde la rama de tema
+          required: true
+        - label: Abriré PR a la rama de tema, no directo a develop/master
+          required: true
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Referencia**: [FLUJO_DE_RAMAS.md](../doc/FLUJO_DE_RAMAS.md)
