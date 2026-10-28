@@ -1,0 +1,57 @@
+name: Feature Request
+description: Proponer una nueva funcionalidad o mejora
+title: "[FEAT] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe la funcionalidad que te gustaría ver en FunshiEngineGL.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema / Motivación
+      description: Qué problema resuelve o qué necesidad cubre
+      placeholder: Actualmente no hay forma de...
+    required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solución propuesta
+      description: Cómo debería funcionar (API, UI, comportamiento)
+      placeholder: |
+        - Añadir método X a la clase Y
+        - Nuevo panel en el editor para...
+        - Soporte para formato Z...
+    required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: Otras opciones que evaluaste y por qué no
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Ámbito aproximado
+      options:
+        - Pequeño (1-2 archivos, < 1 día)
+        - Mediano (varios archivos, 1-3 días)
+        - Grande (múltiples subsistemas, > 3 días)
+    required: true
+  - type: checkboxes
+    id: branch
+    attributes:
+      label: Flujo de ramas
+      description: Confirma que seguirás el flujo documentado
+      options:
+        - label: Crearé rama `feature/<tema>` desde `develop`
+          required: true
+        - label: Crearé mi rama personal `personal/<usuario>/<tema>` desde la rama de tema
+          required: true
+        - label: Abriré PR a la rama de tema, no directo a develop
+          required: true
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Referencia**: [FLUJO_DE_RAMAS.md](../doc/FLUJO_DE_RAMAS.md)

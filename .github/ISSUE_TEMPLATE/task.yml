@@ -1,0 +1,65 @@
+name: Tarea General
+description: Refactor, tests, build/CMake, CI/CD, investigación, etc.
+title: "[TASK] "
+labels: ["task"]
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: Categoría
+      options:
+        - Refactorización
+        - Tests
+        - Build / CMake
+        - CI/CD
+        - Investigación / Spike
+        - Chore / Mantenimiento
+        - Otro
+    required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción de la tarea
+      description: Qué se va a hacer y por qué
+      placeholder: |
+        Objetivo: ...
+        Contexto: ...
+    required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      description: Cómo saber que está listo
+      placeholder: |
+        - [ ] Test X pasa
+        - [ ] Build verde
+        - [ ] Sin regresiones en...
+    required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Ámbito aproximado
+      options:
+        - Pequeño (1-2 archivos, < 1 día)
+        - Mediano (varios archivos, 1-3 días)
+        - Grande (múltiples subsistemas, > 3 días)
+    required: true
+  - type: checkboxes
+    id: branch
+    attributes:
+      label: Flujo de ramas
+      description: Confirma que seguirás el flujo documentado (elige el prefijo según la categoría)
+      options:
+        - label: Usaré `fix/<tema>` si corrige bug, `feature/<tema>` si es mejora, `docs/<tema>` si es doc
+          required: true
+        - label: Crearé la rama de tema desde `develop`
+          required: true
+        - label: Crearé mi rama personal `personal/<usuario>/<tema>` desde la rama de tema
+          required: true
+        - label: Abriré PR a la rama de tema, no directo a develop/master/test
+          required: true
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Referencia**: [FLUJO_DE_RAMAS.md](../doc/FLUJO_DE_RAMAS.md)

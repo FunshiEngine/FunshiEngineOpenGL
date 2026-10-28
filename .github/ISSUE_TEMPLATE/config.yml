@@ -1,0 +1,20 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discusión general / Pregunta
+    url: https://github.com/FunshiEngine/FunshiEngineOpenGL/discussions
+    about: Para preguntas de uso, diseño, arquitectura o debate antes de abrir issue
+  - name: 📖 Documentación del flujo de ramas
+    url: https://github.com/FunshiEngine/FunshiEngineOpenGL/blob/master/doc/FLUJO_DE_RAMAS.md
+    about: Cómo crear ramas, hacer PRs, promover entre entornos y hotfixes
+  - name: 🐛 Bug report (template)
+    url: https://github.com/FunshiEngine/FunshiEngineOpenGL/issues/new?template=bug_report.yml
+    about: Reportar error en motor o editor
+  - name: ✨ Feature request (template)
+    url: https://github.com/FunshiEngine/FunshiEngineOpenGL/issues/new?template=feature_request.yml
+    about: Proponer nueva funcionalidad
+  - name: 📝 Documentación (template)
+    url: https://github.com/FunshiEngine/FunshiEngineOpenGL/issues/new?template=documentation.yml
+    about: Corrección o mejora en docs
+  - name: ⚙️ Tarea general (template)
+    url: https://github.com/FunshiEngine/FunshiEngineOpenGL/issues/new?template=task.yml
+    about: Refactor, tests, build, CI, investigación, etc.
