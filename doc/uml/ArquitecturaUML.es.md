@@ -67,6 +67,7 @@ graph TD
     ESTADOS -->|controla| FACHADAS
     FACHADAS -->|usa| DRIVERS
     FACHADAS -->|usa| NUCLEO
+
 ## 2. Diagrama de Componentes y Dependencias
 
 ```mermaid
