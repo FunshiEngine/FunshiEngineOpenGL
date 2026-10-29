@@ -345,6 +345,7 @@ Complies with skill `doc.md`: Mermaid diagrams in `doc/`, `.es.md` / `.eng.md` f
     end
 
     Motor -->|uses| Graphics
+## 5. Design Patterns Identified
     Motor -->|uses| Physics
     Motor -->|uses| Audio
     Motor -->|uses| Models
