@@ -1,7 +1,6 @@
 # Arquitectura UML - FunshiEngineOpenGL
 
 Documentación de arquitectura en formato UML del motor gráfico 3D FunshiEngineGL.
-Generada a partir del código fuente en `FunshiEngineGL/src/`.
 
 Convenciones:
 - **Idioma**: español (idioma principal del repositorio)
@@ -67,7 +66,51 @@ graph TD
     ESTADOS -->|controla| FACHADAS
     FACHADAS -->|usa| DRIVERS
     FACHADAS -->|usa| NUCLEO
+```
 
+## 2. Diagrama de Componentes y Dependencias
+
+```mermaid
+classDiagram
+    class "IRenderBackend" {
+        <<interface>>
+        +~IRenderBackend()
+        +init(): bool
+        +createMesh(data: MeshData): Handle
+        +drawMesh(mesh: Handle, firstIndex: uint, indexCount: uint)
+        +createTexture2D(image: Image2D): Handle
+        +useProgram(program: Handle)
+        +setUniformMat4(location: int, value: mat4)
+        +setViewport(x, y, width, height)
+        +clearScreen(color: float[3])
+    }
+    class "IAudioBackend" {
+        <<interface>>
+        +iniciar(): bool
+        +reproducirArchivo(ruta: string, volumen: float, bucle: bool, posicion: float*): int
+        +detener(id: int)
+        +setVolumenMaestro(volumen: float)
+        +despachar(deltaTime: float)
+    }
+    class "IPhysicsBackend" {
+        <<interface>>
+        +stepSimulation(deltaTime: float)
+        +addRigidBody(body: RigidBody*)
+        +removeRigidBody(body: RigidBody*)
+        +tomarEventosContacto(): vector<EventoContacto>
+        +raycast(ox, oy, oz, dx, dy, dz, alcance: float): ResultadoRaycast
+    }
+    class IComando {
+        <<interface>>
+        +ejecutar()
+        +deshacer()
+        +descripcion(): string
+    }
+    class IScriptBehaviour {
+        <<interface>>
+        +onStart(owner: GameObject*)
+        +onUpdate(owner: GameObject*, deltaTime: float)
+        +onColl
 
 
 ## 2. Diagrama de Componentes y Dependencias
@@ -433,4 +476,3 @@ Cumple con la skill `doc.md`: diagramas Mermaid en `doc/`, formato `.es.md`, arq
     style ESTADOS fill:#ffd,stroke:#333,stroke-width:2px
 ```
 
-Ubicación: `src/`, `src/States/`, `src/Fisicas/`, `src/Audio/`, `src/Rendering/`, `src/Objetos/`, `src/ExcepcionesCPP/`
