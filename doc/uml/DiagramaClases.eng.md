@@ -1,144 +1,159 @@
 # Class Diagram - FunshiEngineOpenGL
 
-UML class diagram of the FunshiEngineGL 3D graphics engine. Generated from source code in `FunshiEngineGL/src/`.
+UML Class Diagram for the FunshiEngineGL 3D graphics engine. Generated from source code in `FunshiEngineGL/src/`.
+
+> **Important Mermaid syntax note**: Class names with special characters (`::`, `~`, `<`, `>`, `*`) must be simplified or use the `as "name"` alias for proper rendering on GitHub/GitLab. Simplified names are used here.
 
 Conventions:
 - **Types**: PascalCase (`GameObject`, `RenderCommand`)
-- **Methods**: camelCase (`startEngine`, `processCommands`)
-- **Language**: English
-- **Relationships**: `..|>` inheritance / implementation, `--` association, `*` composition, `o--` aggregation
-
-> Note: class names with special characters (`::`, `~`, `<`, `>`, `*`) are quoted for Mermaid parser compatibility.
+- **Methods**: camelCase (`initEngine`, `processCommands`)
+- **Language**: English (identifiers, comments, documentation)
+- **Relationships**: `..|>` inheritance/implementation, `--` association, `*` composition, `o--` aggregation
 
 ## 1. Exception Hierarchy
 
 ```mermaid
 classDiagram
-    class "std::exception" {
+    class StdException {
         <<standard>>
         +what()
     }
-    class "std::runtime_error" {
+    class StdRuntimeError {
         <<standard>>
     }
     class Throwable {
         <<abstract>>
         -message: string
         -stackTrace: string
-        +Throwable(msg = "")
         +what(): const char* override
         +getStackTrace(): const char*
         +~Throwable()
     }
     class RuntimeException {
         -stackTrace: vector<string>
-        -tipoExcepcion: string
-        +RuntimeException(msg, tipo = "RuntimeException")
+        -exceptionType: string
         +getStackTrace(): string
-        +getTipoExcepcion(): const string&
+        +getExceptionType(): const string&
         +~RuntimeException()
     }
     class NullPointerException {
+    }
+    class ClassCastException {
+    }
+    class InvalidOperationException {
+    }
+    class BoundaryViolationException {
+    }
+
+    StdException <|-- StdRuntimeError
+    StdRuntimeError <|-- Throwable
+    Throwable <|-- RuntimeException
+    RuntimeException <|-- NullPointerException
+    RuntimeException <|-- ClassCastException
+    RuntimeException <|-- InvalidOperationException
+    RuntimeException <|-- BoundaryViolationException
+```
+
+Location: `src/ExceptionsCPP/`
+
 ## 2. Entities, Components and Scene Objects
 
 ```mermaid
 classDiagram
-    class Comparable<E> {
+    class Comparable {
         <<template, abstract>>
-        +compareTo(p1: E*): int
+        +compareTo(p1): int
     }
     class Entity {
         <<abstract>>
-        -components: unique_ptr<ListaDE<Component*>>
-        -componentOwners: vector<unique_ptr<Component>>
-        -myBinario: unique_ptr<Binario>
+        -components: ListaDE<Component*>
+        -myBinario: Binario
         -parentEntity: Entity*
         -childEntities: vector<Entity*>
-        -transformOrigin: Transform*
-        -ownedTransformOrigin: unique_ptr<Transform>
-        -globalTransformCache: Transform
+        -transformOrigin: Transform
         +Entity()
-        +Entity(origin: Entity*)
         +~Entity()
-        +getMyBinario(): Binario*
-        +setParentEntity(parent: Entity*)
-        +getParentEntity(): Entity*
-        +getChildEntities(): const vector<Entity*>&
-        +addComponent(component: Component*)
-        +addComponent(component: unique_ptr<Component>)
-        +deleteComponent(component: Component*)
-        +extractComponent(component: Component*): unique_ptr<Component>
-        +getComponentByName(typeName: string): Component*
-        +hasComponent(typeName: string): bool
         +getComponents(): ListaDE<Component*>*
-        +getComponent<T>(): T*
-        +saveEntity(filename: string): bool
-        +loadEntity(filename: string): bool
-        +getGlobalTransform(): Transform*
+        +addComponent(component: Component*)
+        +deleteComponent(component: Component*)
+        +getComponentByName(typeName: string): Component*
     }
     class GameObject {
-        -state: bool
         -id: int
-        -tam: int
         -tag_: string
         -dirty_: bool
-        -inputName: char[25]
-        -auxColor: color
-        +GameObject(origin: Entity*)
         +GameObject()
-        +~GameObject() override
-        +compareTo(other: GameObject*): int override
-        +distanciaA(other: GameObject*): float
+        +~GameObject()
         +setId(id: int)
-        +setState(state: bool)
-        +setTam(tam: int)
-        +setColor(cor: color)
-        +getColor(arr: float*&, tam: int): const float*
-        +getColor(): Color*
-        +getId(): int
-        +getState(): bool
-        +getTam(): int
-        +getTag(): const string&
         +setTag(tag: string)
+        +getTag(): const string&
         +isDirty(): bool
         +setDirty(sucio: bool)
-        +update(deltaTime: float)
-        +saveEntity(filename: string): bool override
-        +loadEntity(filename: string): bool override
     }
     class Component {
         <<abstract>>
-        -terminalSelectScript: bool
-        -name: char[25]
+        -name: string
         +~Component()
-        +saveComponent(file: ofstream*)
-        +loadComponent(file: ifstream*)
-        +onLoaded(owner: GameObject&)
         +onUpdate(owner: GameObject&, deltaTime: float)
     }
     class Transform {
         -objectTranslatef: float[3]
         -objectScalef: float[3]
         -objectRotatef: float[4]
-        -arrTranslatef: float[3]
-        -arrScalef: float[3]
-        -arrRotatef: float[4]
-        -childsFreeze: bool
-        -gizmoHabilitado: bool
         +Transform()
         +setTranslatef(x, y, z)
         +setRotatef(angle, x, y, z)
         +setScalef(x, y, z)
         +getTranslatef(): float*
         +getScalef(): float*
-        +getRotatef(): float*
+    }
+    class CameraComponent {
+        -owner: GameObject*
+        -m_pos: float[3]
+        -m_dir: float[3]
+        -m_fov: float
+        -nearPlane: float
+        -farPlane: float
+        +CameraComponent()
+        +onLoaded(owner: GameObject&) override
+        +sincronizarConTransform()
+    }
+    class MeshRenderer {
+        +MeshRenderer()
+        +~MeshRenderer()
+    }
+    class Light {
+        +Light()
+    }
+    class Skybox {
+        +Skybox()
+    }
+    class RigidBody {
+        +RigidBody()
+    }
+    class Collider {
+        +Collider()
+    }
+
+    Comparable <|-- GameObject
+    Entity <|-- GameObject
+    Component <|-- Transform
+    Component <|-- CameraComponent
+    Component <|-- MeshRenderer
+    Component <|-- Light
+    Component <|-- Skybox
+    Component <|-- RigidBody
+    Component <|-- Collider
+    GameObject o-- Transform : owns transform
+    GameObject "*"-- "*" Component : owns components
+```
+
 ## 3. Rendering (Backend and Pipeline)
 
 ```mermaid
 classDiagram
-    class "IRenderBackend" {
+    class IRenderBackend {
         <<interface>>
-        +~IRenderBackend()
         +init(): bool
         +available(): bool
         +createMesh(data: MeshData): Handle
@@ -176,87 +191,107 @@ classDiagram
         +drawFullscreenTriangle()
         +bindDepthTarget(target: Handle)
         +depthTargetTexture(target: Handle): Handle
-        +imguiTextureId(texture: Handle): void*
+    }
+    class OpenGL3Backend {
+        -meshes: unordered_map<Handle, GpuMesh>
+        -lineBatches: unordered_map<Handle, GpuLineBatch>
+        -targets: unordered_map<Handle, GpuTarget>
+        -depthTargets: unordered_map<Handle, GpuDepthTarget>
+        -fboCargadas_: bool
+        -modoBlend_: BlendMode
+        +OpenGL3Backend()
+        +~OpenGL3Backend()
+        +init(): bool override
+        +available(): bool override
+    }
+
+    IRenderBackend <|.. OpenGL3Backend
+```
+
 ## 4. Physics and Audio
 
 ```mermaid
 classDiagram
     class IPhysicsBackend {
         <<interface>>
-        +~IPhysicsBackend()
         +stepSimulation(deltaTime: float)
         +addRigidBody(body: RigidBody*)
         +removeRigidBody(body: RigidBody*)
-        +tomarEventosContacto(): vector<EventoContacto>
-        +fijarGravedad(x: float, y: float, z: float)
-        +gravedad(x: float&, y: float&, z: float)
-        +raycast(ox, oy, oz, dx, dy, dz, alcance: float): ResultadoRaycast
+        +takeContactEvents(): vector<ContactEvent>
+        +setGravity(x: float, y: float, z: float)
+        +getGravity(x: float&, y: float&, z: float)
+        +raycast(ox, oy, oz, dx, dy, dz, reach: float): RaycastResult
     }
     class PhysicsEngine {
-        -backend_: unique_ptr<IPhysicsBackend>
-        +PhysicsEngine()
-        +PhysicsEngine(backend: unique_ptr<IPhysicsBackend>)
+        -backend_: IPhysicsBackend
+        +PhysicsEngine(backend: IPhysicsBackend)
         +~PhysicsEngine()
         +stepSimulation(deltaTime: float)
         +addRigidBody(body: RigidBody*)
         +removeRigidBody(body: RigidBody*)
-        +tomarEventosContacto(): vector<EventoContacto>
-        +fijarGravedad(x: float, y: float, z: float)
-        +gravedad(x: float&, y: float&, z: float)
-        +raycast(ox, oy, oz, dx, dy, dz, alcance: float): ResultadoRaycast
+        +takeContactEvents(): vector<ContactEvent>
+        +setGravity(x: float, y: float, z: float)
+        +getGravity(x: float&, y: float&, z: float)
+        +raycast(ox, oy, oz, dx, dy, dz, reach: float): RaycastResult
     }
-    class RigidBody { +RigidBody(); +~RigidBody(); }
-    class Collider { +Collider(); +~Collider(); }
-    struct EventoContacto { }
-    struct ResultadoRaycast {
-        -impacto: bool
-        -distancia: float
-        -puntoX: float
-        -puntoY: float
-        -puntoZ: float
+    class RigidBody { +RigidBody(); }
+    class Collider { +Collider(); }
+    struct ContactEvent { }
+    struct RaycastResult {
+        -hit: bool
+        -distance: float
+        -pointX: float
+        -pointY: float
+        -pointZ: float
         -normalX: float
         -normalY: float
         -normalZ: float
         -collider: Collider*
     }
 
-    IPhysicsBackend <|.. PhysicsEngine : uses (Strategy)
+    IPhysicsBackend <|.. PhysicsEngine : uses
     PhysicsEngine *-- IPhysicsBackend : owns
 
     class IAudioBackend {
         <<interface>>
-        +~IAudioBackend()
-        +iniciar(): bool
-        +cerrar()
-        +reproducirArchivo(ruta: string, volumen: float, bucle: bool, posicion: float*): int
-        +detener(id: int)
-        +detenerTodo()
-        +setVolumenMaestro(volumen: float)
-        +setPosicionSonido(id: int, x: float, y: float, z: float)
-        +setListenerPosition(x: float, y: float, z: float)
-        +despachar(deltaTime: float)
-        +backendMusica(): IMusicaBackend*
+        +init(): bool
+        +close()
+        +playFile(path: string, volume: float, looping: bool, position: float*): int
+        +stop(id: int)
+        +stopAll()
+        +setMasterVolume(volume: float)
+        +setSoundPosition(id: int, x: float, y: float, z: float)
+        +dispatch(deltaTime: float)
     }
     class MiniAudioBackend {
         +MiniAudioBackend()
         +~MiniAudioBackend()
-        +iniciar(): bool override
-        +cerrar() override
+        +init(): bool override
+        +close() override
     }
     class NullAudioBackend {
         +NullAudioBackend()
         +~NullAudioBackend()
-        +iniciar(): bool override
-        +cerrar() override
+        +init(): bool override
+        +close() override
     }
-    class IMusicaBackend { <<interface>> +~IMusicaBackend(); }
     class AudioEngine {
-        -impl_: unique_ptr<Impl>
-        +AudioEngine(backend: unique_ptr<IAudioBackend>)
-        +AudioEngine()
+        -impl_: IAudioBackend
+        +AudioEngine(impl: IAudioBackend)
         +~AudioEngine()
-        +reproducir(ruta: string, volumen: float, bucle: bool, posicion: float*): int
-        +detener(handle: int)
+        +play(path: string, volume: float, looping: bool, position: float*): int
+        +stop(handle: int)
+        +stopAll()
+        +setMasterVolume(volumen: float)
+        +setSoundPosition(handle: int, x: float, y: float, z: float)
+        +dispatch(deltaTime: float)
+    }
+
+    IAudioBackend <|.. MiniAudioBackend
+    IAudioBackend <|.. NullAudioBackend
+    AudioEngine *-- IAudioBackend : owns
+```
+
 ## 5. Scripting and Behaviors
 
 ```mermaid
@@ -264,93 +299,113 @@ classDiagram
     class IScriptBehaviour {
         <<interface>>
         -api: const ApiScriptGameObject*
-        -servicios: const ScriptServices*
+        -services: const ScriptServices*
         +~IScriptBehaviour()
         +onStart(owner: GameObject*)
         +onUpdate(owner: GameObject*, deltaTime: float)
-        +onCollisionEnter(owner: GameObject*, propio: Collider*, otro: Collider*)
-        +onCollisionStay(owner: GameObject*, propio: Collider*, otro: Collider*)
-        +onCollisionExit(owner: GameObject*, propio: Collider*, otro: Collider*)
-        +conectarApi(tabla: const ApiScriptGameObject*)
+        +onCollisionEnter(owner: GameObject*, own: Collider*, other: Collider*)
+        +onCollisionStay(owner: GameObject*, own: Collider*, other: Collider*)
+        +onCollisionExit(owner: GameObject*, own: Collider*, other: Collider*)
+        +connectApi(table: const ApiScriptGameObject*)
         +onStop(owner: GameObject*)
-        +camposReflejados(): vector<DefCampo>
+        +reflectedFields(): vector<FieldDef>
     }
     class BackendScript {
         <<abstract>>
         +~BackendScript()
-        +lenguaje(): const char*
-        +compilarYCargar(fuente: string, nombreClase: string, salida: ComportamientoCargado&, error: string&): bool
-        +descargar(comportamiento: ComportamientoCargado&)
-        +descargar(comportamiento: ComportamientoCargado&, owner: GameObject*)
-        +llamarInicio(comportamiento: ComportamientoCargado&, owner: GameObject*)
-        +llamarActualizar(comportamiento: ComportamientoCargado&, owner: GameObject*, deltaTime: float)
-        +llamarDetener(comportamiento: ComportamientoCargado&, owner: GameObject*)
-        +llamarContacto(comportamiento: ComportamientoCargado&, owner: GameObject*, propio: Collider*, otro: Collider*, tipo: TipoContacto)
+        +language(): const char*
+        +compileAndLoad(source: string, className: string, loaded: LoadedBehavior&, error: string&): bool
+        +unload(behavior: LoadedBehavior&)
+        +unload(behavior: LoadedBehavior&, owner: GameObject*)
+        +callStart(behavior: LoadedBehavior&, owner: GameObject*)
+        +callUpdate(behavior: LoadedBehavior&, owner: GameObject*, deltaTime: float)
+        +callStop(behavior: LoadedBehavior&, owner: GameObject*)
+        +callContact(behavior: LoadedBehavior&, owner: GameObject*, own: Collider*, other: Collider*, type: ContactType)
     }
     class BackendCpp {
         +BackendCpp()
         +~BackendCpp()
-        +lenguaje(): const char* override
+        +language(): const char* override
     }
     class BackendJava {
         +BackendJava()
         +~BackendJava()
-        +lenguaje(): const char* override
-        +inyectar(comportamiento: ComportamientoCargado&, valores: vector<ValorCampo>): void override
-        +extraer(comportamiento: ComportamientoCargado&): vector<ValorCampo> override
-        +apagarJvm(): static
+        +language(): const char* override
+        +inject(behavior: LoadedBehavior&, values: vector<FieldValue>): void override
+        +extract(behavior: LoadedBehavior&): vector<FieldValue> override
+        +shutdownJvm(): static
     }
     class ScriptRuntime {
         <<static>>
-        +lenguajeDeFuente(fuente: string): static const char*
-        +backendPara(lenguaje: string): static BackendScript*
-        +compilarYCargar(fuente: string, nombreClase: string, salida: ComportamientoCargado&, error: string&): static bool
-        +descargar(c: ComportamientoCargado&): static void
-        +llamarInicio(c: ComportamientoCargado&, owner: GameObject*): static void
+        +sourceLanguage(source: string): static const char*
+        +backendFor(language: string): static BackendScript*
+        +compileAndLoad(source: string, className: string, loaded: LoadedBehavior&, error: string&): static bool
+        +unload(c: LoadedBehavior&): static void
+        +callStart(c: LoadedBehavior&, owner: GameObject*): static void
+        +callUpdate(c: LoadedBehavior&, owner: GameObject*, deltaTime: float): static void
+        +callStop(c: LoadedBehavior&, owner: GameObject*): static void
+        +callContact(c: LoadedBehavior&, owner: GameObject*, own: Collider*, other: Collider*, type: ContactType): static void
+        +inject(c: LoadedBehavior&, values: vector<FieldValue>): static void
+        +extract(c: LoadedBehavior&): static vector<FieldValue>
+        +changeSource(c: LoadedBehavior&): static bool
+        +applScripts(): static void
+    }
+    class LoadedBehavior { }
+    class ScriptGameObject { }
+    class BehaviourReflection { }
+
+    IScriptBehaviour <|.. BackendScript : uses
+    BackendScript <|-- BackendCpp
+    BackendScript <|-- BackendJava
+    ScriptRuntime ..> BackendScript : dispatches
+    ScriptRuntime --> LoadedBehavior : manages
+```
+
 ## 6. Commands (Undo/Redo)
 
 ```mermaid
 classDiagram
-    class IComando {
+    class ICommand {
         <<interface>>
-        +~IComando()
-        +ejecutar()
-        +deshacer()
-        +descripcion(): string
+        +~ICommand()
+        +execute()
+        +undo()
+        +description(): string
     }
-    class GestorComandos {
-        -comandos: vector<unique_ptr<IComando>>
-        -indiceActual: int
-        +GestorComandos()
-        +~GestorComandos()
-        +ejecutarComando(comando: unique_ptr<IComando>)
-        +deshacer()
-        +rehacer()
-        +puedeDeshacer(): bool
-        +puedeRehacer(): bool
+    class CommandManager {
+        -commands: vector<unique_ptr<ICommand>>
+        -currentIndex: int
+        +CommandManager()
+        +~CommandManager()
+        +executeCommand(command: unique_ptr<ICommand>)
+        +undo()
+        +redo()
+        +canUndo(): bool
+        +canRedo(): bool
     }
-    class AgregarComponenteComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class QuitarComponenteComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class CrearObjetoComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class BorrarObjetoComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class ReparentarComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class TransformComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class EstablecerTagComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class DuplicarObjetoComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class LimpiarEscenaComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class AjustarVariableComando { +ejecutar() override +deshacer() override +descripcion(): string override }
+    class AddComponentCommand { +execute() override +undo() override +description(): string override }
+    class RemoveComponentCommand { +execute() override +undo() override +description(): string override }
+    class CreateObjectCommand { +execute() override +undo() override +description(): string override }
+    class DeleteObjectCommand { +execute() override +undo() override +description(): string override }
+    class ReparentCommand { +execute() override +undo() override +description(): string override }
+    class TransformCommand { +execute() override +undo() override +description(): string override }
+    class SetTagCommand { +execute() override +undo() override +description(): string override }
+    class DuplicateObjectCommand { +execute() override +undo() override +description(): string override }
+    class ClearSceneCommand { +execute() override +undo() override +description(): string override }
+    class AdjustVariableCommand { +execute() override +undo() override +description(): string override }
 
-    IComando <|.. GestorComandos : uses
-    IComando <|-- AgregarComponenteComando
-    IComando <|-- QuitarComponenteComando
-    IComando <|-- CrearObjetoComando
-    IComando <|-- BorrarObjetoComando
-    IComando <|-- ReparentarComando
-    IComando <|-- TransformComando
-    IComando <|-- EstablecerTagComando
-    IComando <|-- DuplicarObjetoComando
-    IComando <|-- LimpiarEscenaComando
-    IComando <|-- AjustarVariableComando
+    ICommand <|.. CommandManager : uses
+    ICommand <|-- AddComponentCommand
+    ICommand <|-- RemoveComponentCommand
+    ICommand <|-- CreateObjectCommand
+    ICommand <|-- DeleteObjectCommand
+    ICommand <|-- ReparentCommand
+    ICommand <|-- TransformCommand
+    ICommand <|-- SetTagCommand
+    ICommand <|-- DuplicateObjectCommand
+    ICommand <|-- ClearSceneCommand
+    ICommand <|-- AdjustVariableCommand
+```
 
 ## 7. Scene, Serialization and Registry
 
@@ -358,18 +413,18 @@ classDiagram
 classDiagram
     class SceneRegistry {
         -ownedGameObjects: vector<unique_ptr<GameObject>>
-        -entitys: ArbolEnlazado<GameObject*>
-        -gameObjects: ListaDE<GameObject*>
+        -entitys: LinkedTree<GameObject*>
+        -gameObjects: DoublyLinkedList<GameObject*>
         -viewDirty: bool
         +SceneRegistry()
         +~SceneRegistry()
-        +getEntitysTree(): ArbolEnlazado<GameObject*>*
-        +getGameObjects(): ListaDE<GameObject*>*
+        +getEntitysTree(): LinkedTree<GameObject*>*
+        +getGameObjects(): DoublyLinkedList<GameObject*>*
         +refreshGameObjectView()
         +getRoot(): GameObject*
         +contains(object: GameObject*): bool
         +createObject(object: unique_ptr<GameObject>, parent: GameObject*): GameObject*
-        +siguienteIdDisponible(): int
+        +availableId(): int
         +replaceRoot(root: unique_ptr<GameObject>): bool
         +deleteObject(object: GameObject*): bool
         +deleteObjectByID(id: int): bool
@@ -383,23 +438,23 @@ classDiagram
     }
     class GameScene {
         -managerGUI: GUIManager*
-        -backend_: "IRenderBackend"
+        -backend_: IRenderBackend
         -sceneRegistry: unique_ptr<SceneRegistry>
-        -phisics: unique_ptr<PhysicsEngine>
+        -physics: unique_ptr<PhysicsEngine>
         -assetManager: unique_ptr<AssetManager>
-        -gestorShaders: unique_ptr<GestorShaders>
+        -shaderManager: unique_ptr<ShaderManager>
         -sceneRenderer: unique_ptr<SceneRenderer>
-        -sistemaParticulas: SistemaParticulas
+        -particleSystem: ParticleSystem
         -editorController: unique_ptr<EditorController>
-        +GameScene(backend: "IRenderBackend")
+        +GameScene(backend: IRenderBackend)
         +~GameScene()
-        +iniciar()
-        +actualizar(deltaTime: float)
-        +renderizar()
+        +init()
+        +update(deltaTime: float)
+        +render()
         +setActiveCamera(object: GameObject*)
-        +getSistemaParticulas(): SistemaParticulas&
+        +getParticleSystem(): ParticleSystem&
         +getEditorController(): EditorController*
-        +getApariencia(): const Apariencia&
+        +getAppearance(): const Appearance&
     }
 
     SceneRegistry *-- GameObject : owns
@@ -407,26 +462,59 @@ classDiagram
     GameScene *-- PhysicsEngine : owns
     GameScene *-- AssetManager : owns
     GameScene *-- SceneRenderer : owns
-    GameScene --> GUIManager : uses
-    GameScene --> EditorController : uses
 
     class SceneSerializer {
         -scene: SceneRegistry*
-        -editor: EditorController*
+        -controller: EditorController*
         -assets: AssetManager*
-        -diagnosticos: RegistroDiagnosticos*
-        +SceneSerializer(scene, controller, assetsManager, registro)
+        -diagnostics: DiagnosticsRegistry*
+        +SceneSerializer(scene, controller, assetsManager, registry)
         +save(filename: string)
         +load(pathTxt: string, semiPath: string): bool
     }
     class AssetManager {
         -meshes: unordered_map<string, shared_ptr<Mesh>>
-        -fallos: unordered_map<string, string>
+        -failures: unordered_map<string, string>
         -loader_: unique_ptr<IMeshLoader>
         +AssetManager(loader: unique_ptr<IMeshLoader>)
         +~AssetManager()
         +getMesh(path: string): shared_ptr<const Mesh>
         +putMesh(path: string, mesh: shared_ptr<Mesh>)
+        +hasMesh(path: string): bool
+        +meshCount(): size_t
+        +removeMesh(path: string)
+        +clearUnusedMeshes()
+        +clearFailedMeshes()
+        +hasFailedMesh(path: string): bool
+        +failedMeshCount(): size_t
+        +reloadMesh(path: string)
+        +setLoader(loader: unique_ptr<IMeshLoader>)
+    }
+    class IMeshLoader { <<interface>> +~IMeshLoader() +load(path: string): shared_ptr<Mesh> }
+    class AssimpMeshLoader {
+        +AssimpMeshLoader()
+        +~AssimpMeshLoader()
+        +load(path: string): shared_ptr<Mesh> override
+    }
+    class EditorController { +EditorController() +~EditorController(); }
+    class DiagnosticsRegistry { +DiagnosticsRegistry() +~DiagnosticsRegistry(); }
+    class ParticleSystem {
+        +ParticleSystem()
+        +~ParticleSystem()
+        +update(deltaTime: float)
+        +emit(config: EmitterConfig)
+    }
+
+    SceneSerializer --> SceneRegistry : uses
+    SceneSerializer --> EditorController : uses
+    SceneSerializer --> AssetManager : uses
+    SceneSerializer --> DiagnosticsRegistry : uses
+    AssetManager --> IMeshLoader : injects (Strategy)
+    AssimpMeshLoader ..|> IMeshLoader : implements
+```
+
+Location: `src/Scenes/`, `src/Assets/`````
+
 ## 8. GUI and Application States
 
 ```mermaid
@@ -444,73 +532,72 @@ classDiagram
         Playing
         Exiting
     }
-    class OrquestadorEstadoGUI {
-        -maquina: ApplicationStateMachine*
-        -solicitudCierrePendiente: bool
-        -simulacionPausada_: bool
-        -solicitudReset_: bool
-        +OrquestadorEstadoGUI(maquina: ApplicationStateMachine*)
-        +manejarTeclaEscape()
-        +iniciarEstudio(): bool
-        +manejarTeclaSimulacion(tecla: TeclaSimulacion)
-        +alternarSimulacion()
-        +iniciarJuego()
-        +solicitarReset()
-        +consumirSolicitudReset(): bool
-        +menuDebeEstarVisible(): bool
-        +escenaDebeCorrer(): bool
-        +cerrarMenuPendiente(): bool
-        +enSimulacion(): bool
-        +enDepuracion(): bool
-        +enModoJuego(): bool
-        +simulacionPausada(): bool
-        +dentroDelEditor(): bool
-        +getEstado(): ApplicationState
+    class GUIOrchestrator {
+        -machine: ApplicationStateMachine*
+        -pendingCloseRequest: bool
+        -pausedSimulation_: bool
+        -resetRequest_: bool
+        +GUIOrchestrator(machine: ApplicationStateMachine*)
+        +handleEscapeKey()
+        +startStudy(): bool
+        +handleSimulationKey(key: SimulationKey)
+        +toggleSimulation()
+        +startGame()
+        +requestReset()
+        +consumeResetRequest(): bool
+        +shouldMenuBeVisible(): bool
+        +shouldSceneRun(): bool
+        +pendingClose(): bool
+        +inSimulation(): bool
+        +inDebug(): bool
+        +inGameMode(): bool
+        +pausedSimulation(): bool
+        +insideEditor(): bool
+        +getState(): ApplicationState
     }
     class GUIManager {
         -fileManager: unique_ptr<FileManager>
         -menuGUI: unique_ptr<MenuGUI>
-        -modeloSettings: unique_ptr<GameObject>
-        -settingGUI: unique_ptr<SettingsObjectInterface>
-        -selecteableGUI: unique_ptr<SceneSelectedInterface>
+        -settingsModel: unique_ptr<GameObject>
+        -settingsGUI: unique_ptr<SettingsInterface>
+        -selectableGUI: unique_ptr<SceneSelectionInterface>
         -menuBarGUI: unique_ptr<SceneMenuBarInterface>
         -treeFilesGUI: unique_ptr<TreeFilesInterface>
         -dockSpaceGUI: unique_ptr<DockSpaceInterface>
-        -iconosGUI: unique_ptr<IconosGUI>
-        -reglaIconos: unique_ptr<ReglaIconoCatalogo>
-        -resolutorIconos: unique_ptr<CatalogoIconos>
+        -iconsGUI: unique_ptr<IconsGUI>
+        -iconRule: unique_ptr<IconRuleCatalog>
+        -iconResolver: unique_ptr<IconCatalog>
         -editor: EditorController*
-        -contentOfThisFolder: unique_ptr<ContentFolderInterface>
+        -currentFolder: unique_ptr<ContentFolderInterface>
         -statusBarGUI: unique_ptr<StatusBarInterface>
         -terminalGUI: unique_ptr<TerminalInterface>
-        -panelesModsGUI: unique_ptr<PanelesModsInterface>
-        -animacionesParticulasGUI: unique_ptr<AnimacionesParticulasInterface>
-        -eventosEditor: EditorEventBus
-        -ventanas_: vector<GeneralUserInterface*>
+        -modsPanelsGUI: unique_ptr<ModsPanelsInterface>
+        -particleAnimationsGUI: unique_ptr<ParticleAnimationsInterface>
+        -editorEvents: EditorEventBus
+        -windows_: vector<GeneralUserInterface*>
         +GUIManager(window: GLFWwindow*)
         +~GUIManager()
         +bindScene(scene, editor, events, dimensionProvider)
         +getEditorEventBus(): EditorEventBus*
         +getMenuGUI(): MenuGUI*
-        +getSettingGUI(gameObject: GameObject*): SettingsObjectInterface*
+        +getSettingsGUI(gameObject: GameObject*): SettingsInterface*
         +getMenuBarGUI(): SceneMenuBarInterface*
-        +getSelecteableGUI(): SceneSelectedInterface*
+        +getSelectableGUI(): SceneSelectionInterface*
         +getDockSpaceGUI(): DockSpaceInterface*
-        +registrarVentana(ventana: GeneralUserInterface*)
-        +restaurarEstadosVentanas(estados: map<string, bool>)
-        +obtenerEstadosVentanas(): map<string, bool>
-        +setEstadoVentana(nombre: string, abierta: bool)
+        +registerWindow(ventana: GeneralUserInterface*)
+        +restoreWindowStates(states: map<string, bool>)
+        +getWindowStates(): map<string, bool>
+        +setWindowState(name: string, abierta: bool)
     }
-    class MenuGUI { +MenuGUI() +~MenuGUI() +SetMenuActivo(activo: bool) +ConsultarMenu(): bool +actualizarProyectos() }
+    class MenuGUI { +MenuGUI() +~MenuGUI() +SetMenuActive(active: bool) +ConsultMenu(): bool +updateProjects() }
     class DockSpaceInterface { +DockSpaceInterface() +~DockSpaceInterface(); }
-    class SceneSelectedInterface { +SceneSelectedInterface() +~SceneSelectedInterface(); }
+    class SceneSelectionInterface { +SceneSelectionInterface() +~SceneSelectionInterface(); }
     class SceneMenuBarInterface { +SceneMenuBarInterface() +~SceneMenuBarInterface(); }
 
-    OrquestadorEstadoGUI --> ApplicationStateMachine : uses
-    GUIManager --> EditorEventBus : owns
+    GUIOrchestrator --> ApplicationStateMachine : uses
     GUIManager --> MenuGUI : owns
     GUIManager --> DockSpaceInterface : owns
-    GUIManager --> SceneSelectedInterface : owns
+    GUIManager --> SceneSelectionInterface : owns
     GUIManager --> SceneMenuBarInterface : owns
     GUIManager --> GeneralUserInterface : registers windows
 
@@ -527,135 +614,6 @@ classDiagram
         ObjectReparented
         ComponentChanged
         SceneCleared
-## 9. Window, Time and Input
-
-```mermaid
-classDiagram
-    class Ventana {
-        +Ventana()
-        +~Ventana()
-        +crear(ancho: int, alto: int, titulo: string)
-        +debeCerrarse(): bool
-        +procesarEventos()
-        +intercambiarBuffers()
-        +obtenerContexto(): GLFWwindow*
-    }
-    class EngineTime {
-        <<static>>
-        +deltaTime(): float
-        +tiempoTotal(): float
-        +actualizar()
-    }
-    class EditorInput {
-        +EditorInput()
-        +~EditorInput()
-        +procesarInput(window: GLFWwindow*)
-        +descartarDeltaLook()
-        +aplicarModoCursor(window: GLFWwindow*)
-    }
-    class TerminalEmulator { +TerminalEmulator() +~TerminalEmulator(); }
-    class TerminalSession { +TerminalSession() +~TerminalSession(); }
-
-    Ventana --> EngineTime : uses
-    Ventana --> EditorInput : uses
-
-Location: `src/`, `src/Terminal/`, `src/Input/`
-
-## 10. Exporter and Projects
-
-```mermaid
-classDiagram
-    class GameExporter {
-        +GameExporter()
-        +~GameExporter()
-        +exportarJuego(config: ConfigJuegoExportado)
-    }
-    class ConfigJuegoExportado {
-        -nombreEjecutable: string
-        -nombreProyectoExportado: string
-        -plataformaObjetivo: string
-    }
-    class GestorDeProyectos {
-        +GestorDeProyectos()
-        +~GestorDeProyectos()
-        +crearProyecto(nombre: string)
-        +eliminarProyecto(nombre: string)
-        +listarProyectos(): vector<string>
-    }
-    class EstadoExportacion { +EstadoExportacion() +~EstadoExportacion(); }
-
-    GameExporter --> ConfigJuegoExportado : uses
-    GestorDeProyectos --> ConfigJuegoExportado : uses
-
-Location: `src/Exportador/`, `src/Proyectos/`
-
-## 11. Data Structures
-
-```mermaid
-classDiagram
-    class ListaDE<T> {
-        <<template>>
-        -cabeza: DNodo<T>*
-        -cola: DNodo<T>*
-        -tamano: int
-        +ListaDE()
-        +~ListaDE()
-        +isEmpty(): bool
-        +first(): Position<T>*
-        +last(): Position<T>*
-        +next(pos: Position<T>*): Position<T>*
-        +getElement(): T
-    }
-    class ArbolEnlazado<T> {
-        <<template>>
-        +ArbolEnlazado()
-        +~ArbolEnlazado()
-    }
-    class DNodo<T> {
-        <<template>>
-        -elemento: T
-        -anterior: DNodo<T>*
-        -siguiente: DNodo<T>*
-    }
-    class PriorityListaDE<T> {
-        <<template>>
-        +PriorityListaDE()
-        +~PriorityListaDE()
-    }
-    class Heap<T> {
-        <<template>>
-        +Heap()
-        +~Heap()
-    }
-    class MaxHeap<T> { +MaxHeap() +~MaxHeap(); }
-    class MinHeap<T> { +MinHeap() +~MinHeap(); }
-    class ArbolBinarioEnlazado<T> {
-        <<template>>
-        +ArbolBinarioEnlazado()
-        +~ArbolBinarioEnlazado()
-    }
-
-    DNodo<T> <|.. ListaDE<T> : uses
-    MaxHeap<T> ..|> Heap<T>
-    MinHeap<T> ..|> Heap<T>
-
-Location: `src/Estructuras/`
-
-## Relationship Legend
-
-| Symbol | Meaning |
-|--------|---------|
-| `<|--` | Generalization inheritance |
-| `..|>` | Interface implementation |
-| `*` | Composition (strong ownership, shared lifecycle) |
-| `o--` | Aggregation (weak ownership) |
-| `--` | Simple association |
-| `-->` | Dependency / usage |
-
----
-
-File generated: `doc/uml/DiagramaClases.eng.md` (English)
-Complies with skill `doc.md`: Mermaid diagrams in `doc/`, `.es.md` / `.eng.md` format, real code architecture.
         ObjectSelected
         ComponentStructureChanged
     }
@@ -665,206 +623,148 @@ Complies with skill `doc.md`: Mermaid diagrams in `doc/`, `.es.md` / `.eng.md` f
         -relatedObject: GameObject*
     }
     class EditorConfig {
-        -datos_: Datos
-        -generalPendiente: bool
-        -rutaGeneralPendiente: string
-        -ultimaEscrituraGeneral: time_point
+        -data_: Data
+        -generalPending: bool
+        -generalPath: string
+        -lastGeneralWrite: time_point
         +EditorConfig()
         +~EditorConfig()
-        +cargar(ruta: string)
-        +guardar(ruta: string)
-        +guardarGeneral(ruta: string)
-        +cargarGeneral(ruta: string)
-        +guardarProyecto(nombreProyecto: string, ruta: string)
-        +cargarProyecto(nombreProyecto: string, ruta: string)
-        +solicitarGuardadoGeneral(ruta: string)
-        +volcarGuardadoGeneral()
-        +restablecer()
-        +datos(): Datos&
+        +load(path: string)
+        +save(path: string)
+        +saveGeneral(path: string)
+        +loadGeneral(path: string)
+        +saveProject(name: string, path: string)
+        +loadProject(name: string, path: string)
+        +requestGeneralSave(path: string)
+        +dumpGeneralSave()
+        +restore()
+        +data(): Data&
     }
-    struct Datos {
+    struct Data {
         -version: int
-        -nombreProyecto: string
-        -idioma: string
-        -sensibilidadCamara: float
-        -sensibilidadMovimientoCamara: float
-        -volumenMaestro: float
-        -ventanaCamarasAbierta: bool
-        -gizmoOperacion: int
+        -projectName: string
+        -language: string
+        -cameraSensitivity: float
+        -movementSensitivity: float
+        -masterVolume: float
+        -camerasWindowOpen: bool
+        -gizmoOperation: int
         -gizmoGlobal: bool
-        -camaraActivaId: int
-        -dimension: DimensionProyecto
-        -estadoVentanas: map<string, bool>
-        -modsMotor: map<string, bool>
-        -modsProyecto: map<string, bool>
+        -activeCameraId: int
+        -dimension: ProjectDimension
+        -windowStates: map<string, bool>
+        -motorMods: map<string, bool>
+        -projectMods: map<string, bool>
     }
-
-Location: `src/States/`, `src/GUIManager/`, `src/Configuracion/`
-        +containsMesh(path: string): bool
-        +meshCount(): size_t
-        +removeMesh(path: string)
-        +clearUnusedMeshes()
-        +clearFailedMeshes()
-        +hasFailedMesh(path: string): bool
-        +failedMeshCount(): size_t
-        +reloadMesh(path: string)
-        +setLoader(loader: unique_ptr<IMeshLoader>)
-    }
-    class IMeshLoader { <<interface>> +~IMeshLoader() +load(path: string): shared_ptr<Mesh> }
-    class AssimpMeshLoader {
-        +AssimpMeshLoader()
-        +~AssimpMeshLoader()
-        +load(path: string): shared_ptr<Mesh> override
-    }
-    class EditorController { +EditorController() +~EditorController(); }
-    class RegistroDiagnosticos { +RegistroDiagnosticos() +~RegistroDiagnosticos(); }
-    class SistemaParticulas {
-        +SistemaParticulas()
-        +~SistemaParticulas()
-        +actualizar(deltaTime: float)
-        +emitir(emisor: EmisorConfig)
-    }
-
-    SceneSerializer --> SceneRegistry : uses
-    SceneSerializer --> EditorController : uses
-    SceneSerializer --> AssetManager : uses
-    SceneSerializer --> RegistroDiagnosticos : uses
-    AssetManager --> IMeshLoader : injects (Strategy)
-    AssimpMeshLoader ..|> IMeshLoader : implements
-
-Location: `src/Scenes/`, `src/Assets/`
-Location: `src/Comandos/`
-        +llamarActualizar(c: ComportamientoCargado&, owner: GameObject*, deltaTime: float): static void
-        +llamarDetener(c: ComportamientoCargado&, owner: GameObject*): static void
-        +llamarContacto(c: ComportamientoCargado&, owner: GameObject*, propio: Collider*, otro: Collider*, tipo: TipoContacto): static void
-        +inyectar(c: ComportamientoCargado&, valores: vector<ValorCampo>): static void
-        +extraer(c: ComportamientoCargado&): static vector<ValorCampo>
-        +cambioElFuente(c: ComportamientoCargado&): static bool
-        +apagarScripts(): static void
-    }
-    class ComportamientoCargado { }
-    class ScriptGameObject { }
-    class BehaviourReflection { }
-
-    IScriptBehaviour <|.. BackendScript : uses
-    BackendScript <|-- BackendCpp
-    BackendScript <|-- BackendJava
-    ScriptRuntime ..> BackendScript : dispatches
-    ScriptRuntime --> ComportamientoCargado : manages
-
-Location: `src/Behaviour/`
-        +detenerTodo()
-        +setVolumenMaestro(volumen: float)
-        +setPosicionSonido(handle: int, x: float, y: float, z: float)
-        +setListenerPosition(x: float, y: float, z: float)
-        +establecerMusicas(rutas: vector<string>, repetir: bool)
-        +musicas(): vector<string>
-        +reproducirMusica(ruta: string, volumen: float, duracionFundido: float): bool
-        +detenerMusica(duracionFundido: float)
-        +setVolumenMusica(volumen: float)
-        +silenciarMusica(silenciado: bool)
-        +actualizarMusica(deltaTime: float)
-        +esperarPilaVacia()
-        +pendientes(): size_t
-    }
-
-    IAudioBackend <|.. MiniAudioBackend
-    IAudioBackend <|.. NullAudioBackend
-    AudioEngine *-- IAudioBackend : owns (Strategy)
-
-Location: `src/Fisicas/`, `src/Audio/`
-    }
-    class OpenGL3Backend {
-        -meshes: unordered_map<Handle, GpuMesh>
-        -lineBatches: unordered_map<Handle, GpuLineBatch>
-        -particulasBatches: unordered_map<Handle, GpuParticulasBatch>
-        -targets: unordered_map<Handle, GpuTarget>
-        -depthTargets: unordered_map<Handle, GpuDepthTarget>
-        -depthCuboTargets: unordered_map<Handle, GpuDepthCuboTarget>
-        -tamanosTextura2D: unordered_map<Handle, pair<int, int>>
-        -fboCargadas_: bool
-        -modoBlend_: BlendMode
-        -vaoPantallaCompleta_: unsigned int
-        +OpenGL3Backend()
-        +~OpenGL3Backend()
-        +init(): bool override
-        +available(): bool override
-    }
-
-    "IRenderBackend" <|.. OpenGL3Backend
 ```
 
-Location: `src/Rendering/`
-    }
-    class CameraComponent {
-        -owner: GameObject*
-        -m_pos: float[3]
-        -m_dir: float[3]
-        -m_left: float[3]
-        -m_up: float[3]
-        -speed: float
-        -yawX: float
-        -yawY: float
-        -fov: float
-        -nearPlane: float
-        -farPlane: float
-        -pintar: bool
-        -projection: Projection
-        -orthoSize: float
-        +CameraComponent()
-        +setUp(objeto: GameObject*)
-        +onLoaded(owner: GameObject&) override
-        +sincronizarConTransform()
-        +refreshFromTransform()
-        +getViewMatrix(outMatrix: float*)
-        +getProjectionMatrix(outMatrix: float*, aspect: float)
-        +getProjectionMatrix(outMatrix: float*, aspect: float, limiteFarPlane: float)
-    }
-    class MeshRenderer { +MeshRenderer(); +~MeshRenderer(); }
-    class Light { +Light(); }
-    class Skybox { +Skybox(); }
-    class UIRenderer { +UIRenderer(); }
-    class SpriteRenderer { +SpriteRenderer(); }
-    class Tilemap { +Tilemap(); }
-    class RigidBody { +RigidBody(); }
-    class Collider { +Collider(); }
+## 9. Window, Time and Input
 
-    Comparable<GameObject> <|-- GameObject
-    Entity <|-- GameObject
-    Component <|-- Transform
-    Component <|-- CameraComponent
-    Component <|-- MeshRenderer
-    Component <|-- Light
-    Component <|-- Skybox
-    Component <|-- UIRenderer
-    Component <|-- SpriteRenderer
-    Component <|-- Tilemap
-    Component <|-- RigidBody
-    Component <|-- Collider
-    GameObject o-- Transform : owns transform
-    GameObject "*"-- "*" Component : owns components
+```mermaid
+classDiagram
+    class Window {
+        +Window()
+        +~Window()
+        +create(width: int, height: int, title: string)
+        +shouldClose(): bool
+        +processEvents()
+        +swapBuffers()
+        +getContext(): GLFWwindow*
+    }
+    class EngineTime {
+        <<static>>
+        +deltaTime(): float
+        +totalTime(): float
+        +update()
+    }
+    class EditorInput {
+        +EditorInput()
+        +~EditorInput()
+        +processInput(window: GLFWwindow*)
+        +resetDeltaLook()
+        +applyCursorMode(window: GLFWwindow*)
+    }
+    class TerminalEmulator { +TerminalEmulator() +~TerminalEmulator(); }
+    class TerminalSession { +TerminalSession() +~TerminalSession(); }
+
+    Window --> EngineTime : uses
+    Window --> EditorInput : uses
 ```
 
-Location: `src/Objetos/`, `src/Objetos/Componentes/`
-        +~NullPointerException()
-    }
-    class ClassCastException {
-        +~ClassCastException()
-    }
-    class InvalidOperationException {
-        +~InvalidOperationException()
-    }
-    class BoundaryViolationException {
-        +~BoundaryViolationException()
-    }
+## 10. Exporter and Projects
 
-    "std::exception" <|-- "std::runtime_error"
-    "std::runtime_error" <|-- Throwable
-    Throwable <|-- RuntimeException
-    RuntimeException <|-- NullPointerException
-    RuntimeException <|-- ClassCastException
-    RuntimeException <|-- InvalidOperationException
-    RuntimeException <|-- BoundaryViolationException
+```mermaid
+classDiagram
+    class GameExporter {
+        +GameExporter()
+        +~GameExporter()
+        +exportGame(config: GameConfig)
+    }
+    class GameConfig {
+        -executableName: string
+        -projectName: string
+        -targetPlatform: string
+    }
+    class ProjectManager {
+        +ProjectManager()
+        +~ProjectManager()
+        +createProject(name: string)
+        +deleteProject(name: string)
+        +listProjects(): vector<string>
+    }
+    class ExportStatus { +ExportStatus() +~ExportStatus(); }
+
+    GameExporter --> GameConfig : uses
+    ProjectManager --> GameConfig : uses
 ```
 
-Location: `src/ExcepcionesCPP/`
+## 11. Data Structures
+
+```mermaid
+classDiagram
+    class DoublyLinkedList<T> {
+        <<template>>
+        -head: Node<T>*
+        -tail: Node<T>*
+        -size: int
+        +DoublyLinkedList()
+        +~DoublyLinkedList()
+        +isEmpty(): bool
+        +first(): Node<T>*
+        +last(): Node<T>*
+        +next(pos: Node<T>*): Node<T>*
+        +getElement(): T
+    }
+    class LinkedTree<T> {
+        <<template>>
+        +LinkedTree()
+        +~LinkedTree()
+    }
+    class Node<T> {
+        <<template>>
+        -element: T
+        -prev: Node<T>*
+        -next: Node<T>*
+    }
+    class PriorityQueue<T> {
+        <<template>>
+        +PriorityQueue()
+        +~PriorityQueue()
+    }
+    class BinaryHeap<T> {
+        <<template>>
+        +BinaryHeap()
+        +~BinaryHeap()
+    }
+    class MaxBinaryHeap<T> { +MaxBinaryHeap() +~MaxBinaryHeap(); }
+    class MinBinaryHeap<T> { +MinBinaryHeap() +~MinBinaryHeap(); }
+    class BinaryTree<T> {
+        <<template>>
+        +BinaryTree()
+        +~BinaryTree()
+    }
+
+    Node<T> <|.. DoublyLinkedList<T> : uses
+    MaxBinaryHeap<T> ..|> BinaryHeap<T>
+    MinBinaryHeap<T> ..|> BinaryHeap<T>
+```
