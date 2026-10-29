@@ -240,8 +240,7 @@ classDiagram
     }
     class RigidBody { +RigidBody(); }
     class Collider { +Collider(); }
-    struct EventoContacto { }
-    struct ResultadoRaycast {
+## 5. Patrones de Diseño Identificados
         -impacto: bool
         -distancia: float
         -puntoX: float
