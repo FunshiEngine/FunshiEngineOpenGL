@@ -66,7 +66,7 @@ classDiagram
     }
     class Entity {
         <<abstract>>
-        -components: ListaDE<Component*>
+        -components: ListaDE<Component*>*
         -myBinario: Binario
         -parentEntity: Entity*
         -childEntities: vector<Entity*>
@@ -208,6 +208,8 @@ classDiagram
     IRenderBackend <|.. OpenGL3Backend
 ```
 
+Location: `src/Rendering/`
+
 ## 4. Physics and Audio
 
 ```mermaid
@@ -236,8 +238,8 @@ classDiagram
     }
     class RigidBody { +RigidBody(); }
     class Collider { +Collider(); }
-    struct ContactEvent { }
-    struct RaycastResult {
+    class ContactEvent <<struct>> { }
+    class RaycastResult <<struct>> {
         -hit: bool
         -distance: float
         -pointX: float
@@ -291,6 +293,8 @@ classDiagram
     IAudioBackend <|.. NullAudioBackend
     AudioEngine *-- IAudioBackend : owns
 ```
+
+Location: `src/Physics/`, `src/Audio/`
 
 ## 5. Scripting and Behaviors
 
@@ -361,6 +365,8 @@ classDiagram
     ScriptRuntime --> LoadedBehavior : manages
 ```
 
+Location: `src/Behaviour/`
+
 ## 6. Commands (Undo/Redo)
 
 ```mermaid
@@ -406,6 +412,8 @@ classDiagram
     ICommand <|-- ClearSceneCommand
     ICommand <|-- AdjustVariableCommand
 ```
+
+Location: `src/Commands/`
 
 ## 7. Scene, Serialization and Registry
 
@@ -513,7 +521,7 @@ classDiagram
     AssimpMeshLoader ..|> IMeshLoader : implements
 ```
 
-Location: `src/Scenes/`, `src/Assets/`````
+Location: `src/Scenes/`, `src/Assets/`
 
 ## 8. GUI and Application States
 
@@ -525,7 +533,7 @@ classDiagram
         +is(value: ApplicationState): bool
         +transitionTo(value: ApplicationState)
     }
-    enum ApplicationState {
+    class ApplicationState <<enumeration>> {
         MainMenu
         Editing
         Debugging
@@ -608,7 +616,7 @@ classDiagram
         +unsubscribe(token: size_t)
         +publish(event: SceneEvent)
     }
-    enum SceneEventType {
+    class SceneEventType <<enumeration>> {
         ObjectCreated
         ObjectDeleted
         ObjectReparented
@@ -617,7 +625,7 @@ classDiagram
         ObjectSelected
         ComponentStructureChanged
     }
-    struct SceneEvent {
+    class SceneEvent <<struct>> {
         -type: SceneEventType
         -object: GameObject*
         -relatedObject: GameObject*
@@ -640,7 +648,7 @@ classDiagram
         +restore()
         +data(): Data&
     }
-    struct Data {
+    class Data <<struct>> {
         -version: int
         -projectName: string
         -language: string
@@ -722,49 +730,51 @@ classDiagram
 
 ```mermaid
 classDiagram
-    class DoublyLinkedList<T> {
+    class DoublyLinkedList as "DoublyLinkedList<T>" {
         <<template>>
-        -head: Node<T>*
-        -tail: Node<T>*
+        -head: Node*
+        -tail: Node*
         -size: int
         +DoublyLinkedList()
         +~DoublyLinkedList()
         +isEmpty(): bool
-        +first(): Node<T>*
-        +last(): Node<T>*
-        +next(pos: Node<T>*): Node<T>*
+        +first(): Node*
+        +last(): Node*
+        +next(pos: Node*): Node*
         +getElement(): T
     }
-    class LinkedTree<T> {
+    class LinkedTree as "LinkedTree<T>" {
         <<template>>
         +LinkedTree()
         +~LinkedTree()
     }
-    class Node<T> {
+    class Node as "Node<T>" {
         <<template>>
         -element: T
-        -prev: Node<T>*
-        -next: Node<T>*
+        -prev: Node*
+        -next: Node*
     }
-    class PriorityQueue<T> {
+    class PriorityQueue as "PriorityQueue<T>" {
         <<template>>
         +PriorityQueue()
         +~PriorityQueue()
     }
-    class BinaryHeap<T> {
+    class BinaryHeap as "BinaryHeap<T>" {
         <<template>>
         +BinaryHeap()
         +~BinaryHeap()
     }
-    class MaxBinaryHeap<T> { +MaxBinaryHeap() +~MaxBinaryHeap(); }
-    class MinBinaryHeap<T> { +MinBinaryHeap() +~MinBinaryHeap(); }
-    class BinaryTree<T> {
+    class MaxBinaryHeap as "MaxBinaryHeap<T>" { +MaxBinaryHeap() +~MaxBinaryHeap(); }
+    class MinBinaryHeap as "MinBinaryHeap<T>" { +MinBinaryHeap() +~MinBinaryHeap(); }
+    class BinaryTree as "BinaryTree<T>" {
         <<template>>
         +BinaryTree()
         +~BinaryTree()
     }
 
-    Node<T> <|.. DoublyLinkedList<T> : uses
-    MaxBinaryHeap<T> ..|> BinaryHeap<T>
-    MinBinaryHeap<T> ..|> BinaryHeap<T>
+    Node <|.. DoublyLinkedList : uses
+    MaxBinaryHeap ..|> BinaryHeap
+    MinBinaryHeap ..|> BinaryHeap
 ```
+
+Location: `src/DataStructures/`

@@ -110,51 +110,6 @@ classDiagram
         <<interface>>
         +onStart(owner: GameObject*)
         +onUpdate(owner: GameObject*, deltaTime: float)
-        +onColl
-
-
-## 2. Diagrama de Componentes y Dependencias
-
-```mermaid
-classDiagram
-    class "IRenderBackend" {
-        <<interface>>
-        +~IRenderBackend()
-        +init(): bool
-        +createMesh(data: MeshData): Handle
-        +drawMesh(mesh: Handle, firstIndex: uint, indexCount: uint)
-        +createTexture2D(image: Image2D): Handle
-        +useProgram(program: Handle)
-        +setUniformMat4(location: int, value: mat4)
-        +setViewport(x, y, width, height)
-        +clearScreen(color: float[3])
-    }
-    class "IAudioBackend" {
-        <<interface>>
-        +iniciar(): bool
-        +reproducirArchivo(ruta: string, volumen: float, bucle: bool, posicion: float*): int
-        +detener(id: int)
-        +setVolumenMaestro(volumen: float)
-        +despachar(deltaTime: float)
-    }
-    class "IPhysicsBackend" {
-        <<interface>>
-        +stepSimulation(deltaTime: float)
-        +addRigidBody(body: RigidBody*)
-        +removeRigidBody(body: RigidBody*)
-        +tomarEventosContacto(): vector<EventoContacto>
-        +raycast(ox, oy, oz, dx, dy, dz, alcance: float): ResultadoRaycast
-    }
-    class IComando {
-        <<interface>>
-        +ejecutar()
-        +deshacer()
-        +descripcion(): string
-    }
-    class IScriptBehaviour {
-        <<interface>>
-        +onStart(owner: GameObject*)
-        +onUpdate(owner: GameObject*, deltaTime: float)
         +onCollisionEnter(owner: GameObject*, propio: Collider*, otro: Collider*)
     }
     class BackendScript {
@@ -218,6 +173,45 @@ classDiagram
     }
     class ScriptRuntime {
         <<static>>
+        +compilarYCargar(fuente: string, nombreClase: string, salida: ComportamientoCargado&, error: string&): static bool
+    }
+    class GUIManager {
+        -menuGUI: unique_ptr<MenuGUI>
+        -eventosEditor: EditorEventBus
+    }
+    class EditorConfig {
+        -datos_: Datos
+    }
+    class EventBus {
+        +subscribe(callback: Callback): size_t
+        +publish(event: SceneEvent)
+    }
+    class EditorEventBus {
+        +subscribe(callback: Callback): size_t
+        +publish(event: SceneEvent)
+    }
+
+    "IRenderBackend" <|.. OpenGL3Backend
+    "IAudioBackend" <|.. MiniAudioBackend
+    "IAudioBackend" <|.. NullAudioBackend
+    "IPhysicsBackend" <|.. (BulletPhysicsAdapter)
+    BackendScript <|-- BackendCpp
+    BackendScript <|-- BackendJava
+    IMeshLoader <|.. AssimpMeshLoader
+
+    GameScene *-- PhysicsEngine : posee
+    GameScene *-- AssetManager : posee
+    GameScene *-- SceneRenderer : posee
+    GameScene --> "IRenderBackend" : inyecta backend
+    PhysicsEngine *-- "IPhysicsBackend" : posee
+    AudioEngine *-- "IAudioBackend" : posee
+    AssetManager --> IMeshLoader : inyecta (Strategy)
+    GestorComandos *-- IComando : posee comandos
+    ScriptRuntime ..> BackendScript : despacha
+    GUIManager --> EditorEventBus : posee bus de eventos
+    GUIManager --> MenuGUI : posee menú
+```
+
 ## 3. Diagramas de Secuencia
 
 ### 3.1 Secuencia de Renderizado por Frame
@@ -343,6 +337,38 @@ graph TD
 
     subgraph JSON [Serialización]
         nlohmann[nlohmann/json]
+    end
+
+    subgraph Web [Web UI - opcional]
+        CEF[Chromium Embedded Framework]
+    end
+
+    subgraph Scripting [Scripting]
+        JVM[JVM / libjvm - opcional FUNSHI_JAVA]
+    end
+
+    Motor -->|usa| Gráficos
+    Motor -->|usa| Física
+    Motor -->|usa| Audio
+    Motor -->|usa| Modelos
+    Motor -->|usa| JSON
+    Motor -.->|opcional| Web
+    Motor -.->|opcional| Scripting
+
+    API -->|sobre| Core
+    Core -->|driver| GL
+    Core -->|ventana| GLFW
+    Core -->|GUI| ImGui
+    Core -->|gizmo| ImGuizmo
+    Core -->|matemáticas| GLM
+    Core -->|imágenes| stb
+    Core -->|ZIP| miniz
+    Core -->|física| Bullet
+    Core -->|audio| miniaudio
+    Core -->|modelos| Assimp
+    Core -->|config JSON| nlohmann
+```
+
 ## 5. Patrones de Diseño Identificados
 
 | Patrón | Clases Involucradas | Archivo |
@@ -384,95 +410,3 @@ graph TD
 
 Archivo generado: `doc/uml/ArquitecturaUML.es.md` (español)
 Cumple con la skill `doc.md`: diagramas Mermaid en `doc/`, formato `.es.md`, arquitectura real del código.
-    end
-
-    subgraph Web [Web UI - opcional]
-        CEF[Chromium Embedded Framework]
-    end
-
-    subgraph Scripting [Scripting]
-        JVM[JVM / libjvm - opcional FUNSHI_JAVA]
-    end
-
-    Motor -->|usa| Gráficos
-    Motor -->|usa| Física
-    Motor -->|usa| Audio
-    Motor -->|usa| Modelos
-    Motor -->|usa| JSON
-    Motor -.->|opcional| Web
-    Motor -.->|opcional| Scripting
-
-    API -->|sobre| Core
-    Core -->|driver| GL
-    Core -->|ventana| GLFW
-    Core -->|GUI| ImGui
-    Core -->|gizmo| ImGuizmo
-    Core -->|matemáticas| GLM
-    Core -->|imágenes| stb
-    Core -->|ZIP| miniz
-    Core -->|física| Bullet
-    Core -->|audio| miniaudio
-    Core -->|modelos| Assimp
-    Core -->|config JSON| nlohmann
-```
-        +compilarYCargar(fuente: string, nombreClase: string, salida: ComportamientoCargado&, error: string&): static bool
-    }
-    class GUIManager {
-        -menuGUI: unique_ptr<MenuGUI>
-        -eventosEditor: EditorEventBus
-    }
-    class EditorConfig {
-        -datos_: Datos
-    }
-    class EventBus {
-        +subscribe(callback: Callback): size_t
-        +publish(event: SceneEvent)
-    }
-    class EditorEventBus {
-        +subscribe(callback: Callback): size_t
-        +publish(event: SceneEvent)
-    }
-
-    "IRenderBackend" <|.. OpenGL3Backend
-    "IAudioBackend" <|.. MiniAudioBackend
-    "IAudioBackend" <|.. NullAudioBackend
-    "IPhysicsBackend" <|.. (BulletPhysicsAdapter)
-    BackendScript <|-- BackendCpp
-    BackendScript <|-- BackendJava
-    IMeshLoader <|.. AssimpMeshLoader
-
-    GameScene *-- PhysicsEngine : posee
-    GameScene *-- AssetManager : posee
-    GameScene *-- SceneRenderer : posee
-    GameScene --> "IRenderBackend" : inyecta backend
-    PhysicsEngine *-- "IPhysicsBackend" : posee
-    AudioEngine *-- "IAudioBackend" : posee
-    AssetManager --> IMeshLoader : inyecta (Strategy)
-    GestorComandos *-- IComando : posee comandos
-    ScriptRuntime ..> BackendScript : despacha
-    GUIManager --> EditorEventBus : posee bus de eventos
-    GUIManager --> MenuGUI : posee menú
-```
-    DRIVERS -->|implementa| NUCLEO
-
-    GE -->|posee| GS
-    GE -->|posee| PE
-    GE -->|posee| AM
-    GE -->|posee| SR
-    GE -->|usa| GM
-    GE -->|usa| EC
-
-    OGL3 ..|>|"IRenderBackend"
-    MAB ..|>|"IAudioBackend"
-    NAB ..|>|"IAudioBackend"
-    BP ..|>|"IPhysicsBackend"
-    BC ..|>|BackendScript
-    BJ ..|>|BackendScript
-
-    style KX_API fill:#f9f,stroke:#333,stroke-width:2px
-    style FACHADAS fill:#bbf,stroke:#333,stroke-width:2px
-    style DRIVERS fill:#bfb,stroke:#333,stroke-width:2px
-    style NUCLEO fill:#fdd,stroke:#333,stroke-width:2px
-    style ESTADOS fill:#ffd,stroke:#333,stroke-width:2px
-```
-

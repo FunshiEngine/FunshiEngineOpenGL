@@ -66,7 +66,7 @@ classDiagram
     }
     class Entity {
         <<abstract>>
-        -components: ListaDE<Component*>
+        -components: ListaDE<Component*>*
         -myBinario: Binario
         -parentEntity: Entity*
         -childEntities: vector<Entity*>
@@ -240,7 +240,18 @@ classDiagram
     }
     class RigidBody { +RigidBody(); }
     class Collider { +Collider(); }
-## 5. Patrones de Diseño Identificados
+    class ContactEvent <<struct>> {
+        -impacto: bool
+        -distancia: float
+        -puntoX: float
+        -puntoY: float
+        -puntoZ: float
+        -normalX: float
+        -normalY: float
+        -normalZ: float
+        -collider: Collider*
+    }
+    class ResultadoRaycast <<struct>> {
         -impacto: bool
         -distancia: float
         -puntoX: float
@@ -297,7 +308,23 @@ classDiagram
 
 Ubicación: `src/Fisicas/`, `src/Audio/`
 
-## 5. Scripting y Comportamientos
+## 5. Patrones de Diseño Identificados
+
+| Patrón | Clases Involucradas | Archivo |
+|--------|---------------------|---------|
+| **Strategy** | `IRenderBackend` → `OpenGL3Backend`, `IAudioBackend` → `MiniAudioBackend`/`NullAudioBackend`, `IPhysicsBackend` → `BulletPhysicsAdapter`, `IMeshLoader` → `AssimpMeshLoader` | `src/Rendering/Backend/`, `src/Audio/`, `src/Fisicas/`, `src/Assets/` |
+| **Facade** | `PhysicsEngine`, `AudioEngine`, `GameScene`, `GUIManager` | `src/Fisicas/`, `src/Audio/`, `src/Scenes/`, `src/GUIManager/` |
+| **Command** | `IComando` → 10 comandos concretos, `GestorComandos` | `src/Comandos/` |
+| **Observer / EventBus** | `EventBus`, `EditorEventBus`, `SceneEvent` | `src/Events/` |
+| **State** | `ApplicationStateMachine`, `OrquestadorEstadoGUI` | `src/States/` |
+| **Flyweight** | `AssetManager` (cache de meshes compartidos) | `src/Assets/` |
+| **Factory** | `GameObjectFactory`, `ComponentFactory`, `CatalogoComponentes` | `src/Objetos/` |
+| **Singleton / Acceso global** | `activeBackend()` (IRenderBackend) | `src/Rendering/Backend/IRenderBackend.h` |
+| **Pimpl** | `AudioEngine::Impl`, `OpenGL3Backend` (estructuras GPU privadas) | `src/Audio/AudioEngine.h`, `src/Rendering/Backend/OpenGL3Backend.h` |
+| **Template Method** | `Component::serializeComponent/deserializeComponent` | `src/Objetos/Componentes/Component.h` |
+| **Iterator** | `ListaDE<T>`, `Position<T>`, `ArbolEnlazado<T>` | `src/Estructuras/` |
+
+## 6. Scripting y Comportamientos
 
 ```mermaid
 classDiagram
@@ -368,7 +395,7 @@ classDiagram
 
 Ubicación: `src/Behaviour/`
 
-## 6. Commands (Undo/Redo)
+## 7. Commands (Undo/Redo)
 
 ```mermaid
 classDiagram
@@ -416,7 +443,7 @@ classDiagram
 
 Ubicación: `src/Comandos/`
 
-## 9. Ventana, Tiempo y Input
+## 8. Ventana, Tiempo y Input
 
 ```mermaid
 classDiagram
@@ -449,7 +476,7 @@ classDiagram
     Ventana --> EditorInput : uses
 ```
 
-## 10. Exportador y Proyectos
+## 9. Exportador y Proyectos
 
 ```mermaid
 classDiagram
@@ -476,57 +503,55 @@ classDiagram
     GestorDeProyectos --> ConfigJuegoExportado : uses
 ```
 
-## 11. Estructuras de Datos
+## 10. Estructuras de Datos
 
 ```mermaid
 classDiagram
-    class ListaDE<T> {
+    class ListaDE as "ListaDE<T>" {
         <<template>>
-        -cabeza: DNodo<T>*
-        -cola: DNodo<T>*
+        -cabeza: DNodo*
+        -cola: DNodo*
         -tamano: int
         +ListaDE()
         +~ListaDE()
         +isEmpty(): bool
-        +first(): Position<T>*
-        +last(): Position<T>*
-        +next(pos: Position<T>*): Position<T>*
+        +first(): Position*
+        +last(): Position*
+        +next(pos: Position*): Position*
         +getElement(): T
     }
-    class ArbolEnlazado<T> {
+    class ArbolEnlazado as "ArbolEnlazado<T>" {
         <<template>>
         +ArbolEnlazado()
         +~ArbolEnlazado()
     }
-    class DNodo<T> {
+    class DNodo as "DNodo<T>" {
         <<template>>
         -elemento: T
-        -anterior: DNodo<T>*
-        -siguiente: DNodo<T>*
+        -anterior: DNodo*
+        -siguiente: DNodo*
     }
-    class PriorityListaDE<T> {
+    class PriorityListaDE as "PriorityListaDE<T>" {
         <<template>>
         +PriorityListaDE()
         +~PriorityListaDE()
     }
-    class Heap<T> {
+    class Heap as "Heap<T>" {
         <<template>>
         +Heap()
         +~Heap()
     }
-    class MaxHeap<T> { +MaxHeap() +~MaxHeap(); }
-    class MinHeap<T> { +MinHeap() +~MinHeap(); }
-    class ArbolBinarioEnlazado<T> {
+    class MaxHeap as "MaxHeap<T>" { +MaxHeap() +~MaxHeap(); }
+    class MinHeap as "MinHeap<T>" { +MinHeap() +~MinHeap(); }
+    class ArbolBinarioEnlazado as "ArbolBinarioEnlazado<T>" {
         <<template>>
         +ArbolBinarioEnlazado()
         +~ArbolBinarioEnlazado()
     }
 
-    DNodo<T> <|.. ListaDE<T> : uses
-    MaxHeap<T> ..|> Heap<T>
-    MinHeap<T> ..|> Heap<T>
+    DNodo <|.. ListaDE : uses
+    MaxHeap ..|> Heap
+    MinHeap ..|> Heap
 ```
 
-Ubicación: `src/Estructuras/```
-
-Ubicación: `src/States/`, `src/GUIManager/`, `src/Configuracion/`
+Ubicación: `src/Estructuras/`

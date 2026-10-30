@@ -67,6 +67,7 @@ graph TD
     ESTADOS -->|controls| FACHADAS
     FACHADAS -->|uses| DRIVERS
     FACHADAS -->|uses| NUCLEO
+```
 
 ## 2. Component and Dependency Diagram
 
@@ -168,6 +169,50 @@ classDiagram
     class AssetManager {
         -loader_: unique_ptr<IMeshLoader>
     }
+    class GestorComandos {
+        -comandos: vector<unique_ptr<IComando>>
+    }
+    class ScriptRuntime {
+        <<static>>
+        +compilarYCargar(fuente: string, nombreClase: string, salida: ComportamientoCargado&, error: string&): static bool
+    }
+    class GUIManager {
+        -menuGUI: unique_ptr<MenuGUI>
+        -eventosEditor: EditorEventBus
+    }
+    class EditorConfig {
+        -datos_: Datos
+    }
+    class EventBus {
+        +subscribe(callback: Callback): size_t
+        +publish(event: SceneEvent)
+    }
+    class EditorEventBus {
+        +subscribe(callback: Callback): size_t
+        +publish(event: SceneEvent)
+    }
+
+    "IRenderBackend" <|.. OpenGL3Backend
+    "IAudioBackend" <|.. MiniAudioBackend
+    "IAudioBackend" <|.. NullAudioBackend
+    "IPhysicsBackend" <|.. (BulletPhysicsAdapter)
+    BackendScript <|-- BackendCpp
+    BackendScript <|-- BackendJava
+    IMeshLoader <|.. AssimpMeshLoader
+
+    GameScene *-- PhysicsEngine : owns
+    GameScene *-- AssetManager : owns
+    GameScene *-- SceneRenderer : owns
+    GameScene --> "IRenderBackend" : injects backend
+    PhysicsEngine *-- "IPhysicsBackend" : owns
+    AudioEngine *-- "IAudioBackend" : owns
+    AssetManager --> IMeshLoader : injects (Strategy)
+    GestorComandos *-- IComando : owns commands
+    ScriptRuntime ..> BackendScript : dispatches
+    GUIManager --> EditorEventBus : owns event bus
+    GUIManager --> MenuGUI : owns menu
+```
+
 ## 3. Sequence Diagrams
 
 ### 3.1 Per-Frame Rendering Sequence
@@ -293,6 +338,38 @@ graph TD
 
     subgraph JSON [Serialization]
         nlohmann[nlohmann/json]
+    end
+
+    subgraph Web [Web UI - optional]
+        CEF[Chromium Embedded Framework]
+    end
+
+    subgraph Scripting [Scripting]
+        JVM[JVM / libjvm - optional FUNSHI_JAVA]
+    end
+
+    Motor -->|uses| Graphics
+    Motor -->|uses| Physics
+    Motor -->|uses| Audio
+    Motor -->|uses| Models
+    Motor -->|uses| JSON
+    Motor -.->|optional| Web
+    Motor -.->|optional| Scripting
+
+    API -->|on| Core
+    Core -->|driver| GL
+    Core -->|window| GLFW
+    Core -->|GUI| ImGui
+    Core -->|gizmo| ImGuizmo
+    Core -->|math| GLM
+    Core -->|images| stb
+    Core -->|ZIP| miniz
+    Core -->|physics| Bullet
+    Core -->|audio| miniaudio
+    Core -->|models| Assimp
+    Core -->|JSON config| nlohmann
+```
+
 ## 5. Design Patterns Identified
 
 | Pattern | Classes Involved | File |
@@ -334,102 +411,3 @@ graph TD
 
 File generated: `doc/uml/ArquitecturaUML.eng.md` (English)
 Complies with skill `doc.md`: Mermaid diagrams in `doc/`, `.es.md` / `.eng.md` format, real code architecture.
-    end
-
-    subgraph Web [Web UI - optional]
-        CEF[Chromium Embedded Framework]
-    end
-
-    subgraph Scripting [Scripting]
-        JVM[JVM / libjvm - optional FUNSHI_JAVA]
-    end
-
-    Motor -->|uses| Graphics
-## 5. Design Patterns Identified
-    Motor -->|uses| Physics
-    Motor -->|uses| Audio
-    Motor -->|uses| Models
-    Motor -->|uses| JSON
-    Motor -.->|optional| Web
-    Motor -.->|optional| Scripting
-
-    API -->|on| Core
-    Core -->|driver| GL
-    Core -->|window| GLFW
-    Core -->|GUI| ImGui
-    Core -->|gizmo| ImGuizmo
-    Core -->|math| GLM
-    Core -->|images| stb
-    Core -->|ZIP| miniz
-    Core -->|physics| Bullet
-    Core -->|audio| miniaudio
-    Core -->|models| Assimp
-    Core -->|JSON config| nlohmann
-```
-    class GestorComandos {
-        -comandos: vector<unique_ptr<IComando>>
-    }
-    class ScriptRuntime {
-        <<static>>
-        +compilarYCargar(fuente: string, nombreClase: string, salida: ComportamientoCargado&, error: string&): static bool
-    }
-    class GUIManager {
-        -menuGUI: unique_ptr<MenuGUI>
-        -eventosEditor: EditorEventBus
-    }
-    class EditorConfig {
-        -datos_: Datos
-    }
-    class EventBus {
-        +subscribe(callback: Callback): size_t
-        +publish(event: SceneEvent)
-    }
-    class EditorEventBus {
-        +subscribe(callback: Callback): size_t
-        +publish(event: SceneEvent)
-    }
-
-    "IRenderBackend" <|.. OpenGL3Backend
-    "IAudioBackend" <|.. MiniAudioBackend
-    "IAudioBackend" <|.. NullAudioBackend
-    "IPhysicsBackend" <|.. (BulletPhysicsAdapter)
-    BackendScript <|-- BackendCpp
-    BackendScript <|-- BackendJava
-    IMeshLoader <|.. AssimpMeshLoader
-
-    GameScene *-- PhysicsEngine : owns
-    GameScene *-- AssetManager : owns
-    GameScene *-- SceneRenderer : owns
-    GameScene --> "IRenderBackend" : injects backend
-    PhysicsEngine *-- "IPhysicsBackend" : owns
-    AudioEngine *-- "IAudioBackend" : owns
-    AssetManager --> IMeshLoader : injects (Strategy)
-    GestorComandos *-- IComando : owns commands
-    ScriptRuntime ..> BackendScript : dispatches
-    GUIManager --> EditorEventBus : owns event bus
-    GUIManager --> MenuGUI : owns menu
-```
-    DRIVERS -->|implements| NUCLEO
-
-    GE -->|owns| GS
-    GE -->|owns| PE
-    GE -->|owns| AM
-    GE -->|owns| SR
-    GE -->|uses| GM
-    GE -->|uses| EC
-
-    OGL3 ..|>|"IRenderBackend"
-    MAB ..|>|"IAudioBackend"
-    NAB ..|>|"IAudioBackend"
-    BP ..|>|"IPhysicsBackend"
-    BC ..|>|BackendScript
-    BJ ..|>|BackendScript
-
-    style KX_API fill:#f9f,stroke:#333,stroke-width:2px
-    style FACHADAS fill:#bbf,stroke:#333,stroke-width:2px
-    style DRIVERS fill:#bfb,stroke:#333,stroke-width:2px
-    style NUCLEO fill:#fdd,stroke:#333,stroke-width:2px
-    style ESTADOS fill:#ffd,stroke:#333,stroke-width:2px
-```
-
-Location: `src/`, `src/States/`, `src/Fisicas/`, `src/Audio/`, `src/Rendering/`, `src/Objetos/`, `src/ExcepcionesCPP/`
