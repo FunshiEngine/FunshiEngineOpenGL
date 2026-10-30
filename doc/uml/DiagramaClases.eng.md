@@ -236,10 +236,17 @@ classDiagram
         +getGravity(x: float&, y: float&, z: float)
         +raycast(ox, oy, oz, dx, dy, dz, reach: float): RaycastResult
     }
-    class RigidBody { +RigidBody(); }
-    class Collider { +Collider(); }
-    class ContactEvent <<struct>> { }
-    class RaycastResult <<struct>> {
+    class RigidBody {
+        +RigidBody()
+    }
+    class Collider {
+        +Collider()
+    }
+    class ContactEvent {
+        <<struct>>
+    }
+    class RaycastResult {
+        <<struct>>
         -hit: bool
         -distance: float
         -pointX: float
@@ -389,16 +396,56 @@ classDiagram
         +canUndo(): bool
         +canRedo(): bool
     }
-    class AddComponentCommand { +execute() override +undo() override +description(): string override }
-    class RemoveComponentCommand { +execute() override +undo() override +description(): string override }
-    class CreateObjectCommand { +execute() override +undo() override +description(): string override }
-    class DeleteObjectCommand { +execute() override +undo() override +description(): string override }
-    class ReparentCommand { +execute() override +undo() override +description(): string override }
-    class TransformCommand { +execute() override +undo() override +description(): string override }
-    class SetTagCommand { +execute() override +undo() override +description(): string override }
-    class DuplicateObjectCommand { +execute() override +undo() override +description(): string override }
-    class ClearSceneCommand { +execute() override +undo() override +description(): string override }
-    class AdjustVariableCommand { +execute() override +undo() override +description(): string override }
+    class AddComponentCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
+    class RemoveComponentCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
+    class CreateObjectCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
+    class DeleteObjectCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
+    class ReparentCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
+    class TransformCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
+    class SetTagCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
+    class DuplicateObjectCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
+    class ClearSceneCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
+    class AdjustVariableCommand {
+        +execute() override
+        +undo() override
+        +description(): string override
+    }
 
     ICommand <|.. CommandManager : uses
     ICommand <|-- AddComponentCommand
@@ -498,14 +545,24 @@ classDiagram
         +reloadMesh(path: string)
         +setLoader(loader: unique_ptr<IMeshLoader>)
     }
-    class IMeshLoader { <<interface>> +~IMeshLoader() +load(path: string): shared_ptr<Mesh> }
+    class IMeshLoader {
+        <<interface>>
+        +~IMeshLoader()
+        +load(path: string): shared_ptr<Mesh>
+    }
     class AssimpMeshLoader {
         +AssimpMeshLoader()
         +~AssimpMeshLoader()
         +load(path: string): shared_ptr<Mesh> override
     }
-    class EditorController { +EditorController() +~EditorController(); }
-    class DiagnosticsRegistry { +DiagnosticsRegistry() +~DiagnosticsRegistry(); }
+    class EditorController {
+        +EditorController()
+        +~EditorController()
+    }
+    class DiagnosticsRegistry {
+        +DiagnosticsRegistry()
+        +~DiagnosticsRegistry()
+    }
     class ParticleSystem {
         +ParticleSystem()
         +~ParticleSystem()
@@ -533,7 +590,8 @@ classDiagram
         +is(value: ApplicationState): bool
         +transitionTo(value: ApplicationState)
     }
-    class ApplicationState <<enumeration>> {
+    class ApplicationState {
+        <<enumeration>>
         MainMenu
         Editing
         Debugging
@@ -597,10 +655,25 @@ classDiagram
         +getWindowStates(): map<string, bool>
         +setWindowState(name: string, abierta: bool)
     }
-    class MenuGUI { +MenuGUI() +~MenuGUI() +SetMenuActive(active: bool) +ConsultMenu(): bool +updateProjects() }
-    class DockSpaceInterface { +DockSpaceInterface() +~DockSpaceInterface(); }
-    class SceneSelectionInterface { +SceneSelectionInterface() +~SceneSelectionInterface(); }
-    class SceneMenuBarInterface { +SceneMenuBarInterface() +~SceneMenuBarInterface(); }
+    class MenuGUI {
+        +MenuGUI()
+        +~MenuGUI()
+        +SetMenuActive(active: bool)
+        +ConsultMenu(): bool
+        +updateProjects()
+    }
+    class DockSpaceInterface {
+        +DockSpaceInterface()
+        +~DockSpaceInterface()
+    }
+    class SceneSelectionInterface {
+        +SceneSelectionInterface()
+        +~SceneSelectionInterface()
+    }
+    class SceneMenuBarInterface {
+        +SceneMenuBarInterface()
+        +~SceneMenuBarInterface()
+    }
 
     GUIOrchestrator --> ApplicationStateMachine : uses
     GUIManager --> MenuGUI : owns
@@ -616,7 +689,8 @@ classDiagram
         +unsubscribe(token: size_t)
         +publish(event: SceneEvent)
     }
-    class SceneEventType <<enumeration>> {
+    class SceneEventType {
+        <<enumeration>>
         ObjectCreated
         ObjectDeleted
         ObjectReparented
@@ -625,7 +699,8 @@ classDiagram
         ObjectSelected
         ComponentStructureChanged
     }
-    class SceneEvent <<struct>> {
+    class SceneEvent {
+        <<struct>>
         -type: SceneEventType
         -object: GameObject*
         -relatedObject: GameObject*
@@ -648,7 +723,8 @@ classDiagram
         +restore()
         +data(): Data&
     }
-    class Data <<struct>> {
+    class Data {
+        <<struct>>
         -version: int
         -projectName: string
         -language: string
@@ -692,8 +768,14 @@ classDiagram
         +resetDeltaLook()
         +applyCursorMode(window: GLFWwindow*)
     }
-    class TerminalEmulator { +TerminalEmulator() +~TerminalEmulator(); }
-    class TerminalSession { +TerminalSession() +~TerminalSession(); }
+    class TerminalEmulator {
+        +TerminalEmulator()
+        +~TerminalEmulator()
+    }
+    class TerminalSession {
+        +TerminalSession()
+        +~TerminalSession()
+    }
 
     Window --> EngineTime : uses
     Window --> EditorInput : uses
@@ -720,7 +802,10 @@ classDiagram
         +deleteProject(name: string)
         +listProjects(): vector<string>
     }
-    class ExportStatus { +ExportStatus() +~ExportStatus(); }
+    class ExportStatus {
+        +ExportStatus()
+        +~ExportStatus()
+    }
 
     GameExporter --> GameConfig : uses
     ProjectManager --> GameConfig : uses
@@ -730,7 +815,7 @@ classDiagram
 
 ```mermaid
 classDiagram
-    class DoublyLinkedList as "DoublyLinkedList<T>" {
+    class DoublyLinkedList~T~ {
         <<template>>
         -head: Node*
         -tail: Node*
@@ -743,30 +828,38 @@ classDiagram
         +next(pos: Node*): Node*
         +getElement(): T
     }
-    class LinkedTree as "LinkedTree<T>" {
+    class LinkedTree~T~ {
         <<template>>
         +LinkedTree()
         +~LinkedTree()
     }
-    class Node as "Node<T>" {
+    class Node~T~ {
         <<template>>
         -element: T
         -prev: Node*
         -next: Node*
     }
-    class PriorityQueue as "PriorityQueue<T>" {
+    class PriorityQueue~T~ {
         <<template>>
         +PriorityQueue()
         +~PriorityQueue()
     }
-    class BinaryHeap as "BinaryHeap<T>" {
+    class BinaryHeap~T~ {
         <<template>>
         +BinaryHeap()
         +~BinaryHeap()
     }
-    class MaxBinaryHeap as "MaxBinaryHeap<T>" { +MaxBinaryHeap() +~MaxBinaryHeap(); }
-    class MinBinaryHeap as "MinBinaryHeap<T>" { +MinBinaryHeap() +~MinBinaryHeap(); }
-    class BinaryTree as "BinaryTree<T>" {
+    class MaxBinaryHeap~T~ {
+        <<template>>
+        +MaxBinaryHeap()
+        +~MaxBinaryHeap()
+    }
+    class MinBinaryHeap~T~ {
+        <<template>>
+        +MinBinaryHeap()
+        +~MinBinaryHeap()
+    }
+    class BinaryTree~T~ {
         <<template>>
         +BinaryTree()
         +~BinaryTree()

@@ -238,9 +238,14 @@ classDiagram
         +gravedad(x: float&, y: float&, z: float)
         +raycast(ox, oy, oz, dx, dy, dz, alcance: float): ResultadoRaycast
     }
-    class RigidBody { +RigidBody(); }
-    class Collider { +Collider(); }
-    class ContactEvent <<struct>> {
+    class RigidBody {
+        +RigidBody()
+    }
+    class Collider {
+        +Collider()
+    }
+    class ContactEvent {
+        <<struct>>
         -impacto: bool
         -distancia: float
         -puntoX: float
@@ -251,7 +256,8 @@ classDiagram
         -normalZ: float
         -collider: Collider*
     }
-    class ResultadoRaycast <<struct>> {
+    class ResultadoRaycast {
+        <<struct>>
         -impacto: bool
         -distancia: float
         -puntoX: float
@@ -417,16 +423,56 @@ classDiagram
         +puedeDeshacer(): bool
         +puedeRehacer(): bool
     }
-    class AgregarComponenteComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class QuitarComponenteComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class CrearObjetoComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class BorrarObjetoComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class ReparentarComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class TransformComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class EstablecerTagComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class DuplicarObjetoComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class LimpiarEscenaComando { +ejecutar() override +deshacer() override +descripcion(): string override }
-    class AjustarVariableComando { +ejecutar() override +deshacer() override +descripcion(): string override }
+    class AgregarComponenteComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
+    class QuitarComponenteComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
+    class CrearObjetoComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
+    class BorrarObjetoComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
+    class ReparentarComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
+    class TransformComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
+    class EstablecerTagComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
+    class DuplicarObjetoComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
+    class LimpiarEscenaComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
+    class AjustarVariableComando {
+        +ejecutar() override
+        +deshacer() override
+        +descripcion(): string override
+    }
 
     IComando <|.. GestorComandos : uses
     IComando <|-- AgregarComponenteComando
@@ -469,8 +515,14 @@ classDiagram
         +descartarDeltaLook()
         +aplicarModoCursor(window: GLFWwindow*)
     }
-    class TerminalEmulator { +TerminalEmulator() +~TerminalEmulator(); }
-    class TerminalSession { +TerminalSession() +~TerminalSession(); }
+    class TerminalEmulator {
+        +TerminalEmulator()
+        +~TerminalEmulator()
+    }
+    class TerminalSession {
+        +TerminalSession()
+        +~TerminalSession()
+    }
 
     Ventana --> EngineTime : uses
     Ventana --> EditorInput : uses
@@ -497,7 +549,10 @@ classDiagram
         +eliminarProyecto(nombre: string)
         +listarProyectos(): vector<string>
     }
-    class EstadoExportacion { +EstadoExportacion() +~EstadoExportacion(); }
+    class EstadoExportacion {
+        +EstadoExportacion()
+        +~EstadoExportacion()
+    }
 
     GameExporter --> ConfigJuegoExportado : uses
     GestorDeProyectos --> ConfigJuegoExportado : uses
@@ -507,7 +562,7 @@ classDiagram
 
 ```mermaid
 classDiagram
-    class ListaDE as "ListaDE<T>" {
+    class ListaDE~T~ {
         <<template>>
         -cabeza: DNodo*
         -cola: DNodo*
@@ -520,30 +575,38 @@ classDiagram
         +next(pos: Position*): Position*
         +getElement(): T
     }
-    class ArbolEnlazado as "ArbolEnlazado<T>" {
+    class ArbolEnlazado~T~ {
         <<template>>
         +ArbolEnlazado()
         +~ArbolEnlazado()
     }
-    class DNodo as "DNodo<T>" {
+    class DNodo~T~ {
         <<template>>
         -elemento: T
         -anterior: DNodo*
         -siguiente: DNodo*
     }
-    class PriorityListaDE as "PriorityListaDE<T>" {
+    class PriorityListaDE~T~ {
         <<template>>
         +PriorityListaDE()
         +~PriorityListaDE()
     }
-    class Heap as "Heap<T>" {
+    class Heap~T~ {
         <<template>>
         +Heap()
         +~Heap()
     }
-    class MaxHeap as "MaxHeap<T>" { +MaxHeap() +~MaxHeap(); }
-    class MinHeap as "MinHeap<T>" { +MinHeap() +~MinHeap(); }
-    class ArbolBinarioEnlazado as "ArbolBinarioEnlazado<T>" {
+    class MaxHeap~T~ {
+        <<template>>
+        +MaxHeap()
+        +~MaxHeap()
+    }
+    class MinHeap~T~ {
+        <<template>>
+        +MinHeap()
+        +~MinHeap()
+    }
+    class ArbolBinarioEnlazado~T~ {
         <<template>>
         +ArbolBinarioEnlazado()
         +~ArbolBinarioEnlazado()

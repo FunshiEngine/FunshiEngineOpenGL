@@ -72,7 +72,7 @@ graph TD
 
 ```mermaid
 classDiagram
-    class "IRenderBackend" {
+    class IRenderBackend {
         <<interface>>
         +~IRenderBackend()
         +init(): bool
@@ -84,7 +84,7 @@ classDiagram
         +setViewport(x, y, width, height)
         +clearScreen(color: float[3])
     }
-    class "IAudioBackend" {
+    class IAudioBackend {
         <<interface>>
         +iniciar(): bool
         +reproducirArchivo(ruta: string, volumen: float, bucle: bool, posicion: float*): int
@@ -92,7 +92,7 @@ classDiagram
         +setVolumenMaestro(volumen: float)
         +despachar(deltaTime: float)
     }
-    class "IPhysicsBackend" {
+    class IPhysicsBackend {
         <<interface>>
         +stepSimulation(deltaTime: float)
         +addRigidBody(body: RigidBody*)
@@ -149,20 +149,20 @@ classDiagram
     }
 
     class GameScene {
-        -backend_: "IRenderBackend"
+        -backend_: IRenderBackend
         -sceneRegistry: unique_ptr<SceneRegistry>
         -phisics: unique_ptr<PhysicsEngine>
         -assetManager: unique_ptr<AssetManager>
         -sceneRenderer: unique_ptr<SceneRenderer>
     }
     class PhysicsEngine {
-        -backend_: unique_ptr<"IPhysicsBackend">
+        -backend_: unique_ptr<IPhysicsBackend>
     }
     class AudioEngine {
         -impl_: unique_ptr<Impl>
     }
     class SceneRenderer {
-        -backend: "IRenderBackend"
+        -backend: IRenderBackend
         -meshRenderer: unique_ptr<MeshRenderer>
     }
     class AssetManager {
@@ -191,10 +191,10 @@ classDiagram
         +publish(event: SceneEvent)
     }
 
-    "IRenderBackend" <|.. OpenGL3Backend
-    "IAudioBackend" <|.. MiniAudioBackend
-    "IAudioBackend" <|.. NullAudioBackend
-    "IPhysicsBackend" <|.. (BulletPhysicsAdapter)
+    IRenderBackend <|.. OpenGL3Backend
+    IAudioBackend <|.. MiniAudioBackend
+    IAudioBackend <|.. NullAudioBackend
+    IPhysicsBackend <|.. BulletPhysicsAdapter
     BackendScript <|-- BackendCpp
     BackendScript <|-- BackendJava
     IMeshLoader <|.. AssimpMeshLoader
@@ -202,9 +202,9 @@ classDiagram
     GameScene *-- PhysicsEngine : posee
     GameScene *-- AssetManager : posee
     GameScene *-- SceneRenderer : posee
-    GameScene --> "IRenderBackend" : inyecta backend
-    PhysicsEngine *-- "IPhysicsBackend" : posee
-    AudioEngine *-- "IAudioBackend" : posee
+    GameScene --> IRenderBackend : inyecta backend
+    PhysicsEngine *-- IPhysicsBackend : posee
+    AudioEngine *-- IAudioBackend : posee
     AssetManager --> IMeshLoader : inyecta (Strategy)
     GestorComandos *-- IComando : posee comandos
     ScriptRuntime ..> BackendScript : despacha
@@ -389,20 +389,20 @@ graph TD
 
 ```mermaid
 graph TD
-    A[main.cpp] --> B[Ventana::crear()]
-    B --> C[EngineTime::actualizar()]
-    C --> D[EditorConfig::cargar()]
-    D --> E[GUIManager::crear()]
-    E --> F[GameScene::crear(backend)]
-    F --> G[SceneRegistry::createDefaultRoot()]
+    A[main.cpp] --> B["Ventana::crear()"]
+    B --> C["EngineTime::actualizar()"]
+    C --> D["EditorConfig::cargar()"]
+    D --> E["GUIManager::crear()"]
+    E --> F["GameScene::crear(backend)"]
+    F --> G["SceneRegistry::createDefaultRoot()"]
     G --> H[OrquestadorEstadoGUI]
-    H --> I[main loop: actualizar + renderizar]
+    H --> I["main loop: actualizar + renderizar"]
     I --> J{estado?}
     J -->|MainMenu| K[dibujar MenuGUI]
     J -->|Editing/Debugging/Playing| L[dibujar DockSpaceGUI + paneles]
-    L --> M[GameScene::actualizar(deltaTime)]
-    M --> N[GameScene::renderizar()]
-    N --> O[Ventana::intercambiarBuffers()]
+    L --> M["GameScene::actualizar(deltaTime)"]
+    M --> N["GameScene::renderizar()"]
+    N --> O["Ventana::intercambiarBuffers()"]
     O --> I
 ```
 
