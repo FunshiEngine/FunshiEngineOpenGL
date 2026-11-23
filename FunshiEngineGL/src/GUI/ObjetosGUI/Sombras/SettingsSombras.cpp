@@ -29,22 +29,27 @@ void SettingsSombras::showDataComponent() {
     Sombras* sombras = gameObject->getComponent<Sombras>();
     if (!sombras) return;
 
-    ImGui::Text("===Sombras===");
-
     bool activado = sombras->estaActivado();
     if (ImGui::Checkbox("Proyecta sombra", &activado)) {
         sombras->setActivado(activado);
     }
 
-    int resolucion = sombras->getResolucion();
-    if (ImGui::SliderInt("Resolucion", &resolucion, 256, 4096)) {
-        sombras->setResolucion(resolucion);
+    // Resolucion: el componente solo admite potencias de dos entre 256 y 4096.
+    static const int kResoluciones[] = {256, 512, 1024, 2048, 4096};
+    static const char* kEtiquetas[] = {"256", "512", "1024", "2048", "4096"};
+    int actual = 0;
+    for (int i = 0; i < 5; ++i)
+        if (kResoluciones[i] == sombras->getResolucion()) actual = i;
+    if (ImGui::Combo("Resolucion", &actual, kEtiquetas, 5)) {
+        sombras->setResolucion(kResoluciones[actual]);
     }
 
     float sesgo = sombras->getSesgo();
-    if (ImGui::SliderFloat("Sesgo", &sesgo, 0.f, 0.02f)) {
+    if (ImGui::DragFloat("Sesgo", &sesgo, 0.0001f, 0.f, 0.1f, "%.4f")) {
         sombras->setSesgo(sesgo);
     }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Sube si aparecen rayas (acne); baja si la sombra se despega.");
 
     float fuerza = sombras->getFuerza();
     if (ImGui::SliderFloat("Fuerza", &fuerza, 0.f, 1.f)) {
@@ -52,12 +57,14 @@ void SettingsSombras::showDataComponent() {
     }
 
     float radio = sombras->getRadio();
-    if (ImGui::SliderFloat("Radio", &radio, 1.f, 200.f)) {
+    if (ImGui::DragFloat("Radio", &radio, 0.25f, 0.5f, 1000.f)) {
         sombras->setRadio(radio);
     }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Solo luz direccional: semilado del area con sombra.");
 
     float distancia = sombras->getDistancia();
-    if (ImGui::SliderFloat("Distancia", &distancia, 1.f, 300.f)) {
+    if (ImGui::DragFloat("Distancia", &distancia, 0.5f, 1.f, 5000.f)) {
         sombras->setDistancia(distancia);
     }
 }

@@ -491,16 +491,26 @@ consulta el mapa para oscurecer lo que queda tapado.
   objetos, bajalo.
 - **Fuerza**: cuanto se oscurece la zona en sombra. 0 deja la sombra sin efecto
   y 1 la deja completa.
-- **Radio**: semi-lado del frustum ortografico de la luz. La sombra abarca una
-  caja de lado `2 * radio` alrededor del foco: un radio grande cubre mas
-  escena, con menos resolucion efectiva.
+- **Radio** (solo luz direccional): semi-lado del area con sombra. La sombra
+  abarca una caja de lado `2 * radio` centrada delante de la camara: un radio
+  grande cubre mas escena, con menos resolucion efectiva. El encuadre se ajusta
+  a la grilla de texeles del mapa, asi que la sombra no "tiembla" al mover la
+  camara.
 - **Distancia**: alcance de la sombra, en unidades desde la luz.
 
-Dos limites del motor:
+Cada tipo de luz usa su proyeccion:
 
-- Solo proyectan sombra las luces **direccionales** y **spot**. Las puntuales
-  proyectan en todas las direcciones, asi que necesitarian un mapa por cara; el
-  motor las cuenta aparte y avisa por consola de que no proyectan.
+- **Direccional**: ortografica, delante de la camara.
+- **Spot**: perspectiva que cubre el cono de la luz (su angulo de corte).
+- **Puntual**: un cubemap de 6 caras que guarda la distancia a la luz, con
+  filtrado suave en el borde.
+
+El sesgo crece solo en las superficies inclinadas respecto de la luz y el punto
+consultado se corre un poco a lo largo de la normal: asi se evita el acne sin
+despegar la sombra de los objetos.
+
+Limite del motor:
+
 - Como mucho **4 mapas de sombra** a la vez. Si hay mas luces con sombra, las
   que se quedan fuera se avisan por consola (las primeras 4 son las que
   proyectan).

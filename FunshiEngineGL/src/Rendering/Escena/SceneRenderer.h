@@ -27,7 +27,7 @@
 #include "../Cielo/Cielo.h"
 #include "../Lineas/GrillaRenderer.h"
 #include "../Lineas/GuiaEje.h"
-#include "../Sombras/MapaSombras.h"
+#include "../Sombras/PasadaSombras.h"
 #include "../Render2D/SpriteRenderer.h"
 #include "../Render2D/ParticulasRenderer.h"
 #include "../Render2D/TilemapRenderer.h"
@@ -157,10 +157,6 @@ private:
     // frame (el mapa depende de la luz, no de la camara) y antes de las
     // vistas previas, para que todas las pasadas vean las mismas sombras.
     void prepararSombras(const FrameContext& ctx, CameraComponent* camara);
-    // Dibuja la geometria de la escena con el programa de profundidad, desde
-    // el punto de vista de la luz.
-    void dibujarGeometriaParaSombra(const FrameContext& ctx,
-                                    const glm::mat4& matrizLuz);
     void dibujarGameObjectsConOjo(const FrameContext& ctx, GameObject* camaraOjo,
                                   const float view[16],
                                   const float projection[16]);
@@ -230,14 +226,8 @@ private:
     Rendering::Backend::IRenderBackend& backend_;
     std::unique_ptr<class MeshRenderer> meshRenderer_;
     GrillaRenderer grillaRenderer_;
-    // Mapas de sombra de la pasada: los objetivos de profundidad por luz que
-    // proyecta sombra y los proyectores con los que el shader de mallas los
-    // consulta.
-    Rendering::MapaSombras mapaSombras_;
-    std::vector<Rendering::CandidatoProyector> candidatosSombra_;
-    std::vector<Rendering::ProyectorSombra> proyectoresSombra_;
-    // Los proyectores que tienen mapa de verdad (los que el shader consulta).
-    std::vector<Rendering::ProyectorSombra> proyectoresConMapa_;
+    // Pasada de sombras (mapas de profundidad por luz que proyecta sombra).
+    Rendering::PasadaSombras pasadaSombras_;
     // Pasada de sprites 2D (componente SpriteRenderer): mismo pipeline moderno
     // sobre su propio shader y malla de quad.
     Rendering::SpriteRenderer spriteRenderer_;

@@ -65,4 +65,32 @@ FocoLuz focoPosicional(const glm::vec3& posicion, const glm::vec3& direccion,
 FocoLuz focoDireccional(const glm::vec3& centro, const glm::vec3& direccion,
                         float radio, float alcance);
 
+// Matriz de una luz direccional estabilizada: igual que matrizLuz(focoDireccional)
+// pero el centro se ajusta a la grilla de texeles del mapa en el espacio de la
+// luz. Asi, cuando la camara (y con ella el centro) se mueve, la sombra no
+// "nada": el mapa solo se desplaza de a texeles enteros.
+glm::mat4 matrizDireccionalEstable(const glm::vec3& centro,
+                                   const glm::vec3& direccion, float radio,
+                                   float alcance, int resolucion);
+
+// Matriz de una luz spot: perspectiva cuyo campo cubre el cono de la luz
+// (angulo de corte en grados, medido desde el eje) con un margen para que el
+// PCF no lea fuera del mapa en el borde del cono.
+glm::mat4 matrizLuzSpot(const glm::vec3& posicion, const glm::vec3& direccion,
+                        float anguloCorteGrados, float alcance);
+
+// Plano cercano de las proyecciones en perspectiva de las luces. Es
+// proporcional al alcance para no gastar la precision del mapa cerca de la luz.
+float planoCercanoLuz(float alcance);
+
+// Caras de un cubemap en el orden de OpenGL (+X, -X, +Y, -Y, +Z, -Z).
+constexpr int kCarasCuboLuz = 6;
+
+// Las seis matrices (proyeccion 90 grados x vista) de una luz puntual, con los
+// vectores "arriba" de la convencion de cubemaps de OpenGL: la cara que se
+// dibuja con la matriz i es la que el hardware muestrea en la direccion de esa
+// cara, sin volteos.
+void matricesCaraCubo(const glm::vec3& posicion, float alcance,
+                      glm::mat4 salida[kCarasCuboLuz]);
+
 #endif

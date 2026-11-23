@@ -116,12 +116,21 @@ public:
 
     // Pases de sombras.
     //
+    // Pase de profundidad de un mapa de sombras: la matriz de la luz (o de la
+    // cara del cubemap) y, para cubemaps, la posicion y el alcance de la luz
+    // (el mapa guarda distancia / alcance).
+    struct ParametrosProfundidad {
+        glm::mat4 matrizLuz{1.f};
+        bool esCubo = false;
+        glm::vec3 posicionLuz{0.f};
+        float alcance = 1.f;
+    };
+
     // Dibuja la malla en el pase de profundidad: solo escribe la profundidad
-    // vista desde la luz, con el programa de profundidad y la matriz de la
-    // luz. No aplica materiales ni luces. Devuelve false si no hay programa
-    // o si la malla no es dibujable.
+    // vista desde la luz. Devuelve false si no hay programa o si la malla no
+    // es dibujable.
     bool intentarRenderSombra(const Mesh* mesh, const float modelo[16],
-                               const glm::mat4& matrizLuz);
+                              const ParametrosProfundidad& pase);
 
     // Mapas de sombra de la pasada: los proyectores con los que el shader de
     // mallas consulta la profundidad. Los mapas se enlazan a las unidades de
@@ -143,6 +152,8 @@ private:
     // Programa del pase de profundidad (mapa de sombras). Es aparte del de
     // las mallas: escribe profundidad y nada mas.
     std::shared_ptr<ShaderProgram> shaderSombra_;
+    // Pase de profundidad de los cubemaps (luces puntuales).
+    std::shared_ptr<ShaderProgram> shaderSombraCubo_;
     // Compilacion determinista: si el shader embebido fallo una vez, queda
     // marcado y inicializar() no vuelve a intentarlo (ni a loguearlo) por frame.
     bool falloShader_ = false;

@@ -39,6 +39,7 @@
 #include "../Shaders/ShaderProgram.h"
 #include "../Shaders/GestorShaders.h"
 #include "../Sombras/MapaSombras.h"
+#include "../Sombras/UniformsSombras.h"
 #include "../Texturas/TextureGL.h"
 #include "../Backend/IRenderBackend.h"
 
@@ -58,8 +59,7 @@ constexpr int kUnidadTexturaDifusa = 0;
 constexpr int kUnidadTexturaEspecular = 1;
 constexpr int kUnidadTexturaEmision = 2;
 constexpr int kUnidadTexturaNormal = 3;
-constexpr int kUnidadTexturaSombra = 4;      // 4..7 para sampler2DShadow (kMaxProyectoresSombra = 4)
-constexpr int kUnidadTexturaSombraCubo = 8;  // 8..11 para samplerCube (kMaxProyectoresSombra = 4)
+// Las unidades 4..11 son de los mapas de sombra (ver UniformsSombras.h).
 
 } // namespace
 
@@ -84,12 +84,14 @@ bool MeshRenderer::inicializar() {
         // motor dibuja sin sombras en vez de no dibujar nada.
         try {
             shaderSombra_ = gestorShaders_->obtener("profundidad");
+            shaderSombraCubo_ = gestorShaders_->obtener("profundidad_cubo");
         } catch (const std::exception& e) {
             registrarExcepcionDiagnostica("Rendering/MeshRenderer", e,
                                           NivelDiagnostico::Advertencia);
             std::cerr << "[MeshRenderer] Programa de profundidad no disponible: "
                       << e.what() << '\n';
             shaderSombra_.reset();
+            shaderSombraCubo_.reset();
         }
         configurarSamplers();
         aplicarLuces();
@@ -210,74 +212,13 @@ void MeshRenderer::configurarSamplers() {
     shader_->setInt("uEmissionTex", kUnidadTexturaEmision);
     shader_->setInt("uNormalTex", kUnidadTexturaNormal);
 
-    // 2. Mapas de sombra 2D (sampler2DShadow, unidades 4..7)
-    for (int i = 0; i < Rendering::kMaxProyectoresSombra; ++i) {
-        char name[32];
-        std::snprintf(name, sizeof(name), "uShadowMap%d", i);
-        shader_->setInt(name, kUnidadTexturaSombra + i);
-    }
-
-    // 3. Mapas de sombra puntuales (samplerCube, unidades 8..11)
-    for (int i = 0; i < Rendering::kMaxProyectoresSombra; ++i) {
-        char name[32];
-        std::snprintf(name, sizeof(name), "uShadowCube%d", i);
-        shader_->setInt(name, kUnidadTexturaSombraCubo + i);
-    }
+    // Mapas de sombra (unidades 4..11).
+    Rendering::UniformsSombras::configurarSamplers(*shader_);
 }
 
 void MeshRenderer::aplicarSombras() {
     if (!shader_) return;
-    // Los uniforms se suben con el programa activo: sin use() se descartan.
-    shader_->use();
-
-    const int count =
-        std::min(Rendering::kMaxProyectoresSombra,
-                 static_cast<int>(sombras_.size()));
-    shader_->setInt("uShadowCount", count);
-
-    for (int i = 0; i < count; ++i) {
-        const Rendering::ProyectorSombra& proyector =
-            sombras_[static_cast<std::size_t>(i)];
-        char name[32];
-
-        // El sampler de cada mapa (uShadowMap0..3: GLSL 3.30 no deja indexar un
-        // array de samplers con una variable).
-        std::snprintf(name, sizeof(name), "uShadowMap%d", i);
-        shader_->setInt(name, kUnidadTexturaSombra + i);
-
-        std::snprintf(name, sizeof(name), "uShadowMatrix[%d]", i);
-        shader_->setMat4(name, proyector.matrizLuz);
-        std::snprintf(name, sizeof(name), "uShadowBias[%d]", i);
-        shader_->setFloat(name, proyector.sesgo);
-        std::snprintf(name, sizeof(name), "uShadowStrength[%d]", i);
-        shader_->setFloat(name, proyector.fuerza);
-        std::snprintf(name, sizeof(name), "uShadowTexel[%d]", i);
-        shader_->setFloat(name,
-                          1.f / static_cast<float>(proyector.resolucion > 0
-                                                       ? proyector.resolucion
-                                                       : 1));
-        std::snprintf(name, sizeof(name), "uShadowLightIndex[%d]", i);
-        shader_->setInt(name, proyector.indiceLuz);
-    }
-
-    // Luces puntuales (cubemap): subir las 6 matrices por luz, la distancia
-    // de alcance y vincular el sampler de cubemap a su unidad de textura.
-    for (int i = 0; i < count; ++i) {
-        const Rendering::ProyectorSombra& proyector =
-            sombras_[static_cast<std::size_t>(i)];
-        if (!proyector.esCubemap) continue;
-        char name[48];
-        const int base = proyector.indiceLuz * Rendering::kCarasCubemap;
-        for (int cara = 0; cara < Rendering::kCarasCubemap; ++cara) {
-            std::snprintf(name, sizeof(name), "uShadowMatrixCubo[%d]", base + cara);
-            shader_->setMat4(name, proyector.matricesLuz[cara]);
-        }
-        std::snprintf(name, sizeof(name), "uShadowDistancia[%d]", proyector.indiceLuz);
-        shader_->setFloat(name, proyector.distancia);
-        const int idxCubo = std::min(proyector.indiceLuz, Rendering::kMaxProyectoresSombra - 1);
-        std::snprintf(name, sizeof(name), "uShadowCube%d", idxCubo);
-        shader_->setInt(name, kUnidadTexturaSombraCubo + idxCubo);
-    }
+    Rendering::UniformsSombras::subir(*shader_, sombras_);
 }
 
 void MeshRenderer::aplicarMaterial(GameObject* objeto, const IMaterial* material) {
@@ -522,52 +463,37 @@ const MeshGPU* MeshRenderer::obtenerGpu(const Mesh* mesh) {
 }
 
 void MeshRenderer::enlazarTexturasSombra() {
-    if (!shader_) return;
-    if (!backend_) return;
-    auto& backend = *backend_;
-    const int count =
-        std::min(Rendering::kMaxProyectoresSombra,
-                 static_cast<int>(sombras_.size()));
-    for (int i = 0; i < count; ++i) {
-        const Rendering::Backend::Handle textura =
-            sombras_[static_cast<std::size_t>(i)].textura;
-        if (textura == Rendering::Backend::kInvalidHandle) continue;
-        if (sombras_[static_cast<std::size_t>(i)].esCubemap) {
-            const int idxCubo = std::min(sombras_[static_cast<std::size_t>(i)].indiceLuz,
-                                         Rendering::kMaxProyectoresSombra - 1);
-            backend.bindTextureCube(textura, kUnidadTexturaSombraCubo + idxCubo);
-        } else {
-            backend.bindTexture2D(textura, kUnidadTexturaSombra + i);
-        }
-    }
+    if (!shader_ || !backend_) return;
+    Rendering::UniformsSombras::enlazarTexturas(*backend_, sombras_);
 }
 
 bool MeshRenderer::intentarRenderSombra(const Mesh* mesh, const float modelo[16],
-                                        const glm::mat4& matrizLuz) {
+                                        const ParametrosProfundidad& pase) {
     if (!mesh || mesh->isEmpty()) return false;
     if (!inicializar()) return false;
     // Sin programa de profundidad no hay pase de sombras, pero el resto de la
     // escena se dibuja igual.
-    if (!shaderSombra_) return false;
+    ShaderProgram* programa =
+        pase.esCubo ? shaderSombraCubo_.get() : shaderSombra_.get();
+    if (!programa || !backend_) return false;
 
     const glm::mat4 model = glm::make_mat4(modelo);
     if (!matrizFinita(glm::mat3(model))) return false;
 
-    const glm::mat4 modelLight = matrizLuz * model;
-
     const MeshGPU* gpu = obtenerGpu(mesh);
     if (!gpu) return false;
 
-    shaderSombra_->use();
-    shaderSombra_->setMat4("uModel", model);
-    shaderSombra_->setMat4("uLightMatrix", matrizLuz);
-    shaderSombra_->setMat4("uModelLight", modelLight);
+    programa->use();
+    programa->setMat4("uModelLight", pase.matrizLuz * model);
+    if (pase.esCubo) {
+        programa->setMat4("uModel", model);
+        programa->setVec3("uPosLuz", pase.posicionLuz);
+        programa->setFloat("uAlcance", pase.alcance > 0.f ? pase.alcance : 1.f);
+    }
 
     // El pase de profundidad no escribe color: el blend se apaga.
-    if (!backend_) return false;
-    auto& backend = *backend_;
-    backend.setBlendEnabled(false);
+    backend_->setBlendEnabled(false);
     gpu->draw();
-    ShaderProgram::unbind(backend);
+    ShaderProgram::unbind(*backend_);
     return true;
 }

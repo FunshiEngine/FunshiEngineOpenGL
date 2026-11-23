@@ -59,7 +59,6 @@
 #include "../../Objetos/Componentes/Colliders/Collider.h"
 #include "../../Objetos/Componentes/Escena/Grid.h"
 #include "../../Objetos/Componentes/Escena/Light.h"
-#include "../../Objetos/Componentes/Sombras/Sombras.h"
 #include "../../Objetos/Componentes/Escena/Transform.h"
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/Componentes/Render/Material.h"
@@ -80,7 +79,7 @@ SceneRenderer::SceneRenderer(Rendering::Backend::IRenderBackend& backend)
     : backend_(backend),
       meshRenderer_(std::make_unique<MeshRenderer>()),
       grillaRenderer_(backend),
-      mapaSombras_(backend),
+      pasadaSombras_(backend),
       marcadoresBatch_(backend) {
     meshRenderer_->setBackend(backend);
     spriteRenderer_.setBackend(backend);
@@ -621,169 +620,33 @@ void SceneRenderer::prepararLucesFrame(const FrameContext& ctx) {
     meshRenderer_->setLuces(ctx.lights, ctx.lightCount, ctx.globalAmbient);
 }
 
-// Pasada de sombras.
-//
-// Las luces que proyectan sombra son las que tienen el componente Sombras
-// adjunto. Se recorren las luces ya recogidas (no la escena otra vez): el
-// dueno de cada luz es el mismo objeto del que salio la luz, asi que el
-// indice del proyector es el indice de su luz en los uniforms de iluminacion
-// (asi la sombra atenua la contribucion de esa luz y no la de las demas).
+// Pasada de sombras: la logica vive en Rendering::PasadaSombras; aqui solo se
+// arma su entrada con las luces del frame y la camara activa.
 void SceneRenderer::prepararSombras(const FrameContext& ctx,
                                     CameraComponent* camara) {
     if (!meshRenderer_) return;
 
-    auto& backend = backend_;
-
-    candidatosSombra_.clear();
-    // Sin luces o sin duenos no hay nada que proyecte sombra. Se sigue igual
-    // con el resto de la pasada para que los mapas anteriores se liberen y el
-    // shader no consulte sombras de un frame que ya no existe.
-    const int count = (ctx.lights && ctx.lightOwners)
-                          ? std::min(ctx.lightCount, LightSystem::kMaxLights)
-                          : 0;
-    for (int i = 0; i < count; ++i) {
-        GameObject* dueno = ctx.lightOwners[i];
-        if (!dueno) continue;
-
-        Sombras* ajustes = dueno->getComponent<Sombras>();
-        if (!ajustes || !ajustes->estaActivado()) continue;
-
-        const LightData& luz = ctx.lights[i];
-        Rendering::CandidatoProyector candidato;
-        candidato.indiceLuz = i;
-        candidato.posicion =
-            glm::vec3(luz.worldPos[0], luz.worldPos[1], luz.worldPos[2]);
-        candidato.direccion =
-            glm::vec3(luz.direction[0], luz.direction[1], luz.direction[2]);
-        // El tipo de luz en el shader: 0 direccional, 1 punto, 2 spot.
-        if (luz.type == 0)
-            candidato.tipo = Rendering::TipoLuzProyector::Direccional;
-        else if (luz.type == 2)
-            candidato.tipo = Rendering::TipoLuzProyector::Spot;
-        else
-            candidato.tipo = Rendering::TipoLuzProyector::Puntual;
-        candidato.resolucion = ajustes->getResolucion();
-        candidato.sesgo = ajustes->getSesgo();
-        candidato.fuerza = ajustes->getFuerza();
-        candidato.radio = ajustes->getRadio();
-        candidato.distancia = ajustes->getDistancia();
-        candidatosSombra_.push_back(candidato);
-    }
-
-    proyectoresSombra_.assign(
-        static_cast<std::size_t>(Rendering::kMaxProyectoresSombra),
-        Rendering::ProyectorSombra());
-
-    // El centro del frustum de una luz direccional: la camara (es lo que el
-    // jugador ve). Las luces posicionales usan su propia posicion.
-    glm::vec3 centroEscena(0.f);
+    Rendering::PasadaSombras::Entrada entrada;
+    entrada.luces = ctx.lights;
+    entrada.duenos = ctx.lightOwners;
+    entrada.cantidadLuces = ctx.lightCount;
+    entrada.objetos = ctx.gameObjects;
+    entrada.framebufferAncho = ctx.framebufferWidth;
+    entrada.framebufferAlto = ctx.framebufferHeight;
     if (camara) {
         const float* pos = camara->getPosition();
-        if (pos) centroEscena = glm::vec3(pos[0], pos[1], pos[2]);
-    }
-
-    const Rendering::ResultadoSeleccion seleccion = seleccionarProyectores(
-        candidatosSombra_.data(), static_cast<int>(candidatosSombra_.size()),
-        Rendering::kMaxProyectoresSombra, centroEscena,
-        proyectoresSombra_.data());
-
-    if (seleccion.noSoportados > 0) {
-        std::cerr << "[Sombras] " << seleccion.noSoportados
-                  << " luz(es) punuales no proyectan sombra (hacen falta un "
-                     "mapa por cara).\n";
-    }
-    if (seleccion.porLimite > 0) {
-        std::cerr << "[Sombras] " << seleccion.porLimite
-                  << " luz(es) con sombra se quedaron fuera por el limite de "
-                     "mapas (" << Rendering::kMaxProyectoresSombra << ").\n";
-    }
-
-    // Cada proyector necesita su mapa de profundidad: se prepara (o se
-    // rehace si cambio la resolucion) y se dibuja la escena desde la luz.
-    // Los proyectores que sí tienen mapa se guardan aparte: si uno falla
-    // (el backend no pudo crear el objetivo), los de detras no deben ocupar su
-    // lugar, porque el shader los leeria con los datos de otro mapa.
-    proyectoresConMapa_.clear();
-    for (int i = 0; i < seleccion.elegidos; ++i) {
-        Rendering::ProyectorSombra& proyector =
-            proyectoresSombra_[static_cast<std::size_t>(i)];
-        if (!mapaSombras_.preparar(i, proyector.resolucion,
-                                   proyector.esCubemap)) {
-            // El backend no pudo crear el objetivo: esa luz se dibuja sin
-            // sombra y el motor sigue.
-            std::cerr << "[Sombras] No se pudo crear el mapa de sombra ("
-                      << proyector.resolucion << "px).\n";
-            continue;
+        if (pos) {
+            entrada.hayCamara = true;
+            entrada.posicionCamara = glm::vec3(pos[0], pos[1], pos[2]);
+            // El frente de la camara es -Z de su vista (tercera fila de la
+            // rotacion de la matriz de vista).
+            float vista[16];
+            camara->getViewMatrix(vista);
+            const glm::vec3 frente(-vista[2], -vista[6], -vista[10]);
+            if (glm::length(frente) > 1e-6f) entrada.frenteCamara = glm::normalize(frente);
         }
-        const Rendering::MapaSombras::Mapa& mapa = mapaSombras_.mapa(i);
-        proyector.textura = mapa.textura;
-
-        if (proyector.esCubemap) {
-            // Luz puntual: dibujar la geometria una vez por cara del cubemap
-            // (+X, -X, +Y, -Y, +Z, -Z), cada una con su propia matriz de luz.
-            for (int cara = 0; cara < Rendering::kCarasCubemap; ++cara) {
-                backend.bindDepthTargetCuboFace(mapa.target, cara);
-                backend.setDepthTestEnabled(true);
-                backend.setDepthMask(true);
-                backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
-                backend.clearScreen(nullptr);
-                dibujarGeometriaParaSombra(ctx,
-                                           proyector.matricesLuz[cara]);
-            }
-        } else {
-            // Luz direccional/spot: un solo mapa 2D.
-            backend.bindDepthTarget(mapa.target);
-            backend.setDepthTestEnabled(true);
-            backend.setDepthMask(true);
-            backend.setDepthFunc(Rendering::Backend::kDepthFuncLess);
-            // El destino no tiene color: limpiar el bit de color no hace nada.
-            backend.clearScreen(nullptr);
-            dibujarGeometriaParaSombra(ctx, proyector.matrizLuz);
-        }
-
-        proyectoresConMapa_.push_back(proyector);
     }
-
-    // Los mapas de los proyectores que ya no se usan se sueltan.
-    mapaSombras_.liberarDesde(seleccion.elegidos);
-
-    // Vuelta al framebuffer de la ventana con su viewport: el mapa de sombras
-    // es cuadrado y dejo el viewport en su lado.
-    backend.bindDefaultFramebuffer();
-    if (ctx.framebufferWidth > 0 && ctx.framebufferHeight > 0)
-        backend.setViewport(0, 0, ctx.framebufferWidth, ctx.framebufferHeight);
-
-    meshRenderer_->setSombras(proyectoresConMapa_.data(),
-                               static_cast<int>(proyectoresConMapa_.size()));
-}
-
-// Geometria de la escena vista desde la luz: solo escribe profundidad. Cada
-// objeto con malla (Modelos3D o componente Model) se dibuja con el programa
-// de profundidad y la matriz de la luz. Las condiciones son las mismas que en
-// la pasada normal: lo que se ve, sombra.
-void SceneRenderer::dibujarGeometriaParaSombra(const FrameContext& ctx,
-                                                const glm::mat4& matrizLuz) {
-    if (!meshRenderer_ || !ctx.gameObjects || ctx.gameObjects->isEmpty()) return;
-
-    Position<GameObject*>* pos = ctx.gameObjects->first();
-    while (pos && pos->getElement()) {
-        GameObject* objeto = pos->getElement();
-        if (static_cast<Transform*>(
-                objeto->getComponentByName("Transform"))) {
-            auto* modeloComp = objeto->getComponent<Model>();
-            if (modeloComp) {
-                const Mesh* malla = modeloComp->getMesh();
-                Transform* transform = objeto->getGlobalTransform();
-                if (malla && !malla->isEmpty() && transform) {
-                    float matriz[16];
-                    buildMatrixFromTransform(transform, matriz);
-                    meshRenderer_->intentarRenderSombra(malla, matriz, matrizLuz);
-                }
-            }
-        }
-        pos = (pos != ctx.gameObjects->last()) ? ctx.gameObjects->next(pos)
-                                               : nullptr;
-    }
+    pasadaSombras_.ejecutar(entrada, *meshRenderer_);
 }
 
 void SceneRenderer::dibujarGameObjectsConOjo(const FrameContext& ctx,

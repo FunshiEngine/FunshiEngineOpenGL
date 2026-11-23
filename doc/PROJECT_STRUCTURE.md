@@ -531,8 +531,12 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   ├── OpenGL3Backend.h/.cpp   ← implementación OpenGL 3.3 core
         │   │   └── GLFuncs.h                ← carga perezosa de funciones GL
         │   ├── Sombras/                    ← mapa de sombras de las luces
-        │   │   └── MapaSombras.h/.cpp     ← selección de proyectores (luces que proyectan)
-        │   │                              y dueño de los objetivos de profundidad por luz
+        │   │   ├── MapaSombras.h/.cpp     ← selección de proyectores (luces que proyectan)
+        │   │   │                          y dueño de los objetivos de profundidad por slot
+        │   │   ├── PasadaSombras.h/.cpp   ← pasada del frame: candidatos (componente
+        │   │   │                          Sombras), mapas, geometría desde la luz
+        │   │   └── UniformsSombras.h/.cpp ← samplers/uniforms/texturas por slot del
+        │   │                              shader de mallas
         │   └── Shaders/                    ← sistema de shaders (gestor + GLSL embebido)
         │       ├── GestorShaders.h/.cpp   ← dueño de los programas: uno por nombre,
         │       │                              compilado una vez y compartido
@@ -1484,11 +1488,12 @@ restantes compilan también con `BUILD_ENGINE=OFF`):
   include se inserta en su sitio, los anidados, el include inexistente, el ciclo
   y el tope de anidamiento dan error limpio) y el gestor de shaders (un programa
   por nombre, compilado una vez y compartido entre los que lo piden).
-- `sombras-tests` (75): la matriz de la luz (vista desde la luz y proyección
+- `sombras-tests` (91): la matriz de la luz (vista desde la luz y proyección
   ortográfica, con los casos degenerados: luz sin dirección, radio o alcance
-  inválidos), el componente `Sombras` con sus ajustes y la selección de
-  proyectores (las luces puntuales no soportadas, el límite de mapas y el orden
-  en que se eligen).
+  inválidos), la direccional ajustada a la grilla de texeles, la spot en
+  perspectiva, las 6 caras del cubemap con la convención de OpenGL, el
+  componente `Sombras` con sus ajustes y la selección de proyectores (el límite
+  de mapas y el orden en que se eligen).
 - `musica-tests` (84): el reproductor de música con un backend falso: la lista
   ordenada de pistas (por ruta), la reproducción, el fundido cruzado (la pista
   que sale baja mientras la que entra sube), el paso automático a la pista
