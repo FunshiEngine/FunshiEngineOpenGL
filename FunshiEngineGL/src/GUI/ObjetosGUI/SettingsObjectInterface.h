@@ -25,6 +25,7 @@
 #include "../../Herramientas/IconosGUI/IResolutorIconos.h"
 #include <array>
 #include <functional>
+#include <string>
 
 class GameObject;
 class SettingsComponent;
@@ -36,6 +37,8 @@ class IPreviewMaterial;
 
 class SettingsObjectInterface : public GeneralUserInterface {
 private:
+	// Archivo soltado en el inspector, aplicado al terminar el recorrido.
+	std::string archivoSoltado_;
 	GameObject* object;
 	GameObject* tagBufferOwner_ = nullptr;
 	std::array<char, 128> tagBuffer_{};

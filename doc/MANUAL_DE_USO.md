@@ -309,10 +309,39 @@ escena con IDs nuevos; el original no se toca.
 
 **Instanciar un prefab**
 
-Arrastra el `.prefab` desde el explorador de contenido y suéltalo sobre
-cualquier fila del panel **SelectedObjects**: la instancia entra en la raíz de
-la escena y queda seleccionada para moverla con el gizmo. Conserva **nombre, tag, Transform,
-jerarquía completa y todos los componentes** del prefab original.
+Arrastra el `.prefab` desde el explorador de contenido y suéltalo:
+
+- sobre la **escena** (viewport): la instancia aparece donde apunta el mouse;
+- sobre una **fila de la jerarquía** o sobre el **Inspector** de un objeto: la
+  instancia entra como **hija** de ese objeto.
+
+La instancia queda seleccionada y conserva **nombre, tag, Transform, jerarquía
+completa y todos los componentes** del prefab original. El `.prefab` puede estar
+en cualquier carpeta del proyecto: se resuelve por su ruta, no por su nombre.
+
+### Arrastrar archivos a la escena y al Inspector
+
+Cualquier archivo del explorador de contenido se puede soltar en la escena: el
+editor reconoce su tipo y crea un objeto con el componente que corresponde, en
+el punto del plano de juego bajo el mouse (z = 0 en 2D, y = 0 en 3D). Mientras
+arrastras, junto al cursor se indica que se va a crear. Ctrl+Z deshace la
+creación.
+
+| Archivo | Objeto que se crea |
+|---------|--------------------|
+| `.prefab` | instancia del prefab |
+| `.obj` `.fbx` `.gltf` `.glb` `.dae` `.3ds` `.blend` ... | objeto con `Model` |
+| `.png` `.jpg` `.tga` `.bmp` ... | objeto con `SpriteRenderer` |
+| `.wav` `.ogg` `.mp3` `.flac` | objeto con `AudioSource` |
+| `.json` de tileset (estilo Tiled) | objeto con `Tilemap` y una capa de 16x16 |
+| `.json` de perfil de partículas | objeto con `EmisorParticulas` |
+| `.html` | objeto con `InterfaceComponent` |
+| `.cpp` / `.java` | objeto con `Script` (si se suelta **sobre un objeto** de la escena, el script se agrega a ese objeto) |
+
+Soltado sobre el **Inspector** (en cualquier parte que no sea un campo propio
+de un componente) o sobre una **fila de la jerarquía**, el archivo se aplica al
+objeto: reemplaza la ruta del componente de ese tipo si ya lo tiene, o se lo
+agrega si no.
 
 **Biblioteca de prefabs (`PrefabLibrary`)**
 

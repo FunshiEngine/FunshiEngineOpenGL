@@ -252,6 +252,12 @@ GameObject* leerArbol(std::ifstream& in, EditorController* editor, GameObject* p
 Prefab::Prefab(const std::string& nombre)
     : nombre_(nombre), rutaArchivo_(rutaParaNombre(nombre)) {}
 
+std::unique_ptr<Prefab> Prefab::desdeArchivo(const std::string& ruta) {
+    auto prefab = std::make_unique<Prefab>(fs::path(ruta).stem().string());
+    prefab->rutaArchivo_ = ruta;
+    return prefab;
+}
+
 std::string Prefab::rutaParaNombre(const std::string& nombre) const {
     fs::path base = EditorConfig::raizAssetsFijada();
     fs::path dir = base / "Prefabs";

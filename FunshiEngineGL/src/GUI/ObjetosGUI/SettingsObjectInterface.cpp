@@ -36,8 +36,7 @@
 #include "Skybox/SettingsSkybox.h"
 #include "Sprite/SettingsSpriteRenderer.h"
 #include "../../Objetos/Componentes/Nucleo/CatalogoComponentes.h"
-#include "../../Objetos/PrefabLibrary.h"
-#include "../../Objetos/Prefab.h"
+#include "../../Scenes/Editor/ArrastreArchivos.h"
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/TagRegistry.h"
 #include "../../Objetos/Componentes/Escena/Light.h"
@@ -64,6 +63,7 @@
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/TypeUtils.h"
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <typeinfo>
 #include <algorithm>
 #include <cstring>
@@ -488,46 +488,14 @@ void SettingsObjectInterface::contentGUI() {
 				}
 				ImGui::EndDragDropTarget();
 			}
-// Drag & drop: .prefab -> instanciar; .obj -> crear objeto con Model
+			// Archivo soltado sobre la cabecera del componente: se aplica al
+			// objeto inspeccionado al terminar el recorrido (agregar un componente
+			// ahora invalidaria la lista que se esta iterando).
 			if (ImGui::BeginDragDropTarget()) {
 				if (const ImGuiPayload* payload =
 				        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
-					const char* path = static_cast<const char*>(payload->Data);
-					if (path && editor) {
-						std::string pathStr(path);
-						std::cout << "[DEBUG Inspector] Drag-drop received: " << pathStr << std::endl;
-						if (pathStr.size() >= 7 &&
-						    pathStr.substr(pathStr.size() - 7) == ".prefab") {
-							std::string nombre =
-							    std::filesystem::path(pathStr).stem().string();
-							if (auto* prefabLib = editor->getPrefabLibrary()) {
-								if (Prefab* prefab = prefabLib->obtener(nombre)) {
-									GameObject* instancia =
-									    prefab->instanciar(editor, nullptr);
-									if (instancia)
-										editor->selectObject(instancia);
-								}
-							}
-						} else if (pathStr.size() >= 4 &&
-						           pathStr.substr(pathStr.size() - 4) == ".obj") {
-							auto obj = std::make_unique<SimpleObject>();
-							std::string nombre =
-							    std::filesystem::path(pathStr).stem().string();
-							std::snprintf(obj->inputName,
-							              sizeof(obj->inputName), "%s",
-							              nombre.c_str());
-							GameObject* creado =
-							    editor->createGameObject(std::move(obj), nullptr);
-							if (creado) {
-								auto* model = new Model();
-								model->setAssetManager(editor->getAssetManager());
-								model->setPath(pathStr);
-								creado->addComponent(
-								    std::unique_ptr<Component>(model));
-								editor->selectObject(creado);
-							}
-						}
-					}
+					if (payload->Data)
+						archivoSoltado_ = static_cast<const char*>(payload->Data);
 				}
 				ImGui::EndDragDropTarget();
 			}
@@ -546,6 +514,34 @@ void SettingsObjectInterface::contentGUI() {
 	}
 
 	iterandoComponentes = false;
+
+	// Toda la ventana es destino de archivos: los campos de cada panel tienen
+	// su propio destino y, como ImGui entrega el payload al destino mas chico
+	// bajo el mouse, este solo recibe lo que se suelta fuera de ellos.
+	if (object) {
+		ImGuiWindow* ventana = ImGui::GetCurrentWindow();
+		if (ImGui::BeginDragDropTargetCustom(ventana->InnerRect,
+		                                     ImGui::GetID("##InspectorDropArchivo"))) {
+			if (const ImGuiPayload* payload =
+			        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+				if (payload->Data)
+					archivoSoltado_ = static_cast<const char*>(payload->Data);
+			}
+			ImGui::EndDragDropTarget();
+		}
+	}
+	if (!archivoSoltado_.empty()) {
+		const std::string ruta = std::move(archivoSoltado_);
+		archivoSoltado_.clear();
+		if (object && editor) {
+			const ArrastreArchivos::Resultado r =
+			    ArrastreArchivos::aplicarAObjeto(*editor, *object, ruta);
+			if (!r.ok)
+				std::cerr << "[Inspector] " << ruta << ": " << r.mensaje << std::endl;
+			else if (r.objeto && r.objeto != object)
+				editor->selectObject(r.objeto);
+		}
+	}
 
 	// Procesar borrado diferido fuera de la iteracion
 	if (componenteABorrar) {

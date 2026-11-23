@@ -34,18 +34,10 @@
 #include <cstring>
 #include <filesystem>
 #include <imgui.h>
+
+#include "../../Scenes/Editor/ArrastreArchivos.h"
 #include <typeinfo>
 
-namespace {
-
-bool esArchivoPrefab(const char* ruta) {
-    std::string extension = std::filesystem::path(ruta).extension().string();
-    for (char& c : extension)
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return extension == ".prefab";
-}
-
-}  // namespace
 
 SceneObjectTree::~SceneObjectTree() { unbind(); }
 
@@ -263,54 +255,20 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
                 objetoPadreNuevo = object;
             }
         }
-        // Archivo .prefab soltado desde el explorador de contenido: se
-        // instancia en la raiz (no como hijo de la fila, para que el prefab
-        // conserve la jerarquia con la que se guardo).
-        const ImGuiPayload* archivo =
-            ImGui::AcceptDragDropPayload("PREFAB_ASSET");
-        if (!archivo) archivo = ImGui::AcceptDragDropPayload("ARCHIVO_PATH");
-        if (archivo) {
+        // Archivo soltado desde el explorador sobre la fila: se aplica a ese
+        // objeto (un prefab se instancia como hijo, un modelo/imagen/audio
+        // reemplaza o agrega el componente que corresponde).
+        if (const ImGuiPayload* archivo = ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
             const char* rutaSoltada = static_cast<const char*>(archivo->Data);
-            if (rutaSoltada && *rutaSoltada && esArchivoPrefab(rutaSoltada))
-                instanciarPrefabDesdeRuta(rutaSoltada);
-            else if (rutaSoltada && *rutaSoltada)
-                std::cerr << "[SceneObjectTree] el archivo arrastrado no es "
-                             "un prefab: " << rutaSoltada << std::endl;
+            if (rutaSoltada && *rutaSoltada && editor) {
+                archivoSoltado_ = rutaSoltada;
+                objetoDestinoArchivo_ = object;
+            }
         }
         ImGui::EndDragDropTarget();
     }
 
     return {nodeOpen, toggled};
-}
-
-bool SceneObjectTree::instanciarPrefabDesdeRuta(const char* ruta) {
-    if (!editor || !ruta || !*ruta) return false;
-    PrefabLibrary* biblioteca = editor->getPrefabLibrary();
-    if (!biblioteca) return false;
-    // Del archivo arrastrado se toma el nombre sin extension: es la clave con
-    // la que la biblioteca carga y cachea los prefabs (obtener() lo levanta
-    // del disco si no esta en cache, asi que alcanza con el nombre).
-    const std::string archivo =
-        std::filesystem::path(ruta).filename().string();
-    const std::string sufijo = ".prefab";
-    if (archivo.size() <= sufijo.size()) return false;
-    const std::string nombre = archivo.substr(0, archivo.size() - sufijo.size());
-    Prefab* prefab = biblioteca->obtener(nombre);
-    if (!prefab) {
-        std::cerr << "[SceneObjectTree] no se encontro el prefab '" << nombre
-                  << "': " << ruta << std::endl;
-        return false;
-    }
-    // La instancia nace en la raiz de la escena; el usuario la mueve donde
-    // quiera (el gizmo y el inspector la dejan a tiro al seleccionarla).
-    GameObject* instancia = prefab->instanciar(editor, nullptr);
-    if (!instancia) {
-        std::cerr << "[SceneObjectTree] no se pudo instanciar el prefab '"
-                  << nombre << "'" << std::endl;
-        return false;
-    }
-    editor->selectObject(instancia);
-    return true;
 }
 
 void SceneObjectTree::dibujarDialogosModales() {
@@ -456,6 +414,17 @@ void SceneObjectTree::applyDeferredOperations() {
             editor, objetoAReParentar, objetoPadreNuevo, scene));
     objetoAReParentar = nullptr;
     objetoPadreNuevo = nullptr;
+
+    // Archivo soltado sobre una fila: se aplica al objeto de esa fila.
+    if (!archivoSoltado_.empty() && objetoDestinoArchivo_ && editor &&
+        scene && scene->contains(objetoDestinoArchivo_)) {
+        const ArrastreArchivos::Resultado r = ArrastreArchivos::aplicarAObjeto(
+            *editor, *objetoDestinoArchivo_, archivoSoltado_);
+        if (r.ok && r.objeto) editor->selectObject(r.objeto);
+        else std::cerr << "[SceneObjectTree] " << archivoSoltado_ << ": " << r.mensaje << std::endl;
+    }
+    archivoSoltado_.clear();
+    objetoDestinoArchivo_ = nullptr;
 
     if (objetoADesanidar) {
         GameObject* raiz = scene ? scene->getRoot() : nullptr;

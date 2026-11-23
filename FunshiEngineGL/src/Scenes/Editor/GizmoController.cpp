@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "GizmoController.h"
+#include "RayoPantalla.h"
 
 #include <algorithm>
 #include <cmath>
@@ -442,30 +443,16 @@ GameObject* GizmoController::pickObject(float mouseX, float mouseY,
     float screenH = io.DisplaySize.y;
     if (screenW <= 0.0f || screenH <= 0.0f) return nullptr;
 
-    float x = (2.0f * mouseX) / screenW - 1.0f;
-    float y = 1.0f - (2.0f * mouseY) / screenH;
-
     float view[16], projection[16];
     camara->getViewMatrix(view);
     camara->getProjectionMatrix(projection, screenW / screenH);
 
-    glm::mat4 viewMat = glm::make_mat4(view);
-    glm::mat4 projMat = glm::make_mat4(projection);
-    glm::mat4 invVP = glm::inverse(projMat * viewMat);
-
-    glm::vec4 rayStartClip(x, y, -1.0f, 1.0f);
-    glm::vec4 rayEndClip(x, y, 1.0f, 1.0f);
-
-    glm::vec4 rayStartWorld = invVP * rayStartClip;
-    if (std::abs(rayStartWorld.w) < 1e-6f) return nullptr;
-    rayStartWorld /= rayStartWorld.w;
-
-    glm::vec4 rayEndWorld = invVP * rayEndClip;
-    if (std::abs(rayEndWorld.w) < 1e-6f) return nullptr;
-    rayEndWorld /= rayEndWorld.w;
-
-    glm::vec3 rayOrigin = glm::vec3(rayStartWorld);
-    glm::vec3 rayDir = glm::normalize(glm::vec3(rayEndWorld - rayStartWorld));
+    Rayo rayo;
+    if (!RayoPantalla::desdePixel(mouseX, mouseY, screenW, screenH,
+                                  glm::make_mat4(view), glm::make_mat4(projection), rayo))
+        return nullptr;
+    const glm::vec3 rayOrigin = rayo.origen;
+    const glm::vec3 rayDir = rayo.direccion;
 
     GameObject* closestObject = nullptr;
     float minDistance = 1e30f;

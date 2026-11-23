@@ -1002,6 +1002,23 @@ set_target_properties(prefab-tests PROPERTIES
 )
 add_test(NAME prefab-tests COMMAND prefab-tests)
 
+# Arrastre de archivos a la escena / inspector: clasificacion de archivos por
+# tipo, rayo de pantalla y creacion de objetos (con undo) por tipo de archivo.
+add_executable(arrastre-archivos-tests
+    ${FUNSHI_TESTS_DIR}/ArrastreArchivosTests.cpp
+)
+target_include_directories(arrastre-archivos-tests PRIVATE
+    ${SRC_DIR}
+    ${CMAKE_SOURCE_DIR}/External
+)
+target_link_libraries(arrastre-archivos-tests PRIVATE funshi_engine)
+set_target_properties(arrastre-archivos-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME arrastre-archivos-tests COMMAND arrastre-archivos-tests)
+
 # Nucleo del manifiesto de assets de la escena (SceneAssets.json): headless,
 # sin GameObjects (como MenuModel). Cubre JSON round-trip, tolerancia a
 # archivos corruptos/inexistentes, relativizacion/absolutizacion contra la

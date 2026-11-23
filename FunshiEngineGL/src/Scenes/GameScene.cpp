@@ -37,6 +37,8 @@
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../Objetos/Componentes/Colliders/Collider.h"
 #include "../Objetos/Componentes/Render/Model.h"
+#include "Editor/ArrastreArchivos.h"
+#include "Editor/DropEscena.h"
 #include "Editor/EditorController.h"
 #include "Serializacion/ManifiestoAssets.h"
 #include "Serializacion/RutasReescritura.h"
@@ -1034,40 +1036,19 @@ void GameScene::pintarViewportsGUI() {
                    static_cast<float>(target->getHeight())),
             ImVec2(0.f, 1.f), ImVec2(1.f, 0.f));
 
-        // Drag & drop: .prefab -> instanciar; .obj -> crear objeto con Model
-        // Usa InvisibleButton superpuesto para crear zona de drop válida
+        // Soltar un archivo sobre la vista previa crea su objeto (sin
+        // posicion: la vista previa no es la camara con la que se edita).
         ImGui::InvisibleButton(("##ViewportDropTarget" + std::to_string(index)).c_str(),
                                ImVec2(static_cast<float>(target->getWidth()),
                                       static_cast<float>(target->getHeight())));
         if (ImGui::BeginDragDropTarget()) {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
-                const char* path = static_cast<const char*>(payload->Data);
-                if (path && editorController) {
-                    std::string pathStr(path);
-                    std::cout << "[DEBUG Viewport] Drag-drop received: " << pathStr << std::endl;
-                    if (pathStr.size() >= 7 && pathStr.substr(pathStr.size() - 7) == ".prefab") {
-                        // Instanciar prefab
-                        std::string nombre = std::filesystem::path(pathStr).stem().string();
-                        if (auto* prefabLib = editorController->getPrefabLibrary()) {
-                            if (Prefab* prefab = prefabLib->obtener(nombre)) {
-                                GameObject* instancia = prefab->instanciar(editorController.get(), nullptr);
-                                if (instancia) editorController->selectObject(instancia);
-                            }
-                        }
-                    } else if (pathStr.size() >= 4 && pathStr.substr(pathStr.size() - 4) == ".obj") {
-                        // Crear objeto con Model component
-                        auto obj = std::make_unique<SimpleObject>();
-                        std::string nombre = std::filesystem::path(pathStr).stem().string();
-                        std::snprintf(obj->inputName, sizeof(obj->inputName), "%s", nombre.c_str());
-                        GameObject* creado = editorController->createGameObject(std::move(obj), nullptr);
-                        if (creado) {
-                            auto* model = new Model();
-                            model->setAssetManager(editorController->getAssetManager());
-                            model->setPath(pathStr);
-                            creado->addComponent(std::unique_ptr<Component>(model));
-                            editorController->selectObject(creado);
-                        }
-                    }
+                const char* ruta = static_cast<const char*>(payload->Data);
+                if (ruta && editorController) {
+                    const ArrastreArchivos::Resultado r = ArrastreArchivos::crearDesdeArchivo(
+                        *editorController, ruta, ArrastreArchivos::Destino());
+                    if (r.ok && r.objeto) editorController->selectObject(r.objeto);
+                    else std::cerr << "[Escena] " << ruta << ": " << r.mensaje << '\n';
                 }
             }
             ImGui::EndDragDropTarget();
@@ -1601,6 +1582,12 @@ void GameScene::gameScene() {
     }
 
     GUI();
+    // Archivos del explorador soltados sobre la escena (viewport): crean el
+    // objeto que corresponde a su tipo donde apunta el mouse.
+    if (!modoJuego && managerGUI && editorController)
+        DropEscena::procesar(*editorController, camara, getGameObjectsScene(),
+                             gizmoController_.get(),
+                             dimensionProyecto == DimensionProyecto::DosD);
     // El overlay HUD de las interfaces de juego solo se dibuja en el juego
     // exportado (sin GUI del editor). En el editor, cada interfaz se previsualiza
     // unicamente en la ventana dockable "Vista de interfaz" (pintarVistaInterfaz)
