@@ -18,9 +18,9 @@
 */
 #include "PreviewMaterial.h"
 
-#include "../../Assets/Mesh.h"
-#include "../../Assets/Primitivas3D.h"
-#include "../RenderTarget.h"
+#include "../../Assets/Mallas/Mesh.h"
+#include "../../Assets/Mallas/Primitivas3D.h"
+#include "../Escena/RenderTarget.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>

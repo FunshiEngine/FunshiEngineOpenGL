@@ -19,7 +19,7 @@
 #ifndef SETTINGS_TILEMAP_H
 #define SETTINGS_TILEMAP_H
 
-#include "../../../Objetos/Componentes/Tilemap.h"
+#include "../../../Objetos/Componentes/Juego2D/Tilemap.h"
 #include "../SettingsComponent.h"
 
 class GameObject;

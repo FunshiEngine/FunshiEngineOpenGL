@@ -18,7 +18,7 @@
 */
 #include "SettingsUIComponent.h"
 
-#include "../../../Objetos/Componentes/UIComponent.h"
+#include "../../../Objetos/Componentes/Interfaz/UIComponent.h"
 #include "../../../Objetos/GameObject.h"
 
 #include <imgui.h>

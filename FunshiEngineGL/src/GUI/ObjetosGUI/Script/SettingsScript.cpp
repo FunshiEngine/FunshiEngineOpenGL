@@ -25,7 +25,7 @@
 
 #include "../../../Behaviour/Reflection/BehaviourReflection.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Script.h"
+#include "../../../Objetos/Componentes/Scripting/Script.h"
 #include "../../../Herramientas/TypeUtils.h"
 #include <imgui.h>
 

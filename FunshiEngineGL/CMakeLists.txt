@@ -675,10 +675,10 @@ add_test(NAME emisor-particulas-tests COMMAND emisor-particulas-tests)
 
 # --- Prueba headless del campo texturaParticula del emisor -------------------
 add_executable(particulas-textura-tests
-    ${SRC_DIR}/Objetos/Componentes/EmisorParticulas.cpp
+    ${SRC_DIR}/Objetos/Componentes/Efectos/EmisorParticulas.cpp
     ${SRC_DIR}/Particulas/SistemaParticulas.cpp
-    ${SRC_DIR}/Particulas/LectorPerfil.cpp
-    ${SRC_DIR}/Particulas/PerfilParticula.cpp
+    ${SRC_DIR}/Particulas/Perfil/LectorPerfil.cpp
+    ${SRC_DIR}/Particulas/Perfil/PerfilParticula.cpp
     ${FUNSHI_TESTS_DIR}/ParticulasTexturaTests.cpp
     ${FUNSHI_TESTS_DIR}/EditorConfigStubs.cpp
 )
@@ -694,11 +694,11 @@ add_test(NAME particulas-textura-tests COMMAND particulas-textura-tests)
 # escritor valida las mismas invariantes que la carga, y el emisor lee el
 # perfil por ruta (el mismo camino que recorre el drag & drop del inspector).
 add_executable(particulas-perfil-tests
-    ${SRC_DIR}/Objetos/Componentes/EmisorParticulas.cpp
+    ${SRC_DIR}/Objetos/Componentes/Efectos/EmisorParticulas.cpp
     ${SRC_DIR}/Particulas/SistemaParticulas.cpp
-    ${SRC_DIR}/Particulas/LectorPerfil.cpp
-    ${SRC_DIR}/Particulas/EscritorPerfil.cpp
-    ${SRC_DIR}/Particulas/PerfilParticula.cpp
+    ${SRC_DIR}/Particulas/Perfil/LectorPerfil.cpp
+    ${SRC_DIR}/Particulas/Perfil/EscritorPerfil.cpp
+    ${SRC_DIR}/Particulas/Perfil/PerfilParticula.cpp
     ${FUNSHI_TESTS_DIR}/ParticulasPerfilTests.cpp
     ${FUNSHI_TESTS_DIR}/EditorConfigStubs.cpp
 )
@@ -1010,7 +1010,7 @@ add_executable(manifiesto-assets-tests
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
     ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
-    ${SRC_DIR}/Scenes/ManifiestoAssetsCore.cpp
+    ${SRC_DIR}/Scenes/Serializacion/ManifiestoAssetsCore.cpp
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
     ${FUNSHI_TESTS_DIR}/ManifiestoAssetsTests.cpp
 )
@@ -1074,7 +1074,7 @@ add_test(NAME tema-tests COMMAND tema-tests)
 # dependencias externas: por eso vive en el bloque del motor y no en el de las
 # pruebas headless.
 add_executable(interface-component-tests
-    ${SRC_DIR}/Objetos/Componentes/InterfaceComponent.cpp
+    ${SRC_DIR}/Objetos/Componentes/Interfaz/InterfaceComponent.cpp
     ${FUNSHI_TESTS_DIR}/InterfaceComponentTests.cpp
 )
 target_link_libraries(interface-component-tests PRIVATE
@@ -1119,7 +1119,7 @@ add_executable(webui-runtime-tests
     ${SRC_DIR}/WebUI/WebUIRuntime.cpp
     ${SRC_DIR}/WebUI/VistasWebUI.cpp
     ${SRC_DIR}/WebUI/EstadoInterfaces.cpp
-    ${SRC_DIR}/Objetos/Componentes/InterfaceComponent.cpp
+    ${SRC_DIR}/Objetos/Componentes/Interfaz/InterfaceComponent.cpp
     ${FUNSHI_TESTS_DIR}/WebUIRuntimeTests.cpp
 )
 target_link_libraries(webui-runtime-tests PRIVATE
@@ -1287,13 +1287,13 @@ file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/$<CONFIG>/RutasPlugin
 # cortafuegos de esquemaVersion, validacion de campos, dependencias/conflictos
 # y lectura desde disco.
 add_executable(mods-tests
-    ${SRC_DIR}/Mods/ModVersion.cpp
-    ${SRC_DIR}/Mods/ManifiestoMod.cpp
-    ${SRC_DIR}/Mods/LectorZip.cpp
-    ${SRC_DIR}/Mods/GestorMods.cpp
-    ${SRC_DIR}/Mods/CargadorMods.cpp
-    ${SRC_DIR}/Mods/RegistroPanelesMods.cpp
-    ${SRC_DIR}/Mods/ServiciosMods.cpp
+    ${SRC_DIR}/Mods/Formato/ModVersion.cpp
+    ${SRC_DIR}/Mods/Formato/ManifiestoMod.cpp
+    ${SRC_DIR}/Mods/Formato/LectorZip.cpp
+    ${SRC_DIR}/Mods/Carga/GestorMods.cpp
+    ${SRC_DIR}/Mods/Carga/CargadorMods.cpp
+    ${SRC_DIR}/Mods/Api/RegistroPanelesMods.cpp
+    ${SRC_DIR}/Mods/Api/ServiciosMods.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
     ${FUNSHI_TESTS_DIR}/ModsTests.cpp
@@ -1455,7 +1455,7 @@ add_test(NAME importar-archivos-tests COMMAND importar-archivos-tests)
 # cmd.exe que usa el harvest de vcvars. Se compila Proceso.cpp directamente
 # (no hace falta funshi_engine: el modulo es std + API de SO).
 add_executable(proceso-tests
-    ${SRC_DIR}/FileManager/Proceso.cpp
+    ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
     ${FUNSHI_TESTS_DIR}/ProcesoTests.cpp
 )
 target_include_directories(proceso-tests PRIVATE ${SRC_DIR})
@@ -1507,7 +1507,7 @@ add_executable(model-serialization-tests
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
     ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
-    ${SRC_DIR}/Objetos/Componentes/Model.cpp
+    ${SRC_DIR}/Objetos/Componentes/Render/Model.cpp
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
     ${FUNSHI_TESTS_DIR}/ModelSerializationTests.cpp
 )
@@ -1541,8 +1541,8 @@ add_test(NAME menu-tests COMMAND menu-tests)
 # rutas (AssetPath), geometria (Mesh) y el registro compartido con un loader
 # artificial, sin Assimp ni pila grafica.
 add_executable(assetmanager-tests
-    ${SRC_DIR}/Assets/AssetManager.cpp
-    ${SRC_DIR}/Assets/Mesh.cpp
+    ${SRC_DIR}/Assets/Mallas/AssetManager.cpp
+    ${SRC_DIR}/Assets/Mallas/Mesh.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp
     ${FUNSHI_TESTS_DIR}/AssetManagerTests.cpp
@@ -1560,8 +1560,8 @@ add_test(NAME assetmanager-tests COMMAND assetmanager-tests)
 # tambien el cargador real (StbImageLoader) para comprobar el volteo vertical:
 # stb_image es CPU puro, no toca la pila grafica.
 add_executable(texturemanager-tests
-    ${SRC_DIR}/Assets/TextureManager.cpp
-    ${SRC_DIR}/Assets/StbImageLoader.cpp
+    ${SRC_DIR}/Assets/Imagenes/TextureManager.cpp
+    ${SRC_DIR}/Assets/Imagenes/StbImageLoader.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/External/stb_image/stb_image_impl.cpp
     ${FUNSHI_TESTS_DIR}/TextureManagerTests.cpp
@@ -1628,9 +1628,9 @@ add_test(NAME estructuras-tests COMMAND estructuras-tests)
 # la cuenta de vertices y los extremos de la guia se pueden verificar sin pila
 # grafica.
 add_executable(rendering-tests
-    ${SRC_DIR}/Rendering/LineBuilder.cpp
-    ${SRC_DIR}/Rendering/GuiaEje.cpp
-    ${SRC_DIR}/Rendering/Difuminado.cpp
+    ${SRC_DIR}/Rendering/Lineas/LineBuilder.cpp
+    ${SRC_DIR}/Rendering/Lineas/GuiaEje.cpp
+    ${SRC_DIR}/Rendering/Cielo/Difuminado.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${FUNSHI_TESTS_DIR}/RenderingTests.cpp
 )
@@ -1646,8 +1646,8 @@ add_test(NAME rendering-tests COMMAND rendering-tests)
 # compila y corre tambien en el build sin motor.
 add_executable(particulas-tests
     ${SRC_DIR}/Particulas/SistemaParticulas.cpp
-    ${SRC_DIR}/Particulas/PerfilParticula.cpp
-    ${SRC_DIR}/Particulas/LectorPerfil.cpp
+    ${SRC_DIR}/Particulas/Perfil/PerfilParticula.cpp
+    ${SRC_DIR}/Particulas/Perfil/LectorPerfil.cpp
     ${SRC_DIR}/Particulas/ParticulasBuilder.cpp
     ${FUNSHI_TESTS_DIR}/ParticulasTests.cpp
 )
@@ -1681,7 +1681,7 @@ add_test(NAME interfaz-ui-tests COMMAND interfaz-ui-tests)
 # anidados y vectores de grupos) y el round-trip binario del arbol de valores.
 add_executable(scripts-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
-    ${SRC_DIR}/FileManager/Proceso.cpp
+    ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
     ${SRC_DIR}/Input/InputScripts.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${FUNSHI_TESTS_DIR}/ScriptsTests.cpp
@@ -1710,7 +1710,7 @@ add_executable(scripts-runtime-tests
     ${SRC_DIR}/Behaviour/Backends/BackendCpp.cpp
     ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
-    ${SRC_DIR}/FileManager/Proceso.cpp
+    ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${FUNSHI_TESTS_DIR}/ScriptsRuntimeTests.cpp
 )
@@ -1770,7 +1770,7 @@ add_test(NAME audio-tests COMMAND audio-tests)
 add_executable(audio-source-tests
     ${SRC_DIR}/Audio/AudioEngine.cpp
     ${SRC_DIR}/Audio/GestorMusica.cpp
-    ${SRC_DIR}/Objetos/Componentes/AudioSource.cpp
+    ${SRC_DIR}/Objetos/Componentes/Audio/AudioSource.cpp
     ${FUNSHI_TESTS_DIR}/AudioSourceTests.cpp
     ${FUNSHI_TESTS_DIR}/EditorConfigStubs.cpp
 )
@@ -1811,7 +1811,7 @@ if(FUNSHI_JAVA)
         ${SRC_DIR}/Behaviour/Backends/BackendJava.cpp
         ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
         ${SRC_DIR}/Configuracion/ProjectPaths.cpp
-        ${SRC_DIR}/FileManager/Proceso.cpp
+        ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
         ${SRC_DIR}/Matematicas/StructVec3.cpp
         ${FUNSHI_TESTS_DIR}/ScriptsJavaTests.cpp
     )

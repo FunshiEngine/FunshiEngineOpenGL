@@ -19,8 +19,8 @@
 #include "SettingsModel.h"
 
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Model.h"
-#include "../../../Assets/AssimpMeshLoader.h"
+#include "../../../Objetos/Componentes/Render/Model.h"
+#include "../../../Assets/Mallas/AssimpMeshLoader.h"
 #include <imgui.h>
 #include <iostream>
 #include <string>

@@ -20,21 +20,21 @@
 
 #include "PropiedadesComponentes.h"
 
-#include "../Comandos/AgregarComponenteComando.h"
-#include "../Comandos/AjustarVariableComando.h"
-#include "../Comandos/CrearObjetoComando.h"
-#include "../Comandos/EstablecerTagComando.h"
-#include "../Comandos/QuitarComponenteComando.h"
+#include "../Comandos/Componentes/AgregarComponenteComando.h"
+#include "../Comandos/Componentes/AjustarVariableComando.h"
+#include "../Comandos/Objetos/CrearObjetoComando.h"
+#include "../Comandos/Objetos/EstablecerTagComando.h"
+#include "../Comandos/Componentes/QuitarComponenteComando.h"
 #include "../Entity/Entity.h"
 #include "../Herramientas/TypeUtils.h"
-#include "../Objetos/Componentes/CatalogoComponentes.h"
-#include "../Objetos/Componentes/Component.h"
-#include "../Objetos/Componentes/Transform.h"
+#include "../Objetos/Componentes/Nucleo/CatalogoComponentes.h"
+#include "../Objetos/Componentes/Nucleo/Component.h"
+#include "../Objetos/Componentes/Escena/Transform.h"
 #include "../Objetos/GameObject.h"
 #include "../Objetos/GameObjectFactory.h"
-#include "../Scenes/EditorController.h"
-#include "../Scenes/SceneRegistry.h"
-#include "../Scenes/SceneSerializer.h"
+#include "../Scenes/Editor/EditorController.h"
+#include "../Scenes/Registro/SceneRegistry.h"
+#include "../Scenes/Serializacion/SceneSerializer.h"
 
 #include <algorithm>
 #include <cctype>

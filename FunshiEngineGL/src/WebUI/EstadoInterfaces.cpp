@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#include "../Objetos/Componentes/InterfaceComponent.h"
+#include "../Objetos/Componentes/Interfaz/InterfaceComponent.h"
 
 namespace {
 

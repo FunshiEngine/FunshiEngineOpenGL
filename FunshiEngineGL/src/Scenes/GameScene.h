@@ -31,9 +31,9 @@
 #include "../Input/InputScripts.h"
 #include "../Configuracion/Apariencia.h"
 #include "../Configuracion/DimensionProyecto.h"
-#include "../Objetos/Componentes/ResolvedorMateriales.h"
+#include "../Objetos/Componentes/Render/ResolvedorMateriales.h"
 #include "../Particulas/SistemaParticulas.h"
-#include "OperacionGizmo.h"
+#include "Editor/OperacionGizmo.h"
 #include "../WebUI/VistasWebUI.h"
 #include "../WebUI/EstadoInterfaces.h"
 class CameraComponent;

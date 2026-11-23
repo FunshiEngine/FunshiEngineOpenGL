@@ -18,7 +18,7 @@
 */
 #include "SettingsGrid.h"
 
-#include "../../../Objetos/Componentes/Grid.h"
+#include "../../../Objetos/Componentes/Escena/Grid.h"
 #include "../../../Objetos/GameObject.h"
 
 SettingsGrid::SettingsGrid(GameObject* gameObject)

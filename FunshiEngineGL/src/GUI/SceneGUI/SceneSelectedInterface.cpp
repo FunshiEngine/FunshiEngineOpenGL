@@ -23,9 +23,9 @@
 
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/GameObjectFactory.h"
-#include "../../Comandos/CrearObjetoComando.h"
-#include "../../Scenes/EditorController.h"
-#include "../../Scenes/SceneRegistry.h"
+#include "../../Comandos/Objetos/CrearObjetoComando.h"
+#include "../../Scenes/Editor/EditorController.h"
+#include "../../Scenes/Registro/SceneRegistry.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
 

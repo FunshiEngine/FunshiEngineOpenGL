@@ -20,7 +20,7 @@
 #define SETTINGSCOLOR_H
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Color.h"
+#include "../../../Objetos/Componentes/Render/Color.h"
 
 class SettingsColor : public SettingsComponent {
 	GameObject* gameObject;

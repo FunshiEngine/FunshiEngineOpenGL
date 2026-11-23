@@ -19,7 +19,7 @@
 #include "SettingsEmisorParticulas.h"
 
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/EmisorParticulas.h"
+#include "../../../Objetos/Componentes/Efectos/EmisorParticulas.h"
 #include <imgui.h>
 
 #include <algorithm>
@@ -28,7 +28,7 @@
 #include <filesystem>
 #include <iostream>
 
-#include "../../../Assets/StbImageLoader.h"
+#include "../../../Assets/Imagenes/StbImageLoader.h"
 
 namespace {
 

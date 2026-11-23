@@ -27,11 +27,11 @@
 
 #include <imgui.h>
 
-#include "../../Assets/StbImageLoader.h"
+#include "../../Assets/Imagenes/StbImageLoader.h"
 #include "../../Configuracion/EditorConfig.h"
 #include "../../Configuracion/ProjectPaths.h"
-#include "../../Particulas/EscritorPerfil.h"
-#include "../../Particulas/LectorPerfil.h"
+#include "../../Particulas/Perfil/EscritorPerfil.h"
+#include "../../Particulas/Perfil/LectorPerfil.h"
 #include "../WindowNames.h"
 
 namespace {

@@ -25,13 +25,13 @@
 #include <string>
 #include <vector>
 
-#include "../../../Assets/AssetManager.h"
-#include "../../../Assets/Mesh.h"
-#include "../../../Objetos/Componentes/Materiales.h"
-#include "../../../Objetos/Componentes/Model.h"
+#include "../../../Assets/Mallas/AssetManager.h"
+#include "../../../Assets/Mallas/Mesh.h"
+#include "../../../Objetos/Componentes/Render/Materiales.h"
+#include "../../../Objetos/Componentes/Render/Model.h"
 #include "../../../Objetos/GameObject.h"
 #include "../../../Rendering/Preview/IPreviewMaterial.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 #include "../Material/EditorMaterialGUI.h"
 #include <imgui.h>
 

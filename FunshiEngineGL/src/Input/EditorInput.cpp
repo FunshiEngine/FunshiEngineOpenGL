@@ -27,13 +27,13 @@
 
 #include "../Scenes/GameScene.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Componentes/CameraComponent.h"
+#include "../Objetos/Componentes/Escena/CameraComponent.h"
 #include "../States/ApplicationStateMachine.h"
 #include "../States/OrquestadorEstadoGUI.h"
-#include "../Scenes/OperacionGizmo.h"
-#include "../Scenes/EditorController.h"
-#include "../Scenes/SceneRegistry.h"
-#include "../Comandos/BorrarObjetoComando.h"
+#include "../Scenes/Editor/OperacionGizmo.h"
+#include "../Scenes/Editor/EditorController.h"
+#include "../Scenes/Registro/SceneRegistry.h"
+#include "../Comandos/Objetos/BorrarObjetoComando.h"
 #include "AtajosEditor.h"
 
 // Trazas de captura de teclado del editor.

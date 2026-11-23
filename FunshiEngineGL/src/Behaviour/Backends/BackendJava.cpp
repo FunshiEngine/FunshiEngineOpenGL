@@ -44,7 +44,7 @@
 #include "../ScriptGameObject.h"
 #include "../../Configuracion/ProjectPaths.h"
 #include "../../Diagnosticos/RegistroDiagnosticos.h"
-#include "../../FileManager/Proceso.h"
+#include "../../FileManager/Procesos/Proceso.h"
 
 #ifndef FUNSHI_LIBJVM_DEFAULT
 #define FUNSHI_LIBJVM_DEFAULT ""

@@ -25,7 +25,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "../../../Objetos/GameObject.h"
-#include "../../../Rendering/LineBatch.h"
+#include "../../../Rendering/Lineas/LineBatch.h"
 
 namespace {
 constexpr std::uint32_t kColliderMagic = 0x324C4F43;

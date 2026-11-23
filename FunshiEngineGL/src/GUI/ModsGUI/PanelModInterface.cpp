@@ -21,7 +21,7 @@
 #include <imgui.h>
 
 #include "../../EngineTime.h"
-#include "../../Mods/RegistroPanelesMods.h"
+#include "../../Mods/Api/RegistroPanelesMods.h"
 
 PanelModInterface::PanelModInterface(const std::string& nombreVentana,
                                      const std::string& titulo)

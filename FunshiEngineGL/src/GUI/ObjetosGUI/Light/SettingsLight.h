@@ -20,7 +20,7 @@
 #define SETTINGSLIGHT_H
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Light.h"
+#include "../../../Objetos/Componentes/Escena/Light.h"
 
 class SettingsLight : public SettingsComponent {
 	GameObject* gameObject;

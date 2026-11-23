@@ -18,7 +18,7 @@
 */
 #include "PanelesModsInterface.h"
 
-#include "../../Mods/RegistroPanelesMods.h"
+#include "../../Mods/Api/RegistroPanelesMods.h"
 
 PanelesModsInterface::PanelesModsInterface() { sincronizar(); }
 

@@ -46,7 +46,7 @@
 #include <vector>
 
 // Proceso::ejecutarCmdCrudo (solo para el harvest del entorno de vcvars).
-#include "../../FileManager/Proceso.h"
+#include "../../FileManager/Procesos/Proceso.h"
 
 namespace CompilacionCpp {
 

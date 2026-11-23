@@ -24,7 +24,7 @@
 #include <string>
 
 #include "../Herramientas/TypeUtils.h"
-#include "../Objetos/Componentes/Transform.h"
+#include "Componentes/Escena/Transform.h"
 #include "../Estructuras/Comparable.h"
 #include "../Entity/Entity.h"
 

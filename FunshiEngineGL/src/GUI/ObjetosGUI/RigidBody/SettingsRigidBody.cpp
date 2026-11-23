@@ -20,7 +20,7 @@
 
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/RigidBody/RigidBody.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 #include <imgui.h>
 
 SettingsRigidBody::SettingsRigidBody(GameObject* objeto)

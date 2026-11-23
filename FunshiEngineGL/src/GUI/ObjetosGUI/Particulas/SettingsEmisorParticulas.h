@@ -21,7 +21,7 @@
 
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/EmisorParticulas.h"
+#include "../../../Objetos/Componentes/Efectos/EmisorParticulas.h"
 
 // Panel del emisor de particulas en el inspector.
 class SettingsEmisorParticulas : public SettingsComponent {

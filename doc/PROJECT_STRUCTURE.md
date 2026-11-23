@@ -340,7 +340,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   ├── PanelModInterface.h/.cpp  ← ventana de un panel de mod: abre la ventana de
         │   │   │                              ImGui y llama al callback que entrego el mod
         │   │   └── PanelesModsInterface.h/.cpp ← colección de esos paneles; se sincroniza con
-        │   │                                  Mods/RegistroPanelesMods cada frame (los mods
+        │   │                                  Mods/Api/RegistroPanelesMods cada frame (los mods
         │   │                                  pueden registrar paneles en caliente)
         │   ├── EfectosGUI/                 ← taller de efectos: la ventana dedicada
         │   │   └── AnimacionesParticulasInterface.h/.cpp ← pestañas Particulas (editor y
@@ -1315,6 +1315,22 @@ La convención general es un par `.h`/`.cpp` por clase. Las excepciones son:
 - Estructuras de datos genéricas, que deben ser header-only para la instanciación de plantillas.
 - Componentes pequeños y algunas interfaces GUI, parcialmente inline por el acoplamiento actual.
 - Headers de terceros, que conservan la organización original.
+
+### 6.1 Subcarpetas por módulo
+
+Los módulos con muchos archivos se agrupan en subcarpetas por responsabilidad
+(ningún nivel de carpeta junta más de una decena de archivos sueltos):
+
+| Módulo | Subcarpetas |
+|--------|-------------|
+| `Objetos/Componentes/` | `Nucleo/` (Component, ComponentFactory, CatalogoComponentes), `Escena/` (Transform, CameraComponent, Light, Grid), `Render/` (Model, Material(es), resolvedores, Color, Skybox, SpriteRenderer), `Audio/`, `Interfaz/` (InterfaceComponent, UIComponent), `Juego2D/` (Tilemap, Animador2D), `Efectos/` (EmisorParticulas), `Scripting/` (Script), `Colliders/`, `RigidBody/`, `Sombras/` |
+| `Rendering/` | `Lineas/`, `Mallas/` (MeshGPU, MeshRenderer, DibujoModelo), `Cielo/`, `Render2D/` (Sprite, Tilemap, Partículas, UI), `Escena/` (SceneRenderer, RenderTarget, ProyeccionCamara), `Texturas/`, `Sombras/`, `Shaders/`, `Backend/`, `Preview/` |
+| `Comandos/` | `Objetos/`, `Componentes/`, `Transform/` (`IComando.h` y `GestorComandos.h` en la raíz) |
+| `Scenes/` | `Serializacion/`, `Editor/` (EditorController, GizmoController), `Registro/` (SceneRegistry), `Juego/` (InterfacesJuego, CameraFrameSafety); `GameScene` en la raíz |
+| `Assets/` | `Mallas/`, `Imagenes/`, `Tiles/` (`AssetPath.h` y `AssetException.h` en la raíz) |
+| `Mods/` | `Formato/` (ZIP, manifiesto, versión), `Carga/`, `Api/` |
+| `FileManager/` | `Portapapeles/`, `Drop/`, `Procesos/` |
+| `Particulas/` | `Perfil/` (lectura/escritura del perfil) |
 
 `CMakeLists.txt` descubre automáticamente los `.cpp` y `.h` bajo `src/` mediante
 `GLOB_RECURSE CONFIGURE_DEPENDS`. Los nuevos archivos de implementación se incorporan

@@ -23,7 +23,7 @@
 #include <cstring>
 
 #include "../../../Herramientas/MaterialPresets.h"
-#include "../../../Objetos/Componentes/Material.h"
+#include "../../../Objetos/Componentes/Render/Material.h"
 #include "../../../Rendering/Preview/IPreviewMaterial.h"
 #include <imgui.h>
 

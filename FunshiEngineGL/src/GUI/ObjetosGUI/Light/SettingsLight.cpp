@@ -19,7 +19,7 @@
 #include "SettingsLight.h"
 
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Light.h"
+#include "../../../Objetos/Componentes/Escena/Light.h"
 #include <imgui.h>
 
 SettingsLight::SettingsLight(GameObject* gameObject)

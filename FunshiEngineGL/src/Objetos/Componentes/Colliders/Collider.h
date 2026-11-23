@@ -20,8 +20,8 @@
 #define COLLIDER_H
 #include <memory>
 #include <vector>
-#include "../Component.h"
-#include "../Transform.h"
+#include "../Nucleo/Component.h"
+#include "../Escena/Transform.h"
 
 class btCollisionShape;
 class GameObject;

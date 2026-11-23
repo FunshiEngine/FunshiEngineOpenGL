@@ -19,7 +19,7 @@
 #include "SettingsColor.h"
 
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Color.h"
+#include "../../../Objetos/Componentes/Render/Color.h"
 #include <imgui.h>
 
 SettingsColor::SettingsColor(GameObject* gameObject)

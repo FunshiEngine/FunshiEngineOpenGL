@@ -19,7 +19,7 @@
 #include "SettingsCamera.h"
 
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/CameraComponent.h"
+#include "../../../Objetos/Componentes/Escena/CameraComponent.h"
 #include <imgui.h>
 
 SettingsCamera::SettingsCamera(GameObject* gameObject)

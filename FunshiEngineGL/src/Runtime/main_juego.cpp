@@ -48,7 +48,7 @@
 #include "../GUI/Estado/EstadoInterfazImGui.h"
 #include "../Hilos/HiloActual.h"
 #include "../Rendering/Backend/IRenderBackend.h"
-#include "../Rendering/FondoEscena.h"
+#include "../Rendering/Cielo/FondoEscena.h"
 #include "../Behaviour/ScriptRuntime.h"
 #include "../States/ApplicationStateMachine.h"
 #include "../States/OrquestadorEstadoGUI.h"

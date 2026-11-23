@@ -21,7 +21,7 @@
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/PrefabLibrary.h"
 #include "../../../Objetos/Prefab.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 #include <imgui.h>
 #include <algorithm>
 

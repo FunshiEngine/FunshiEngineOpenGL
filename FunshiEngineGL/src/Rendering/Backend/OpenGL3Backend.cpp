@@ -24,7 +24,7 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
-#include "../LineBuilder.h"
+#include "../Lineas/LineBuilder.h"
 #include "../../Particulas/ParticulasBuilder.h"
 #include "../Shaders/ShaderException.h"
 

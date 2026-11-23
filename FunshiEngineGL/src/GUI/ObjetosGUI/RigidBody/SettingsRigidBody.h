@@ -20,7 +20,7 @@
 #define SETTINGSRIGIDBODY_H
 #include "../SettingsComponent.h"
 #include "../../../Objetos/Componentes/RigidBody/RigidBody.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 
 class SettingsRigidBody : public SettingsComponent {
 protected:

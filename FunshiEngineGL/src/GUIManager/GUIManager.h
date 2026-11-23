@@ -43,8 +43,8 @@
 #include "../Herramientas/IconosGUI/CatalogoIconos.h"
 #include "../Herramientas/IconosGUI/ReglaIconoCatalogo.h"
 #include "../FileManager/FileManager.h"
-#include "../FileManager/PortapapelesSistema.h"
-#include "../FileManager/ReceptorDropGlfw.h"
+#include "../FileManager/Portapapeles/PortapapelesSistema.h"
+#include "../FileManager/Drop/ReceptorDropGlfw.h"
 #include "../Estructuras/ListasEnlazadas/ListasConPrioridad/PriorityListaDE.h"
 #include "../Events/EditorEventBus.h"
 

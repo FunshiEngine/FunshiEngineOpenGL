@@ -21,7 +21,7 @@
 
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/AudioSource.h"
+#include "../../../Objetos/Componentes/Audio/AudioSource.h"
 
 class AudioEngine;
 

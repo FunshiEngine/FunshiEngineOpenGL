@@ -22,9 +22,9 @@
 
 #include <imgui.h>
 
-#include "../../../Assets/StbImageLoader.h"
+#include "../../../Assets/Imagenes/StbImageLoader.h"
 #include "../../../Herramientas/TypeUtils.h"
-#include "../../../Objetos/Componentes/SpriteRenderer.h"
+#include "../../../Objetos/Componentes/Render/SpriteRenderer.h"
 #include "../../../Objetos/GameObject.h"
 
 SettingsSpriteRenderer::SettingsSpriteRenderer(GameObject* objeto)

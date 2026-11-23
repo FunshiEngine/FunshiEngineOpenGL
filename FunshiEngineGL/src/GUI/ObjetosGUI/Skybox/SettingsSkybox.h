@@ -22,7 +22,7 @@
 #include "../SettingsComponent.h"
 #include "SelectorArchivoCubemap.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Skybox.h"
+#include "../../../Objetos/Componentes/Render/Skybox.h"
 
 class SettingsSkybox : public SettingsComponent {
     GameObject* gameObject;

@@ -21,7 +21,7 @@
 
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/InterfaceComponent.h"
+#include "../../../Objetos/Componentes/Interfaz/InterfaceComponent.h"
 
 // Inspector del InterfaceComponent: ruta del .html de la interfaz (HUD) que se
 // muestra delante de la camara principal al entrar en modo play, mas su

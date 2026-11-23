@@ -22,7 +22,7 @@
 #include <string>
 
 #include "../GeneralUserInterface.h"
-#include "../../Particulas/PerfilParticula.h"
+#include "../../Particulas/Perfil/PerfilParticula.h"
 
 class EditorController;
 

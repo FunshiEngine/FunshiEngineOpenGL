@@ -18,7 +18,7 @@
 */
 #include "Entity.h"
 #include "../Herramientas/TypeUtils.h"
-#include "../Objetos/Componentes/ComponentFactory.h"
+#include "../Objetos/Componentes/Nucleo/ComponentFactory.h"
 #include "../Objetos/GameObject.h"
 #include <algorithm>
 #include <iostream>

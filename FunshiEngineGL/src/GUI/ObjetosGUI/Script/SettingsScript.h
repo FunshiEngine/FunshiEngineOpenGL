@@ -19,7 +19,7 @@
 #ifndef SETTINGSSCRIPT_H
 #define SETTINGSSCRIPT_H
 #include "../SettingsComponent.h"
-#include "../../../Objetos/Componentes/Script.h"
+#include "../../../Objetos/Componentes/Scripting/Script.h"
 
 class SettingsScript : public SettingsComponent {
 protected:

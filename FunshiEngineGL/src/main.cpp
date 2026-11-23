@@ -41,7 +41,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include "../src/Objetos/GameObject.h"
-#include "../src/Objetos/Componentes/CameraComponent.h"
+#include "Objetos/Componentes/Escena/CameraComponent.h"
 #include "../src/Proyectos/GestorDeProyectos.h"
 #include "../src/States/ApplicationStateMachine.h"
 #include "../src/States/OrquestadorEstadoGUI.h"
@@ -51,12 +51,12 @@
 #include "../src/Input/EditorInput.h"
 #include "../src/Hilos/HiloActual.h"
 #include "../src/Rendering/Backend/IRenderBackend.h"
-#include "../src/Rendering/FondoEscena.h"
+#include "Rendering/Cielo/FondoEscena.h"
 #include "../src/Diagnosticos/RegistroDiagnosticos.h"
-#include "../src/Mods/GestorMods.h"
-#include "../src/Mods/CargadorMods.h"
-#include "../src/Mods/DatosEscenaMods.h"
-#include "../src/Mods/ServiciosMods.h"
+#include "Mods/Carga/GestorMods.h"
+#include "Mods/Carga/CargadorMods.h"
+#include "Mods/Api/DatosEscenaMods.h"
+#include "Mods/Api/ServiciosMods.h"
 #include "../src/ExcepcionesCPP/RuntimeException.h"
 #ifdef FUNSHI_CEF
 #include "../src/WebUI/WebUIRuntime.h"

@@ -21,8 +21,8 @@
 #include <imgui.h>
 
 #include "../../../Herramientas/TypeUtils.h"
-#include "../../../Objetos/Componentes/Animador2D.h"
-#include "../../../Objetos/Componentes/SpriteRenderer.h"
+#include "../../../Objetos/Componentes/Juego2D/Animador2D.h"
+#include "../../../Objetos/Componentes/Render/SpriteRenderer.h"
 #include "../../../Objetos/GameObject.h"
 
 SettingsAnimador2D::SettingsAnimador2D(GameObject* objeto)

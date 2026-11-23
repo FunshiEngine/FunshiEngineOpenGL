@@ -18,8 +18,8 @@
 */
 #include "SettingsSkybox.h"
 
-#include "../../../Assets/StbImageLoader.h"
-#include "../../../Objetos/Componentes/Skybox.h"
+#include "../../../Assets/Imagenes/StbImageLoader.h"
+#include "../../../Objetos/Componentes/Render/Skybox.h"
 #include "../../../Objetos/GameObject.h"
 
 #include <cstring>

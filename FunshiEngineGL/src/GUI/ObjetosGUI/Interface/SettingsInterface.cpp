@@ -19,7 +19,7 @@
 #include "SettingsInterface.h"
 
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/InterfaceComponent.h"
+#include "../../../Objetos/Componentes/Interfaz/InterfaceComponent.h"
 
 #include <imgui.h>
 

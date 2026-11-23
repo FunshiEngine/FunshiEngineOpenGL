@@ -24,7 +24,7 @@
 #include "../GUIManager/GUIManager.h"
 #include "../GUI/MenusGUI/MenuGUI.h"
 #include "../Scenes/GameScene.h"
-#include "../Scenes/RutasReescritura.h"
+#include "../Scenes/Serializacion/RutasReescritura.h"
 
 namespace fs = std::filesystem;
 

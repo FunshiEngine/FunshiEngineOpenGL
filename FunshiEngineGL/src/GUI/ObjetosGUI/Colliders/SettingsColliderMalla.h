@@ -21,7 +21,7 @@
 #include "../SettingsComponent.h"
 #include "../Transform/SettingsTransform.h"
 #include "../../../Objetos/Componentes/Colliders/MallaCollider.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 
 class SettingsColliderMalla : public SettingsComponent {
 protected:

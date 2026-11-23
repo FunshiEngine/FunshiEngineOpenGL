@@ -19,7 +19,7 @@
 #ifndef SETTINGSTRANSFORM_H
 #define SETTINGSTRANSFORM_H
 #include "../SettingsComponent.h"
-#include "../../../Objetos/Componentes/Transform.h"
+#include "../../../Objetos/Componentes/Escena/Transform.h"
 #include "../../../Configuracion/DimensionProyecto.h"
 
 class GameObject;

@@ -18,7 +18,7 @@
 */
 #ifndef SOMBRAS_H
 #define SOMBRAS_H
-#include "../Component.h"
+#include "../Nucleo/Component.h"
 
 // Ajustes de la sombra que proyecta una luz.
 //

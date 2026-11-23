@@ -21,7 +21,7 @@
 #include "../Transform/SettingsTransform.h"
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/Colliders/EsfereCollider.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 #include <imgui.h>
 
 SettingsColliderEsfera::SettingsColliderEsfera(GameObject* objeto)

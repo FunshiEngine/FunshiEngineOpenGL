@@ -20,7 +20,7 @@
 #define SETTINGSCAMERA_H
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/CameraComponent.h"
+#include "../../../Objetos/Componentes/Escena/CameraComponent.h"
 #include "../../../Configuracion/DimensionProyecto.h"
 
 class SettingsCamera : public SettingsComponent {

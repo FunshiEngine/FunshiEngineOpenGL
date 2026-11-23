@@ -19,7 +19,7 @@
 #ifndef SETTINGSMODEL_H
 #define SETTINGSMODEL_H
 #include "../SettingsComponent.h"
-#include "../../../Objetos/Componentes/Model.h"
+#include "../../../Objetos/Componentes/Render/Model.h"
 
 class SettingsModel : public SettingsComponent {
 protected:

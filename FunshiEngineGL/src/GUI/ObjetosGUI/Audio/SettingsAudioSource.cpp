@@ -21,7 +21,7 @@
 #include "../../../Audio/AudioEngine.h"
 #include "../../../Audio/ExtensionesAudio.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/AudioSource.h"
+#include "../../../Objetos/Componentes/Audio/AudioSource.h"
 
 #include <imgui.h>
 #include <iostream>

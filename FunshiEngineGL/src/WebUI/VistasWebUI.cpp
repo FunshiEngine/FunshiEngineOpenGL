@@ -24,7 +24,7 @@
 #include <string>
 #include <utility>
 
-#include "../Objetos/Componentes/InterfaceComponent.h"
+#include "../Objetos/Componentes/Interfaz/InterfaceComponent.h"
 #include "EstadoInterfaces.h"
 #include "WebUIRuntime.h"
 

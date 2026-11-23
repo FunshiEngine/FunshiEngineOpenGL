@@ -21,7 +21,7 @@
 #include "../Transform/SettingsTransform.h"
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/Colliders/CubeCollider.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 #include <imgui.h>
 
 SettingsColliderCubo::SettingsColliderCubo(GameObject* objeto)

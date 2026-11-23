@@ -21,7 +21,7 @@
 
 #include <memory>
 
-#include "PerfilParticula.h"
+#include "Perfil/PerfilParticula.h"
 
 // Estado de una particula viva.
 //

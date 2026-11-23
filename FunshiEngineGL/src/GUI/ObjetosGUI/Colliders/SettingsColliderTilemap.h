@@ -21,7 +21,7 @@
 #include "../SettingsComponent.h"
 #include "../Transform/SettingsTransform.h"
 #include "../../../Objetos/Componentes/Colliders/TilemapCollider.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 
 class SettingsColliderTilemap : public SettingsComponent {
 protected:

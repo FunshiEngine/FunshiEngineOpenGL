@@ -20,7 +20,7 @@
 
 #include "../Configuracion/ProjectPaths.h"
 #include "../Configuracion/RutasLog.h"
-#include "../FileManager/Proceso.h"
+#include "../FileManager/Procesos/Proceso.h"
 #include "../Hilos/MotorHilos.h"
 #include "ConfigJuegoExportado.h"
 #include "ImportacionesPE.h"

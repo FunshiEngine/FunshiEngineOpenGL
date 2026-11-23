@@ -22,7 +22,7 @@
 #include "EditorMaterialGUI.h"
 
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Material.h"
+#include "../../../Objetos/Componentes/Render/Material.h"
 #include <imgui.h>
 
 SettingsMaterial::SettingsMaterial(GameObject* gameObject,

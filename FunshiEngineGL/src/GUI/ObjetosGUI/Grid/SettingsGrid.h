@@ -21,7 +21,7 @@
 
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Grid.h"
+#include "../../../Objetos/Componentes/Escena/Grid.h"
 
 class SettingsGrid : public SettingsComponent {
     GameObject* gameObject;
