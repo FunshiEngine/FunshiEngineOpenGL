@@ -150,6 +150,22 @@ genera para los proyectos que todavía no lo tienen. Es un JSON chico
 carpeta de su proyecto no se abre (el editor lo avisa en el log y arranca en el
 menú).
 
+**Importar un proyecto.** En **Configurar proyecto → Importar proyecto** se
+trae un proyecto que está en otro lugar (por ejemplo, copiado de otra
+computadora o de un pendrive):
+
+1. Tocá **Elegir carpeta...** y elegí la carpeta del proyecto, o **Elegir
+   archivo .fnep...** y elegí su `.fnep`.
+2. El editor comprueba que sea un proyecto (tiene `Memory/` y `src<Nombre>/`) y
+   propone su nombre. Si ya hay un proyecto con ese nombre, escribí otro.
+3. Tocá **Importar**: el proyecto se **copia** a la carpeta de proyectos
+   (`Proyects/`); el original no se modifica. Con otro nombre se renombran
+   `src<Nombre>` y el `.fnep`.
+4. El proyecto aparece en **Proyectos**; abrilo desde ahí como cualquier otro.
+
+Si la copia falla (disco lleno, permisos) no queda nada a medias: la copia se
+hace primero en una carpeta oculta y solo al terminar toma su nombre final.
+
 Asociar la extensión con el editor:
 
 - **Windows**: el instalador lo hace solo.

@@ -134,6 +134,8 @@ std::vector<ProjectManager::Proyecto> ProjectManager::descubrirProyectos() {
         if (!entry.is_directory(ec)) continue;
         const std::string nombre = entry.path().filename().string();
         if (!ProjectPaths::esNombreValido(nombre)) continue;
+        // Carpetas ocultas (".importando-X" de ImportarProyecto): no son proyectos.
+        if (nombre[0] == '.') continue;
 
         Proyecto p;
         p.nombre = nombre;

@@ -112,6 +112,25 @@ public:
     void setProyectoAEliminar(const std::string& nombre);
     void limpiarProyectoAEliminar() noexcept;
 
+    // Importar proyecto (Configurar proyecto): la vista pide copiar la carpeta
+    // de un proyecto externo con un nombre; main hace la copia en disco y deja
+    // el resultado para mostrarlo. Carpeta vacia = sin pedido.
+    struct PedidoImportar {
+        std::string carpeta;
+        std::string nombre;
+    };
+    struct ResultadoImportar {
+        bool hay = false;
+        bool exito = false;
+        Localizacion::Texto texto = Localizacion::Texto::ProyectoImportado;  // %s = nombre
+        std::string nombre;
+    };
+    const PedidoImportar& getImportacion() const noexcept;
+    void pedirImportacion(const std::string& carpeta, const std::string& nombre);
+    void limpiarImportacion() noexcept;
+    const ResultadoImportar& getResultadoImportacion() const noexcept;
+    void setResultadoImportacion(const ResultadoImportar& resultado);
+
     const std::string& getIdioma() const noexcept;
     void setIdioma(const std::string& valor);
     const std::vector<std::string>& getIdiomas() const noexcept;
@@ -180,6 +199,8 @@ private:
     std::string proyectoARenombrar;
     // Carpeta pendiente de eliminacion (vacia = sin eliminacion registrada).
     std::string proyectoAEliminar;
+    PedidoImportar importacion;
+    ResultadoImportar resultadoImportacion;
     std::string idioma = "es";
     float sensibilidadCamara = 0.15f;
     // Sensibilidad de movimiento (WASD) de la camara del editor. Se configura

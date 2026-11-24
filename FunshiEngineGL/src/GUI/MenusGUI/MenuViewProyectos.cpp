@@ -332,15 +332,6 @@ void MenuView::renderizarSeccionProyectos() {
     }
 }
 
-void MenuView::renderizarSeccionImportar() {
-    ImGui::TextUnformatted(model->traducir(Texto::ImportarProyecto));
-    ImGui::Separator();
-    ImGui::Spacing();
-    // Visible pero deshabilitada: la seccion comunica que la opcion existe y
-    // por que no se puede usar todavia.
-    ImGui::TextWrapped(model->traducir(Texto::ImportarNoDisponible));
-}
-
 void MenuView::renderizarModalCrearProyecto() {
     if (abrirModalCrearProyecto) {
         ImGui::OpenPopup("###CrearProyecto");

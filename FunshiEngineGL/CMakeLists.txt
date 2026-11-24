@@ -83,6 +83,7 @@ file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS ${SRC_DIR}/*.h ${SRC_DIR}/*.hpp)
 list(REMOVE_ITEM SOURCES
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
     ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
+    ${SRC_DIR}/Configuracion/Proyecto/ImportarProyecto.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Diagnosticos/RegistroDiagnosticos.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp)
@@ -105,6 +106,7 @@ target_include_directories(funshi_localizacion PUBLIC ${SRC_DIR})
 add_library(funshi_project_core STATIC
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
     ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
+    ${SRC_DIR}/Configuracion/Proyecto/ImportarProyecto.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp)
 target_include_directories(funshi_project_core PUBLIC ${SRC_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/External)
@@ -1490,6 +1492,17 @@ set_target_properties(importar-archivos-tests PROPERTIES
     CXX_EXTENSIONS OFF
 )
 add_test(NAME importar-archivos-tests COMMAND importar-archivos-tests)
+
+# Importar proyecto (Configurar proyecto): copiar a la carpeta de proyectos un
+# proyecto que esta en otro lugar. Headless contra carpetas temporales.
+add_executable(importar-proyecto-tests ${FUNSHI_TESTS_CI_DIR}/ImportarProyectoTests.cpp)
+target_link_libraries(importar-proyecto-tests PRIVATE funshi_project_core)
+set_target_properties(importar-proyecto-tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
+add_test(NAME importar-proyecto-tests COMMAND importar-proyecto-tests)
 
 # Runner de procesos sin shell (Proceso, H-3 nivel 2): round-trip de argv con
 # argumentos hostiles (espacios, &, comilla, barra final, vacio) relanzando

@@ -115,6 +115,9 @@ FunshiEngineGL/                          ← raíz del repo
 ├── .gitignore / .gitattributes
 ├── tests/                               ← suites headless (CTest), una por sistema
 │   ├── FileManagerTests.cpp             ← headless del explorador de archivos
+│   ├── ImportarProyectoTests.cpp        ← headless de "Importar proyecto" (copiar a
+│   │                                      Proyects/ un proyecto externo, con o sin
+│   │                                      nombre nuevo; no deja nada a medias)
 │   ├── ImportarArchivosTests.cpp        ← headless de la importación de archivos del
 │   │                                      sistema (no pisar, carpetas recursivas y los
 │   │                                      parsers del portapapeles: uri-list y DROPFILES)
@@ -237,8 +240,12 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                              DELEGA en ProjectManager (una sola implementación)
         │   ├── ConfigPersistence.h/.cpp ← JSON puro de la config: general + proyecto (escritura atómica)
         │   ├── ProjectPaths.h/.cpp      ← rutas canónicas del motor (una sola fuente de verdad)
-        │   └── ProjectManager.h/.cpp    ← ciclo de vida de proyectos; creación estricta para CLI separada
-        │                                  del aseguramiento/migración usado por el editor
+        │   ├── ProjectManager.h/.cpp    ← ciclo de vida de proyectos; creación estricta para CLI separada
+        │   │                              del aseguramiento/migración usado por el editor
+        │   └── Proyecto/
+        │       ├── ArchivoProyecto.h/.cpp  ← archivo .fnep (leer, escribir, resolver apertura)
+        │       └── ImportarProyecto.h/.cpp ← copiar a Proyects/ un proyecto externo (carpeta o .fnep),
+        │                                     con otro nombre si hace falta; copia en carpeta oculta
         ├── Diagnosticos/
         │   └── RegistroDiagnosticos.h/.cpp ← historial acotado en memoria y persistencia JSON Lines
         ├── Terminal/
@@ -1451,6 +1458,12 @@ restantes compilan también con `BUILD_ENGINE=OFF`):
   pura de `SelectorArchivoCubemap` (filtro de extensiones del cubemap y aviso
   de caras faltantes o de resolución dispares), que al vivir fuera del dibujo del
   modal se ejercita aquí sin crear contexto de ImGui.
+- `importar-proyecto-tests` (24): "Importar proyecto" de Configurar proyecto.
+  Reconoce el proyecto por su carpeta o su `.fnep` (también una carpeta
+  renombrada a mano), rechaza lo que no es proyecto, lo inexistente y lo que ya
+  está en `Proyects/`; la copia deja un solo `.fnep` con el nombre correcto, no
+  toca el origen ni deja la carpeta temporal; con otro nombre renombra
+  `src<Nombre>`; un nombre repetido o inválido no importa nada.
 - `importar-archivos-tests` (45): la importación de archivos que vienen de fuera
   del proyecto (arrastrados desde el explorador del sistema o pegados con Ctrl+V):
   la copia no pisa nada y genera un nombre único (`a.txt` → `a (1).txt`), las

@@ -86,6 +86,11 @@ public:
     // el proyecto activo, vuelve al estado "sin proyecto" del primer arranque.
     void eliminarProyectoDesdeMenu();
 
+    // Importacion pedida desde Configurar proyecto: copia la carpeta elegida a
+    // la carpeta de proyectos con el nombre pedido y deja el resultado en el
+    // menu. No abre el proyecto: aparece en la lista para elegirlo.
+    void importarProyectoDesdeMenu();
+
     // Refleja en la barra de menu (Exportar) el proyecto activo. Sin proyecto,
     // no toca nada (el enunciado "no hay proyecto" queda vacio).
     void reflejarProyectoEnMenuBar() const;

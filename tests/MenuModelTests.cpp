@@ -387,6 +387,29 @@ int main() {
               "cambiar de idioma cambia el texto y no el ID");
     }
 
+    // Importar proyecto: la vista pide, main ejecuta y deja el resultado.
+    {
+        MenuModel m;
+        CHECK(m.getImportacion().carpeta.empty(), "sin pedido de importacion al empezar");
+        MenuModel::ResultadoImportar viejo;
+        viejo.hay = true;
+        m.setResultadoImportacion(viejo);
+        m.pedirImportacion("/tmp/Juego", "Juego 2");
+        CHECK(m.getImportacion().carpeta == "/tmp/Juego" && m.getImportacion().nombre == "Juego 2",
+              "el pedido guarda carpeta y nombre");
+        CHECK(!m.getResultadoImportacion().hay,
+              "un pedido nuevo borra el mensaje de la importacion anterior");
+        m.limpiarImportacion();
+        CHECK(m.getImportacion().carpeta.empty(), "main consume el pedido una sola vez");
+        MenuModel::ResultadoImportar ok;
+        ok.hay = true;
+        ok.exito = true;
+        ok.nombre = "Juego 2";
+        m.setResultadoImportacion(ok);
+        CHECK(m.getResultadoImportacion().exito && m.getResultadoImportacion().nombre == "Juego 2",
+              "el resultado queda para mostrarlo en la seccion");
+    }
+
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;
     std::cout << (fallos == 0 ? "MENUMODEL TESTS OK" : "MENUMODEL TESTS FALLO")
               << std::endl;

@@ -138,6 +138,24 @@ void MenuModel::setProyectoAEliminar(const std::string& nombre) {
 
 void MenuModel::limpiarProyectoAEliminar() noexcept { proyectoAEliminar.clear(); }
 
+const MenuModel::PedidoImportar& MenuModel::getImportacion() const noexcept { return importacion; }
+
+void MenuModel::pedirImportacion(const std::string& carpeta, const std::string& nombre) {
+    importacion.carpeta = carpeta;
+    importacion.nombre = nombre;
+    resultadoImportacion = ResultadoImportar{};  // el mensaje viejo ya no aplica
+}
+
+void MenuModel::limpiarImportacion() noexcept { importacion = PedidoImportar{}; }
+
+const MenuModel::ResultadoImportar& MenuModel::getResultadoImportacion() const noexcept {
+    return resultadoImportacion;
+}
+
+void MenuModel::setResultadoImportacion(const ResultadoImportar& resultado) {
+    resultadoImportacion = resultado;
+}
+
 const std::string& MenuModel::getIdioma() const noexcept { return idioma; }
 
 void MenuModel::setIdioma(const std::string& valor) {
