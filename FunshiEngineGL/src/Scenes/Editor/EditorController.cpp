@@ -83,23 +83,15 @@ bool EditorController::deleteGameObject(GameObject* object) {
         clearScene();
         return true;
     }
-    if (physics && object) {
-        if (RigidBody* body = object->getComponent<RigidBody>())
-            physics->removeRigidBody(body);
-    }
-    if (events)
-        events->publish({SceneEventType::ObjectDeleted, object, nullptr});
-    // La seleccion no debe apuntar a un objeto que se va a liberar.
-    if (selected == object) {
-        selected = nullptr;
-        if (events)
-            events->publish({SceneEventType::ObjectSelected, nullptr, nullptr});
-    }
-    // Un objeto borrado puede ser el owner de un gizmo en curso: desarmarlo
-    // evita punteros colgantes en el gizmo del collider.
-    if (gizmoTarget.owner == object) clearGizmoTarget();
-    const bool deleted = scene->deleteObject(object);
-    return deleted;
+    // Mismo camino que el borrado con deshacer: saca de la fisica los cuerpos
+    // de TODO el subarbol, suelta seleccion y gizmo si apuntan adentro, avisa
+    // cada objeto borrado y extrae el subarbol entero. Antes solo se quitaba
+    // el objeto: los hijos quedaban registrados (y sus cuerpos en la fisica).
+    std::vector<std::unique_ptr<GameObject>> subarbol = extraerSubarbol(object);
+    if (subarbol.empty()) return false;
+    // Preorden: se destruye de los hijos hacia el padre.
+    while (!subarbol.empty()) subarbol.pop_back();
+    return true;
 }
 
 bool EditorController::deleteObjectByID(int id) {
@@ -170,6 +162,16 @@ void cuerposDeSubarbol(GameObject* raiz, std::vector<RigidBody*>& salida) {
     }
 }
 
+// Objetos del subarbol en preorden (la raiz primero).
+void objetosDeSubarbol(GameObject* raiz, std::vector<GameObject*>& salida) {
+    if (!raiz) return;
+    salida.push_back(raiz);
+    for (Entity* hijo : raiz->getChildEntities()) {
+        if (GameObject* hijoObjeto = dynamic_cast<GameObject*>(hijo))
+            objetosDeSubarbol(hijoObjeto, salida);
+    }
+}
+
 bool estaDentro(GameObject* nodo, GameObject* ancestro) {
     for (Entity* p = nodo ? nodo->getParentEntity() : nullptr; p;
          p = p->getParentEntity()) {
@@ -199,8 +201,15 @@ std::vector<std::unique_ptr<GameObject>> EditorController::extraerSubarbol(
         (gizmoTarget.owner == object ||
          estaDentro(gizmoTarget.owner, object)))
         clearGizmoTarget();
-    if (events)
-        events->publish({SceneEventType::ObjectDeleted, object, nullptr});
+    // Un aviso por cada objeto que sale de la escena, de los hijos hacia el
+    // padre: quien observa un descendiente (el inspector mostrando un hijo,
+    // el portapapeles de la jerarquia) tambien tiene que soltarlo.
+    if (events) {
+        std::vector<GameObject*> objetos;
+        objetosDeSubarbol(object, objetos);
+        for (auto it = objetos.rbegin(); it != objetos.rend(); ++it)
+            events->publish({SceneEventType::ObjectDeleted, *it, nullptr});
+    }
     auto nodos = scene->takeSubtree(object);
     return nodos;
 }

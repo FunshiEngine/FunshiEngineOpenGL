@@ -200,10 +200,60 @@ void elTituloTraducidoNoCambiaLaVentana() {
     ImGui::DestroyContext();
 }
 
+// --- Borrar un objeto borra su subarbol ---------------------------------------
+// El arbol de la escena, al borrar un nodo con hijos, sube el primer hijo a su
+// lugar: SceneRegistry::deleteObject solo quitaba el nodo, asi que los hijos
+// seguian registrados y se guardaban colgando de la raiz. Ademas el inspector
+// mostrando un hijo quedaba apuntando a memoria liberada.
+void borrarUnPadreBorraSusHijos() {
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    GameObject* raiz = registry.getRoot();
+
+    GameObject* padre =
+        editor.createGameObject(GameObjectFactory::createSimpleObject(raiz), raiz);
+    GameObject* hijo =
+        editor.createGameObject(GameObjectFactory::createSimpleObject(padre), padre);
+    GameObject* nieto =
+        editor.createGameObject(GameObjectFactory::createSimpleObject(hijo), hijo);
+    GameObject* hermano =
+        editor.createGameObject(GameObjectFactory::createSimpleObject(raiz), raiz);
+    CHECK(padre && hijo && nieto && hermano, "la jerarquia padre > hijo > nieto existe");
+    if (!padre || !hijo || !nieto || !hermano) return;
+
+    SettingsObjectInterface inspector(nieto, true);
+    inspector.setEditor(&editor);
+    inspector.setEventBus(&events);
+
+    CHECK(editor.deleteGameObject(padre), "el padre se borra");
+    CHECK(!registry.contains(hijo) && !registry.contains(nieto),
+          "los hijos y nietos del borrado no quedan en el registro");
+    CHECK(registry.contains(hermano), "lo que no estaba debajo del borrado sigue en la escena");
+    registry.refreshGameObjectView();
+    int enVista = 0;
+    for (auto* p = registry.getGameObjects()->isEmpty() ? nullptr : registry.getGameObjects()->first();
+         p; p = (p != registry.getGameObjects()->last()) ? registry.getGameObjects()->next(p) : nullptr)
+        ++enVista;
+    CHECK(enVista == 1, "la escena queda solo con el hermano (nada para guardar en la raiz)");
+    CHECK(inspector.getObjectInInspector() == nullptr,
+          "el inspector que mostraba un nieto del borrado se desvincula");
+
+    // El borrado directo del registro (lo usa la CLI) tambien borra el subarbol.
+    GameObject* otro =
+        editor.createGameObject(GameObjectFactory::createSimpleObject(raiz), raiz);
+    GameObject* otroHijo =
+        editor.createGameObject(GameObjectFactory::createSimpleObject(otro), otro);
+    CHECK(otro && otroHijo && registry.deleteObject(otro), "SceneRegistry::deleteObject borra");
+    CHECK(!registry.contains(otroHijo), "SceneRegistry::deleteObject no deja al hijo registrado");
+}
+
 int main() {
     fisicaPasoFijoYContactosAlQuitar();
     dosComponentesIgualesTienenPanelPropio();
     elTituloTraducidoNoCambiaLaVentana();
+    borrarUnPadreBorraSusHijos();
     nombresPorDefecto();
     roundTripDeEscena();
     tagsCompatiblesConEscenasAnteriores();
