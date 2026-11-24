@@ -688,16 +688,22 @@ escena**. Para instanciarlo como modelo 3D usa el panel **Model** del objeto en
     `imageheight`, `margin`/`spacing` opcionales, y `tiles[]` con propiedad
     `solid: true` en los tiles que deben colisionar. Guárdalo en
     `Assets/Tilesets/`.
- 2. En la jerarquía: clic derecho → **New GameObject** → con el objeto
-    seleccionado, **Add Component → Tilemap**.
- 3. En el **panel Tilemap del Inspector**: arrastra el `.json` del tileset al
-    drop zone (valida antes de asignar).
- 4. Click **Agregar capa** → pon nombre (ej. "Suelo"), dimensiones (ej. 20×15),
-    marca **Colisión** si esa capa debe chocar → **OK**.
- 5. En la **paleta** verás los IDs de tile (fondo rojo = sólido). Click en un
-    ID → se vuelve el pincel activo.
- 6. **Click izquierdo** en la grilla → pinta el tile; **click derecho** → borra.
-    Puedes cambiar de capa y pincel a voluntad.
+ 2. Arrastra el `.json` del tileset desde el explorador a la **escena**: se crea
+    un objeto con `Tilemap`, ese tileset y una capa de 16×16. (También se puede
+    crear un objeto y hacer **Add Component → Tilemap**, y soltar el `.json` en
+    el panel.)
+ 3. En el **panel Tilemap del Inspector**, sección **Capas**: elegí la capa
+    activa o agregá otra con su ancho × alto; **Vis** la oculta y **Col** la
+    marca para colisión.
+ 4. En **Paleta** se ven las imágenes reales de cada tile del atlas: clic en
+    uno lo vuelve el tile activo.
+ 5. En **Pintar**, activá **Pintar en escena** y elegí la herramienta:
+    **Pincel** (clic o arrastre), **Borrador**, **Relleno** (llena la región
+    contigua igual) o **Rectángulo** (arrastrá de una esquina a la otra).
+ 6. **Clic izquierdo en la escena** pinta sobre la capa activa; **Shift + clic**
+    borra. La celda bajo el mouse y el borde de la capa se marcan en la escena.
+    Cada trazo se deshace entero con **Ctrl+Z**. Mientras el modo está activo
+    el clic no cambia la selección ni mueve el gizmo; **Escape** sale del modo.
  7. Para colisión física: **Add Component → TilemapCollider** (requiere Tilemap
     en el mismo objeto) → en su panel click **Recargar colisión** (reconstruye
     las cajas desde los tiles sólidos actuales).

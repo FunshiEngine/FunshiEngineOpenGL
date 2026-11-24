@@ -19,6 +19,7 @@
 #ifndef EDITOR_CONTROLLER_H
 #define EDITOR_CONTROLLER_H
 
+#include "HerramientaTilemap.h"
 #include <functional>
 #include <memory>
 #include <vector>
@@ -90,6 +91,9 @@ private:
 
     // Gestor de comandos para undo/redo
     GestorComandos gestorComandos;
+    // Pintado de tiles en la escena: lo comparten el panel del Tilemap y la
+    // escena, que ambos conocen al controlador.
+    HerramientaTilemap herramientaTilemap;
 
     // Biblioteca de prefabs (deleter definido en .cpp para evitar incluir header)
     std::unique_ptr<PrefabLibrary, PrefabLibraryDeleter> prefabLibrary;
@@ -190,6 +194,7 @@ public:
     // del comando aplicado (vacia si no habia nada que deshacer/rehacer) para que
     // la vista pueda avisarlo en la barra de estado.
     GestorComandos* getGestorComandos() noexcept { return &gestorComandos; }
+    HerramientaTilemap& getHerramientaTilemap() noexcept { return herramientaTilemap; }
     std::string deshacer();
     std::string rehacer();
     bool puedeDeshacer() const noexcept;

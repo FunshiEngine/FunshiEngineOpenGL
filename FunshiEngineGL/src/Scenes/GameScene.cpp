@@ -64,6 +64,7 @@
 #include "../Objetos/Componentes/Interfaz/UIComponent.h"
 #include "../Configuracion/EditorConfig.h"
 #include "Editor/GizmoController.h"
+#include "../Objetos/Componentes/Juego2D/Tilemap.h"
 #include "Juego/InterfacesJuego.h"
 #include "../Rendering/Render2D/UIRenderer.h"
 #include "../WebUI/WebUIRuntime.h"
@@ -1570,7 +1571,18 @@ void GameScene::gameScene() {
 
     // La seleccion y el gizmo son herramientas de Depuracion, independientes
     // de la visibilidad de los paneles y ausentes en Juego.
-    if (!modoJuego && gizmoController_)
+    // Pintado de tiles en la escena: si la herramienta usa el clic, la escena
+    // no selecciona ni mueve el gizmo con el.
+    bool pintandoTiles = false;
+    if (!modoJuego && editorController) {
+        HerramientaTilemap& herramienta = editorController->getHerramientaTilemap();
+        GameObject* seleccionado = editorController->getSelectedObject();
+        herramienta.procesar(camara, seleccionado, sceneRegistry.get(),
+                             editorController->getGestorComandos());
+        pintandoTiles = herramienta.activa() && seleccionado &&
+                        seleccionado->getComponent<Tilemap>() != nullptr;
+    }
+    if (!modoJuego && gizmoController_ && !pintandoTiles)
         gizmoController_->procesarSeleccion(io, camara, getGameObjectsScene());
 
     /*
@@ -1610,7 +1622,7 @@ void GameScene::gameScene() {
         return;
     }
 
-    if (!modoJuego && gizmoController_)
+    if (!modoJuego && gizmoController_ && !pintandoTiles)
         gizmoController_->dibujarYRastrear(
             io, camara, getDimensionProyecto() == DimensionProyecto::DosD);
 }

@@ -40,6 +40,10 @@
 #include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/TilemapCollider.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/TiposShapeBullet.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Juego2D/Tilemap.h"
+#include "../FunshiEngineGL/src/Objetos/Componentes/Juego2D/PincelTilemap.h"
+#include "../FunshiEngineGL/src/Comandos/GestorComandos.h"
+#include "../FunshiEngineGL/src/Comandos/Tilemap/PintarTilesComando.h"
+#include "../FunshiEngineGL/src/Scenes/Registro/SceneRegistry.h"
 #include "../FunshiEngineGL/src/Objetos/Componentes/Escena/Transform.h"
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
@@ -386,6 +390,63 @@ void identificacionShapesSinRtti() {
 }
 } // namespace
 
+// Pintado desde la escena: la celda bajo un punto local es la inversa exacta
+// de la geometria horneada, y cada herramienta devuelve solo lo que cambio.
+void pincelTilemap(const std::string& rutaTileset) {
+    Tilemap mapa;
+    mapa.setRutaTileset(rutaTileset);
+    const int capa = mapa.agregarCapa("Suelo", 4, 3, false);
+
+    auto celda = PincelTilemap::celdaDesdeLocal(mapa, capa, 0.5f, -0.5f);
+    CHECK(celda && celda->x == 0 && celda->y == 0, "el centro de la celda (0,0) es (0.5,-0.5)");
+    celda = PincelTilemap::celdaDesdeLocal(mapa, capa, 3.9f, -2.1f);
+    CHECK(celda && celda->x == 3 && celda->y == 2, "la ultima celda de la capa se reconoce");
+    CHECK(!PincelTilemap::celdaDesdeLocal(mapa, capa, 4.1f, -0.5f),
+          "a la derecha de la capa no hay celda");
+    CHECK(!PincelTilemap::celdaDesdeLocal(mapa, capa, 0.5f, 0.5f),
+          "por encima de la fila 0 no hay celda");
+    CHECK(!PincelTilemap::celdaDesdeLocal(mapa, 7, 0.5f, -0.5f), "una capa inexistente no tiene celdas");
+
+    auto cambios = PincelTilemap::pintar(mapa, capa, {1, 1}, 2);
+    CHECK(cambios.size() == 1 && cambios[0].anterior == 0 && cambios[0].nuevo == 2,
+          "pintar una celda devuelve su cambio");
+    CHECK(PincelTilemap::pintar(mapa, capa, {1, 1}, 2).empty(),
+          "repintar con el mismo tile no cambia nada");
+
+    cambios = PincelTilemap::rellenar(mapa, capa, {0, 0}, 3);
+    CHECK(cambios.size() == 11 && mapa.tileEn(capa, 1, 1) == 2 && mapa.tileEn(capa, 3, 2) == 3,
+          "el relleno cubre la region contigua y respeta la celda distinta");
+
+    cambios = PincelTilemap::rectangulo(mapa, capa, {3, 2}, {2, 1}, 0);
+    CHECK(cambios.size() == 4 && mapa.tileEn(capa, 2, 1) == 0 && mapa.tileEn(capa, 3, 2) == 0,
+          "el rectangulo acepta las esquinas en cualquier orden");
+    PincelTilemap::deshacer(mapa, cambios);
+    CHECK(mapa.tileEn(capa, 2, 1) == 3 && mapa.tileEn(capa, 3, 2) == 3,
+          "deshacer devuelve las celdas a su valor anterior");
+
+    // El trazo como comando: Ctrl+Z lo deshace entero.
+    SceneRegistry registro;
+    auto objeto = GameObjectFactory::createSimpleObject(registro.getRoot(), "Mapa");
+    auto componente = std::make_unique<Tilemap>();
+    Tilemap* t = componente.get();
+    t->setRutaTileset(rutaTileset);
+    t->agregarCapa("Suelo", 4, 4, false);
+    objeto->addComponent(std::move(componente));
+    GameObject* enEscena = registro.createObject(std::move(objeto), nullptr);
+    std::vector<CambioTile> trazo;
+    for (int x = 0; x < 3; ++x) {
+        auto parte = PincelTilemap::pintar(*t, 0, {x, 0}, 1);
+        trazo.insert(trazo.end(), parte.begin(), parte.end());
+    }
+    GestorComandos comandos;
+    comandos.ejecutar(std::make_unique<PintarTilesComando>(&registro, enEscena->getId(), trazo));
+    CHECK(t->tileEn(0, 2, 0) == 1, "ejecutar el trazo ya aplicado lo deja igual");
+    comandos.deshacer();
+    CHECK(t->tileEn(0, 0, 0) == 0 && t->tileEn(0, 2, 0) == 0, "deshacer quita el trazo entero");
+    comandos.rehacer();
+    CHECK(t->tileEn(0, 1, 0) == 1, "rehacer vuelve a pintar el trazo");
+}
+
 int main() {
     TempPruebas::CarpetaPrueba carpeta("funshi_tilemap_tests");
     const std::string base = carpeta.ruta().string();
@@ -400,6 +461,7 @@ int main() {
     tilemapGeometria(rutaTileset);
     tilemapSerializacion(base, rutaTileset);
     tilemapColliderTramos(rutaTileset);
+    pincelTilemap(rutaTileset);
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

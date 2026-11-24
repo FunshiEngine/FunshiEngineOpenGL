@@ -19,29 +19,45 @@
 #ifndef SETTINGS_TILEMAP_H
 #define SETTINGS_TILEMAP_H
 
+#include <cstdint>
+#include <string>
+
 #include "../../../Objetos/Componentes/Juego2D/Tilemap.h"
+#include "../../../Rendering/Backend/IRenderBackend.h"
 #include "../SettingsComponent.h"
 
+class EditorController;
 class GameObject;
+class HerramientaTilemap;
 
 // Inspector del componente Tilemap: asigna el tileset, administra las capas y
-// ofrece el pintado basico por celda con una paleta de ids.
+// elige que se pinta (tile de la paleta, herramienta, capa). El pintado se hace
+// clickeando en la escena (HerramientaTilemap), no en el panel.
 class SettingsTilemap : public SettingsComponent {
 public:
-    explicit SettingsTilemap(GameObject* objeto);
+    SettingsTilemap(GameObject* objeto, EditorController* editor);
+    ~SettingsTilemap() override;
 
     Component* getComponent() override;
     void showDataComponent() override;
 
 private:
     void dibujarTileset(Tilemap* tilemap);
-    void dibujarCapas(Tilemap* tilemap);
-    void dibujarPaleta(Tilemap* tilemap);
-    void dibujarGrilla(Tilemap* tilemap);
+    void dibujarCapas(Tilemap* tilemap, HerramientaTilemap* herramienta);
+    void dibujarHerramienta(HerramientaTilemap& herramienta);
+    void dibujarPaleta(Tilemap* tilemap, HerramientaTilemap* herramienta);
+    // Textura del atlas para la paleta (se recarga si cambia la imagen).
+    void asegurarAtlas(Tilemap* tilemap);
+    void liberarAtlas();
 
     GameObject* gameObject_ = nullptr;
+    EditorController* editor_ = nullptr;
     int capaActiva_ = 0;
-    std::uint32_t pincel_ = 1;
+    std::uint32_t tileLocal_ = 1;
+    int anchoCapaNueva_ = 16;
+    int altoCapaNueva_ = 16;
+    std::string rutaAtlas_;
+    Rendering::Backend::Handle atlas_ = Rendering::Backend::kInvalidHandle;
 };
 
 #endif

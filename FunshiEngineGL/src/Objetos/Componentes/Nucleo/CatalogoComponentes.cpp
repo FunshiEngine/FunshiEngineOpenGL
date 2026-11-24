@@ -259,8 +259,8 @@ CatalogoComponentes::CatalogoComponentes() {
     add("Tilemap", "Tilemap", DimensionesComponente::DosD, "",
         kIconoTilemap,
         [](GameObject&) { return std::unique_ptr<Component>(new Tilemap()); },
-        [](Component*, GameObject* o, const ContextoPanel&) {
-            return std::unique_ptr<SettingsComponent>(new SettingsTilemap(o));
+        [](Component*, GameObject* o, const ContextoPanel& ctx) {
+            return std::unique_ptr<SettingsComponent>(new SettingsTilemap(o, ctx.editor));
         });
 
     // Colision: requieren Transform y en el menu se agrupan en un submenu.
