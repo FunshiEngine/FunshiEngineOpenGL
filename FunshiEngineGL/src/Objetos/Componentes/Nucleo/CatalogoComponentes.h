@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 #include "../../../Configuracion/DimensionProyecto.h"
+#include "../../../Localizacion/Localizacion.h"
 
 class Component;
 class GameObject;
@@ -72,7 +73,10 @@ struct DescriptorComponente {
     // Nombre demangle del tipo (typeid().name()); es la clave del catalogo y
     // el nombre con el que el serializer persiste el componente.
     std::string nombre;
-    // Etiqueta que se muestra en el menu "agregar componente".
+    // Nombre que ve el usuario (menu "Agregar componente" y encabezado del
+    // inspector), traducible: Localizacion::tr(texto).
+    Localizacion::Texto texto = Localizacion::Texto::Componente;
+    // Ese nombre en el idioma base (espanol), para la API de inspeccion.
     std::string etiqueta;
     // Alias retrocompatible con builds viejos (p. ej. "Camera" ->
     // "CameraComponent"). Vacio si no aplica.
@@ -81,6 +85,8 @@ struct DescriptorComponente {
     // Submenu en el que se agrupa dentro de "Agregar componente"; vacio = nivel
     // raiz.
     std::string submenu;
+    // Nombre visible del submenu (traducible); solo vale si submenu no es vacio.
+    Localizacion::Texto textoSubmenu = Localizacion::Texto::Componente;
     // Icono del componente en el inspector, como ruta relativa a la carpeta de
     // imagenes del motor (por ejemplo
     // "GUI-Image/Component-Image/Transform/comp-transform-white.png"). Vacio si

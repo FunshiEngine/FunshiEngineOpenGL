@@ -19,6 +19,8 @@
 #include "SettingsObjectInterfaceDetalle.h"
 #include "../../Localizacion/Localizacion.h"
 
+#include <cstdio>
+
 using Localizacion::Texto;
 
 void SettingsObjectInterface::initGUI() {
@@ -126,20 +128,25 @@ void SettingsObjectInterface::contentGUI() {
                 continue;
             }
 
+            // Nombre visible: el del catalogo en el idioma vigente (no el
+            // nombre del tipo de C++). Los scripts muestran su propio nombre.
             std::string compName;
             if (Script* script = dynamic_cast<Script*>(componenteReal)) {
                 std::string nombreScript = script->nombreParaMostrar();
-                if (nombreScript.empty()) nombreScript = "Script";
-                compName = "Script: " + nombreScript;
+                if (nombreScript.empty()) nombreScript = Localizacion::tr(Texto::CompScript);
+                char titulo[256];
+                std::snprintf(titulo, sizeof(titulo), Localizacion::tr(Texto::ScriptConNombre),
+                              nombreScript.c_str());
+                compName = titulo;
             } else {
-                compName = comp->getTipoComponente();
-                if (compName.empty() && componenteReal) {
-                    compName = demangle(typeid(*componenteReal).name());
-                }
+                std::string tipo = comp->getTipoComponente();
+                if (tipo.empty() && componenteReal) tipo = demangle(typeid(*componenteReal).name());
+                const DescriptorComponente* d = CatalogoComponentes::instancia().buscar(tipo);
+                compName = d ? Localizacion::tr(d->texto) : tipo;
             }
-
-            // Asegurar que compName no esté vacío
-            if (compName.empty()) compName = "Componente";
+            if (compName.empty()) compName = Localizacion::tr(Texto::Componente);
+            // ID fijo: plegar un componente no se pierde al cambiar de idioma.
+            const std::string encabezado = compName + "###encabezado";
 
             // Icono del componente a la izquierda de su nombre. Se dibuja antes
             // del encabezado (y antes de SetNextItemOpen, que aplica al
@@ -160,7 +167,7 @@ void SettingsObjectInterface::contentGUI() {
             if (scriptSettings && scriptSettings->estaEditandoNombre())
                 ImGui::SetNextItemOpen(true, ImGuiCond_Always);
             bool open = ImGui::CollapsingHeader(
-                compName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+                encabezado.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
 
             if (ImGui::BeginPopupContextItem(
                     "ComponentContext",
@@ -311,7 +318,7 @@ void SettingsObjectInterface::contentGUI() {
                 for (const DescriptorComponente& d : descriptores) {
                     if (d.submenu != submenu) continue;
                     if (!visible(d)) continue;
-                    if (ImGui::MenuItem(d.etiqueta.c_str())) {
+                    if (ImGui::MenuItem(Localizacion::etiqueta(d.texto).c_str())) {
                         if (d.crear) agregarViaComando(d.crear(*object));
                     }
                 }
@@ -329,14 +336,20 @@ void SettingsObjectInterface::contentGUI() {
             }
             for (const std::string& submenu : submenus) {
                 bool hayItemVisible = false;
+                Texto textoSubmenu = Texto::Componente;
                 for (const DescriptorComponente& d : descriptores) {
+                    if (d.submenu == submenu) textoSubmenu = d.textoSubmenu;
                     if (d.submenu == submenu && visible(d)) {
                         hayItemVisible = true;
                         break;
                     }
                 }
                 if (!hayItemVisible) continue;
-                if (ImGui::BeginMenu(submenu.c_str())) {
+                // El submenu se identifica por su clave interna, no por el
+                // texto: cambiar de idioma no lo cierra.
+                const std::string tituloSubmenu =
+                    std::string(Localizacion::tr(textoSubmenu)) + "###" + submenu;
+                if (ImGui::BeginMenu(tituloSubmenu.c_str())) {
                     dibujarItems(submenu);
                     ImGui::EndMenu();
                 }

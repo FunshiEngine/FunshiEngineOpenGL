@@ -76,6 +76,20 @@ void catalogoCompleto() {
     CHECK(todosConEtiqueta, "todo descriptor tiene etiqueta");
     CHECK(todosConCreador, "todo descriptor tiene creador");
 
+    // Nombre visible traducible: cada componente tiene su Texto propio (no el
+    // de respaldo) y la etiqueta es ese texto en el idioma base.
+    bool todosConTexto = true;
+    bool etiquetaEsElTextoBase = true;
+    for (const DescriptorComponente& d : descriptores) {
+        if (d.texto == Localizacion::Texto::Componente) todosConTexto = false;
+        if (d.etiqueta != Localizacion::texto(0, d.texto)) etiquetaEsElTextoBase = false;
+    }
+    CHECK(todosConTexto, "todo descriptor tiene su nombre traducible");
+    CHECK(etiquetaEsElTextoBase, "la etiqueta es el nombre en el idioma base");
+    const DescriptorComponente* camara = CatalogoComponentes::instancia().buscar("CameraComponent");
+    CHECK(camara && std::string(Localizacion::texto(1, camara->texto)) == "Camera",
+          "el nombre visible no es el del tipo de C++ (CameraComponent -> Camera)");
+
     bool sinRepetidos = true;
     for (std::size_t i = 0; i < descriptores.size() && sinRepetidos; ++i) {
         for (std::size_t j = i + 1; j < descriptores.size(); ++j) {
@@ -157,6 +171,8 @@ void filtroDimensiones() {
           "el colisionador de esfera se ofrece en 2D");
     CHECK(collider->submenu == "Add Collider",
           "los colisionadores se agrupan en su submenu");
+    CHECK(collider->textoSubmenu == Localizacion::Texto::SubmenuColisionadores,
+          "el submenu de colisionadores tiene nombre traducible");
 
     const DescriptorComponente* cubo = cat.buscar("CubeCollider");
     CHECK(cubo != nullptr &&

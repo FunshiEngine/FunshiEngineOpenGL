@@ -66,17 +66,17 @@ void SettingsSkybox::showDataComponent() {
     using Getter = const std::string& (Skybox::*)() const;
     using Setter = void (Skybox::*)(const std::string&);
     struct Cara {
-        const char* etiqueta;
+        Texto texto; // nombre visible de la cara (traducible)
         Getter getter;
         Setter setter;
     };
     const Cara caras[SelectorArchivoCubemap::kCaras] = {
-        {"Cara +X (Right)", &Skybox::getCaraMasX, &Skybox::setCaraMasX},
-        {"Cara -X (Left)", &Skybox::getCaraMenosX, &Skybox::setCaraMenosX},
-        {"Cara +Y (Top)", &Skybox::getCaraMasY, &Skybox::setCaraMasY},
-        {"Cara -Y (Bottom)", &Skybox::getCaraMenosY, &Skybox::setCaraMenosY},
-        {"Cara +Z (Front)", &Skybox::getCaraMasZ, &Skybox::setCaraMasZ},
-        {"Cara -Z (Back)", &Skybox::getCaraMenosZ, &Skybox::setCaraMenosZ},
+        {Texto::CaraMasX, &Skybox::getCaraMasX, &Skybox::setCaraMasX},
+        {Texto::CaraMenosX, &Skybox::getCaraMenosX, &Skybox::setCaraMenosX},
+        {Texto::CaraMasY, &Skybox::getCaraMasY, &Skybox::setCaraMasY},
+        {Texto::CaraMenosY, &Skybox::getCaraMenosY, &Skybox::setCaraMenosY},
+        {Texto::CaraMasZ, &Skybox::getCaraMasZ, &Skybox::setCaraMasZ},
+        {Texto::CaraMenosZ, &Skybox::getCaraMenosZ, &Skybox::setCaraMenosZ},
     };
 
     // Ruta actual de cada cara, releida antes de los campos para tener a mano el
@@ -92,7 +92,7 @@ void SettingsSkybox::showDataComponent() {
         std::strncpy(buf, rutas[i].c_str(), sizeof(buf) - 1);
         buf[sizeof(buf) - 1] = '\0';
         ImGui::SetNextItemWidth(-60.0f);
-        if (ImGui::InputText(caras[i].etiqueta, buf, sizeof(buf))) {
+        if (ImGui::InputText(Localizacion::etiqueta(caras[i].texto).c_str(), buf, sizeof(buf))) {
             (skybox->*caras[i].setter)(buf);
         }
         // Arrastrar y soltar desde el explorador, igual que la malla y el
@@ -134,7 +134,7 @@ void SettingsSkybox::showDataComponent() {
         if (distinta >= 0) {
             ImGui::TextDisabled(
                 Localizacion::tr(Texto::MideXYLaX),
-                caras[distinta].etiqueta, dims_[distinta].ancho,
+                Localizacion::tr(caras[distinta].texto), dims_[distinta].ancho,
                 dims_[distinta].alto, dims_[0].ancho, dims_[0].alto);
         }
     }

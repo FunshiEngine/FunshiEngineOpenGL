@@ -130,7 +130,8 @@ CatalogoComponentes::CatalogoComponentes() {
     using CreadorPanel = std::function<std::unique_ptr<SettingsComponent>(
         Component*, GameObject*, const ContextoPanel&)>;
 
-    auto add = [this](std::string nombre, std::string etiqueta,
+    using Localizacion::Texto;
+    auto add = [this](std::string nombre, Texto texto,
                       DimensionesComponente dim, std::string submenu,
                       std::string icono, Creador crear, CreadorPanel panel,
                       std::function<bool(GameObject&)> prereq = nullptr,
@@ -138,10 +139,12 @@ CatalogoComponentes::CatalogoComponentes() {
                       std::string requisito = std::string()) {
         DescriptorComponente d;
         d.nombre = std::move(nombre);
-        d.etiqueta = std::move(etiqueta);
+        d.texto = texto;
+        d.etiqueta = Localizacion::texto(0, texto);
         d.alias = std::move(alias);
         d.dimensiones = dim;
         d.submenu = std::move(submenu);
+        if (d.submenu == kSubmenuColliders) d.textoSubmenu = Texto::SubmenuColisionadores;
         d.icono = std::move(icono);
         d.prerequisito = std::move(prereq);
         d.requisito = std::move(requisito);
@@ -151,7 +154,7 @@ CatalogoComponentes::CatalogoComponentes() {
     };
 
     // Nucleo: presentes en cualquier dimension.
-    add("Transform", "Transform", DimensionesComponente::Ambas, "",
+    add("Transform", Texto::CompTransform, DimensionesComponente::Ambas, "",
         kIconoTransform,
         [](GameObject&) { return std::unique_ptr<Component>(new Transform()); },
         [](Component* c, GameObject* o, const ContextoPanel& ctx) {
@@ -159,13 +162,13 @@ CatalogoComponentes::CatalogoComponentes() {
             s->setDimension(ctx.dimension);
             return std::unique_ptr<SettingsComponent>(s);
         });
-    add("Color", "Color", DimensionesComponente::Ambas, "",
+    add("Color", Texto::CompColor, DimensionesComponente::Ambas, "",
         kIconoGenerico,
         [](GameObject&) { return std::unique_ptr<Component>(new Color()); },
         [](Component*, GameObject* o, const ContextoPanel&) {
             return std::unique_ptr<SettingsComponent>(new SettingsColor(o));
         });
-    add("CameraComponent", "CameraComponent", DimensionesComponente::Ambas, "",
+    add("CameraComponent", Texto::CompCamara, DimensionesComponente::Ambas, "",
         kIconoCamara,
         [](GameObject&) {
             return std::unique_ptr<Component>(new CameraComponent());
@@ -178,7 +181,7 @@ CatalogoComponentes::CatalogoComponentes() {
         nullptr, "Camera");
 
     // Render 3D: solo tienen sentido con profundidad.
-    add("Material", "Material", DimensionesComponente::TresD, "",
+    add("Material", Texto::CompMaterial, DimensionesComponente::TresD, "",
         kIconoMaterial,
         [](GameObject&) { return std::unique_ptr<Component>(new Material()); },
         [](Component*, GameObject* o, const ContextoPanel& ctx) {
@@ -187,39 +190,39 @@ CatalogoComponentes::CatalogoComponentes() {
         });
     // Materiales por region: cada parte de la malla (la cara de un cubo, la
     // parte de un personaje) puede llevar su propio material.
-    add("Materiales", "Materiales por region", DimensionesComponente::TresD, "",
+    add("Materiales", Texto::CompMateriales, DimensionesComponente::TresD, "",
         kIconoMaterial,
         [](GameObject&) { return std::unique_ptr<Component>(new Materiales()); },
         [](Component*, GameObject* o, const ContextoPanel& ctx) {
             return std::unique_ptr<SettingsComponent>(
                 new SettingsMateriales(o, ctx.editor, ctx.preview));
         });
-    add("Light", "Light", DimensionesComponente::TresD, "",
+    add("Light", Texto::CompLuz, DimensionesComponente::TresD, "",
         kIconoLuz,
         [](GameObject&) { return std::unique_ptr<Component>(new Light()); },
         [](Component*, GameObject* o, const ContextoPanel&) {
             return std::unique_ptr<SettingsComponent>(new SettingsLight(o));
         });
-    add("Model", "Model", DimensionesComponente::TresD, "",
+    add("Model", Texto::CompModelo, DimensionesComponente::TresD, "",
         kIconoModelo,
         [](GameObject&) { return std::unique_ptr<Component>(new Model()); },
         [](Component*, GameObject* o, const ContextoPanel&) {
             return std::unique_ptr<SettingsComponent>(new SettingsModel(o));
         });
-    add("Grid", "Grid", DimensionesComponente::TresD, "",
+    add("Grid", Texto::CompGrilla, DimensionesComponente::TresD, "",
         kIconoGenerico,
         [](GameObject&) { return std::unique_ptr<Component>(new Grid()); },
         [](Component*, GameObject* o, const ContextoPanel&) {
             return std::unique_ptr<SettingsComponent>(new SettingsGrid(o));
         });
-    add("Skybox", "Skybox", DimensionesComponente::TresD, "",
+    add("Skybox", Texto::CompSkybox, DimensionesComponente::TresD, "",
         kIconoSkybox,
         [](GameObject&) { return std::unique_ptr<Component>(new Skybox()); },
         [](Component*, GameObject* o, const ContextoPanel&) {
             return std::unique_ptr<SettingsComponent>(new SettingsSkybox(o));
         });
     // Sombras: se agrega al objeto de la luz, asi que sin luz no tiene sentido.
-    add("Sombras", "Sombras", DimensionesComponente::TresD, "",
+    add("Sombras", Texto::CompSombras, DimensionesComponente::TresD, "",
         kIconoGenerico,
         [](GameObject& o) -> std::unique_ptr<Component> {
             if (!o.getComponent<Light>()) return nullptr;
@@ -233,7 +236,7 @@ CatalogoComponentes::CatalogoComponentes() {
 
     // Render 2D: el sprite se puede usar en ambas; el animador es propio del
     // plano.
-    add("SpriteRenderer", "SpriteRenderer", DimensionesComponente::Ambas, "",
+    add("SpriteRenderer", Texto::CompSprite, DimensionesComponente::Ambas, "",
         kIconoSprite,
         [](GameObject&) {
             return std::unique_ptr<Component>(new SpriteRenderer());
@@ -242,7 +245,7 @@ CatalogoComponentes::CatalogoComponentes() {
             return std::unique_ptr<SettingsComponent>(
                 new SettingsSpriteRenderer(o));
         });
-    add("Animador2D", "Animador2D", DimensionesComponente::DosD, "",
+    add("Animador2D", Texto::CompAnimador2D, DimensionesComponente::DosD, "",
         kIconoAnimacion,
         [](GameObject& o) -> std::unique_ptr<Component> {
             if (!o.getComponent<SpriteRenderer>()) return nullptr;
@@ -256,7 +259,7 @@ CatalogoComponentes::CatalogoComponentes() {
             return o.getComponent<SpriteRenderer>() != nullptr;
         },
         "", "necesita un SpriteRenderer");
-    add("Tilemap", "Tilemap", DimensionesComponente::DosD, "",
+    add("Tilemap", Texto::CompTilemap, DimensionesComponente::DosD, "",
         kIconoTilemap,
         [](GameObject&) { return std::unique_ptr<Component>(new Tilemap()); },
         [](Component*, GameObject* o, const ContextoPanel& ctx) {
@@ -267,7 +270,7 @@ CatalogoComponentes::CatalogoComponentes() {
     auto exigeTransform = [](GameObject& o) {
         return o.getComponent<Transform>() != nullptr;
     };
-    add("EsfereCollider", "EsfereCollider", DimensionesComponente::Ambas,
+    add("EsfereCollider", Texto::CompColisionadorEsfera, DimensionesComponente::Ambas,
         kSubmenuColliders,
         kIconoColliderEsfera,
         [](GameObject& o) -> std::unique_ptr<Component> {
@@ -281,7 +284,7 @@ CatalogoComponentes::CatalogoComponentes() {
             return std::unique_ptr<SettingsComponent>(s);
         },
         exigeTransform, "", "necesita un Transform");
-    add("CubeCollider", "CubeCollider", DimensionesComponente::Ambas,
+    add("CubeCollider", Texto::CompColisionadorCubo, DimensionesComponente::Ambas,
         kSubmenuColliders,
         kIconoColliderCubo,
         [](GameObject& o) -> std::unique_ptr<Component> {
@@ -295,7 +298,7 @@ CatalogoComponentes::CatalogoComponentes() {
             return std::unique_ptr<SettingsComponent>(s);
         },
         exigeTransform, "", "necesita un Transform");
-    add("MallaCollider", "MallaCollider", DimensionesComponente::TresD,
+    add("MallaCollider", Texto::CompColisionadorMalla, DimensionesComponente::TresD,
         kSubmenuColliders,
         kIconoColliderMalla,
         [](GameObject& o) -> std::unique_ptr<Component> {
@@ -309,7 +312,7 @@ CatalogoComponentes::CatalogoComponentes() {
             return std::unique_ptr<SettingsComponent>(s);
         },
         exigeTransform, "", "necesita un Transform");
-    add("TilemapCollider", "TilemapCollider", DimensionesComponente::DosD,
+    add("TilemapCollider", Texto::CompColisionadorTilemap, DimensionesComponente::DosD,
         kSubmenuColliders,
         kIconoColliderTilemap,
         [](GameObject& o) -> std::unique_ptr<Component> {
@@ -327,7 +330,7 @@ CatalogoComponentes::CatalogoComponentes() {
                    o.getComponent<Tilemap>() != nullptr;
         },
         "", "necesita un Transform y un Tilemap");
-    add("RigidBody", "RigidBody", DimensionesComponente::Ambas, "",
+    add("RigidBody", Texto::CompCuerpoRigido, DimensionesComponente::Ambas, "",
         kIconoRigidBody,
         [](GameObject& o) -> std::unique_ptr<Component> {
             Collider* col = o.getComponent<Collider>();
@@ -343,14 +346,14 @@ CatalogoComponentes::CatalogoComponentes() {
         "", "necesita un Collider");
 
     // Script, audio e interfaz: disponibles en cualquier dimension.
-    add("Script", "Script", DimensionesComponente::Ambas, "",
+    add("Script", Texto::CompScript, DimensionesComponente::Ambas, "",
         kIconoScript,
         [](GameObject&) { return std::unique_ptr<Component>(new Script()); },
         [](Component* c, GameObject*, const ContextoPanel&) {
             return std::unique_ptr<SettingsComponent>(
                 new SettingsScript(dynamic_cast<Script*>(c)));
         });
-    add("AudioSource", "AudioSource", DimensionesComponente::Ambas, "",
+    add("AudioSource", Texto::CompFuenteAudio, DimensionesComponente::Ambas, "",
         kIconoAudio,
         [](GameObject&) {
             return std::unique_ptr<Component>(new AudioSource());
@@ -360,7 +363,7 @@ CatalogoComponentes::CatalogoComponentes() {
             s->setAudioEngine(ctx.audio);
             return std::unique_ptr<SettingsComponent>(s);
         });
-    add("Musica", "Musica", DimensionesComponente::Ambas, "",
+    add("Musica", Texto::CompMusica, DimensionesComponente::Ambas, "",
         kIconoMusica,
         [](GameObject&) {
             return std::unique_ptr<Component>(new Musica());
@@ -371,7 +374,7 @@ CatalogoComponentes::CatalogoComponentes() {
             return std::unique_ptr<SettingsComponent>(s);
         });
     // Emisor de particulas: funciona en cualquier dimension y no exige nada.
-    add("EmisorParticulas", "Emisor de particulas",
+    add("EmisorParticulas", Texto::CompEmisorParticulas,
         DimensionesComponente::Ambas, "",
         kIconoGenerico,
         [](GameObject&) {
@@ -381,7 +384,7 @@ CatalogoComponentes::CatalogoComponentes() {
             return std::unique_ptr<SettingsComponent>(
                 new SettingsEmisorParticulas(o));
         });
-    add("InterfaceComponent", "Interfaz de juego (HTML)",
+    add("InterfaceComponent", Texto::CompInterfazHtml,
         DimensionesComponente::Ambas, "",
         kIconoInterfaz,
         [](GameObject&) {
@@ -392,7 +395,7 @@ CatalogoComponentes::CatalogoComponentes() {
         });
     // Interfaz de juego NATIVA: los widgets los dibuja el motor, sin
     // navegador web. Convive con la interfaz HTML.
-    add("UIComponent", "Interfaz de juego (nativa)",
+    add("UIComponent", Texto::CompInterfazNativa,
         DimensionesComponente::Ambas, "",
         kIconoInterfazNativa,
         [](GameObject&) {
