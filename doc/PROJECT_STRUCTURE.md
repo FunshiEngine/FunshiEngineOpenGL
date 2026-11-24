@@ -1118,10 +1118,13 @@ Todos los textos que muestra el motor viven en un solo archivo,
 - Herramienta: los textos se pasan del código a `Textos.inc` con
   `ExtractorTextosCpp` (repositorio aparte, `TheOpenTool`).
 
-Estado: usan `Textos.inc` el menú de inicio, la barra de menús de la escena,
-la jerarquía y sus diálogos, y el explorador de archivos. El resto (inspector,
-barra de estado, exportación, partículas, terminal) todavía tiene textos fijos
-en español y se está pasando por ventana.
+Estado: todo texto que el editor pasa directo a ImGui sale de `Textos.inc`
+(menú de inicio, barra de menús, jerarquía, explorador, inspector, barra de
+estado, exportación, partículas, terminal, cámaras). Las listas de los combos
+se arman con `Texto` y se traducen al dibujar. Faltan los textos que viven en
+tablas de datos (nombres, submenús y requisitos del catálogo de componentes;
+caras del skybox) y los títulos de ventana, que también son el ID del dock y
+del `imgui.ini`.
 
 ### Persistencia
 

@@ -17,6 +17,9 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "MenuViewDetalle.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 namespace {
 
@@ -254,11 +257,12 @@ void MenuView::renderizarSeccionProyectos() {
     }
 
     if (abrirModalRenombrar) {
-        ImGui::OpenPopup("RenombrarProyecto");
+        ImGui::OpenPopup("###RenombrarProyecto");
         abrirModalRenombrar = false;
     }
     if (!proyectoRenombrando.empty() &&
-        ImGui::BeginPopupModal("RenombrarProyecto", NULL,
+        ImGui::BeginPopupModal(
+            Localizacion::etiqueta(Texto::TituloRenombrarProyecto, "###RenombrarProyecto").c_str(), NULL,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::Text("%s", model->traducir(Texto::Nombre));
         ImGui::InputText("##renombrarProyecto", nombreRenombrarBuffer,
@@ -298,11 +302,12 @@ void MenuView::renderizarSeccionProyectos() {
     }
 
     if (abrirModalEliminar) {
-        ImGui::OpenPopup("EliminarProyecto");
+        ImGui::OpenPopup("###EliminarProyecto");
         abrirModalEliminar = false;
     }
     if (!proyectoEliminando.empty() &&
-        ImGui::BeginPopupModal("EliminarProyecto", NULL,
+        ImGui::BeginPopupModal(
+            Localizacion::etiqueta(Texto::TituloEliminarProyecto, "###EliminarProyecto").c_str(), NULL,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::Text("%s", model->traducir(Texto::AvisoEliminar));
         ImGui::TextUnformatted(proyectoEliminando.c_str());
@@ -338,10 +343,11 @@ void MenuView::renderizarSeccionImportar() {
 
 void MenuView::renderizarModalCrearProyecto() {
     if (abrirModalCrearProyecto) {
-        ImGui::OpenPopup("CrearProyecto");
+        ImGui::OpenPopup("###CrearProyecto");
         abrirModalCrearProyecto = false;
     }
-    if (!ImGui::BeginPopupModal("CrearProyecto", NULL,
+    if (!ImGui::BeginPopupModal(
+            Localizacion::etiqueta(Texto::TituloCrearProyecto, "###CrearProyecto").c_str(), NULL,
                                 ImGuiWindowFlags_AlwaysAutoResize)) {
         return;
     }

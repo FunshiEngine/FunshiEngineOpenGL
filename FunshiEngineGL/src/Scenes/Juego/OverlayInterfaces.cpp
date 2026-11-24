@@ -26,6 +26,9 @@
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/Componentes/Interfaz/InterfaceComponent.h"
 #include "../../WebUI/WebUIRuntime.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 namespace {
 
@@ -133,12 +136,12 @@ void OverlayInterfaces::pintarVistaPrevia(GameObject* seleccionado, EstadoInterf
     }
     VistaWebUI* vista = vistaPrevia_.buscar(interfaz);
     if (!vista || !vista->cargada) {
-        ImGui::Text("Cargando %s ...", interfaz->getRutaHtml().c_str());
+        ImGui::Text(Localizacion::tr(Texto::Cargando), interfaz->getRutaHtml().c_str());
     } else if (!vista->error.empty()) {
-        ImGui::Text("Error: %s", vista->error.c_str());
+        ImGui::Text(Localizacion::tr(Texto::Error), vista->error.c_str());
     } else if (!vista->handleImGui || vista->ancho <= 0 || vista->alto <= 0) {
-        ImGui::Text("Esperando textura del motor web (%s)...", interfaz->getRutaHtml().c_str());
-        ImGui::TextDisabled("Sin backend web real (CEF) la vista no tiene imagen.");
+        ImGui::Text(Localizacion::tr(Texto::EsperandoTexturaDelMotorWeb), interfaz->getRutaHtml().c_str());
+        ImGui::TextDisabled("%s", Localizacion::tr(Texto::SinBackendWebRealCEF));
     } else {
         const float disponible = ImGui::GetContentRegionAvail().x;
         const float escala =

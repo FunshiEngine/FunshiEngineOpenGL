@@ -19,6 +19,9 @@
 #include "SidebarOrbitaGUI.h"
 
 #include <imgui.h>
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 float SidebarOrbitaGUI::progreso(float radio, float radioMinimo,
                                 float radioMaximo) {
@@ -38,7 +41,7 @@ void SidebarOrbitaGUI::dibujar(const EstadoOrbita& estado) {
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.7f);
     if (ImGui::Begin("Orbita", nullptr, flags)) {
-        ImGui::Text("Radio Orbita");
+        ImGui::Text("%s", Localizacion::tr(Texto::RadioOrbita));
         ImGui::Separator();
         // Barra vertical: altura fija, progreso = (radio - min) / (max - min).
         float avance = SidebarOrbitaGUI::progreso(estado.radio,
@@ -68,8 +71,8 @@ void SidebarOrbitaGUI::dibujar(const EstadoOrbita& estado) {
         ImGui::SameLine();
         ImGui::BeginGroup();
         ImGui::Text("%.1f", estado.radio);
-        ImGui::Text("min: %.1f", estado.radioMinimo);
-        ImGui::Text("max: %.1f", estado.radioMaximo);
+        ImGui::Text(Localizacion::tr(Texto::Min), estado.radioMinimo);
+        ImGui::Text(Localizacion::tr(Texto::Max), estado.radioMaximo);
         ImGui::EndGroup();
         ImGui::End();
     }

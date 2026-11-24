@@ -19,6 +19,8 @@
 #include "MenuViewDetalle.h"
 #include "../../Localizacion/Localizacion.h"
 
+using Localizacion::Texto;
+
 void MenuView::renderizarOpciones() {
     // Columna centrada con scroll.
     const ImVec2 win = ImGui::GetWindowSize();
@@ -65,7 +67,7 @@ void MenuView::renderizarOpciones() {
                 model->setVolumenMaestro(volumen);
             }
             ImGui::TextDisabled(
-                "Afecta a todos los efectos de sonido de la escena.");
+                "%s", Localizacion::tr(Texto::AfectaATodosLosEfectos));
             ImGui::EndTabItem();
         }
 

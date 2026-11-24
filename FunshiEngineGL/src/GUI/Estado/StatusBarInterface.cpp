@@ -33,6 +33,9 @@
 #include <fstream>
 #include <imgui.h>
 #include <nlohmann/json.hpp>
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 StatusBarInterface::StatusBarInterface(bool stateGUI)
     : GeneralUserInterface(WindowNames::Status, stateGUI,
@@ -81,28 +84,28 @@ void StatusBarInterface::dibujarToolchain() {
         toolchainListo_ = true;
     }
 
-    ImGui::SeparatorText("Herramientas externas");
-    ImGui::BulletText("Compilador C++: %s",
+    ImGui::SeparatorText(Localizacion::tr(Texto::HerramientasExternas));
+    ImGui::BulletText(Localizacion::tr(Texto::CompiladorC),
                       toolchain_.compiladorCpp.empty()
                           ? "no detectado (defini FUNSHI_CXX)"
                           : toolchain_.compiladorCpp.c_str());
-    ImGui::BulletText("Cache de artefactos: %s",
+    ImGui::BulletText(Localizacion::tr(Texto::CacheDeArtefactos),
                       toolchain_.cache.empty() ? "-" : toolchain_.cache.c_str());
     if (toolchain_.soporteJava) {
-        ImGui::BulletText("javac: %s",
+        ImGui::BulletText(Localizacion::tr(Texto::Javac),
                           toolchain_.javac.empty()
                               ? "no encontrado (defini JAVAC)"
                               : toolchain_.javac.c_str());
-        ImGui::BulletText("libjvm: %s",
+        ImGui::BulletText(Localizacion::tr(Texto::Libjvm),
                           toolchain_.libjvm.empty()
                               ? "no encontrada (JAVA_HOME / FUNSHI_LIBJVM)"
                               : toolchain_.libjvm.c_str());
-        ImGui::BulletText("JVM: %s",
+        ImGui::BulletText(Localizacion::tr(Texto::JVM),
                           toolchain_.jvmArrancada
                               ? "arrancada"
                               : "pendiente (se inicia con el primer script Java)");
     } else {
-        ImGui::BulletText("Scripts Java: backend no compilado (FUNSHI_JAVA=OFF)");
+        ImGui::BulletText("%s", Localizacion::tr(Texto::ScriptsJavaBackendNoCompilado));
     }
 }
 
@@ -110,14 +113,14 @@ void StatusBarInterface::contentGUI() {
     dibujarToolchain();
 
     // Estado de scripts como log simple
-    ImGui::SeparatorText("Scripts de la escena");
+    ImGui::SeparatorText(Localizacion::tr(Texto::ScriptsDeLaEscena));
 
     if (!scene_) {
-        ImGui::TextDisabled("Sin escena");
+        ImGui::TextDisabled("%s", Localizacion::tr(Texto::SinEscena));
     } else {
         ListaDE<GameObject*>* objs = scene_->getGameObjects();
         if (!objs || objs->isEmpty()) {
-            ImGui::TextDisabled("No hay objetos");
+            ImGui::TextDisabled("%s", Localizacion::tr(Texto::NoHayObjetos));
         } else {
             bool alguno = false;
             Position<GameObject*>* pos = objs->first();
@@ -160,7 +163,7 @@ void StatusBarInterface::contentGUI() {
                 }
                 pos = (pos != objs->last()) ? objs->next(pos) : nullptr;
             }
-            if (!alguno) ImGui::TextDisabled("No hay scripts en la escena");
+            if (!alguno) ImGui::TextDisabled("%s", Localizacion::tr(Texto::NoHayScriptsEnLa));
         }
     }
 
@@ -175,13 +178,13 @@ void StatusBarInterface::contentGUI() {
 }
 
 void StatusBarInterface::dibujarDiagnosticos() {
-    ImGui::SeparatorText("Consola de estado/log");
+    ImGui::SeparatorText(Localizacion::tr(Texto::ConsolaDeEstadoLog));
 
     // Botones de gestion del log: limpiar (con respaldo) y recuperar.
     auto& registro = RegistroDiagnosticos::global();
     bool hayEventos = !registro.ultimos(1).empty();
     ImGui::SetNextItemWidth(140.0f);
-    if (hayEventos && ImGui::Button("Limpiar log")) {
+    if (hayEventos && ImGui::Button(Localizacion::etiqueta(Texto::LimpiarLog).c_str())) {
         // Leer el contenido actual del archivo de log.
         std::ifstream entrada(registro.archivo(),
                               std::ios::in | std::ios::binary);
@@ -200,7 +203,7 @@ void StatusBarInterface::dibujarDiagnosticos() {
         registro.limpiarTodo();
     }
     ImGui::SameLine();
-    if (hayRespaldo_ && ImGui::Button("Recuperar")) {
+    if (hayRespaldo_ && ImGui::Button(Localizacion::etiqueta(Texto::Recuperar).c_str())) {
         // Insertar el contenido del respaldo ANTES del contenido actual,
         // para que se muestre en orden cronologico correcto.
         auto eventosRespaldo =
@@ -215,12 +218,12 @@ void StatusBarInterface::dibujarDiagnosticos() {
     }
     if (hayRespaldo_) {
         ImGui::SameLine();
-        ImGui::TextDisabled("(hay respaldo de log)");
+        ImGui::TextDisabled("%s", Localizacion::tr(Texto::HayRespaldoDeLog));
     }
 
     const auto eventos = registro.ultimos(100);
     if (eventos.empty()) {
-        ImGui::TextDisabled("No hay diagnósticos registrados");
+        ImGui::TextDisabled("%s", Localizacion::tr(Texto::NoHayDiagnosticosRegistrados));
         return;
     }
 
@@ -242,8 +245,8 @@ void StatusBarInterface::dibujarDiagnosticos() {
                                nivel.c_str(), evento.modulo.c_str());
             ImGui::TextWrapped("%s", evento.mensaje.c_str());
             if (!evento.proyecto.empty())
-                ImGui::TextDisabled("Proyecto: %s", evento.proyecto.c_str());
-            if (!evento.traza.empty() && ImGui::TreeNode("Traza")) {
+                ImGui::TextDisabled(Localizacion::tr(Texto::Proyecto), evento.proyecto.c_str());
+            if (!evento.traza.empty() && ImGui::TreeNode(Localizacion::etiqueta(Texto::Traza).c_str())) {
                 ImGui::TextWrapped("%s", evento.traza.c_str());
                 ImGui::TreePop();
             }

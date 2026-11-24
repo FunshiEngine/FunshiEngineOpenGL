@@ -17,6 +17,9 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "GameSceneDetalle.h"
+#include "../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 void GameScene::GUI() {
     // En modo runtime (juego exportado sin editor), no hay GUI del editor
@@ -203,12 +206,12 @@ void GameScene::pintarVentanaCamaras() {
         return;
     }
 
-    if (ImGui::Button("Agregar camara")) {
+    if (ImGui::Button(Localizacion::etiqueta(Texto::AgregarCamara).c_str())) {
         agregarCamaraEnVistaActiva();
     }
     ImGui::SameLine();
     ImGui::TextUnformatted(
-        "Crea una camara en la vista activa y abre su vista previa.");
+        Localizacion::tr(Texto::CreaUnaCamaraEnLa));
 
     ImGui::Separator();
 
@@ -241,15 +244,15 @@ void GameScene::pintarVentanaCamaras() {
                     }
                 }
                 if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("Usar esta camara (navegacion + vista)");
+                    ImGui::SetTooltip("%s", Localizacion::tr(Texto::UsarEstaCamaraNavegacionVista));
                 }
 
                 bool pintar = camara->getPintar();
-                if (ImGui::Checkbox("Vista previa", &pintar)) {
+                if (ImGui::Checkbox(Localizacion::etiqueta(Texto::VistaPrevia).c_str(), &pintar)) {
                     camara->setPintar(pintar);
                 }
                 ImGui::SameLine();
-                if (ImGui::SmallButton("Eliminar")) {
+                if (ImGui::SmallButton(Localizacion::etiqueta(Texto::Eliminar).c_str())) {
                     GameObject* objetivo = objeto;
                     if (objetivo == requestedActiveCamera)
                         requestedActiveCamera = nullptr;

@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "GameExporterDetalle.h"
+#include "../Localizacion/Localizacion.h"
 
 std::vector<GameExporter::Plataforma> GameExporter::plataformasDisponibles() {
 #ifdef _WIN32
@@ -32,10 +33,11 @@ std::vector<GameExporter::Plataforma> GameExporter::plataformasDisponibles() {
 const char* GameExporter::etiquetaPlataforma(Plataforma plataforma) {
 #ifdef _WIN32
     (void)plataforma;
-    return "Windows (nativo)";
+    return Localizacion::tr(Localizacion::Texto::PlataformaWindowsNativo);
 #else
-    return plataforma == Plataforma::Windows ? "Windows (cross-compile MinGW)"
-                                             : "Linux (nativo)";
+    return Localizacion::tr(plataforma == Plataforma::Windows
+                                ? Localizacion::Texto::PlataformaWindowsCruzada
+                                : Localizacion::Texto::PlataformaLinuxNativo);
 #endif
 }
 

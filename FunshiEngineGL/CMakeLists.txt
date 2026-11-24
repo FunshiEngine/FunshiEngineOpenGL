@@ -1644,6 +1644,8 @@ target_include_directories(editor-input-tests PRIVATE
     ${SRC_DIR}/ImGui
     ${CMAKE_CURRENT_SOURCE_DIR}/ImGuizmo
 )
+# La barra de orbita muestra textos traducibles (Localizacion).
+target_link_libraries(editor-input-tests PRIVATE funshi_localizacion)
 set_target_properties(editor-input-tests PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
