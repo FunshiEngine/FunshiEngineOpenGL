@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SceneObjectTree.h"
+#include "../Tema/TemaEditor.h"
 #include "JerarquiaArbol.h"
 
 #include "../../Objetos/GameObject.h"
@@ -354,7 +355,7 @@ void SceneObjectTree::dibujarDialogosModales() {
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Eliminar '%s' (ID: %d)?",
                         objetoEnDialogo->inputName, objetoEnDialogo->getId());
-            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f),
+            ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error),
                                "Esta accion no se puede deshacer.");
             ImGui::Separator();
             if (ImGui::Button("Eliminar", ImVec2(120, 0))) {

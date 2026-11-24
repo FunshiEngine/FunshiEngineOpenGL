@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "TreeFilesInterface.h"
+#include "../Tema/TemaEditor.h"
 
 #include <cstring>
 #include <filesystem>
@@ -312,7 +313,7 @@ void TreeFilesInterface::initGUI() {
             ImGui::CloseCurrentPopup();
         }
         if (!errorNuevaCarpeta.empty())
-            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s",
+            ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error), "%s",
                                errorNuevaCarpeta.c_str());
         ImGui::EndPopup();
     }

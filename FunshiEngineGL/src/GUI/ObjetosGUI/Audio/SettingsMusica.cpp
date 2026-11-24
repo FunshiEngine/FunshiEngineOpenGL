@@ -46,7 +46,6 @@ void SettingsMusica::showDataComponent() {
 	Musica* musica = gameObject->getComponent<Musica>();
 	if (!musica) return;
 
-	ImGui::Text("===Musica===");
 
 	// La lista de pistas: cada una es la ruta de un archivo (el usuario la
 	// arrastro aqui). El orden es el de reproduccion.

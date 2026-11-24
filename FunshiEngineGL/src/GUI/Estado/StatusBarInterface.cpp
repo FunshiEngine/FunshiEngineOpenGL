@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "StatusBarInterface.h"
+#include "../Tema/TemaEditor.h"
 
 #include "BarraProgresoTexto.h"
 #include "../WindowNames.h"
@@ -168,7 +169,7 @@ void StatusBarInterface::contentGUI() {
     // Mensaje temporal (progreso de compilacion o exportacion)
     if (!mensajeTemporal_.empty()) {
         ImGui::Separator();
-        ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.2f, 1.0f), "%s",
+        ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Exito), "%s",
                            mensajeTemporal_.c_str());
     }
 }
@@ -233,10 +234,10 @@ void StatusBarInterface::dibujarDiagnosticos() {
                 RegistroDiagnosticos::nombreNivel(evento.nivel);
             ImVec4 color(0.82f, 0.84f, 0.88f, 1.0f);
             if (evento.nivel == NivelDiagnostico::Advertencia)
-                color = ImVec4(1.0f, 0.72f, 0.24f, 1.0f);
+                color = TemaEditor::color(TemaEditor::RolColor::Aviso);
             else if (evento.nivel == NivelDiagnostico::Error ||
                      evento.nivel == NivelDiagnostico::Critico)
-                color = ImVec4(1.0f, 0.35f, 0.32f, 1.0f);
+                color = TemaEditor::color(TemaEditor::RolColor::Error);
             ImGui::TextColored(color, "[%s] [%s] %s", evento.fechaUtc.c_str(),
                                nivel.c_str(), evento.modulo.c_str());
             ImGui::TextWrapped("%s", evento.mensaje.c_str());

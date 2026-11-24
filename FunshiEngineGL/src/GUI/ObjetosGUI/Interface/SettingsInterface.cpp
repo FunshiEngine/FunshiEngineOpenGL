@@ -59,7 +59,6 @@ void SettingsInterface::showDataComponent() {
     InterfaceComponent* comp = gameObject->getComponent<InterfaceComponent>();
     if (!comp) return;
 
-    ImGui::Text("===Interfaz del jugador (HTML)===");
 
     // Origen de arrastre: lleva el nombre del objeto dueño de la interfaz para
     // asignarla a un campo TagTipo::Componente de un script.

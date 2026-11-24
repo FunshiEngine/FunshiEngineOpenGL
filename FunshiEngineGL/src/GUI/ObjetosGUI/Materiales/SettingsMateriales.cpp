@@ -53,7 +53,6 @@ void SettingsMateriales::showDataComponent() {
     Materiales* materiales = gameObject->getComponent<Materiales>();
     if (!materiales) return;
 
-    ImGui::Text("===Materiales por region===");
     ImGui::TextWrapped(
         "Cada region de la malla (la cara de un cubo, la parte de un "
         "personaje) puede llevar su propio material y sus texturas. La region "

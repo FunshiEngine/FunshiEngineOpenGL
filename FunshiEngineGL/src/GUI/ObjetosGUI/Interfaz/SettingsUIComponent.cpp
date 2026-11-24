@@ -87,7 +87,6 @@ void SettingsUIComponent::showDataComponent() {
     UIComponent* comp = gameObject->getComponent<UIComponent>();
     if (!comp) return;
 
-    ImGui::Text("===Interfaz de juego nativa===");
     ImGui::TextWrapped(
         "Widgets que dibuja el motor en pantalla. El identificador es el "
         "nombre con el que un script consulta el widget.");

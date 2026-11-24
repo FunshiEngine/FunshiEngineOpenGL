@@ -245,6 +245,29 @@ int main() {
               "el acento transparente tampoco deja restos azules de fabrica");
     }
 
+    // Colores por rol: cambian con el tema (contraste) y en B/N quedan grises.
+    {
+        Apariencia oscura;
+        Apariencia clara;
+        clara.temaClaro = true;
+        const ImVec4 errorOscuro = TemaEditor::color(TemaEditor::RolColor::Error, oscura);
+        const ImVec4 errorClaro = TemaEditor::color(TemaEditor::RolColor::Error, clara);
+        CHECK(errorOscuro.x > errorOscuro.y && errorClaro.x > errorClaro.y,
+              "el error es rojizo en los dos temas");
+        CHECK(AparienciaUtil::luminancia(errorClaro.x, errorClaro.y, errorClaro.z) <
+                  AparienciaUtil::luminancia(errorOscuro.x, errorOscuro.y, errorOscuro.z),
+              "sobre el tema claro el error es mas oscuro (contraste)");
+        Apariencia bn;
+        bn.blancoYNegro = true;
+        const ImVec4 exito = TemaEditor::color(TemaEditor::RolColor::Exito, bn);
+        CHECK(exito.x == exito.y && exito.y == exito.z, "en blanco y negro el color es gris");
+        TemaEditor::aplicarEstilo(clara);
+        const ImVec4 vigente = TemaEditor::color(TemaEditor::RolColor::Aviso);
+        const ImVec4 esperado = TemaEditor::color(TemaEditor::RolColor::Aviso, clara);
+        CHECK(vigente.x == esperado.x && vigente.y == esperado.y,
+              "sin perfil explicito se usa el ultimo aplicado");
+    }
+
     ImGui::DestroyContext();
 
     std::cout << (fallos == 0 ? "OK: " : "FALLOS: ") << (total - fallos) << "/"

@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "TerminalInterface.h"
+#include "../Tema/TemaEditor.h"
 
 #include "../WindowNames.h"
 #include <imgui.h>
@@ -173,7 +174,7 @@ void TerminalInterface::contentGUI() {
     }
     ImGui::SameLine();
     if (sesion_.estaActiva() && ImGui::Button("Cerrar sesión")) sesion_.detener();
-    if (!error_.empty()) ImGui::TextColored(ImVec4(1, 0.35f, 0.32f, 1), "%s", error_.c_str());
+    if (!error_.empty()) ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error), "%s", error_.c_str());
 
     const float altoLinea = ImGui::GetTextLineHeight();
     const float anchoCaracter = std::max(ImGui::CalcTextSize("M").x, 1.0f);

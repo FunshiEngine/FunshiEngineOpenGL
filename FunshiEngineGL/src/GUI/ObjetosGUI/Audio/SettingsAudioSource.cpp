@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SettingsAudioSource.h"
+#include "../../Tema/TemaEditor.h"
 
 #include "../../../Audio/AudioEngine.h"
 #include "../../../Audio/ExtensionesAudio.h"
@@ -34,7 +35,6 @@ void SettingsAudioSource::showDataComponent() {
 	AudioSource* source = gameObject->getComponent<AudioSource>();
 	if (!source) return;
 
-	ImGui::Text("===Fuente de audio===");
 
 	// El archivo se asigna arrastrandolo desde el explorador de archivos
 	// (igual que los scripts): el componente guarda la ruta y el motor
@@ -72,7 +72,7 @@ void SettingsAudioSource::showDataComponent() {
 	ImGui::PopID();
 
 	if (!source->getRutaClip().empty()) {
-		ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(150, 150, 150, 255));
+		ImGui::PushStyleColor(ImGuiCol_Text, TemaEditor::color(TemaEditor::RolColor::Atenuado));
 		ImGui::TextUnformatted(source->getRutaClip().c_str());
 		ImGui::PopStyleColor();
 	}

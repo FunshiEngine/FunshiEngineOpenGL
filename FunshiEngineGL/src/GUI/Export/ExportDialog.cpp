@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "ExportDialog.h"
+#include "../Tema/TemaEditor.h"
 
 #include "Exportador/PrecondicionesExportacion.h"
 
@@ -93,7 +94,7 @@ void ExportDialog::renderFormulario() {
     // De que proyecto se exporta: sin esta linea no se ve de donde sale la
     // exportacion (y un proyecto sin nombre es un fallo silencioso).
     if (proyectoActual_.empty()) {
-        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f),
+        ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error),
                            "Proyecto: (ninguno)");
     } else {
         ImGui::Text("Proyecto: %s", proyectoActual_.c_str());
@@ -120,7 +121,7 @@ void ExportDialog::renderFormulario() {
     if (estado_.hayMensaje() &&
         estado_.resultado() == EstadoExportacion::Resultado::Error) {
         ImGui::Spacing();
-        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "%s",
+        ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error), "%s",
                            estado_.mensaje().c_str());
     }
 
@@ -178,8 +179,8 @@ void ExportDialog::renderResultado() {
     // El motivo (de exito o de error) queda siempre a la vista: es lo que
     // explica al usuario que paso con lo que pidio.
     if (estado_.hayMensaje()) {
-        const ImVec4 color = exito ? ImVec4(0.45f, 0.95f, 0.55f, 1.0f)
-                                   : ImVec4(1.0f, 0.45f, 0.45f, 1.0f);
+        const ImVec4 color = exito ? TemaEditor::color(TemaEditor::RolColor::Exito)
+                                   : TemaEditor::color(TemaEditor::RolColor::Error);
         ImGui::TextColored(color, "%s", estado_.mensaje().c_str());
     }
 

@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SettingsEmisorParticulas.h"
+#include "../../Tema/TemaEditor.h"
 
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/Efectos/EmisorParticulas.h"
@@ -52,7 +53,6 @@ void SettingsEmisorParticulas::showDataComponent() {
         gameObject ? gameObject->getComponent<EmisorParticulas>() : nullptr;
     if (!emisor) return;
 
-    ImGui::Text("===Emisor de particulas===");
 
     bool activa = emisor->activa();
     if (ImGui::Checkbox("Activo", &activa)) emisor->setActiva(activa);
@@ -136,7 +136,7 @@ void SettingsEmisorParticulas::showDataComponent() {
     }
     ImGui::PopID();
     if (!emisor->errorPerfil().empty()) {
-        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s",
+        ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error), "%s",
                             emisor->errorPerfil().c_str());
     } else if (emisor->perfil()) {
         ImGui::Text("Perfil: %s", emisor->perfil()->nombre.c_str());

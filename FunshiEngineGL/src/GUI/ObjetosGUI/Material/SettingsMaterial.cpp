@@ -36,7 +36,6 @@ void SettingsMaterial::showDataComponent() {
 	Material* material = gameObject->getComponent<Material>();
 	if (!material) return;
 
-	ImGui::Text("===Material===");
 	// La vista previa (esfera de muestra) tiene su propia clave: la del
 	// material unico del objeto, con su id (asi el material de otro objeto no
 	// pisa el de este, que se dibuja al seleccionar otro objeto).

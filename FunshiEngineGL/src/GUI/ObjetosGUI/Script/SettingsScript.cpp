@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SettingsScript.h"
+#include "../../Tema/TemaEditor.h"
 
 #include <algorithm>
 #include <cstring>
@@ -209,13 +210,9 @@ void SettingsScript::showDataComponent() {
 	}
 
 	if (ImGui::BeginDragDropTarget()) {
-		std::cout << "[DEBUG ScriptDragDrop] Target active for script: " 
-		          << className << " path: " << myScript->getPath() << std::endl;
 		if (const ImGuiPayload* payload =
 		        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
 			const char* path = (const char*)payload->Data;
-			std::cout << "[DEBUG ScriptDragDrop] Dropped file: " << path 
-			          << " onto script: " << className << std::endl;
 			// setDllPath invalida la carga previa y fija la nueva ruta.
 			// La compilacion/carga NO se hace aqui dentro (H-4): invocar
 			// cl.exe o javac sincronicamente bloquea el hilo varios segundos
@@ -237,7 +234,7 @@ void SettingsScript::showDataComponent() {
 	}
 
 	if (!myScript->getPath().empty()) {
-		ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(150, 150, 150, 255));
+		ImGui::PushStyleColor(ImGuiCol_Text, TemaEditor::color(TemaEditor::RolColor::Atenuado));
 		ImGui::TextUnformatted(myScript->getPath().c_str());
 		ImGui::PopStyleColor();
 	}

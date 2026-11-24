@@ -19,6 +19,7 @@
 // La E/S de plataforma (dialogos nativos, xdg-open/ShellExecute, listado de
 // directorio) vive en FileManager; esta vista solo conversa con la fachada.
 #include "ContentFolderInterface.h"
+#include "../Tema/TemaEditor.h"
 
 #include <algorithm>
 #include <cstring>
@@ -535,7 +536,7 @@ void ContentFolderInterface::initGUI() {
             ImGui::CloseCurrentPopup();
         }
         if (!errorNuevoElemento.empty())
-            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s",
+            ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error), "%s",
                                errorNuevoElemento.c_str());
         ImGui::EndPopup();
     }

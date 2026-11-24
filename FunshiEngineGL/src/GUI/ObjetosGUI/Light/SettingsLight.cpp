@@ -29,7 +29,6 @@ void SettingsLight::showDataComponent() {
 	Light* light = gameObject->getComponent<Light>();
 	if (!light) return;
 
-	ImGui::Text("===Luz===");
 
 	const char* tipos[] = {"Direccional", "Puntual", "Spot"};
 	int tipoActual = static_cast<int>(light->getType());

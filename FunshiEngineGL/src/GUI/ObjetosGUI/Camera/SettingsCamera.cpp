@@ -29,7 +29,6 @@ void SettingsCamera::showDataComponent() {
 	CameraComponent* camera = gameObject->getComponent<CameraComponent>();
 	if (!camera) return;
 
-	ImGui::Text("===Camara===");
 
 	// En 2D la camara es ortografica por contrato del proyecto: no se ofrece
 	// cambiar la proyeccion ni el FOV, solo el zoom (ortoSise) y el plano.

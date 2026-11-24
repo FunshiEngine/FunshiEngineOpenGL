@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "AnimacionesParticulasInterface.h"
+#include "../Tema/TemaEditor.h"
 
 #include <algorithm>
 #include <cctype>
@@ -72,8 +73,8 @@ void AnimacionesParticulasInterface::contentGUI() {
     // dibuja fuera de ellas para que no desaparezca al cambiar de pestana.
     if (!mensaje_.empty()) {
         ImGui::TextColored(
-            mensajeError_ ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
-                          : ImVec4(0.5f, 1.0f, 0.5f, 1.0f),
+            mensajeError_ ? TemaEditor::color(TemaEditor::RolColor::Error)
+                          : TemaEditor::color(TemaEditor::RolColor::Exito),
             "%s", mensaje_.c_str());
     }
 }

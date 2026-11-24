@@ -18,6 +18,8 @@
 */
 #include "TemaEditor.h"
 
+#include <cstdarg>
+
 namespace {
 
 ImVec4 conAlpha(const ImVec4& c, float a) {
@@ -61,6 +63,12 @@ constexpr float kMezclaSolapaClara = 0.90f;        // Tab (tema claro)
 constexpr float kMezclaSolapaAtenuada = 0.80f;     // TabDimmed
 constexpr float kMezclaSolapaAtenuadaSel = 0.40f;  // TabDimmedSelected
 
+// Ultimo perfil aplicado: lo usan los paneles al pedir un color por rol.
+Apariencia& perfilVigente() {
+    static Apariencia perfil;
+    return perfil;
+}
+
 } // namespace
 
 ImVec4 TemaEditor::acento(const Apariencia& ap) {
@@ -73,6 +81,7 @@ ImVec4 TemaEditor::acento(const Apariencia& ap) {
 }
 
 void TemaEditor::aplicarEstilo(const Apariencia& ap) {
+    perfilVigente() = ap;
     // Base clara u oscura de fabrica; luego se pisan los roles de acento.
     if (ap.temaClaro) {
         ImGui::StyleColorsLight();
@@ -210,4 +219,36 @@ void TemaEditor::aplicarEstilo(const Apariencia& ap) {
             s.Colors[i] = aGris(s.Colors[i]);
         }
     }
+}
+
+ImVec4 TemaEditor::color(RolColor rol, const Apariencia& ap) {
+    // Sobre fondo oscuro van tonos claros y saturados; sobre fondo claro,
+    // oscuros, para mantener el contraste del texto.
+    ImVec4 c;
+    switch (rol) {
+    case RolColor::Error:
+        c = ap.temaClaro ? ImVec4(0.72f, 0.11f, 0.11f, 1.0f) : ImVec4(1.0f, 0.45f, 0.42f, 1.0f);
+        break;
+    case RolColor::Aviso:
+        c = ap.temaClaro ? ImVec4(0.62f, 0.40f, 0.0f, 1.0f) : ImVec4(1.0f, 0.75f, 0.30f, 1.0f);
+        break;
+    case RolColor::Exito:
+        c = ap.temaClaro ? ImVec4(0.10f, 0.50f, 0.20f, 1.0f) : ImVec4(0.45f, 0.90f, 0.50f, 1.0f);
+        break;
+    case RolColor::Atenuado:
+        c = ap.temaClaro ? ImVec4(0.45f, 0.45f, 0.45f, 1.0f) : ImVec4(0.60f, 0.60f, 0.60f, 1.0f);
+        break;
+    }
+    return ap.blancoYNegro ? aGris(c) : c;
+}
+
+ImVec4 TemaEditor::color(RolColor rol) { return color(rol, perfilVigente()); }
+
+void TemaEditor::texto(RolColor rol, const char* formato, ...) {
+    va_list args;
+    va_start(args, formato);
+    ImGui::PushStyleColor(ImGuiCol_Text, color(rol));
+    ImGui::TextV(formato, args);
+    ImGui::PopStyleColor();
+    va_end(args);
 }
