@@ -17,6 +17,9 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "ContentFolderInterfaceDetalle.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 void ContentFolderInterface::initGUI() {
     FileSelection* sel = fileManager->getSelection();
@@ -72,10 +75,10 @@ void ContentFolderInterface::initGUI() {
             }
             ImGui::PopStyleVar();
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Subir a carpeta padre");
+                ImGui::SetTooltip("%s", Localizacion::tr(Texto::SubirACarpetaPadre));
             }
             ImGui::SameLine();
-            ImGui::TextUnformatted(pathName.empty() ? "(raiz)" : pathName.c_str());
+            ImGui::TextUnformatted(pathName.empty() ? Localizacion::tr(Texto::Raiz) : pathName.c_str());
             // La ruta completa en el tooltip: dos carpetas de sitios distintos
             // pueden llamarse igual, y con varias abiertas el nombre solo no
             // dice donde estas.
@@ -87,27 +90,27 @@ void ContentFolderInterface::initGUI() {
     }
 
     if (ImGui::BeginPopupContextWindow("AddFilesPopup", ImGuiPopupFlags_MouseButtonRight)) {
-        if (ImGui::MenuItem("New Script")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NewScript).c_str())) {
             // Abre dialogo para elegir tipo de script (C++ o Java)
             tipoScriptSeleccionado = 0; // default C++
             abrirPopupTipoScript = true;
             ImGui::CloseCurrentPopup();
         }
-        if (ImGui::MenuItem("New Folder")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NewFolder).c_str())) {
             creandoCarpeta = true; creandoScript = false;
             creandoScriptJava = false;
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             abrirPopupNombre = true;
             ImGui::CloseCurrentPopup();
         }
-        if (ImGui::MenuItem("New File")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NewFile).c_str())) {
             creandoCarpeta = false; creandoScript = false;
             creandoScriptJava = false;
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             abrirPopupNombre = true;
             ImGui::CloseCurrentPopup();
         }
-        if (ImGui::MenuItem("Copy Exist Folder") && sel->carpetaActual) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CopyExistFolder).c_str()) && sel->carpetaActual) {
             std::string sourceFolder = FileManager::seleccionarCarpetaSistema();
             if (!sourceFolder.empty()) {
                 const std::string destFolder =
@@ -124,7 +127,7 @@ void ContentFolderInterface::initGUI() {
                 }
             }
         }
-        if (ImGui::MenuItem("Copy Exist File") && sel->carpetaActual) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CopyExistFile).c_str()) && sel->carpetaActual) {
             std::string sourceFile = FileManager::seleccionarArchivoSistema();
             if (!sourceFile.empty()) {
                 const std::string destFolder =
@@ -146,22 +149,25 @@ void ContentFolderInterface::initGUI() {
     }
 
     if (abrirPopupNombre) {
-        ImGui::OpenPopup("Ingresar nombre");
+        ImGui::OpenPopup("###Ingresar nombre");
         abrirPopupNombre = false;
         errorNuevoElemento.clear();
     }
 
-    if (ImGui::BeginPopupModal("Ingresar nombre", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal(
+            Localizacion::etiqueta(Texto::IngresarNombre, "###Ingresar nombre").c_str(),
+            NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
         if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
-        ImGui::Text("Escribe el nombre del %s:",
-                    creandoCarpeta ? "folder"
-                                   : (creandoScriptJava ? "script java"
-                                                        : (creandoScript ? "script C++"
-                                                                         : "file")));
+        // Frase entera por caso: "del %s" no se traduce bien a otros idiomas.
+        ImGui::TextUnformatted(Localizacion::tr(
+            creandoCarpeta ? Texto::EscribeElNombreDeLa
+                           : (creandoScriptJava ? Texto::EscribeNombreScriptJava
+                                                : (creandoScript ? Texto::EscribeNombreScriptCpp
+                                                                 : Texto::EscribeNombreArchivo))));
         const bool enter = ImGui::InputText(
             "##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo),
             ImGuiInputTextFlags_EnterReturnsTrue);
-        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) || enter;
+        const bool confirmado = ImGui::Button(Localizacion::etiqueta(Texto::Crear).c_str(), ImVec2(120, 0)) || enter;
         if (confirmado) {
             // Cierra solo si el elemento quedo creado; si no, el popup sigue
             // abierto con el motivo y el texto para corregirlo.
@@ -170,7 +176,7 @@ void ContentFolderInterface::initGUI() {
                 ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        const bool cancelar = ImGui::Button("Cancelar", ImVec2(120, 0)) ||
+        const bool cancelar = ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0)) ||
                               ImGui::IsKeyPressed(ImGuiKey_Escape);
         if (cancelar) {
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
@@ -196,16 +202,18 @@ void ContentFolderInterface::initGUI() {
 
     // Modal para seleccionar tipo de script (C++ o Java)
     if (abrirPopupTipoScript) {
-        ImGui::OpenPopup("Seleccionar Tipo de Script");
+        ImGui::OpenPopup("###Seleccionar Tipo de Script");
         abrirPopupTipoScript = false;
     }
-    if (ImGui::BeginPopupModal("Seleccionar Tipo de Script", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Selecciona el tipo de script a crear:");
+    if (ImGui::BeginPopupModal(
+            Localizacion::etiqueta(Texto::SeleccionarTipoDeScript, "###Seleccionar Tipo de Script").c_str(),
+            NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("%s", Localizacion::tr(Texto::SeleccionaElTipoDeScript));
         ImGui::Separator();
         if (ImGui::RadioButton("C++ (.cpp)", &tipoScriptSeleccionado, 0)) {}
         if (ImGui::RadioButton("Java (.java)", &tipoScriptSeleccionado, 1)) {}
         ImGui::Separator();
-        const bool confirmado = ImGui::Button("Continuar", ImVec2(120, 0)) ||
+        const bool confirmado = ImGui::Button(Localizacion::etiqueta(Texto::Continuar).c_str(), ImVec2(120, 0)) ||
                                 (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
         if (confirmado) {
             creandoCarpeta = false;
@@ -216,7 +224,7 @@ void ContentFolderInterface::initGUI() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+        if (ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0))) {
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -224,19 +232,21 @@ void ContentFolderInterface::initGUI() {
 
     // Modal de confirmacion para eliminar archivo
     if (confirmarEliminarArchivo && !archivoAEliminar.empty()) {
-        ImGui::OpenPopup("ConfirmarEliminarArchivo");
+        ImGui::OpenPopup("###ConfirmarEliminarArchivo");
         confirmarEliminarArchivo = false;
     }
-    if (ImGui::BeginPopupModal("ConfirmarEliminarArchivo", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Eliminar archivo \"%s\"?", archivoAEliminar.c_str());
-        ImGui::Text("Esta accion no se puede deshacer.");
-        if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
+    if (ImGui::BeginPopupModal(
+            Localizacion::etiqueta(Texto::ConfirmarEliminarArchivo, "###ConfirmarEliminarArchivo").c_str(),
+            nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text(Localizacion::tr(Texto::EliminarArchivo2), archivoAEliminar.c_str());
+        ImGui::Text("%s", Localizacion::tr(Texto::EstaAccionNoSePuede));
+        if (ImGui::Button(Localizacion::etiqueta(Texto::Eliminar).c_str(), ImVec2(120, 0))) {
             archivoAEliminarConfirmado = archivoAEliminar;
             archivoAEliminar.clear();
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+        if (ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0))) {
             archivoAEliminar.clear();
             ImGui::CloseCurrentPopup();
         }
@@ -245,19 +255,21 @@ void ContentFolderInterface::initGUI() {
 
     // Modal de confirmacion para eliminar carpeta desde el grid
     if (confirmarEliminarCarpetaGrid && !carpetaAEliminarGrid.empty()) {
-        ImGui::OpenPopup("ConfirmarEliminarCarpetaGrid");
+        ImGui::OpenPopup("###ConfirmarEliminarCarpetaGrid");
         confirmarEliminarCarpetaGrid = false;
     }
-    if (ImGui::BeginPopupModal("ConfirmarEliminarCarpetaGrid", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Eliminar carpeta \"%s\" y todo su contenido?", carpetaAEliminarGrid.c_str());
-        ImGui::Text("Esta accion no se puede deshacer.");
-        if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
+    if (ImGui::BeginPopupModal(
+            Localizacion::etiqueta(Texto::ConfirmarEliminarCarpetaGrid, "###ConfirmarEliminarCarpetaGrid").c_str(),
+            nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text(Localizacion::tr(Texto::EliminarCarpetaYTodoSu), carpetaAEliminarGrid.c_str());
+        ImGui::Text("%s", Localizacion::tr(Texto::EstaAccionNoSePuede));
+        if (ImGui::Button(Localizacion::etiqueta(Texto::Eliminar).c_str(), ImVec2(120, 0))) {
             carpetaAEliminarGridConfirmada = carpetaAEliminarGrid;
             carpetaAEliminarGrid.clear();
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+        if (ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0))) {
             carpetaAEliminarGrid.clear();
             ImGui::CloseCurrentPopup();
         }
@@ -349,9 +361,9 @@ void ContentFolderInterface::contentGUI() {
                     "zonaDropArchivos",
                     ImVec2(ImGui::GetContentRegionAvail().x, alturaZona));
                 if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip(ctrlOCmd()
-                        ? "Copiar en la carpeta actual"
-                        : "Mover a la carpeta actual  (Ctrl = copiar)");
+                    ImGui::SetTooltip("%s", Localizacion::tr(ctrlOCmd()
+                        ? Texto::CopiarEnLaCarpetaActual
+                        : Texto::MoverALaCarpetaActual));
                 if (ImGui::BeginDragDropTarget()) {
                     if (const ImGuiPayload* aceptado =
                             ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {

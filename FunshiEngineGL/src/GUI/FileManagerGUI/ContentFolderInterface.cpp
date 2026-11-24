@@ -17,6 +17,9 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "ContentFolderInterfaceDetalle.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 ContentFolderInterface::ContentFolderInterface(bool stateGUI, FileManager* fileManager)
     : GeneralUserInterface(WindowNames::ShowFolder, stateGUI, ImGuiWindowFlags_MenuBar),
@@ -231,7 +234,7 @@ void ContentFolderInterface::recorrer(const std::string& path) {
 
         // Menu contextual de la celda -> Renombrar / Eliminar (archivo o carpeta).
         if (ImGui::BeginPopupContextItem("PopRenombrar")) {
-            if (ImGui::MenuItem("Renombrar")) {
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::Renombrar).c_str())) {
                 // El modal compartido se encarga del disco y del aviso a la
                 // escena; aca solo se le pasa el elemento y su nombre actual.
                 modalRenombrar.solicitar(fullPath, esCarpeta, nombre);
@@ -239,13 +242,13 @@ void ContentFolderInterface::recorrer(const std::string& path) {
             }
             ImGui::Separator();
             if (esCarpeta) {
-                if (ImGui::MenuItem("Eliminar Carpeta")) {
+                if (ImGui::MenuItem(Localizacion::etiqueta(Texto::EliminarCarpeta).c_str())) {
                     carpetaAEliminarGrid = fullPath;
                     confirmarEliminarCarpetaGrid = true;
                     ImGui::CloseCurrentPopup();
                 }
             } else {
-                if (ImGui::MenuItem("Eliminar Archivo")) {
+                if (ImGui::MenuItem(Localizacion::etiqueta(Texto::EliminarArchivo).c_str())) {
                     archivoAEliminar = fullPath;
                     confirmarEliminarArchivo = true;
                     ImGui::CloseCurrentPopup();
@@ -282,7 +285,7 @@ void ContentFolderInterface::recorrer(const std::string& path) {
             // SetDragDropPayload lo reemplaza. Cada destino decide si acepta el
             // archivo mirando su tipo (TiposArchivo::clasificar).
             ImGui::SetDragDropPayload("ARCHIVO_PATH", fullPath.c_str(), fullPath.size() + 1);
-            ImGui::Text("Soltar en zona de destino");
+            ImGui::Text("%s", Localizacion::tr(Texto::SoltarEnZonaDeDestino));
             ImGui::Text("%s", nombre.c_str());
             ImGui::EndDragDropSource();
         }
@@ -299,9 +302,9 @@ void ContentFolderInterface::recorrer(const std::string& path) {
                 if (strcmp(arrastre->DataType, "ARCHIVO_PATH") == 0 &&
                     ImGui::IsItemHovered()) {
                     if (ctrlOCmd())
-                        ImGui::SetTooltip("Copiar dentro de %s", nombre.c_str());
+                        ImGui::SetTooltip(Localizacion::tr(Texto::CopiarDentroDe), nombre.c_str());
                     else
-                        ImGui::SetTooltip("Mover a %s  (Ctrl = copiar)",
+                        ImGui::SetTooltip(Localizacion::tr(Texto::MoverACtrlCopiar),
                                           nombre.c_str());
                 }
             }
@@ -344,7 +347,7 @@ void ContentFolderInterface::recorrer(const std::string& path) {
 
         if (truncado && ImGui::IsItemHovered()) {
             if (!esCarpeta && !extension.empty())
-                ImGui::SetTooltip("%s\nTipo: %s", nombre.c_str(), extension.c_str());
+                ImGui::SetTooltip(Localizacion::tr(Texto::Tipo), nombre.c_str(), extension.c_str());
             else
                 ImGui::SetTooltip("%s", nombre.c_str());
         }
