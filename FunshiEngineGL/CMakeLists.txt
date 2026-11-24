@@ -1405,6 +1405,7 @@ add_test(NAME terminal-emulator-tests COMMAND terminal-emulator-tests)
 # SKIP_RETURN_CODE. En Linux forkpty() requiere enlazar -lutil.
 add_executable(terminal-session-tests
     ${SRC_DIR}/Terminal/TerminalSession.cpp
+    ${SRC_DIR}/Terminal/TerminalSessionControl.cpp
     ${FUNSHI_TESTS_CI_DIR}/TerminalSessionTests.cpp
 )
 target_include_directories(terminal-session-tests PRIVATE ${SRC_DIR})
