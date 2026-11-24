@@ -347,7 +347,7 @@ void ContentFolderInterface::recorrer(const std::string& path) {
 
         if (truncado && ImGui::IsItemHovered()) {
             if (!esCarpeta && !extension.empty())
-                ImGui::SetTooltip(Localizacion::tr(Texto::Tipo), nombre.c_str(), extension.c_str());
+                ImGui::SetTooltip(Localizacion::tr(Texto::NombreYTipo), nombre.c_str(), extension.c_str());
             else
                 ImGui::SetTooltip("%s", nombre.c_str());
         }

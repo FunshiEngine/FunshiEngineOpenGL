@@ -17,6 +17,9 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SettingsObjectInterfaceDetalle.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 void SettingsObjectInterface::initGUI() {
     ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
@@ -34,7 +37,7 @@ void SettingsObjectInterface::contentGUI() {
         tagBufferOwner_ = object;
     }
 
-    ImGui::TextUnformatted("Tag");
+    ImGui::TextUnformatted(Localizacion::tr(Texto::Tag));
     ImGui::SetNextItemWidth(180.0f);
     if (ImGui::InputText("##TagObject", tagBuffer_.data(),
                          tagBuffer_.size(),
@@ -163,9 +166,9 @@ void SettingsObjectInterface::contentGUI() {
                     "ComponentContext",
                     ImGuiPopupFlags_MouseButtonRight)) {
                 if (scriptSettings &&
-                    ImGui::MenuItem("Renombrar componente"))
+                    ImGui::MenuItem(Localizacion::etiqueta(Texto::RenombrarComponente).c_str()))
                     scriptSettings->iniciarEdicionNombre();
-                if (ImGui::MenuItem("Eliminar Componente")) {
+                if (ImGui::MenuItem(Localizacion::etiqueta(Texto::EliminarComponente).c_str())) {
                     Component* target = comp->getComponent();
                     // Por el gestor: Ctrl+Z restaura el componente quitado.
                     if (target && editor && editor->getGestorComandos())

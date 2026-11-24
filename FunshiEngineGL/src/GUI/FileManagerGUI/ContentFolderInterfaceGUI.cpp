@@ -238,7 +238,7 @@ void ContentFolderInterface::initGUI() {
     if (ImGui::BeginPopupModal(
             Localizacion::etiqueta(Texto::ConfirmarEliminarArchivo, "###ConfirmarEliminarArchivo").c_str(),
             nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text(Localizacion::tr(Texto::EliminarArchivo2), archivoAEliminar.c_str());
+        ImGui::Text(Localizacion::tr(Texto::PreguntaEliminarArchivo), archivoAEliminar.c_str());
         ImGui::Text("%s", Localizacion::tr(Texto::EstaAccionNoSePuede));
         if (ImGui::Button(Localizacion::etiqueta(Texto::Eliminar).c_str(), ImVec2(120, 0))) {
             archivoAEliminarConfirmado = archivoAEliminar;

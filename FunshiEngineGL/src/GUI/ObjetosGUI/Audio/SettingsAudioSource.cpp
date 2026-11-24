@@ -27,6 +27,9 @@
 #include <imgui.h>
 #include <iostream>
 #include <string>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsAudioSource::SettingsAudioSource(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(AudioSource).name())), gameObject(gameObject) {}
@@ -78,21 +81,21 @@ void SettingsAudioSource::showDataComponent() {
     }
 
     float volume = source->getVolume();
-    if (ImGui::SliderFloat("Volumen", &volume, 0.f, 1.f))
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::Volumen).c_str(), &volume, 0.f, 1.f))
         source->setVolume(volume);
 
     bool espacial = source->isEspacial();
-    ImGui::Checkbox("Espacial (3D)", &espacial);
+    ImGui::Checkbox(Localizacion::etiqueta(Texto::Espacial3D).c_str(), &espacial);
     source->setEspacial(espacial);
     ImGui::SameLine();
-    ImGui::TextDisabled("cuando esta desactivado suena global (2D)");
+    ImGui::TextDisabled("%s", Localizacion::tr(Texto::CuandoEstaDesactivadoSuenaGlobal));
 
     bool loop = source->isLoop();
-    if (ImGui::Checkbox("Bucle", &loop))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Bucle).c_str(), &loop))
         source->setLoop(loop);
 
     bool autoPlay = source->isReproduccionAutomatica();
-    if (ImGui::Checkbox("Reproducir al activar", &autoPlay))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::ReproducirAlActivar).c_str(), &autoPlay))
         source->setReproduccionAutomatica(autoPlay);
 
     // La escena inyecta el motor; sin motor (inspector aislado) los botones se
@@ -103,12 +106,12 @@ void SettingsAudioSource::showDataComponent() {
         source->setMotor(motor);
 
     ImGui::BeginDisabled(motor == nullptr);
-    if (ImGui::Button(source->isReproduciendo() ? "Detener" : "Reproducir")) {
+    if (ImGui::Button(Localizacion::tr(source->isReproduciendo() ? Texto::Detener : Texto::Reproducir))) {
         if (source->isReproduciendo()) source->detener();
         else source->reproducir();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Detener todo"))
+    if (ImGui::Button(Localizacion::etiqueta(Texto::DetenerTodo).c_str()))
         if (motor) motor->detenerTodo();
     ImGui::EndDisabled();
 }

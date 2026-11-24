@@ -27,6 +27,9 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 namespace {
 
@@ -50,7 +53,7 @@ void SettingsMusica::showDataComponent() {
     // La lista de pistas: cada una es la ruta de un archivo (el usuario la
     // arrastro aqui). El orden es el de reproduccion.
     const std::vector<std::string> rutas = musica->getRutas();
-    ImGui::Text("Pistas (%zu)", rutas.size());
+    ImGui::Text(Localizacion::tr(Texto::Pistas), rutas.size());
     ImGui::Separator();
 
     ImGui::PushID(musica);
@@ -72,7 +75,7 @@ void SettingsMusica::showDataComponent() {
     }
 
     // Zona para anadir una pista arrastrandola desde el explorador.
-    if (ImGui::Button("[Arrastra una pista para anadirla]")) {
+    if (ImGui::Button(Localizacion::etiqueta(Texto::ArrastraUnaPistaParaAnadirla).c_str())) {
         // El boton es el destino del arrastre; el click no hace nada.
     }
     if (ImGui::BeginDragDropTarget()) {
@@ -92,26 +95,26 @@ void SettingsMusica::showDataComponent() {
     ImGui::PopID();
 
     float volume = musica->getVolume();
-    if (ImGui::SliderFloat("Volumen", &volume, 0.f, 1.f))
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::Volumen).c_str(), &volume, 0.f, 1.f))
         musica->setVolume(volume);
 
     float fundido = musica->getDuracionFundido();
-    if (ImGui::SliderFloat("Fundido (s)", &fundido, 0.f, 10.f))
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::FundidoS).c_str(), &fundido, 0.f, 10.f))
         musica->setDuracionFundido(fundido);
 
     bool repetir = musica->isRepetirLista();
-    if (ImGui::Checkbox("Repetir la lista", &repetir))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::RepetirLaLista).c_str(), &repetir))
         musica->setRepetirLista(repetir);
 
     bool autoPlay = musica->isReproduccionAutomatica();
-    if (ImGui::Checkbox("Reproducir al activar", &autoPlay))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::ReproducirAlActivar).c_str(), &autoPlay))
         musica->setReproduccionAutomatica(autoPlay);
 
     // La escena inyecta el motor; sin motor (inspector aislado) los botones se
     // muestran deshabilitados.
     ImGui::BeginDisabled(motor == nullptr || musica->getRutas().empty());
-    if (ImGui::Button("Reproducir")) musica->reproducir();
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Reproducir).c_str())) musica->reproducir();
     ImGui::SameLine();
-    if (ImGui::Button("Detener")) musica->detener();
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Detener).c_str())) musica->detener();
     ImGui::EndDisabled();
 }

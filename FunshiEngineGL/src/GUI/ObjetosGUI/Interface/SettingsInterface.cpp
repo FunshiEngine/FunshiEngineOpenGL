@@ -26,13 +26,17 @@
 #include <cctype>
 #include <cstring>
 #include <string>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 namespace {
 
-const char* NOMBRES_ANCLA[] = {
-    "Arriba izquierda", "Arriba centro", "Arriba derecha",
-    "Medio izquierda",  "Centro",        "Medio derecha",
-    "Abajo izquierda",  "Abajo centro",  "Abajo derecha"};
+// Opciones del combo de ancla, en el orden del enum. Se traducen al dibujar.
+constexpr Texto TEXTOS_ANCLA[] = {
+    Texto::ArribaIzquierda, Texto::ArribaCentro, Texto::ArribaDerecha,
+    Texto::MedioIzquierda,  Texto::Centro,       Texto::MedioDerecha,
+    Texto::AbajoIzquierda,  Texto::AbajoCentro,  Texto::AbajoDerecha};
 
 constexpr int TOTAL_ANCLAS = 9;
 
@@ -69,12 +73,12 @@ void SettingsInterface::showDataComponent() {
     ImGui::Button(etiquetaDrag.c_str());
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip(
-            "Arrastra a un campo de script para asignar esta interfaz");
+            "%s", Localizacion::tr(Texto::ArrastraAUnCampoDe));
     if (ImGui::BeginDragDropSource()) {
         const char* dueno = gameObject->inputName;
         ImGui::SetDragDropPayload("COMPONENTE_INTERFAZ", dueno,
                                   std::strlen(dueno) + 1);
-        ImGui::TextUnformatted("Asignar interfaz a un script");
+        ImGui::TextUnformatted(Localizacion::tr(Texto::AsignarInterfazAUnScript));
         ImGui::EndDragDropSource();
     }
 
@@ -96,23 +100,25 @@ void SettingsInterface::showDataComponent() {
     }
 
     bool activo = comp->estaActiva();
-    if (ImGui::Checkbox("Activa", &activo))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Activa).c_str(), &activo))
         comp->setActivo(activo);
 
+    const char* nombresAncla[TOTAL_ANCLAS];
+    for (int i = 0; i < TOTAL_ANCLAS; ++i) nombresAncla[i] = Localizacion::tr(TEXTOS_ANCLA[i]);
     int ancla = static_cast<int>(comp->getAncla());
-    if (ImGui::Combo("Ancla", &ancla, NOMBRES_ANCLA, TOTAL_ANCLAS))
+    if (ImGui::Combo(Localizacion::etiqueta(Texto::Ancla).c_str(), &ancla, nombresAncla, TOTAL_ANCLAS))
         comp->setAncla(static_cast<AnclaInterfaz>(ancla));
 
     glm::vec2 desplazamiento = comp->getDesplazamiento();
-    if (ImGui::DragFloat2("Desplazamiento", &desplazamiento.x, 1.0f))
+    if (ImGui::DragFloat2(Localizacion::etiqueta(Texto::Desplazamiento).c_str(), &desplazamiento.x, 1.0f))
         comp->setDesplazamiento(desplazamiento);
 
     bool tamanoAuto = comp->usaTamanoAuto();
-    if (ImGui::Checkbox("Tamano automatico (CSS)", &tamanoAuto))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::TamanoAutomaticoCSS).c_str(), &tamanoAuto))
         comp->setTamanoAuto(tamanoAuto);
     if (!comp->usaTamanoAuto()) {
         glm::vec2 tamano = comp->getTamano();
-        if (ImGui::DragFloat2("Tamano", &tamano.x, 1.0f))
+        if (ImGui::DragFloat2(Localizacion::etiqueta(Texto::Tamano).c_str(), &tamano.x, 1.0f))
             comp->setTamano(tamano);
     }
 
@@ -120,5 +126,5 @@ void SettingsInterface::showDataComponent() {
     if (ImGui::DragFloat("Z", &z, 0.1f))
         comp->setZ(z);
 
-    ImGui::TextDisabled("Se muestra en modo play; el CSS define el tamano");
+    ImGui::TextDisabled("%s", Localizacion::tr(Texto::SeMuestraEnModoPlay));
 }

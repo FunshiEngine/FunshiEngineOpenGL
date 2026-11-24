@@ -21,6 +21,9 @@
 #include "../Transform/SettingsTransform.h"
 #include "../../../Objetos/GameObject.h"
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsColliderTilemap::SettingsColliderTilemap(GameObject* objeto)
     : SettingsComponent(demangle(typeid(TilemapCollider).name())),
@@ -39,11 +42,11 @@ void SettingsColliderTilemap::setEditor(EditorController* editor) {
 void SettingsColliderTilemap::showDataComponent() {
     if (!myCollider) return;
     bool visible = myCollider->estaVisibleEnEscena();
-    if (ImGui::Checkbox("Visible en escena", &visible))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::VisibleEnEscena).c_str(), &visible))
         myCollider->setVisibleEnEscena(visible);
-    ImGui::TextDisabled("La forma se arma con los tiles solidos de las capas");
-    ImGui::TextDisabled("con colision del Tilemap del objeto.");
-    if (ImGui::Button("Recargar colision")) {
+    ImGui::TextDisabled("%s", Localizacion::tr(Texto::LaFormaSeArmaCon));
+    ImGui::TextDisabled("%s", Localizacion::tr(Texto::ConColisionDelTilemapDel));
+    if (ImGui::Button(Localizacion::etiqueta(Texto::RecargarColision).c_str())) {
         // La shape se cachea: al pintar tiles hay que reconstruirla desde los
         // tiles actuales. refreshRigidBody invalida la shape, saca el cuerpo
         // viejo del mundo, lo recrea y lo re-registra.
@@ -54,6 +57,6 @@ void SettingsColliderTilemap::showDataComponent() {
     }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip(
-            "Reconstruye las cajas desde los tiles solidos actuales.");
+            "%s", Localizacion::tr(Texto::ReconstruyeLasCajasDesdeLos));
     settingsTransform->showDataComponent();
 }

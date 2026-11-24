@@ -21,6 +21,9 @@
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/Escena/CameraComponent.h"
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsCamera::SettingsCamera(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(CameraComponent).name())), gameObject(gameObject) {}
@@ -35,8 +38,9 @@ void SettingsCamera::showDataComponent() {
     const bool es2D = dimension_ == DimensionProyecto::DosD;
     if (!es2D) {
         int proyeccion = static_cast<int>(camera->getProjection());
-        const char* tipos[] = {"Perspectiva", "Ortografica"};
-        if (ImGui::Combo("Proyeccion", &proyeccion, tipos, 2))
+        const char* tipos[] = {Localizacion::tr(Texto::Perspectiva),
+                               Localizacion::tr(Texto::Ortografica)};
+        if (ImGui::Combo(Localizacion::etiqueta(Texto::Proyeccion).c_str(), &proyeccion, tipos, 2))
             camera->setProjection(
                 proyeccion == static_cast<int>(
                                   CameraComponent::Projection::Orthographic)
@@ -46,29 +50,29 @@ void SettingsCamera::showDataComponent() {
 
     if (camera->getProjection() == CameraComponent::Projection::Orthographic) {
         float orthoSize = camera->getOrthoSize();
-        if (ImGui::SliderFloat("Zoom (ortho)", &orthoSize, 0.1f, 100.f))
+        if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::ZoomOrtografico).c_str(), &orthoSize, 0.1f, 100.f))
             camera->setOrthoSize(orthoSize);
     }
 
     if (!es2D) {
         float fov = camera->getFov();
-        if (ImGui::SliderFloat("FOV", &fov, 1.f, 120.f))
+        if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::CampoDeVision).c_str(), &fov, 1.f, 120.f))
             camera->setFov(fov);
     }
 
     float nearPlane = camera->getNearPlane();
-    if (ImGui::SliderFloat("Near", &nearPlane, 0.01f, 10.f))
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::PlanoCercano).c_str(), &nearPlane, 0.01f, 10.f))
         camera->setNearPlane(nearPlane);
 
     float farPlane = camera->getFarPlane();
-    if (ImGui::SliderFloat("Far", &farPlane, 10.f, 5000.f))
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::PlanoLejano).c_str(), &farPlane, 10.f, 5000.f))
         camera->setFarPlane(farPlane);
 
     float speed = camera->getSpeed();
-    if (ImGui::SliderFloat("Velocidad", &speed, 0.5f, 30.f))
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::Velocidad).c_str(), &speed, 0.5f, 30.f))
         camera->setSpeed(speed);
 
     bool pintar = camera->getPintar();
-    if (ImGui::Checkbox("Vista previa", &pintar))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::VistaPrevia).c_str(), &pintar))
         camera->setPintar(pintar);
 }

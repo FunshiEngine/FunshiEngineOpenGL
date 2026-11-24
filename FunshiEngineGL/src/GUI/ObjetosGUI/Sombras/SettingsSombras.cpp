@@ -21,6 +21,9 @@
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/Sombras/Sombras.h"
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsSombras::SettingsSombras(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Sombras).name())), gameObject(gameObject) {}
@@ -30,7 +33,7 @@ void SettingsSombras::showDataComponent() {
     if (!sombras) return;
 
     bool activado = sombras->estaActivado();
-    if (ImGui::Checkbox("Proyecta sombra", &activado)) {
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::ProyectaSombra).c_str(), &activado)) {
         sombras->setActivado(activado);
     }
 
@@ -40,31 +43,31 @@ void SettingsSombras::showDataComponent() {
     int actual = 0;
     for (int i = 0; i < 5; ++i)
         if (kResoluciones[i] == sombras->getResolucion()) actual = i;
-    if (ImGui::Combo("Resolucion", &actual, kEtiquetas, 5)) {
+    if (ImGui::Combo(Localizacion::etiqueta(Texto::Resolucion).c_str(), &actual, kEtiquetas, 5)) {
         sombras->setResolucion(kResoluciones[actual]);
     }
 
     float sesgo = sombras->getSesgo();
-    if (ImGui::DragFloat("Sesgo", &sesgo, 0.0001f, 0.f, 0.1f, "%.4f")) {
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::Sesgo).c_str(), &sesgo, 0.0001f, 0.f, 0.1f, "%.4f")) {
         sombras->setSesgo(sesgo);
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Sube si aparecen rayas (acne); baja si la sombra se despega.");
+        ImGui::SetTooltip("%s", Localizacion::tr(Texto::SubeSiAparecenRayasAcne));
 
     float fuerza = sombras->getFuerza();
-    if (ImGui::SliderFloat("Fuerza", &fuerza, 0.f, 1.f)) {
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::Fuerza).c_str(), &fuerza, 0.f, 1.f)) {
         sombras->setFuerza(fuerza);
     }
 
     float radio = sombras->getRadio();
-    if (ImGui::DragFloat("Radio", &radio, 0.25f, 0.5f, 1000.f)) {
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::Radio).c_str(), &radio, 0.25f, 0.5f, 1000.f)) {
         sombras->setRadio(radio);
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Solo luz direccional: semilado del area con sombra.");
+        ImGui::SetTooltip("%s", Localizacion::tr(Texto::SoloLuzDireccionalSemiladoDel));
 
     float distancia = sombras->getDistancia();
-    if (ImGui::DragFloat("Distancia", &distancia, 0.5f, 1.f, 5000.f)) {
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::Distancia).c_str(), &distancia, 0.5f, 1.f, 5000.f)) {
         sombras->setDistancia(distancia);
     }
 }

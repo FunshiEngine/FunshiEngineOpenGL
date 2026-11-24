@@ -22,6 +22,9 @@
 #include "../../../Objetos/Componentes/RigidBody/RigidBody.h"
 #include "../../../Scenes/Editor/EditorController.h"
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsRigidBody::SettingsRigidBody(GameObject* objeto)
     : SettingsComponent(demangle(typeid(RigidBody).name())),
@@ -33,12 +36,12 @@ void SettingsRigidBody::setEditor(EditorController* editor) {
 
 void SettingsRigidBody::showDataComponent() {
     bool activo = myCollider->estaActivo();
-    if (ImGui::Checkbox("Activo", &activo)) myCollider->setActivo(activo);
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Activo).c_str(), &activo)) myCollider->setActivo(activo);
     bool sensor = myCollider->esSensor();
-    if (ImGui::Checkbox("Sensor (trigger)", &sensor))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::SensorTrigger).c_str(), &sensor))
         myCollider->fijarSensor(sensor);
     float masa = myCollider->masa();
-    if (ImGui::DragFloat("Masa", &masa, 0.1f, 0.0f, 100.0f)) {
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::Masa).c_str(), &masa, 0.1f, 0.0f, 100.0f)) {
         const bool eraEstatico = myCollider->masa() == 0.0f;
         if (myCollider->fijarMasa(masa) && editor &&
             myCollider->getCollider() &&
@@ -51,15 +54,15 @@ void SettingsRigidBody::showDataComponent() {
         }
     }
     bool usaGravedad = myCollider->usaGravedad();
-    if (ImGui::Checkbox("Usa gravedad", &usaGravedad))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::UsaGravedad).c_str(), &usaGravedad))
         myCollider->fijarUsoGravedad(usaGravedad);
     float escala = myCollider->escalaGravedad();
-    if (ImGui::DragFloat("Escala gravedad", &escala, 0.05f, -5.0f, 5.0f))
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::EscalaGravedad).c_str(), &escala, 0.05f, -5.0f, 5.0f))
         myCollider->fijarEscalaGravedad(escala);
     float friccion = myCollider->friccion();
-    if (ImGui::DragFloat("Friccion", &friccion, 0.05f, 0.0f, 10.0f))
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::Friccion).c_str(), &friccion, 0.05f, 0.0f, 10.0f))
         myCollider->fijarFriccion(friccion);
-    if (ImGui::TreeNode("Freeze posicion")) {
+    if (ImGui::TreeNode(Localizacion::etiqueta(Texto::BloquearPosicion).c_str())) {
         bool x = myCollider->posicionCongelada(0);
         bool y = myCollider->posicionCongelada(1);
         bool z = myCollider->posicionCongelada(2);
@@ -72,7 +75,7 @@ void SettingsRigidBody::showDataComponent() {
         if (cambio) myCollider->fijarFreezePosicion(x, y, z);
         ImGui::TreePop();
     }
-    if (ImGui::TreeNode("Freeze rotacion")) {
+    if (ImGui::TreeNode(Localizacion::etiqueta(Texto::BloquearRotacion).c_str())) {
         bool x = myCollider->rotacionCongelada(0);
         bool y = myCollider->rotacionCongelada(1);
         bool z = myCollider->rotacionCongelada(2);

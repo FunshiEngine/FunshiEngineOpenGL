@@ -17,12 +17,15 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SettingsScriptDetalle.h"
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 bool editarReferenciaObjeto(std::string& nombre) {
     const char* etiqueta = nombre.empty() ? "[Ninguno]" : nombre.c_str();
     ImGui::Button(etiqueta);
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Arrastra un objeto de la escena para asignarlo");
+        ImGui::SetTooltip("%s", Localizacion::tr(Texto::ArrastraUnObjetoDeLa));
     bool modificado = false;
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload =
@@ -48,7 +51,7 @@ bool editarReferenciaComponente(std::string& nombre, const std::string& tipo) {
     const char* etiqueta = nombre.empty() ? "[Ninguno]" : nombre.c_str();
     ImGui::Button(etiqueta);
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Arrastra el componente %s de un objeto para asignarlo",
+        ImGui::SetTooltip(Localizacion::tr(Texto::ArrastraElComponenteDeUn),
                           tipo.c_str());
     bool modificado = false;
     if (ImGui::BeginDragDropTarget()) {

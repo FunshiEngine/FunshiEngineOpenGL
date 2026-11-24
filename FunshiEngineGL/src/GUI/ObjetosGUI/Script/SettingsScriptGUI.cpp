@@ -17,21 +17,27 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SettingsScriptDetalle.h"
+#include "../../../Localizacion/Localizacion.h"
+
+#include <cstdio>
+#include <string>
+
+using Localizacion::Texto;
 
 void SettingsScript::showDataComponent() {
     using namespace ReflejoScripts;
 
     if (editandoNombre_) {
         const bool confirmar = ImGui::InputText(
-            "Nombre del componente", bufferNombre_, sizeof(bufferNombre_),
+            Localizacion::etiqueta(Texto::NombreDelComponente).c_str(), bufferNombre_, sizeof(bufferNombre_),
             ImGuiInputTextFlags_EnterReturnsTrue);
         ImGui::SameLine();
-        if (ImGui::Button("Aceptar") || confirmar) {
+        if (ImGui::Button(Localizacion::etiqueta(Texto::Aceptar).c_str()) || confirmar) {
             myScript->setNombreComponente(bufferNombre_);
             editandoNombre_ = false;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancelar")) editandoNombre_ = false;
+        if (ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str())) editandoNombre_ = false;
     }
 
     // 1. Selector del fuente (drag & drop) con la convencion <ClassName>.cpp
@@ -86,12 +92,11 @@ void SettingsScript::showDataComponent() {
     std::vector<ValorCampo>& valores = myScript->obtenerValores();
     if (campos.empty()) {
         ImGui::Separator();
-        ImGui::TextDisabled("Sin campos SerializeField. Agrega REFLECT_CAMPO en "
-                           "el script (ver template).");
+        ImGui::TextDisabled("%s", Localizacion::tr(Texto::SinCamposSerializeFieldAgregaREFLECT));
         return;
     }
 
-    ImGui::TextDisabled("Campos serializados");
+    ImGui::TextDisabled("%s", Localizacion::tr(Texto::CamposSerializados));
     // El bucle va por el MENOR de los dos cardinales, no solo por `campos`.
         // Script::cargarSiNecesario deja `valores_` con una entrada por campo,
         // pero una escena guardada puede traer menos valores que los que expone
@@ -139,8 +144,11 @@ void SettingsScript::showDataComponent() {
                         std::vector<std::vector<ValorCampo>>>();
                     for (int g = 0; g < static_cast<int>(lista.size()); ++g) {
                         ImGui::PushID(g);
+                        // ID fijo ("###grupo"): el arbol no se cierra al cambiar de idioma.
+                        char tituloGrupo[64];
+                        std::snprintf(tituloGrupo, sizeof(tituloGrupo), Localizacion::tr(Texto::GrupoN), g);
                         if (ImGui::TreeNodeEx(
-                                ("Grupo " + std::to_string(g)).c_str(),
+                                (std::string(tituloGrupo) + "###grupo").c_str(),
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
                             auto& grupo =
                                 lista[static_cast<std::size_t>(g)];
@@ -159,7 +167,7 @@ void SettingsScript::showDataComponent() {
                                        camb;
                                 ImGui::PopID();
                             }
-                            if (ImGui::SmallButton("Eliminar grupo")) {
+                            if (ImGui::SmallButton(Localizacion::etiqueta(Texto::EliminarGrupo).c_str())) {
                                 lista.erase(lista.begin() + g);
                                 camb = true;
                             }
@@ -167,7 +175,7 @@ void SettingsScript::showDataComponent() {
                         }
                         ImGui::PopID();
                     }
-                    if (ImGui::SmallButton("+ Agregar grupo")) {
+                    if (ImGui::SmallButton(Localizacion::etiqueta(Texto::AgregarGrupo).c_str())) {
                         std::vector<ValorCampo> nuevo;
                         for (const DefCampo& sub : def.subcampos)
                             nuevo.push_back(valorPorDefecto(sub));
@@ -195,7 +203,7 @@ void SettingsScript::showDataComponent() {
                     }
                     ImGui::PopID();
                 }
-                if (ImGui::SmallButton("+ Agregar")) {
+                if (ImGui::SmallButton(Localizacion::etiqueta(Texto::Agregar).c_str())) {
                     lista.push_back(0);
                     camb = true;
                 }
@@ -218,7 +226,7 @@ void SettingsScript::showDataComponent() {
                     }
                     ImGui::PopID();
                 }
-                if (ImGui::SmallButton("+ Agregar")) {
+                if (ImGui::SmallButton(Localizacion::etiqueta(Texto::Agregar).c_str())) {
                     lista.push_back(0.0f);
                     camb = true;
                 }
@@ -242,7 +250,7 @@ void SettingsScript::showDataComponent() {
                     }
                     ImGui::PopID();
                 }
-                if (ImGui::SmallButton("+ Agregar")) {
+                if (ImGui::SmallButton(Localizacion::etiqueta(Texto::Agregar).c_str())) {
                     lista.push_back(0.0);
                     camb = true;
                 }
@@ -265,7 +273,7 @@ void SettingsScript::showDataComponent() {
                     }
                     ImGui::PopID();
                 }
-                if (ImGui::SmallButton("+ Agregar")) {
+                if (ImGui::SmallButton(Localizacion::etiqueta(Texto::Agregar).c_str())) {
                     lista.push_back(false);
                     camb = true;
                 }
@@ -293,7 +301,7 @@ void SettingsScript::showDataComponent() {
                     }
                     ImGui::PopID();
                 }
-                if (ImGui::SmallButton("+ Agregar")) {
+                if (ImGui::SmallButton(Localizacion::etiqueta(Texto::Agregar).c_str())) {
                     lista.push_back("");
                     camb = true;
                 }
@@ -320,7 +328,7 @@ void SettingsScript::showDataComponent() {
                     }
                     ImGui::PopID();
                 }
-                if (ImGui::SmallButton("+ Agregar")) {
+                if (ImGui::SmallButton(Localizacion::etiqueta(Texto::Agregar).c_str())) {
                     lista.push_back(vec3(0.0f, 0.0f, 0.0f));
                     camb = true;
                 }
@@ -340,7 +348,7 @@ void SettingsScript::showDataComponent() {
                     }
                     ImGui::PopID();
                 }
-                if (ImGui::SmallButton("+ Agregar")) {
+                if (ImGui::SmallButton(Localizacion::etiqueta(Texto::Agregar).c_str())) {
                     lista.push_back("");
                     camb = true;
                 }

@@ -23,6 +23,9 @@
 #include "../../../Objetos/Componentes/Colliders/CubeCollider.h"
 #include "../../../Scenes/Editor/EditorController.h"
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsColliderCubo::SettingsColliderCubo(GameObject* objeto)
     : SettingsComponent(demangle(typeid(CubeCollider).name())),
@@ -40,10 +43,10 @@ void SettingsColliderCubo::setEditor(EditorController* editor) {
 
 void SettingsColliderCubo::showDataComponent() {
     bool visible = myCollider->estaVisibleEnEscena();
-    if (ImGui::Checkbox("Visible en escena", &visible))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::VisibleEnEscena).c_str(), &visible))
         myCollider->setVisibleEnEscena(visible);
-    ImGui::InputFloat("Radio", &newRadio);
-    if (ImGui::Button("Confirmar")) {
+    ImGui::InputFloat(Localizacion::etiqueta(Texto::Radio).c_str(), &newRadio);
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Confirmar).c_str())) {
         if (newRadio > 0 && newRadio != myCollider->getRadio()) {
             myCollider->setRadio(newRadio);
             // La shape de Bullet se cachea con el radio viejo: sin

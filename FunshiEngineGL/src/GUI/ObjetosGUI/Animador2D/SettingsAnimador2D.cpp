@@ -24,6 +24,9 @@
 #include "../../../Objetos/Componentes/Juego2D/Animador2D.h"
 #include "../../../Objetos/Componentes/Render/SpriteRenderer.h"
 #include "../../../Objetos/GameObject.h"
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsAnimador2D::SettingsAnimador2D(GameObject* objeto)
     : SettingsComponent(demangle(typeid(Animador2D).name())),
@@ -39,15 +42,15 @@ void SettingsAnimador2D::showDataComponent() {
     if (!anim) return;
 
     if (gameObject_->getComponent<SpriteRenderer>() == nullptr) {
-        ImGui::TextDisabled("Requiere un SpriteRenderer en el mismo objeto.");
+        ImGui::TextDisabled("%s", Localizacion::tr(Texto::RequiereUnSpriteRendererEnEl));
         return;
     }
 
     int columnas = anim->getColumnas();
-    if (ImGui::DragInt("Columnas", &columnas, 0.1f, 1, 256))
+    if (ImGui::DragInt(Localizacion::etiqueta(Texto::Columnas).c_str(), &columnas, 0.1f, 1, 256))
         anim->setColumnas(columnas);
     int filas = anim->getFilas();
-    if (ImGui::DragInt("Filas", &filas, 0.1f, 1, 256))
+    if (ImGui::DragInt(Localizacion::etiqueta(Texto::Filas).c_str(), &filas, 0.1f, 1, 256))
         anim->setFilas(filas);
 
     float fps = anim->getFps();
@@ -55,27 +58,27 @@ void SettingsAnimador2D::showDataComponent() {
         anim->setFps(fps);
 
     int primer = anim->getPrimerFrame();
-    if (ImGui::DragInt("Primer frame", &primer, 0.1f, 0, 65535))
+    if (ImGui::DragInt(Localizacion::etiqueta(Texto::PrimerFrame).c_str(), &primer, 0.1f, 0, 65535))
         anim->setPrimerFrame(primer);
     int ultimo = anim->getUltimoFrame();
-    if (ImGui::DragInt("Ultimo frame", &ultimo, 0.1f, -1, 65535)) {
+    if (ImGui::DragInt(Localizacion::etiqueta(Texto::UltimoFrame).c_str(), &ultimo, 0.1f, -1, 65535)) {
         if (ultimo >= 0 && ultimo < primer) ultimo = primer;
         anim->setUltimoFrame(ultimo);
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Ultimo frame < 0 usa hasta el final de la grilla.");
+        ImGui::SetTooltip("%s", Localizacion::tr(Texto::UltimoFrame0UsaHasta));
 
     bool reproduciendo = anim->getReproduciendo();
-    if (ImGui::Checkbox("Reproduciendo", &reproduciendo))
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Reproduciendo).c_str(), &reproduciendo))
         anim->setReproduciendo(reproduciendo);
     ImGui::SameLine();
     bool bucle = anim->getBucle();
-    if (ImGui::Checkbox("Bucle", &bucle)) anim->setBucle(bucle);
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Bucle).c_str(), &bucle)) anim->setBucle(bucle);
 
-    ImGui::Text("Frame actual: %d / %d", anim->getFrameActual(),
+    ImGui::Text(Localizacion::tr(Texto::FrameActual), anim->getFrameActual(),
                 anim->getTotalFrames());
     ImGui::SameLine();
-    if (ImGui::Button("Reiniciar")) anim->reiniciar();
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Reiniciar).c_str())) anim->reiniciar();
 
-    ImGui::TextDisabled("Recorta la textura del SpriteRenderer en uvRect.");
+    ImGui::TextDisabled("%s", Localizacion::tr(Texto::RecortaLaTexturaDelSpriteRenderer));
 }

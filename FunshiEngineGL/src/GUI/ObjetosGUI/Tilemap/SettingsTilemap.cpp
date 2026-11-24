@@ -31,6 +31,9 @@
 #include "../../../Objetos/GameObject.h"
 #include "../../../Scenes/Editor/EditorController.h"
 #include "../../../Scenes/Editor/HerramientaTilemap.h"
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsTilemap::SettingsTilemap(GameObject* objeto, EditorController* editor)
     : SettingsComponent(demangle(typeid(Tilemap).name())),
@@ -51,21 +54,21 @@ void SettingsTilemap::showDataComponent() {
 
     if (!tilemap->tilesetValido()) {
         if (tilemap->getRutaTileset().empty())
-            ImGui::TextDisabled("Asigna un tileset (JSON de Tiled).");
+            ImGui::TextDisabled("%s", Localizacion::tr(Texto::AsignaUnTilesetJSONDe));
         else
             ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_PlotHistogram),
-                               "Tileset: %s", tilemap->getUltimoErrorTileset().c_str());
+                               Localizacion::tr(Texto::Tileset), tilemap->getUltimoErrorTileset().c_str());
         return;
     }
 
     HerramientaTilemap* herramienta = editor_ ? &editor_->getHerramientaTilemap() : nullptr;
-    ImGui::SeparatorText("Capas");
+    ImGui::SeparatorText(Localizacion::tr(Texto::Capas));
     dibujarCapas(tilemap, herramienta);
     if (herramienta) {
-        ImGui::SeparatorText("Pintar");
+        ImGui::SeparatorText(Localizacion::tr(Texto::Pintar));
         dibujarHerramienta(*herramienta);
     }
-    ImGui::SeparatorText("Paleta");
+    ImGui::SeparatorText(Localizacion::tr(Texto::Paleta));
     dibujarPaleta(tilemap, herramienta);
 }
 
@@ -89,13 +92,13 @@ void SettingsTilemap::dibujarTileset(Tilemap* tilemap) {
         ImGui::EndDragDropTarget();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Recargar")) tilemap->recargarTileset();
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Recargar).c_str())) tilemap->recargarTileset();
     ImGui::SameLine();
-    if (ImGui::Button("Quitar")) tilemap->setRutaTileset(std::string());
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Quitar).c_str())) tilemap->setRutaTileset(std::string());
 
     if (tilemap->tilesetValido()) {
         const Tileset& ts = tilemap->getTileset();
-        ImGui::Text("Tileset: %dx%d tiles (%dx%d px), %d tipos", ts.columns,
+        ImGui::Text(Localizacion::tr(Texto::TilesetXTilesXPx), ts.columns,
                     ts.rows, ts.tileWidth, ts.tileHeight, ts.tileCount);
     }
 }
@@ -117,10 +120,11 @@ void SettingsTilemap::dibujarCapas(Tilemap* tilemap, HerramientaTilemap* herrami
             capaActiva_ = i;
         ImGui::SameLine();
         bool visible = c->visible;
-        if (ImGui::Checkbox("Vis", &visible)) tilemap->setCapaVisible(i, visible);
+        if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Vis).c_str(), &visible)) tilemap->setCapaVisible(i, visible);
         ImGui::SameLine();
         bool colision = c->colision;
-        if (ImGui::Checkbox("Col", &colision)) tilemap->setCapaColision(i, colision);
+        if (ImGui::Checkbox(
+                Localizacion::etiqueta(Texto::Col).c_str(), &colision)) tilemap->setCapaColision(i, colision);
         ImGui::SameLine();
         if (ImGui::SmallButton("X")) {
             tilemap->eliminarCapa(i);
@@ -140,30 +144,33 @@ void SettingsTilemap::dibujarCapas(Tilemap* tilemap, HerramientaTilemap* herrami
     if (anchoCapaNueva_ < 1) anchoCapaNueva_ = 1;
     if (altoCapaNueva_ < 1) altoCapaNueva_ = 1;
     ImGui::SameLine();
-    if (ImGui::Button("Agregar capa")) {
+    if (ImGui::Button(Localizacion::etiqueta(Texto::AgregarCapa).c_str())) {
         const int indice =
             tilemap->agregarCapa("Capa", anchoCapaNueva_, altoCapaNueva_, false);
         if (indice >= 0) capaActiva_ = indice;
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Ancho x alto (celdas) de la capa nueva.");
+        ImGui::SetTooltip("%s", Localizacion::tr(Texto::AnchoXAltoCeldasDe));
     if (herramienta) herramienta->setCapa(capaActiva_);
 }
 
 void SettingsTilemap::dibujarHerramienta(HerramientaTilemap& herramienta) {
     bool activa = herramienta.activa();
-    if (ImGui::Checkbox("Pintar en escena", &activa)) herramienta.setActiva(activa);
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::PintarEnEscena).c_str(), &activa)) herramienta.setActiva(activa);
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Clic en la escena pinta la capa activa; Shift + clic borra.\n"
-                          "Mientras esta activo, el clic no cambia la seleccion.");
+        ImGui::SetTooltip("%s", Localizacion::tr(Texto::ClicEnLaEscenaPinta));
     int modo = static_cast<int>(herramienta.modo());
-    ImGui::RadioButton("Pincel", &modo, static_cast<int>(HerramientaTilemap::Modo::Pincel));
+    ImGui::RadioButton(
+            Localizacion::etiqueta(Texto::Pincel).c_str(), &modo, static_cast<int>(HerramientaTilemap::Modo::Pincel));
     ImGui::SameLine();
-    ImGui::RadioButton("Borrador", &modo, static_cast<int>(HerramientaTilemap::Modo::Borrador));
+    ImGui::RadioButton(
+            Localizacion::etiqueta(Texto::Borrador).c_str(),
+            &modo, static_cast<int>(HerramientaTilemap::Modo::Borrador));
     ImGui::SameLine();
-    ImGui::RadioButton("Relleno", &modo, static_cast<int>(HerramientaTilemap::Modo::Relleno));
+    ImGui::RadioButton(
+            Localizacion::etiqueta(Texto::Relleno).c_str(), &modo, static_cast<int>(HerramientaTilemap::Modo::Relleno));
     ImGui::SameLine();
-    ImGui::RadioButton("Rectangulo", &modo,
+    ImGui::RadioButton(Localizacion::etiqueta(Texto::Rectangulo).c_str(), &modo,
                        static_cast<int>(HerramientaTilemap::Modo::Rectangulo));
     herramienta.setModo(static_cast<HerramientaTilemap::Modo>(modo));
 }
@@ -239,7 +246,7 @@ void SettingsTilemap::dibujarPaleta(Tilemap* tilemap, HerramientaTilemap* herram
         const bool solido = id < static_cast<int>(ts.solido.size()) &&
                             ts.solido[static_cast<std::size_t>(id)] != 0;
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Tile %d%s", id, solido ? " (solido)" : "");
+            ImGui::SetTooltip(Localizacion::tr(solido ? Texto::TileSolido : Texto::TileN), id);
         ImGui::PopID();
         if (id % porFila != 0) ImGui::SameLine();
     }

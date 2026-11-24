@@ -21,11 +21,14 @@
 #include "../../../Objetos/GameObject.h"
 #include "../../../Objetos/Componentes/Render/Color.h"
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsColor::SettingsColor(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Color).name())), gameObject(gameObject) {}
 
 void SettingsColor::showDataComponent() {
-    ImGui::ColorEdit3("Color", gameObject->auxColor);
+    ImGui::ColorEdit3(Localizacion::etiqueta(Texto::Color).c_str(), gameObject->auxColor);
     gameObject->setColor(gameObject->auxColor);
 }

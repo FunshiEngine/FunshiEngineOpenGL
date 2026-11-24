@@ -25,6 +25,9 @@
 #include <cstring>
 
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsSkybox::SettingsSkybox(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Skybox).name())), gameObject(gameObject) {}
@@ -54,7 +57,7 @@ void SettingsSkybox::showDataComponent() {
     if (!skybox) return;
 
     bool visible = skybox->getVisible();
-    if (ImGui::Checkbox("Visible", &visible)) skybox->setVisible(visible);
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Visible).c_str(), &visible)) skybox->setVisible(visible);
     ImGui::Separator();
 
     // Seis caras en el orden que espera la pasada del cubemap (+X, -X, +Y,
@@ -116,15 +119,13 @@ void SettingsSkybox::showDataComponent() {
     }
 
     ImGui::TextDisabled(
-        "Formatos: PNG, JPG, TGA, BMP, PSD, HDR. Las seis caras deben medir lo "
-        "mismo.");
+        "%s", Localizacion::tr(Texto::FormatosPNGJPGTGABMP));
 
     // Avisos de las dos condiciones que hacen que el motor caiga al degradado:
     // una cara sin asignar, o una cara que no mide lo mismo que la +X.
     const int sinAsignar = SelectorArchivoCubemap::carasSinAsignar(rutas);
     if (sinAsignar > 0) {
-        ImGui::TextDisabled("Faltan %d de 6 caras: hasta que esten las seis se "
-                            "dibuja el cielo degradado.",
+        ImGui::TextDisabled(Localizacion::tr(Texto::FaltanDe6CarasHasta),
                             sinAsignar);
     } else {
         sondearDimensiones(rutas);
@@ -132,7 +133,7 @@ void SettingsSkybox::showDataComponent() {
             dims_);
         if (distinta >= 0) {
             ImGui::TextDisabled(
-                "%s mide %dx%d y la +X mide %dx%d: el cubemap se descarta.",
+                Localizacion::tr(Texto::MideXYLaX),
                 caras[distinta].etiqueta, dims_[distinta].ancho,
                 dims_[distinta].alto, dims_[0].ancho, dims_[0].alto);
         }
