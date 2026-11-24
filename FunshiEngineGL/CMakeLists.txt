@@ -1840,6 +1840,12 @@ if(FUNSHI_JAVA)
         ${SRC_DIR}/Behaviour/Reflection/BehaviourReflectionValores.cpp
         ${SRC_DIR}/Behaviour/Backends/BackendCpp.cpp
         ${SRC_DIR}/Behaviour/Backends/BackendJava.cpp
+        ${SRC_DIR}/Behaviour/Backends/BackendJavaCompilacion.cpp
+        ${SRC_DIR}/Behaviour/Backends/BackendJavaCiclo.cpp
+        ${SRC_DIR}/Behaviour/Backends/BackendJavaRegistro.cpp
+        ${SRC_DIR}/Behaviour/Backends/BackendJavaJdk.cpp
+        ${SRC_DIR}/Behaviour/Backends/BackendJavaNativosObjeto.cpp
+        ${SRC_DIR}/Behaviour/Backends/BackendJavaNativosServicios.cpp
         ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
         ${SRC_DIR}/Configuracion/ProjectPaths.cpp
         ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
