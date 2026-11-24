@@ -37,6 +37,7 @@
 #include <vector>
 
 #include "TempPruebas.h"
+#include "../FunshiEngineGL/src/Configuracion/Proyecto/ArchivoProyecto.h"
 #include "../FunshiEngineGL/src/Configuracion/EditorConfig.h"
 #include "../FunshiEngineGL/src/Configuracion/ProjectManager.h"
 #include "../FunshiEngineGL/src/Configuracion/ProjectPaths.h"
@@ -640,6 +641,48 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(EditorConfig::renombrarProyecto(viejo, nuevo) == false,
               "sin origen ya no se puede renombrar de nuevo");
         fs::remove_all(dirNuevo, ec);
+    }
+
+    // 5c-bis. Archivo .fnep: se crea dentro de la carpeta del proyecto,
+    //     abrirlo resuelve ese proyecto, sigue al proyecto al renombrarlo y se
+    //     genera para proyectos viejos que no lo tienen.
+    {
+        const std::string nombre = "JuegoFnep";
+        const std::string renombrado = "JuegoFnepV2";
+        const std::string dir = EditorConfig::directorioProyecto(nombre);
+        std::error_code ec;
+        fs::remove_all(dir, ec);
+        fs::remove_all(EditorConfig::directorioProyecto(renombrado), ec);
+        CHECK(ProjectManager::crearProyecto(nombre), "se crea el proyecto del .fnep");
+        const std::string fnep = ArchivoProyecto::rutaDe(nombre);
+        CHECK(fs::exists(fnep) && fs::path(fnep).parent_path() == fs::path(dir),
+              "el .fnep vive dentro de la carpeta del proyecto");
+        std::string error;
+        auto abierto = ArchivoProyecto::resolverApertura(fnep, error);
+        CHECK(abierto && *abierto == nombre, "abrir el .fnep resuelve su proyecto");
+
+        const fs::path afuera = base / "copia.fnep";
+        fs::copy_file(fnep, afuera, fs::copy_options::overwrite_existing, ec);
+        CHECK(!ArchivoProyecto::resolverApertura(afuera.string(), error) && !error.empty(),
+              "un .fnep copiado fuera de su proyecto no abre otro por error");
+
+        { std::ofstream out(afuera); out << R"({"formato":"fnep","version":99,"nombre":"X"})"; }
+        CHECK(!ArchivoProyecto::leer(afuera.string(), error),
+              "una version futura del formato se rechaza con un error claro");
+        { std::ofstream out(afuera); out << "no es json"; }
+        CHECK(!ArchivoProyecto::leer(afuera.string(), error), "un .fnep corrupto se rechaza");
+
+        CHECK(ProjectManager::renombrarProyecto(nombre, renombrado), "se renombra el proyecto");
+        const std::string fnepNuevo = ArchivoProyecto::rutaDe(renombrado);
+        abierto = ArchivoProyecto::resolverApertura(fnepNuevo, error);
+        CHECK(abierto && *abierto == renombrado, "el .fnep sigue al proyecto renombrado");
+        CHECK(!fs::exists(EditorConfig::directorioProyecto(renombrado) + "/" + nombre + ".fnep"),
+              "no queda el .fnep con el nombre viejo");
+
+        fs::remove(fnepNuevo, ec);
+        ProjectManager::asegurarEstructuraBase();
+        CHECK(fs::exists(fnepNuevo), "un proyecto sin .fnep lo recibe al arrancar");
+        fs::remove_all(EditorConfig::directorioProyecto(renombrado), ec);
     }
 
     // 5d. Eliminacion de proyecto: borra la carpeta completa (escena, src,

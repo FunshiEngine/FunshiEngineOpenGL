@@ -112,6 +112,7 @@ FunshiEngine-DATA/
 │   └── FunshiEngineGL_<AAAAMMDD_HHMMSS>.log   ← log de arranque (UTC), uno por ejecucion
 ├── Proyects/
 │   └── <proyecto>/
+│       ├── <proyecto>.fnep           ← archivo del proyecto: doble clic lo abre
 │       ├── Memory/
 │       │   ├── Binarios/Scene        ← escenas binarias
 │       │   ├── ConfiguracionProyecto.json
@@ -139,6 +140,22 @@ FunshiEngine-DATA/
         ├── lib/                      ← dependencias runtime (.so Linux)
         └── JuegoExportado.json       ← metadatos del proyecto
 ```
+
+**Archivo de proyecto (`.fnep`).** Cada proyecto tiene un `<proyecto>.fnep`
+dentro de su carpeta. Abrirlo (doble clic, o `FunshiEngineGL ruta/al/proyecto.fnep`)
+arranca el editor directo en ese proyecto, sin pasar por el menú. El editor lo
+crea al crear el proyecto, lo renombra junto con el proyecto y, al arrancar, lo
+genera para los proyectos que todavía no lo tienen. Es un JSON chico
+(`formato`, `version`, `nombre`, `motor`); un `.fnep` copiado fuera de la
+carpeta de su proyecto no se abre (el editor lo avisa en el log y arranca en el
+menú).
+
+Asociar la extensión con el editor:
+
+- **Windows**: el instalador lo hace solo.
+- **Linux**: correr `packaging/instalar_asociacion_linux.sh <carpeta de instalación>`
+  una vez (instala el lanzador y el tipo MIME para el usuario actual).
+
 
 En el arbol, las carpetas marcadas con `#` las crea el motor (no hace falta
 hacerlas a mano). El motor crea su carpeta global de `Mods/` y, al crear un

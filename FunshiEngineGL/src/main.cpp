@@ -18,6 +18,7 @@
 */
 // GLFW solo para la ventana/callbacks (GLFW_INCLUDE_NONE: ningun GL aca).
 #define GLFW_INCLUDE_NONE
+#include "Configuracion/Proyecto/ArchivoProyecto.h"
 #include <GLFW/glfw3.h>
 
 // _HAS_STD_BYTE=0 DEBE ir ANTES de cualquier include de stdlib en Windows
@@ -279,6 +280,7 @@ static int EjecutarMotor(int argc, char* argv[])
     // --proyecto MiJuego. --juego fuerza el modo juego, que es como arranca
     // una exportacion (tambien via JuegoExportado.json, ver mas abajo).
     std::string proyectoCLI;
+    std::string rutaFnepCLI;
     bool modoJuegoExportado = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -288,6 +290,11 @@ static int EjecutarMotor(int argc, char* argv[])
             proyectoCLI = arg.substr(11);
         } else if (arg == "--juego") {
             modoJuegoExportado = true;
+        } else if (arg == "--abrir" && i + 1 < argc) {
+            rutaFnepCLI = argv[++i];
+        } else if (arg.size() > 5 && arg.compare(arg.size() - 5, 5, ".fnep") == 0) {
+            // Doble clic sobre un .fnep: el sistema pasa la ruta como argumento.
+            rutaFnepCLI = arg;
         }
     }
 
@@ -306,6 +313,23 @@ static int EjecutarMotor(int argc, char* argv[])
         }
     }
 
+    // .fnep: abre el proyecto al que pertenece (vive en la carpeta del
+    // proyecto). Si no se puede, el editor arranca en el menu y lo avisa.
+    std::string errorFnep;
+    if (!rutaFnepCLI.empty()) {
+        // Con doble clic el sistema arranca el editor en otra carpeta (la del
+        // .fnep, o la del usuario) y los recursos del editor se resuelven
+        // contra la carpeta de trabajo: se vuelve a la del ejecutable.
+        std::error_code ec;
+        rutaFnepCLI = std::filesystem::absolute(rutaFnepCLI, ec).string();
+        const std::string exe = ProjectPaths::directorioEjecutable();
+        if (!exe.empty()) std::filesystem::current_path(exe, ec);
+    }
+    if (!rutaFnepCLI.empty() && proyectoCLI.empty()) {
+        if (auto nombre = ArchivoProyecto::resolverApertura(rutaFnepCLI, errorFnep))
+            proyectoCLI = *nombre;
+    }
+
     // La redireccion va PRIMERO: el diagnostico de GPU de initVentana() y los
     // [diag] de render ya escriben al log, no a la terminal.
     std::string rutaLog = redirigirSalidaALog(argc > 0 ? argv[0] : nullptr);
@@ -317,6 +341,14 @@ static int EjecutarMotor(int argc, char* argv[])
     inicio.proyecto = proyectoCLI;
     inicio.mensaje = "Editor iniciado";
     RegistroDiagnosticos::global().registrar(std::move(inicio));
+    if (!errorFnep.empty()) {
+        std::cerr << "[proyecto] No se abre " << rutaFnepCLI << ": " << errorFnep << '\n';
+        EventoDiagnostico aviso;
+        aviso.nivel = NivelDiagnostico::Advertencia;
+        aviso.modulo = "proyecto";
+        aviso.mensaje = "No se pudo abrir " + rutaFnepCLI + ": " + errorFnep;
+        RegistroDiagnosticos::global().registrar(std::move(aviso));
+    }
 
     Ventana* auxVentana = new Ventana();
     // Sin ventana no hay contexto de OpenGL ni entrada: seguir adelante

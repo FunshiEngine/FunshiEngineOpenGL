@@ -55,6 +55,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; porque deja JAVA_HOME en el entorno de la maquina.
 PrivilegesRequired=lowest
 SetupLogging=yes
+; Asociacion de los proyectos .fnep: Windows avisa al explorador al terminar.
+ChangesAssociations=yes
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
@@ -88,6 +90,14 @@ Name: "{app}\FunshiEngine-DATA"
 Name: "{group}\{#MiNombre} {#MiVersion} ({#MiCanal})"; Filename: "{app}\{#MiExe}"; WorkingDir: "{app}"
 Name: "{group}\Carpeta del proyecto (FunshiEngine-DATA)"; Filename: "{app}\FunshiEngine-DATA"; WorkingDir: "{app}"
 Name: "{autodesktop}\{#MiNombre} {#MiVersion} ({#MiCanal})"; Filename: "{app}\{#MiExe}"; WorkingDir: "{app}"; Tasks: desktopicon
+
+[Registry]
+; Proyectos .fnep: doble clic abre el proyecto en el editor. HKA es HKCU con
+; instalacion por usuario (PrivilegesRequired=lowest), asi no pide elevacion.
+Root: HKA; Subkey: "Software\Classes\.fnep"; ValueType: string; ValueName: ""; ValueData: "FunshiEngine.Proyecto"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\FunshiEngine.Proyecto"; ValueType: string; ValueName: ""; ValueData: "Proyecto de FunshiEngine"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\FunshiEngine.Proyecto\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MiExe},0"
+Root: HKA; Subkey: "Software\Classes\FunshiEngine.Proyecto\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MiExe}"" ""%1"""
 
 [Run]
 Filename: "{app}\{#MiExe}"; Description: "Ejecutar {#MiNombre} ahora"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent

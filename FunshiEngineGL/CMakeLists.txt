@@ -75,6 +75,7 @@ file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS ${SRC_DIR}/*.h ${SRC_DIR}/*.hpp)
 # Funshi CLI. Estas bibliotecas no dependen de la GUI ni de la pila gráfica.
 list(REMOVE_ITEM SOURCES
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
+    ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Diagnosticos/RegistroDiagnosticos.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp)
@@ -88,8 +89,10 @@ list(APPEND SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/External/stb_image/stb_image_impl.cpp)
 add_library(funshi_project_core STATIC
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
+    ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp)
-target_include_directories(funshi_project_core PUBLIC ${SRC_DIR})
+target_include_directories(funshi_project_core PUBLIC ${SRC_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/External)
 
 add_library(funshi_diagnostics_core STATIC
     ${SRC_DIR}/Diagnosticos/RegistroDiagnosticos.cpp
@@ -1030,6 +1033,7 @@ endif()
 add_executable(manifiesto-assets-tests
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
+    ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
     ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
     ${SRC_DIR}/Scenes/Serializacion/ManifiestoAssetsCore.cpp
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
@@ -1317,6 +1321,7 @@ add_executable(mods-tests
     ${SRC_DIR}/Mods/Api/ServiciosMods.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
+    ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
     ${FUNSHI_TESTS_CI_DIR}/ModsTests.cpp
 )
 target_link_libraries(mods-tests PRIVATE funshi_diagnostics_core funshi_miniz)
@@ -1492,6 +1497,7 @@ add_test(NAME proceso-tests COMMAND proceso-tests)
 add_executable(configuracion-tests
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
+    ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
     ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
     ${FUNSHI_TESTS_CI_DIR}/EditorConfigTests.cpp
@@ -1527,6 +1533,7 @@ add_test(NAME eventbus-tests COMMAND eventbus-tests)
 add_executable(model-serialization-tests
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
+    ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
     ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
     ${SRC_DIR}/Objetos/Componentes/Render/Model.cpp
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
