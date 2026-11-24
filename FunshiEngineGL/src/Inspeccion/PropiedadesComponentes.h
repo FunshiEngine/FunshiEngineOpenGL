@@ -74,6 +74,11 @@ private:
 
     void registrar(const std::string& tipo,
                    std::vector<DefPropiedad> propiedades);
+    // Registro por familia de componentes (una unidad por familia).
+    void registrarEscena();
+    void registrarFisica();
+    void registrarRender();
+    void registrarInterfaz();
 
     std::vector<std::string> orden_;
     std::unordered_map<std::string, std::vector<DefPropiedad>> mapa_;

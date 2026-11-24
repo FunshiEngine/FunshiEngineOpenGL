@@ -21,12 +21,15 @@
 #include "../../../Audio/AudioEngine.h"
 #include "../../../Audio/ExtensionesAudio.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Musica.h"
+#include "../../../Objetos/Componentes/Audio/Musica.h"
 
 #include <imgui.h>
 #include <iostream>
 #include <string>
 #include <vector>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 namespace {
 
@@ -43,76 +46,75 @@ SettingsMusica::SettingsMusica(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Musica).name())), gameObject(gameObject) {}
 
 void SettingsMusica::showDataComponent() {
-	Musica* musica = gameObject->getComponent<Musica>();
-	if (!musica) return;
+    Musica* musica = objetivo<Musica>(gameObject);
+    if (!musica) return;
 
-	ImGui::Text("===Musica===");
 
-	// La lista de pistas: cada una es la ruta de un archivo (el usuario la
-	// arrastro aqui). El orden es el de reproduccion.
-	const std::vector<std::string> rutas = musica->getRutas();
-	ImGui::Text("Pistas (%zu)", rutas.size());
-	ImGui::Separator();
+    // La lista de pistas: cada una es la ruta de un archivo (el usuario la
+    // arrastro aqui). El orden es el de reproduccion.
+    const std::vector<std::string> rutas = musica->getRutas();
+    ImGui::Text(Localizacion::tr(Texto::Pistas), rutas.size());
+    ImGui::Separator();
 
-	ImGui::PushID(musica);
-	for (std::size_t i = 0; i < rutas.size(); ++i) {
-		ImGui::PushID(static_cast<int>(i));
-		ImGui::Text("%zu. %s", i + 1, nombreArchivo(rutas[i]).c_str());
-		ImGui::SameLine();
-		// Subir y bajar: el orden de la lista es el orden en que suenan.
-		if (ImGui::SmallButton("^")) {
-			if (i > 0) musica->moverRuta(i, i - 1);
-		}
-		ImGui::SameLine();
-		if (ImGui::SmallButton("v")) {
-			if (i + 1 < rutas.size()) musica->moverRuta(i, i + 1);
-		}
-		ImGui::SameLine();
-		if (ImGui::SmallButton("x")) musica->quitarRuta(i);
-		ImGui::PopID();
-	}
+    ImGui::PushID(musica);
+    for (std::size_t i = 0; i < rutas.size(); ++i) {
+        ImGui::PushID(static_cast<int>(i));
+        ImGui::Text("%zu. %s", i + 1, nombreArchivo(rutas[i]).c_str());
+        ImGui::SameLine();
+        // Subir y bajar: el orden de la lista es el orden en que suenan.
+        if (ImGui::SmallButton("^")) {
+            if (i > 0) musica->moverRuta(i, i - 1);
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("v")) {
+            if (i + 1 < rutas.size()) musica->moverRuta(i, i + 1);
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("x")) musica->quitarRuta(i);
+        ImGui::PopID();
+    }
 
-	// Zona para anadir una pista arrastrandola desde el explorador.
-	if (ImGui::Button("[Arrastra una pista para anadirla]")) {
-		// El boton es el destino del arrastre; el click no hace nada.
-	}
-	if (ImGui::BeginDragDropTarget()) {
-		if (const ImGuiPayload* payload =
-		        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
-			const char* rutaSoltada = static_cast<const char*>(payload->Data);
-			if (rutaSoltada && *rutaSoltada && esArchivoAudio(rutaSoltada)) {
-				musica->anadirRuta(rutaSoltada);
-			} else if (rutaSoltada && *rutaSoltada) {
-				std::cerr << "[Musica] el archivo arrastrado no es un formato de "
-				             "audio (wav/ogg/mp3/flac); pista sin anadir: "
-				          << rutaSoltada << std::endl;
-			}
-		}
-		ImGui::EndDragDropTarget();
-	}
-	ImGui::PopID();
+    // Zona para anadir una pista arrastrandola desde el explorador.
+    if (ImGui::Button(Localizacion::etiqueta(Texto::ArrastraUnaPistaParaAnadirla).c_str())) {
+        // El boton es el destino del arrastre; el click no hace nada.
+    }
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload =
+                ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+            const char* rutaSoltada = static_cast<const char*>(payload->Data);
+            if (rutaSoltada && *rutaSoltada && esArchivoAudio(rutaSoltada)) {
+                musica->anadirRuta(rutaSoltada);
+            } else if (rutaSoltada && *rutaSoltada) {
+                std::cerr << "[Musica] el archivo arrastrado no es un formato de "
+                             "audio (wav/ogg/mp3/flac); pista sin anadir: "
+                          << rutaSoltada << std::endl;
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+    ImGui::PopID();
 
-	float volume = musica->getVolume();
-	if (ImGui::SliderFloat("Volumen", &volume, 0.f, 1.f))
-		musica->setVolume(volume);
+    float volume = musica->getVolume();
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::Volumen).c_str(), &volume, 0.f, 1.f))
+        musica->setVolume(volume);
 
-	float fundido = musica->getDuracionFundido();
-	if (ImGui::SliderFloat("Fundido (s)", &fundido, 0.f, 10.f))
-		musica->setDuracionFundido(fundido);
+    float fundido = musica->getDuracionFundido();
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::FundidoS).c_str(), &fundido, 0.f, 10.f))
+        musica->setDuracionFundido(fundido);
 
-	bool repetir = musica->isRepetirLista();
-	if (ImGui::Checkbox("Repetir la lista", &repetir))
-		musica->setRepetirLista(repetir);
+    bool repetir = musica->isRepetirLista();
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::RepetirLaLista).c_str(), &repetir))
+        musica->setRepetirLista(repetir);
 
-	bool autoPlay = musica->isReproduccionAutomatica();
-	if (ImGui::Checkbox("Reproducir al activar", &autoPlay))
-		musica->setReproduccionAutomatica(autoPlay);
+    bool autoPlay = musica->isReproduccionAutomatica();
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::ReproducirAlActivar).c_str(), &autoPlay))
+        musica->setReproduccionAutomatica(autoPlay);
 
-	// La escena inyecta el motor; sin motor (inspector aislado) los botones se
-	// muestran deshabilitados.
-	ImGui::BeginDisabled(motor == nullptr || musica->getRutas().empty());
-	if (ImGui::Button("Reproducir")) musica->reproducir();
-	ImGui::SameLine();
-	if (ImGui::Button("Detener")) musica->detener();
-	ImGui::EndDisabled();
+    // La escena inyecta el motor; sin motor (inspector aislado) los botones se
+    // muestran deshabilitados.
+    ImGui::BeginDisabled(motor == nullptr || musica->getRutas().empty());
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Reproducir).c_str())) musica->reproducir();
+    ImGui::SameLine();
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Detener).c_str())) musica->detener();
+    ImGui::EndDisabled();
 }

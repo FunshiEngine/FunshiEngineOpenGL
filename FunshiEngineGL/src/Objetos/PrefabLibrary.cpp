@@ -84,6 +84,22 @@ Prefab* PrefabLibrary::obtener(const std::string& nombre) {
     return nullptr;
 }
 
+Prefab* PrefabLibrary::obtenerPorRuta(const std::string& ruta) {
+    std::error_code ec;
+    const fs::path canonica = fs::weakly_canonical(fs::path(ruta), ec);
+    const std::string clave = ec ? ruta : canonica.string();
+    auto it = cachePorRuta_.find(clave);
+    if (it != cachePorRuta_.end() && it->second->existeArchivo()) return it->second.get();
+    if (!fs::exists(clave) || !Prefab::validarArchivo(clave)) {
+        std::cerr << "[PrefabLibrary] Archivo prefab invalido o inexistente: " << clave << std::endl;
+        return nullptr;
+    }
+    // Se relee siempre que el cache no lo tenga: un prefab regenerado con el
+    // mismo nombre conserva la ruta, asi que el objeto cacheado sigue valido.
+    cachePorRuta_[clave] = Prefab::desdeArchivo(clave);
+    return cachePorRuta_[clave].get();
+}
+
 std::vector<std::string> PrefabLibrary::listarNombres() const {
     std::vector<std::string> nombres;
     nombres.reserve(cache_.size());

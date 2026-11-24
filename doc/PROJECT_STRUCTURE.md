@@ -115,6 +115,9 @@ FunshiEngineGL/                          ← raíz del repo
 ├── .gitignore / .gitattributes
 ├── tests/                               ← suites headless (CTest), una por sistema
 │   ├── FileManagerTests.cpp             ← headless del explorador de archivos
+│   ├── ImportarProyectoTests.cpp        ← headless de "Importar proyecto" (copiar a
+│   │                                      Proyects/ un proyecto externo, con o sin
+│   │                                      nombre nuevo; no deja nada a medias)
 │   ├── ImportarArchivosTests.cpp        ← headless de la importación de archivos del
 │   │                                      sistema (no pisar, carpetas recursivas y los
 │   │                                      parsers del portapapeles: uri-list y DROPFILES)
@@ -237,8 +240,12 @@ FunshiEngineGL/                          ← raíz del repo
         │   │                              DELEGA en ProjectManager (una sola implementación)
         │   ├── ConfigPersistence.h/.cpp ← JSON puro de la config: general + proyecto (escritura atómica)
         │   ├── ProjectPaths.h/.cpp      ← rutas canónicas del motor (una sola fuente de verdad)
-        │   └── ProjectManager.h/.cpp    ← ciclo de vida de proyectos; creación estricta para CLI separada
-        │                                  del aseguramiento/migración usado por el editor
+        │   ├── ProjectManager.h/.cpp    ← ciclo de vida de proyectos; creación estricta para CLI separada
+        │   │                              del aseguramiento/migración usado por el editor
+        │   └── Proyecto/
+        │       ├── ArchivoProyecto.h/.cpp  ← archivo .fnep (leer, escribir, resolver apertura)
+        │       └── ImportarProyecto.h/.cpp ← copiar a Proyects/ un proyecto externo (carpeta o .fnep),
+        │                                     con otro nombre si hace falta; copia en carpeta oculta
         ├── Diagnosticos/
         │   └── RegistroDiagnosticos.h/.cpp ← historial acotado en memoria y persistencia JSON Lines
         ├── Terminal/
@@ -340,7 +347,7 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   ├── PanelModInterface.h/.cpp  ← ventana de un panel de mod: abre la ventana de
         │   │   │                              ImGui y llama al callback que entrego el mod
         │   │   └── PanelesModsInterface.h/.cpp ← colección de esos paneles; se sincroniza con
-        │   │                                  Mods/RegistroPanelesMods cada frame (los mods
+        │   │                                  Mods/Api/RegistroPanelesMods cada frame (los mods
         │   │                                  pueden registrar paneles en caliente)
         │   ├── EfectosGUI/                 ← taller de efectos: la ventana dedicada
         │   │   └── AnimacionesParticulasInterface.h/.cpp ← pestañas Particulas (editor y
@@ -418,7 +425,7 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── SceneSelectedInterface.h/.cpp  ← jerarquía y selección; usa EditorController
         │       ├── SceneObjectTree.h/.cpp         ← árbol de objetos (drag & drop para reparentar;
         │       │                                  soltar un .prefab instancia en la raíz y
-        │       │                                  Crear Prefab guarda la selección)
+        │       │                                  Crear prefab guarda la selección)
         │       └── SceneMenuBarInterface.h/.cpp   ← controles Depuración/Juego/Pausa/Reset/Terminar
         ├── GUIManager/
         │   └── GUIManager.h/.cpp         ← fábrica de ventanas y su registro (cada
@@ -439,6 +446,11 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── ReglaIconoCatalogo.h/.cpp ← la regla que lee el catálogo (fuente única)
         │       ├── IResolutorIconos.h   ← contrato: tipo de componente → textura
         │       └── CatalogoIconos.h/.cpp← une la regla con la carga en GPU (a demanda)
+        ├── Localizacion/
+        │   ├── Textos.inc               ← TODOS los textos del motor, un bloque por idioma
+        │   │                              (formato posicional; ver "Textos e idiomas")
+        │   └── Localizacion.h/.cpp      ← enum Texto, idiomas numerados y busqueda
+        │                                  numeroIdioma * N + texto (biblioteca funshi_localizacion)
         ├── Iluminacion/
         │   ├── LightSystem.h/.cpp        ← dueño del estado GL de luces (GL_LIGHT0..7) por frame
         │   │                              (además devuelve el objeto dueño de cada luz)
@@ -531,8 +543,12 @@ FunshiEngineGL/                          ← raíz del repo
         │   │   ├── OpenGL3Backend.h/.cpp   ← implementación OpenGL 3.3 core
         │   │   └── GLFuncs.h                ← carga perezosa de funciones GL
         │   ├── Sombras/                    ← mapa de sombras de las luces
-        │   │   └── MapaSombras.h/.cpp     ← selección de proyectores (luces que proyectan)
-        │   │                              y dueño de los objetivos de profundidad por luz
+        │   │   ├── MapaSombras.h/.cpp     ← selección de proyectores (luces que proyectan)
+        │   │   │                          y dueño de los objetivos de profundidad por slot
+        │   │   ├── PasadaSombras.h/.cpp   ← pasada del frame: candidatos (componente
+        │   │   │                          Sombras), mapas, geometría desde la luz
+        │   │   └── UniformsSombras.h/.cpp ← samplers/uniforms/texturas por slot del
+        │   │                              shader de mallas
         │   └── Shaders/                    ← sistema de shaders (gestor + GLSL embebido)
         │       ├── GestorShaders.h/.cpp   ← dueño de los programas: uno por nombre,
         │       │                              compilado una vez y compartido
@@ -1067,6 +1083,65 @@ solo como orquestador de arranque y bucle.
   (lógica pura) + `MenuView` (ImGui) + `StartMenuPresenter` (puente motor).
   Ver `src/GUI/MenusGUI/README.md`.
 
+### Textos e idiomas
+
+Todos los textos que muestra el motor viven en un solo archivo,
+`src/Localizacion/Textos.inc`, en formato **posicional**:
+
+- El archivo tiene un bloque por idioma. Cada bloque empieza con
+  `IDIOMA(numero, "codigo", "nombre")` y los numeros van en orden: `0` es el
+  espanol (idioma base), `1` el ingles, y asi.
+- Todos los bloques tienen los mismos **N** textos en el mismo orden
+  (`Localizacion::kCantidadTextos`). N es la distancia entre un idioma y el
+  siguiente.
+- El texto en la posicion `i` del idioma `n` esta en `n * N + i` de una sola
+  tabla. El codigo lo pide con `Localizacion::texto(numeroIdioma, Texto::Nombre)`;
+  `Texto::Nombre` es la posicion `i`, generada del bloque 0, asi nadie escribe
+  numeros sueltos.
+- El compilador comprueba (`static_assert`) que los idiomas esten numerados en
+  orden y que cada bloque tenga los mismos textos en las mismas posiciones: un
+  texto faltante o fuera de lugar no compila.
+- Un texto vacio (`""`) en un idioma muestra el del idioma 0. Un numero de
+  idioma inexistente usa el idioma 0.
+- La configuracion guarda el **codigo** (`"es"`, `"en"`), no el numero ni el
+  nombre, asi reordenar o renombrar idiomas no rompe lo guardado. Los valores
+  viejos (`"Espanol"`, `"English"`) se migran al cargar.
+- Agregar un texto: una linea `TEXTO(Nombre, "...")` en **cada** bloque, en la
+  misma posicion. Agregar un idioma: copiar el bloque 0 al final, numerarlo y
+  traducirlo; aparece solo en el combo de idioma.
+- Para ImGui, `Localizacion::etiqueta(Texto::X)` arma `"<texto>###X"`: el ID
+  no cambia al cambiar de idioma. Los modales traducen el título y mantienen
+  un ID fijo (`"###DialogoRenombrar"`); su `OpenPopup` usa ese mismo ID.
+- Idioma vigente del editor: lo fijan `main` al arrancar y `MainGUI` al
+  cambiar el idioma (`Localizacion::fijarIdiomaActual`); las ventanas lo leen
+  con `Localizacion::tr(Texto::X)` y cambian en el momento.
+- Normas de redacción: el archivo está en UTF-8 y los textos llevan su
+  ortografía (tildes, ñ, `¿?`; la fuente por defecto de ImGui tiene esos
+  caracteres y MSVC compila con `/utf-8`). En español se usa voseo
+  ("Escribí", "Seleccioná") y solo la primera letra en mayúscula
+  ("Eliminar carpeta"); en inglés también ("Delete folder"). Siempre frases
+  enteras: nada de "del %s" con una palabra suelta, porque otro idioma no
+  arma la frase igual.
+- Herramienta: los textos se pasan del código a `Textos.inc` con
+  `ExtractorTextosCpp` (repositorio aparte, `TheOpenTool`).
+
+Estado: todo texto que el editor pasa directo a ImGui sale de `Textos.inc`
+(menú de inicio, barra de menús, jerarquía, explorador, inspector, barra de
+estado, exportación, partículas, terminal, cámaras). Las listas de los combos
+se arman con `Texto` y se traducen al dibujar. Los nombres de los componentes
+(menú "Agregar componente" y encabezados del inspector) y las caras del skybox
+también. Quedan fuera, a propósito, los mensajes de la API de inspección y de
+los logs.
+
+Títulos de ventana: cada ventana conserva su nombre interno
+(`WindowNames::Settings`), que es la clave del estado guardado, del dock y de
+los mods. `ImGui::Begin` recibe `WindowNames::titulo(nombre)`, que arma
+`"Inspector###Settings"`: ImGui calcula el ID solo con la parte desde `###`,
+así que cambiar de idioma no crea otra ventana ni la mueve. El dock busca y
+ancla con `WindowNames::idImGui(nombre)` (`"###Settings"`). Al pasar a este
+esquema el `imgui.ini` guardado (que usaba `"Settings"` como ID) deja de
+coincidir una vez y las ventanas vuelven a su lugar por defecto.
+
 ### Persistencia
 
 - `SceneSerializer` es el único responsable del archivo `BBDDObjetos.txt` y de los
@@ -1103,7 +1178,7 @@ solo como orquestador de arranque y bucle.
   junto al binario (Linux y Windows), y cada campo va a uno u otro según si es
   una preferencia de la máquina o del proyecto abierto:
   `<directorioEjecutable>/FunshiEngine-DATA/Configuraciones/Configuracion.json`
-  (**general**: último proyecto, idioma, sensibilidad de cámara, sensibilidad de
+  (**general**: último proyecto, idioma (código `es`/`en`), sensibilidad de cámara, sensibilidad de
   movimiento y perfil de apariencia) y
   `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` (**por proyecto**:
   operación y sistema de coordenadas del gizmo, ventana de cámaras, estado
@@ -1316,6 +1391,45 @@ La convención general es un par `.h`/`.cpp` por clase. Las excepciones son:
 - Componentes pequeños y algunas interfaces GUI, parcialmente inline por el acoplamiento actual.
 - Headers de terceros, que conservan la organización original.
 
+### 6.1 Subcarpetas por módulo
+
+Los módulos con muchos archivos se agrupan en subcarpetas por responsabilidad
+(ningún nivel de carpeta junta más de una decena de archivos sueltos):
+
+| Módulo | Subcarpetas |
+|--------|-------------|
+| `Objetos/Componentes/` | `Nucleo/` (Component, ComponentFactory, CatalogoComponentes), `Escena/` (Transform, CameraComponent, Light, Grid), `Render/` (Model, Material(es), resolvedores, Color, Skybox, SpriteRenderer), `Audio/`, `Interfaz/` (InterfaceComponent, UIComponent), `Juego2D/` (Tilemap, Animador2D), `Efectos/` (EmisorParticulas), `Scripting/` (Script), `Colliders/`, `RigidBody/`, `Sombras/` |
+| `Rendering/` | `Lineas/`, `Mallas/` (MeshGPU, MeshRenderer, DibujoModelo), `Cielo/`, `Render2D/` (Sprite, Tilemap, Partículas, UI), `Escena/` (SceneRenderer, RenderTarget, ProyeccionCamara), `Texturas/`, `Sombras/`, `Shaders/`, `Backend/`, `Preview/` |
+| `Comandos/` | `Objetos/`, `Componentes/`, `Transform/` (`IComando.h` y `GestorComandos.h` en la raíz) |
+| `Scenes/` | `Serializacion/`, `Editor/` (EditorController, GizmoController), `Registro/` (SceneRegistry), `Juego/` (InterfacesJuego, CameraFrameSafety); `GameScene` en la raíz |
+| `Assets/` | `Mallas/`, `Imagenes/`, `Tiles/` (`AssetPath.h` y `AssetException.h` en la raíz) |
+| `Mods/` | `Formato/` (ZIP, manifiesto, versión), `Carga/`, `Api/` |
+| `FileManager/` | `Portapapeles/`, `Drop/`, `Procesos/` |
+| `Particulas/` | `Perfil/` (lectura/escritura del perfil) |
+
+### 6.2 Archivos divididos por tamaño
+
+Ningún archivo propio del motor pasa de 450 líneas (los de terceros —ImGui,
+miniaudio, stb, json, miniz— quedan como vienen). La excepción es
+`Localizacion/Textos.inc`: es un archivo de datos con todos los textos y crece
+con cada idioma, así que no se divide. Una clase grande se reparte
+en varias unidades con el mismo prefijo y una responsabilidad cada una, por
+ejemplo `GameScene.cpp`, `GameSceneSimulacion.cpp`, `GameSceneCamaras.cpp`,
+`GameSceneGUI.cpp`, `GameSceneUpdate.cpp`, `GameSceneScripts.cpp` y
+`GameSceneFrame.cpp`. Lo que comparten (includes, constantes, funciones
+auxiliares) vive en un header interno `<Nombre>Detalle.h` que solo incluyen
+esas unidades:
+
+- las auxiliares sin estado quedan con enlace interno (una copia por unidad);
+- las que tienen estado propio (variables `static` locales) y las variables
+  globales de la unidad original tienen una sola definición y se declaran
+  `extern` en el header interno;
+- los tipos que comparten las unidades van en el namespace `<Nombre>Detalle`.
+
+El editor arranca en `main.cpp` (`EjecutarMotor`), que crea los objetos y
+llama a las fases de `MainArranque.cpp`, `MainGUI.cpp` y `MainBucle.cpp` con un
+`ContextoEditor` (ver `MainDetalle.h`).
+
 `CMakeLists.txt` descubre automáticamente los `.cpp` y `.h` bajo `src/` mediante
 `GLOB_RECURSE CONFIGURE_DEPENDS`. Los nuevos archivos de implementación se incorporan
 al build sin enumerarlos manualmente. Los archivos de ImGui se recopilan por separado
@@ -1344,6 +1458,12 @@ restantes compilan también con `BUILD_ENGINE=OFF`):
   pura de `SelectorArchivoCubemap` (filtro de extensiones del cubemap y aviso
   de caras faltantes o de resolución dispares), que al vivir fuera del dibujo del
   modal se ejercita aquí sin crear contexto de ImGui.
+- `importar-proyecto-tests` (24): "Importar proyecto" de Configurar proyecto.
+  Reconoce el proyecto por su carpeta o su `.fnep` (también una carpeta
+  renombrada a mano), rechaza lo que no es proyecto, lo inexistente y lo que ya
+  está en `Proyects/`; la copia deja un solo `.fnep` con el nombre correcto, no
+  toca el origen ni deja la carpeta temporal; con otro nombre renombra
+  `src<Nombre>`; un nombre repetido o inválido no importa nada.
 - `importar-archivos-tests` (45): la importación de archivos que vienen de fuera
   del proyecto (arrastrados desde el explorador del sistema o pegados con Ctrl+V):
   la copia no pisa nada y genera un nombre único (`a.txt` → `a (1).txt`), las
@@ -1370,8 +1490,10 @@ restantes compilan también con `BUILD_ENGINE=OFF`):
   escribir; si no, la carpeta de datos del usuario, migrando lo que ya hubiera
   junto al ejecutable).
 - `eventbus-tests` (17): suscripción/publicación/unsubscribe del canal tipado de GUI.
-- `menu-tests` (40): lógica pura del menú (traducción, observer de cambios —sin
-  notificar al reaplicar una apariencia idéntica— y reset).
+- `menu-tests` (91): lógica pura del menú (traducción, observer de cambios —sin
+  notificar al reaplicar una apariencia idéntica— y reset) y `Localizacion`
+  (idiomas numerados, posición `numeroIdioma * N + texto`, respaldo al idioma 0,
+  migración de nombres viejos de idioma).
 - `assetmanager-tests` (95): caché Flyweight de meshes (rutas `AssetPath`, con los prefijos
   UNC y `\\?` preservados al normalizar) y geometría de `Mesh` con `computeBounds`,
   `computeNormals` —incluido el modo `soloFaltantes` para assets que mezclan sub-mallas con
@@ -1468,11 +1590,12 @@ restantes compilan también con `BUILD_ENGINE=OFF`):
   include se inserta en su sitio, los anidados, el include inexistente, el ciclo
   y el tope de anidamiento dan error limpio) y el gestor de shaders (un programa
   por nombre, compilado una vez y compartido entre los que lo piden).
-- `sombras-tests` (75): la matriz de la luz (vista desde la luz y proyección
+- `sombras-tests` (91): la matriz de la luz (vista desde la luz y proyección
   ortográfica, con los casos degenerados: luz sin dirección, radio o alcance
-  inválidos), el componente `Sombras` con sus ajustes y la selección de
-  proyectores (las luces puntuales no soportadas, el límite de mapas y el orden
-  en que se eligen).
+  inválidos), la direccional ajustada a la grilla de texeles, la spot en
+  perspectiva, las 6 caras del cubemap con la convención de OpenGL, el
+  componente `Sombras` con sus ajustes y la selección de proyectores (el límite
+  de mapas y el orden en que se eligen).
 - `musica-tests` (84): el reproductor de música con un backend falso: la lista
   ordenada de pistas (por ruta), la reproducción, el fundido cruzado (la pista
   que sale baja mientras la que entra sube), el paso automático a la pista

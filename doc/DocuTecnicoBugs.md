@@ -1011,10 +1011,10 @@ definición. De ahí que el mismo método aparezca con dos nombres.
 1. La **declaración adelantada** usa el mismo class-key que la definición:
 
    ```cpp
-   // Assets/Mesh.h
+   // Assets/Mallas/Mesh.h
    struct Mesh { ... };
 
-   // Rendering/MeshRenderer.h
+   // Rendering/Mallas/MeshRenderer.h
    struct Mesh;   // igual que en la definición, no "class Mesh;"
    ```
 

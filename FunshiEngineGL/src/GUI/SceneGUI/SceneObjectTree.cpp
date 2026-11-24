@@ -16,36 +16,10 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#include "SceneObjectTree.h"
-#include "JerarquiaArbol.h"
+#include "SceneObjectTreeDetalle.h"
+#include "../../Localizacion/Localizacion.h"
 
-#include "../../Objetos/GameObject.h"
-#include "../../Scenes/EditorController.h"
-#include "../../Scenes/SceneRegistry.h"
-#include "../../Comandos/BorrarObjetoComando.h"
-#include "../../Comandos/ReparentarComando.h"
-#include "../../Comandos/DuplicarObjetoComando.h"
-#include "../../Comandos/GestorComandos.h"
-#include "../../Objetos/Prefab.h"
-#include "../../Objetos/PrefabLibrary.h"
-#include "../../Events/EventBus.h"
-#include "../../Herramientas/TypeUtils.h"
-#include "../../Herramientas/IconosGUI/IconosGUI.h"
-#include <cstring>
-#include <filesystem>
-#include <imgui.h>
-#include <typeinfo>
-
-namespace {
-
-bool esArchivoPrefab(const char* ruta) {
-    std::string extension = std::filesystem::path(ruta).extension().string();
-    for (char& c : extension)
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return extension == ".prefab";
-}
-
-}  // namespace
+using Localizacion::Texto;
 
 SceneObjectTree::~SceneObjectTree() { unbind(); }
 
@@ -203,19 +177,19 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
     if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && editor)
         editor->selectObject(object);
     if (hovered)
-        ImGui::SetTooltip("ID: %d", object->getId());
+        ImGui::SetTooltip(Localizacion::tr(Texto::ID), object->getId());
 
 // Menu contextual con 5 opciones: Cambiar ID, Renombrar, Desanidar a raiz, Crear Prefab, Eliminar
         if (ImGui::BeginPopupContextItem("MenuObjeto")) {
             ImGui::Text("%s", etiqueta.c_str());
             ImGui::Separator();
-            if (ImGui::MenuItem("Cambiar ID")) {
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CambiarID).c_str())) {
                 dialogoActivo = DialogoTipo::CambiarID;
                 objetoEnDialogo = object;
                 std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%d", object->getId());
                 dialogoRecienAbierto = true;
             }
-            if (ImGui::MenuItem("Renombrar")) {
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::Renombrar).c_str())) {
                 dialogoActivo = DialogoTipo::Renombrar;
                 objetoEnDialogo = object;
                 std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
@@ -224,19 +198,19 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
             // Desanidar a raiz: solo si cuelga de un padre intermedio (un hijo
             // directo de la raiz ya esta al nivel superior).
             if (esCandidatoADesanidar(object, scene ? scene->getRoot() : nullptr)) {
-                if (ImGui::MenuItem("Desanidar a raiz")) {
+                if (ImGui::MenuItem(Localizacion::etiqueta(Texto::DesanidarARaiz).c_str())) {
                     // Diferido: mutar el arbol tras el recorrido para no invalidar
                     // iteradores (patron igual que objetoAReParentar).
                     objetoADesanidar = object;
                 }
             }
-            if (ImGui::MenuItem("Crear Prefab")) {
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CrearPrefab).c_str())) {
                 dialogoActivo = DialogoTipo::CrearPrefab;
                 objetoEnDialogo = object;
                 std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
                 dialogoRecienAbierto = true;
             }
-            if (ImGui::MenuItem("Eliminar")) {
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::Eliminar).c_str())) {
                 dialogoActivo = DialogoTipo::Eliminar;
                 objetoEnDialogo = object;
                 dialogoRecienAbierto = true;
@@ -249,7 +223,7 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
         GameObject* draggable = object;
         ImGui::SetDragDropPayload("ENTITY_NODE", &draggable,
                                   sizeof(draggable));
-        ImGui::Text("Moviendo %s", etiqueta.c_str());
+        ImGui::Text(Localizacion::tr(Texto::Moviendo), etiqueta.c_str());
         ImGui::EndDragDropSource();
     }
     if (ImGui::BeginDragDropTarget()) {
@@ -263,282 +237,18 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
                 objetoPadreNuevo = object;
             }
         }
-        // Archivo .prefab soltado desde el explorador de contenido: se
-        // instancia en la raiz (no como hijo de la fila, para que el prefab
-        // conserve la jerarquia con la que se guardo).
-        const ImGuiPayload* archivo =
-            ImGui::AcceptDragDropPayload("PREFAB_ASSET");
-        if (!archivo) archivo = ImGui::AcceptDragDropPayload("ARCHIVO_PATH");
-        if (archivo) {
+        // Archivo soltado desde el explorador sobre la fila: se aplica a ese
+        // objeto (un prefab se instancia como hijo, un modelo/imagen/audio
+        // reemplaza o agrega el componente que corresponde).
+        if (const ImGuiPayload* archivo = ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
             const char* rutaSoltada = static_cast<const char*>(archivo->Data);
-            if (rutaSoltada && *rutaSoltada && esArchivoPrefab(rutaSoltada))
-                instanciarPrefabDesdeRuta(rutaSoltada);
-            else if (rutaSoltada && *rutaSoltada)
-                std::cerr << "[SceneObjectTree] el archivo arrastrado no es "
-                             "un prefab: " << rutaSoltada << std::endl;
+            if (rutaSoltada && *rutaSoltada && editor) {
+                archivoSoltado_ = rutaSoltada;
+                objetoDestinoArchivo_ = object;
+            }
         }
         ImGui::EndDragDropTarget();
     }
 
     return {nodeOpen, toggled};
-}
-
-bool SceneObjectTree::instanciarPrefabDesdeRuta(const char* ruta) {
-    if (!editor || !ruta || !*ruta) return false;
-    PrefabLibrary* biblioteca = editor->getPrefabLibrary();
-    if (!biblioteca) return false;
-    // Del archivo arrastrado se toma el nombre sin extension: es la clave con
-    // la que la biblioteca carga y cachea los prefabs (obtener() lo levanta
-    // del disco si no esta en cache, asi que alcanza con el nombre).
-    const std::string archivo =
-        std::filesystem::path(ruta).filename().string();
-    const std::string sufijo = ".prefab";
-    if (archivo.size() <= sufijo.size()) return false;
-    const std::string nombre = archivo.substr(0, archivo.size() - sufijo.size());
-    Prefab* prefab = biblioteca->obtener(nombre);
-    if (!prefab) {
-        std::cerr << "[SceneObjectTree] no se encontro el prefab '" << nombre
-                  << "': " << ruta << std::endl;
-        return false;
-    }
-    // La instancia nace en la raiz de la escena; el usuario la mueve donde
-    // quiera (el gizmo y el inspector la dejan a tiro al seleccionarla).
-    GameObject* instancia = prefab->instanciar(editor, nullptr);
-    if (!instancia) {
-        std::cerr << "[SceneObjectTree] no se pudo instanciar el prefab '"
-                  << nombre << "'" << std::endl;
-        return false;
-    }
-    editor->selectObject(instancia);
-    return true;
-}
-
-void SceneObjectTree::dibujarDialogosModales() {
-    if (dialogoActivo == DialogoTipo::Ninguno || !objetoEnDialogo) return;
-
-    // Dialogo Cambiar ID
-    if (dialogoActivo == DialogoTipo::CambiarID) {
-        if (dialogoRecienAbierto) {
-            ImGui::OpenPopup("DialogoCambiarID");
-            dialogoRecienAbierto = false;
-        }
-        if (ImGui::BeginPopupModal("DialogoCambiarID", nullptr,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Nuevo ID para '%s':", objetoEnDialogo->inputName);
-            ImGui::InputText("##id", bufferDialogo, sizeof(bufferDialogo),
-                             ImGuiInputTextFlags_CharsDecimal);
-            ImGui::Separator();
-            if (ImGui::Button("Aceptar", ImVec2(120, 0))) {
-                int nuevoId = std::atoi(bufferDialogo);
-                const bool esRaiz = objetoEnDialogo->getParentEntity() == nullptr;
-                if (nuevoId > 0 || (esRaiz && nuevoId >= 0)) {
-                    objetoEnDialogo->setId(nuevoId);
-                    if (events)
-                        events->publish({SceneEventType::ComponentChanged,
-                                         objetoEnDialogo, nullptr});
-                }
-                dialogoActivo = DialogoTipo::Ninguno;
-                objetoEnDialogo = nullptr;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
-                dialogoActivo = DialogoTipo::Ninguno;
-                objetoEnDialogo = nullptr;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
-        }
-    }
-
-    // Dialogo Renombrar
-    if (dialogoActivo == DialogoTipo::Renombrar) {
-        if (dialogoRecienAbierto) {
-            ImGui::OpenPopup("DialogoRenombrar");
-        }
-        if (ImGui::BeginPopupModal("DialogoRenombrar", nullptr,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            if (dialogoRecienAbierto) {
-                ImGui::SetKeyboardFocusHere();
-                dialogoRecienAbierto = false;
-            }
-            ImGui::Text("Nuevo nombre:");
-            bool enterPresionado = ImGui::InputText("##nombre", bufferDialogo, sizeof(bufferDialogo),
-                                                     ImGuiInputTextFlags_EnterReturnsTrue);
-            ImGui::Separator();
-            bool confirmado = ImGui::Button("Aceptar", ImVec2(120, 0));
-            ImGui::SameLine();
-            bool cancelado = ImGui::Button("Cancelar", ImVec2(120, 0));
-            if (confirmado || cancelado || enterPresionado) {
-                if ((confirmado || enterPresionado) && bufferDialogo[0] != '\0') {
-                    std::snprintf(objetoEnDialogo->inputName,
-                                  sizeof(objetoEnDialogo->inputName), "%s",
-                                  bufferDialogo);
-                    if (events)
-                        events->publish({SceneEventType::ComponentChanged,
-                                         objetoEnDialogo, nullptr});
-                }
-                dialogoActivo = DialogoTipo::Ninguno;
-                objetoEnDialogo = nullptr;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
-        }
-    }
-
-    // Dialogo Eliminar
-    if (dialogoActivo == DialogoTipo::Eliminar) {
-        if (dialogoRecienAbierto) {
-            ImGui::OpenPopup("DialogoEliminar");
-            dialogoRecienAbierto = false;
-        }
-        if (ImGui::BeginPopupModal("DialogoEliminar", nullptr,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Eliminar '%s' (ID: %d)?",
-                        objetoEnDialogo->inputName, objetoEnDialogo->getId());
-            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f),
-                               "Esta accion no se puede deshacer.");
-            ImGui::Separator();
-            if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
-                if (editor) editor->clearSelection();
-                renombrando = nullptr;
-                objetoAEliminar = objetoEnDialogo;
-                dialogoActivo = DialogoTipo::Ninguno;
-                objetoEnDialogo = nullptr;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
-                dialogoActivo = DialogoTipo::Ninguno;
-                objetoEnDialogo = nullptr;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
-        }
-    }
-
-    // Dialogo Crear Prefab
-    if (dialogoActivo == DialogoTipo::CrearPrefab) {
-        if (dialogoRecienAbierto) {
-            ImGui::OpenPopup("DialogoCrearPrefab");
-            dialogoRecienAbierto = false;
-        }
-        if (ImGui::BeginPopupModal("DialogoCrearPrefab", nullptr,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Nombre del prefab:");
-            ImGui::InputText("##NombrePrefab", bufferDialogo, sizeof(bufferDialogo),
-                             ImGuiInputTextFlags_EnterReturnsTrue);
-            ImGui::Separator();
-            if (ImGui::Button("Crear", ImVec2(120, 0))) {
-                if (bufferDialogo[0] != '\0' && editor && editor->getPrefabLibrary()) {
-                    editor->getPrefabLibrary()->crearPrefab(bufferDialogo, objetoEnDialogo, editor);
-                }
-                dialogoActivo = DialogoTipo::Ninguno;
-                objetoEnDialogo = nullptr;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
-                dialogoActivo = DialogoTipo::Ninguno;
-                objetoEnDialogo = nullptr;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
-        }
-    }
-}
-
-void SceneObjectTree::applyDeferredOperations() {
-    GestorComandos* comandos =
-        editor ? editor->getGestorComandos() : nullptr;
-    if (objetoAReParentar && objetoPadreNuevo && editor && comandos)
-        comandos->ejecutar(std::make_unique<ReparentarComando>(
-            editor, objetoAReParentar, objetoPadreNuevo, scene));
-    objetoAReParentar = nullptr;
-    objetoPadreNuevo = nullptr;
-
-    if (objetoADesanidar) {
-        GameObject* raiz = scene ? scene->getRoot() : nullptr;
-        if (editor && comandos && raiz)
-            comandos->ejecutar(std::make_unique<ReparentarComando>(
-                editor, objetoADesanidar, raiz, scene));
-        objetoADesanidar = nullptr;
-    }
-
-    if (objetoAEliminar) {
-        GameObject* doomed = objetoAEliminar;
-        objetoAEliminar = nullptr;
-        openNodes.erase(static_cast<const void*>(doomed));
-        if (renombrando == doomed) renombrando = nullptr;
-        if (editor && comandos)
-            comandos->ejecutar(
-                std::make_unique<BorrarObjetoComando>(editor, doomed, scene));
-    }
-
-    if (objetoAPegar) {
-        GameObject* fuente = objetoAPegar;
-        objetoAPegar = nullptr;
-        GameObject* destino = padreDePegado;
-        padreDePegado = nullptr;
-        if (editor && scene && scene->contains(fuente)) {
-            if (!destino || !scene->contains(destino)) destino = nullptr;
-            // Pegar sobre si mismo o sobre un descendiente colgaria el
-            // duplicado de su propio subarbol: en ese caso va a la raiz.
-            if (destino && (destino == fuente || esDescendiente(destino, fuente)))
-                destino = nullptr;
-            // Sin tocar la seleccion: el clon no se selecciona para que el
-            // proximo Ctrl+V caiga en el mismo destino y nunca se anide.
-            // Por el gestor: Ctrl+Z deshace el pegado.
-            if (GestorComandos* comandos = editor->getGestorComandos())
-                comandos->ejecutar(std::make_unique<DuplicarObjetoComando>(
-                    editor, fuente, destino, scene));
-            // Cortar es mover: tras pegar se borra el original y se vacia.
-            // Tambien por el gestor: el corte completo se deshace en dos
-            // Ctrl+Z (borrado y duplicado).
-            if (cortePendiente) {
-                openNodes.erase(static_cast<const void*>(fuente));
-                if (renombrando == fuente) renombrando = nullptr;
-                if (GestorComandos* comandos = editor->getGestorComandos())
-                    comandos->ejecutar(std::make_unique<BorrarObjetoComando>(
-                        editor, fuente, scene));
-                objetoCopiado = nullptr;
-                cortePendiente = false;
-            }
-        }
-    }
-}
-
-bool SceneObjectTree::esDescendiente(GameObject* nodo, GameObject* ancestro) {
-    for (Entity* p = nodo ? nodo->getParentEntity() : nullptr; p;
-         p = p->getParentEntity()) {
-        if (p == ancestro) return true;
-    }
-    return false;
-}
-
-void SceneObjectTree::manejarAtajos() {
-    if (!editor || !scene) return;
-    if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) return;
-    // Con un campo de texto activo (renombrado), Ctrl+C/V son del texto.
-    if (ImGui::IsAnyItemActive()) return;
-    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_C) ||
-        ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_X)) {
-        GameObject* seleccionado = editor->getSelectedObject();
-        if (!seleccionado || seleccionado == scene->getRoot()) return;
-        objetoCopiado = seleccionado;
-        cortePendiente =
-            ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_X);
-    }
-    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_V)) {
-        if (!objetoCopiado || !scene->contains(objetoCopiado)) {
-            objetoCopiado = nullptr;
-            cortePendiente = false;
-            return;
-        }
-        // Pegar con un objeto seleccionado entra como su hijo; sin seleccion
-        // (clic en el vacio deselecciona) entra a la raiz. Diferido como el
-        // resto: mutar el arbol aca invalidaria el recorrido.
-        objetoAPegar = objetoCopiado;
-        padreDePegado = editor->getSelectedObject();
-    }
 }

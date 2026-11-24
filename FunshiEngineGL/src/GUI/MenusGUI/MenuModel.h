@@ -25,6 +25,7 @@
 
 #include "../../Configuracion/Apariencia.h"
 #include "../../Configuracion/DimensionProyecto.h"
+#include "../../Localizacion/Localizacion.h"
 
 // Modelo del paquete MenuGUI: la capa de logica pura del menu de inicio del
 // motor (sin ImGui/GLFW ni rendering). Es el patron MVP de este paquete:
@@ -111,19 +112,35 @@ public:
     void setProyectoAEliminar(const std::string& nombre);
     void limpiarProyectoAEliminar() noexcept;
 
+    // Importar proyecto (Configurar proyecto): la vista pide copiar la carpeta
+    // de un proyecto externo con un nombre; main hace la copia en disco y deja
+    // el resultado para mostrarlo. Carpeta vacia = sin pedido.
+    struct PedidoImportar {
+        std::string carpeta;
+        std::string nombre;
+    };
+    struct ResultadoImportar {
+        bool hay = false;
+        bool exito = false;
+        Localizacion::Texto texto = Localizacion::Texto::ProyectoImportado;  // %s = nombre
+        std::string nombre;
+    };
+    const PedidoImportar& getImportacion() const noexcept;
+    void pedirImportacion(const std::string& carpeta, const std::string& nombre);
+    void limpiarImportacion() noexcept;
+    const ResultadoImportar& getResultadoImportacion() const noexcept;
+    void setResultadoImportacion(const ResultadoImportar& resultado);
+
     const std::string& getIdioma() const noexcept;
     void setIdioma(const std::string& valor);
     const std::vector<std::string>& getIdiomas() const noexcept;
 
-// Traduccion declarativa de las etiquetas del menu (idioma actual). Vive
-// en el modelo para que el efecto del idioma sea probable y no dependa de
-// ImGui: la vista solo pregunta el texto de la clave. Un clave inexistente
-// se devuelve tal cual (nunca rompe). Codigos: "iniciar_estudio",
-// "config_proyecto", "opciones", "salir", "volver", "juego", "idioma",
-// "radio_difuminado", "sensibilidad_camara", "apariencia", "tema_claro", "modo_bn",
-// "color_acento", "color_cielo_superior", "color_cielo_inferior", "ayuda_bn",
-// "restablecer_apariencia", "restablecer_configuracion", "ayuda_reset", "nombre".
-    std::string traducir(const std::string& clave) const;
+// Idioma: codigo de Localizacion ("es", "en"). setIdioma acepta tambien los
+// nombres viejos ("Espanol", "English") y los normaliza.
+// traducir: el texto en el idioma actual (Localizacion::texto, posicion
+// numeroIdioma * N + texto). Vive en el modelo para que el efecto del idioma
+// sea probable sin ImGui. Todos los textos estan en Localizacion/Textos.inc.
+    const char* traducir(Localizacion::Texto texto) const;
 
     // Sensibilidad global del mouse look de la camara (vista Opciones del
     // menu). Multiplicador aplicado en main al offset del raton; 1.0 = 1:1
@@ -182,8 +199,9 @@ private:
     std::string proyectoARenombrar;
     // Carpeta pendiente de eliminacion (vacia = sin eliminacion registrada).
     std::string proyectoAEliminar;
-    std::string idioma = "Espanol";
-    std::vector<std::string> idiomasDisponibles = {"Espanol", "English"};
+    PedidoImportar importacion;
+    ResultadoImportar resultadoImportacion;
+    std::string idioma = "es";
     float sensibilidadCamara = 0.15f;
     // Sensibilidad de movimiento (WASD) de la camara del editor. Se configura
     // en la vista Opciones junto a la sensibilidad de camara y se aplica a la

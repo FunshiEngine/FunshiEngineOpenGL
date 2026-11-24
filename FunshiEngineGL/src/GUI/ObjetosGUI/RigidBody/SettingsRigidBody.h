@@ -20,16 +20,19 @@
 #define SETTINGSRIGIDBODY_H
 #include "../SettingsComponent.h"
 #include "../../../Objetos/Componentes/RigidBody/RigidBody.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 
 class SettingsRigidBody : public SettingsComponent {
 protected:
-	RigidBody* myCollider;
-	EditorController* editor = nullptr;
+    RigidBody* myCollider;
+    EditorController* editor = nullptr;
 public:
-	explicit SettingsRigidBody(GameObject* objeto);
-	void setEditor(EditorController* editor);
-	void showDataComponent() override;
-	Component* getComponent() override { return myCollider; }
+    explicit SettingsRigidBody(GameObject* objeto);
+    void setEditor(EditorController* editor);
+    void showDataComponent() override;
+    void alFijarObjetivo() override {
+        if (auto* propio = dynamic_cast<RigidBody*>(objetivo_)) myCollider = propio;
+    }
+    Component* getComponent() override { return myCollider; }
 };
 #endif

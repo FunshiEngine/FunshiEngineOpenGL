@@ -23,7 +23,7 @@ using namespace std;
 
 template<typename E>
 class Comparable {
-	public:
-		virtual int compareTo(E* p1) = 0;
+    public:
+        virtual int compareTo(E* p1) = 0;
 };
 #endif

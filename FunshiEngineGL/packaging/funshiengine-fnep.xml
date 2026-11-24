@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Tipo MIME de los proyectos de FunshiEngine (.fnep), para shared-mime-info.
+     Lo instala packaging/instalar_asociacion_linux.sh. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-funshi-proyecto">
+    <comment>Proyecto de FunshiEngine</comment>
+    <glob pattern="*.fnep"/>
+  </mime-type>
+</mime-info>

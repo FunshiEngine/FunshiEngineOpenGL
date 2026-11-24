@@ -21,19 +21,22 @@
 #include "../SettingsComponent.h"
 #include "../Transform/SettingsTransform.h"
 #include "../../../Objetos/Componentes/Colliders/TilemapCollider.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 
 class SettingsColliderTilemap : public SettingsComponent {
 protected:
-	SettingsTransform* settingsTransform;
-	TilemapCollider* myCollider;
-	EditorController* editor = nullptr;
+    SettingsTransform* settingsTransform;
+    TilemapCollider* myCollider;
+    EditorController* editor = nullptr;
 public:
-	explicit SettingsColliderTilemap(GameObject* objeto);
-	~SettingsColliderTilemap();
+    explicit SettingsColliderTilemap(GameObject* objeto);
+    ~SettingsColliderTilemap();
 
-	void setEditor(EditorController* editor);
-	void showDataComponent() override;
-	Component* getComponent() override { return myCollider; }
+    void setEditor(EditorController* editor);
+    void showDataComponent() override;
+    void alFijarObjetivo() override {
+        if (auto* propio = dynamic_cast<TilemapCollider*>(objetivo_)) myCollider = propio;
+    }
+    Component* getComponent() override { return myCollider; }
 };
 #endif

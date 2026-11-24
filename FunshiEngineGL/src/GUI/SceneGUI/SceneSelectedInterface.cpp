@@ -23,11 +23,15 @@
 
 #include "../../Objetos/GameObject.h"
 #include "../../Objetos/GameObjectFactory.h"
-#include "../../Comandos/CrearObjetoComando.h"
-#include "../../Scenes/EditorController.h"
-#include "../../Scenes/SceneRegistry.h"
+#include "../../Comandos/Objetos/CrearObjetoComando.h"
+#include "../../Scenes/Editor/EditorController.h"
+#include "../../Scenes/Registro/SceneRegistry.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
+#include "../../Localizacion/Localizacion.h"
+#include "../WindowNames.h"
+
+using Localizacion::Texto;
 
 SceneSelectedInterface::SceneSelectedInterface(bool state)
     : GeneralUserInterface("SelectedObjects", state, ImGuiWindowFlags_MenuBar) {}
@@ -59,12 +63,12 @@ void SceneSelectedInterface::setReturnableEntity(GameObject* object) {
 }
 
 void SceneSelectedInterface::initGUI() {
-    ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
+    ImGui::Begin(WindowNames::titulo(getNameGui()).c_str(), &stateGUI, getFlagGui());
     ImGui::PushID(this);
 }
 
 void SceneSelectedInterface::contentGUI() {
-	auto* entitys = getEntitysTree();
+    auto* entitys = getEntitysTree();
     if (!entitys) return;
 
     // Sin deseleccion por clic en area vacia: la interface se conserva al
@@ -74,7 +78,7 @@ void SceneSelectedInterface::contentGUI() {
     if (ImGui::BeginPopupContextWindow(
             "SelectedEntitysPopup",
             ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
-        if (ImGui::MenuItem("New SimpleObject")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NuevoObjetoSimple).c_str())) {
             if (editor) {
                 // El raiz se pasa a la factoria para que el nombre por defecto
                 // no repita el de ningun objeto del arbol (H-6).

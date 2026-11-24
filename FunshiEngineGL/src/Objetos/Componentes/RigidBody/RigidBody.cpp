@@ -16,28 +16,17 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-#include "RigidBody.h"
-
-#include <btBulletDynamicsCommon.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/quaternion.hpp>
-#include <cmath>
-#include <cstdint>
-
-namespace {
-constexpr std::uint32_t kRigidBodyMagic = 0x32444252;
-constexpr std::uint32_t kRigidBodyVersion = 3;
-}
+#include "RigidBodyDetalle.h"
 
 RigidBody::RigidBody(Collider* collider, float mass)
     : collider(collider), mass(mass) {
     pos[0] = pos[1] = pos[2] = 0.0f;
-    rot[0] = 0.0f; // angulo en grados
+    // rot es un cuaternion x, y, z, w: sin collider queda la identidad (antes
+    // (0, 0, 1, 0), un giro de 180 grados en Z que se serializaba asi).
+    rot[0] = 0.0f;
     rot[1] = 0.0f;
-    rot[2] = 1.0f; // eje Y por defecto
-    rot[3] = 0.0f;
+    rot[2] = 0.0f;
+    rot[3] = 1.0f;
     createRigidBody();
 }
 
@@ -99,6 +88,8 @@ void RigidBody::createRigidBody() {
     btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState.get(),
                                                     shape, localInertia);
     rigidBody = std::make_unique<btRigidBody>(rbInfo);
+    // El backend de fisica resuelve el RigidBody de cada contacto por aca.
+    rigidBody->setUserPointer(this);
     if (!activo) rigidBody->forceActivationState(DISABLE_SIMULATION);
     aplicarPropiedades();
 }
@@ -133,17 +124,6 @@ void RigidBody::aplicarPropiedades() {
 void RigidBody::detachCollider() {
     collider = nullptr;
     createRigidBody();
-}
-
-// Posicion y rotacion GLOBAL del cuerpo. El cuerpo vive en el GLOBAL del
-// collider (getGlobalTransform = ownerGlobal x myTransform), NO en el del
-// objeto: cualquier offset del collider se incluye en la pose del body.
-static void bulletWorldToMatrices(const btTransform& t, glm::vec3& pos,
-                                  glm::quat& rot) {
-    const btVector3 origin = t.getOrigin();
-    const btQuaternion q = t.getRotation();
-    pos = glm::vec3(origin.x(), origin.y(), origin.z());
-    rot = glm::quat(q.w(), q.x(), q.y(), q.z());
 }
 
 void RigidBody::syncPhysicsToGameObject() {
@@ -371,115 +351,4 @@ void RigidBody::aplicarGravedadMundo(float x, float y, float z) {
     if (std::isfinite(y)) gravedadMundo[1] = y;
     if (std::isfinite(z)) gravedadMundo[2] = z;
     aplicarPropiedades();
-}
-
-void RigidBody::serializeComponent(std::ofstream* fileNamePathContentObject) {
-    fileNamePathContentObject->write(
-        reinterpret_cast<const char*>(&kRigidBodyMagic),
-        sizeof(kRigidBodyMagic));
-    fileNamePathContentObject->write(
-        reinterpret_cast<const char*>(&kRigidBodyVersion),
-        sizeof(kRigidBodyVersion));
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(&activo),
-                                     sizeof(activo));
-    // Guarda masa
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(&mass),
-                                     sizeof(float));
-    // Guarda posicion y rotacion
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(pos),
-                                     sizeof(float) * 3);
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(rot),
-                                     sizeof(float) * 4);
-    // v2: respuesta a la gravedad, friccion y freeze por ejes.
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(&usarGravedad),
-                                     sizeof(usarGravedad));
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(&escalaGrav),
-                                     sizeof(float));
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(&friccionCuerpo),
-                                     sizeof(float));
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(freezePos),
-                                     sizeof(bool) * 3);
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(freezeRot),
-                                     sizeof(bool) * 3);
-    // v3: sensor/trigger (detecta sin respuesta fisica).
-    fileNamePathContentObject->write(reinterpret_cast<const char*>(&sensor),
-                                     sizeof(sensor));
-    // Tambien deberia guardar el tipo de collider para reconstruirlo al cargar
-}
-
-void RigidBody::leerEstado(std::ifstream* fileNamePathContentObject) {
-    const std::streampos inicio = fileNamePathContentObject->tellg();
-    std::uint32_t magic = 0;
-    fileNamePathContentObject->read(reinterpret_cast<char*>(&magic),
-                                    sizeof(magic));
-    if (magic == kRigidBodyMagic) {
-        std::uint32_t version = 0;
-        fileNamePathContentObject->read(reinterpret_cast<char*>(&version),
-                                        sizeof(version));
-        fileNamePathContentObject->read(reinterpret_cast<char*>(&activo),
-                                        sizeof(activo));
-        if (version < 1 || version > kRigidBodyVersion) {
-            fileNamePathContentObject->setstate(std::ios::failbit);
-            return;
-        }
-        // Leer masa
-        fileNamePathContentObject->read(reinterpret_cast<char*>(&mass),
-                                        sizeof(float));
-        // Leer posicion y rotacion
-        fileNamePathContentObject->read(reinterpret_cast<char*>(pos),
-                                        sizeof(float) * 3);
-        fileNamePathContentObject->read(reinterpret_cast<char*>(rot),
-                                        sizeof(float) * 4);
-        if (version == 1) {
-            // Escenas previas sin estos campos: conservan el estado activo y
-            // toman los valores por defecto (cae con el mundo, friccion 0.5).
-            usarGravedad = true;
-            escalaGrav = 1.0f;
-            friccionCuerpo = 0.5f;
-            freezePos[0] = freezePos[1] = freezePos[2] = false;
-            freezeRot[0] = freezeRot[1] = freezeRot[2] = false;
-            sensor = false;
-            return;
-        }
-        fileNamePathContentObject->read(reinterpret_cast<char*>(&usarGravedad),
-                                        sizeof(usarGravedad));
-        fileNamePathContentObject->read(reinterpret_cast<char*>(&escalaGrav),
-                                        sizeof(float));
-        fileNamePathContentObject->read(reinterpret_cast<char*>(&friccionCuerpo),
-                                        sizeof(float));
-        fileNamePathContentObject->read(reinterpret_cast<char*>(freezePos),
-                                        sizeof(bool) * 3);
-        fileNamePathContentObject->read(reinterpret_cast<char*>(freezeRot),
-                                        sizeof(bool) * 3);
-        // v3 agrega el flag de sensor; una escena v2 lo deja en falso.
-        sensor = false;
-        if (version >= 3)
-            fileNamePathContentObject->read(reinterpret_cast<char*>(&sensor),
-                                            sizeof(sensor));
-        return;
-    }
-    fileNamePathContentObject->clear();
-    fileNamePathContentObject->seekg(inicio);
-    activo = true;
-    // Leer masa
-    fileNamePathContentObject->read(reinterpret_cast<char*>(&mass),
-                                    sizeof(float));
-    // Leer posicion y rotacion
-    fileNamePathContentObject->read(reinterpret_cast<char*>(pos),
-                                    sizeof(float) * 3);
-    fileNamePathContentObject->read(reinterpret_cast<char*>(rot),
-                                    sizeof(float) * 4);
-    usarGravedad = true;
-    escalaGrav = 1.0f;
-    friccionCuerpo = 0.5f;
-    freezePos[0] = freezePos[1] = freezePos[2] = false;
-    freezeRot[0] = freezeRot[1] = freezeRot[2] = false;
-    sensor = false;
-}
-
-void RigidBody::deserializeComponent(std::ifstream* fileNamePathContentObject) {
-    leerEstado(fileNamePathContentObject);
-
-    // Con los datos ya leidos se crea el cuerpo fisico (reentrante).
-    createRigidBody();
 }

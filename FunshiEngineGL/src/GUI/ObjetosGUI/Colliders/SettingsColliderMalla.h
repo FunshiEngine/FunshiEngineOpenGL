@@ -21,20 +21,23 @@
 #include "../SettingsComponent.h"
 #include "../Transform/SettingsTransform.h"
 #include "../../../Objetos/Componentes/Colliders/MallaCollider.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 
 class SettingsColliderMalla : public SettingsComponent {
 protected:
-	SettingsTransform* settingsTransform;
-	MallaCollider* myCollider;
-	float newRadio;
-	EditorController* editor = nullptr;
+    SettingsTransform* settingsTransform;
+    MallaCollider* myCollider;
+    float newRadio;
+    EditorController* editor = nullptr;
 public:
-	explicit SettingsColliderMalla(GameObject* objeto);
-	~SettingsColliderMalla();
+    explicit SettingsColliderMalla(GameObject* objeto);
+    ~SettingsColliderMalla();
 
-	void setEditor(EditorController* editor);
-	void showDataComponent() override;
-	Component* getComponent() override { return myCollider; }
+    void setEditor(EditorController* editor);
+    void showDataComponent() override;
+    void alFijarObjetivo() override {
+        if (auto* propio = dynamic_cast<MallaCollider*>(objetivo_)) myCollider = propio;
+    }
+    Component* getComponent() override { return myCollider; }
 };
 #endif

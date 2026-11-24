@@ -27,43 +27,43 @@
 template<typename E>
 class BNodo : public Position<E> {
 private:
-	E element;
-	BNodo<E>* left;
-	BNodo<E>* right;
-	BNodo<E>* dad;
+    E element;
+    BNodo<E>* left;
+    BNodo<E>* right;
+    BNodo<E>* dad;
 
 public:
-	BNodo(E elem) : BNodo(elem, nullptr) {
-	}
+    BNodo(E elem) : BNodo(elem, nullptr) {
+    }
 
-	BNodo(E elem, BNodo<E>* padre) {
-		element = elem;
-		left = nullptr;
-		right = nullptr;
-		dad = padre;
-	}
+    BNodo(E elem, BNodo<E>* padre) {
+        element = elem;
+        left = nullptr;
+        right = nullptr;
+        dad = padre;
+    }
 
-	E getElement() override { return element; }
+    E getElement() override { return element; }
 
-	void setElement(E e) { element = e; }
+    void setElement(E e) { element = e; }
 
-	// Accesores "hacia abajo" (hijos) y "hacia arriba" (padre).
-	BNodo<E>* getLeft() { return left; }
-	BNodo<E>* getRight() { return right; }
-	BNodo<E>* getDad() { return dad; }
+    // Accesores "hacia abajo" (hijos) y "hacia arriba" (padre).
+    BNodo<E>* getLeft() { return left; }
+    BNodo<E>* getRight() { return right; }
+    BNodo<E>* getDad() { return dad; }
 
-	void setLeft(BNodo<E>* l) { left = l; }
-	void setRight(BNodo<E>* r) { right = r; }
-	void setDad(BNodo<E>* d) { dad = d; }
+    void setLeft(BNodo<E>* l) { left = l; }
+    void setRight(BNodo<E>* r) { right = r; }
+    void setDad(BNodo<E>* d) { dad = d; }
 
-	// Destructor recursivo: libera el subarbol completo. Los elementos E no
-	// son propiedad del nodo (no se borran aqui).
-	~BNodo() {
-		delete left;
-		delete right;
-		left = nullptr;
-		right = nullptr;
-	}
+    // Destructor recursivo: libera el subarbol completo. Los elementos E no
+    // son propiedad del nodo (no se borran aqui).
+    ~BNodo() {
+        delete left;
+        delete right;
+        left = nullptr;
+        right = nullptr;
+    }
 };
 
 #endif

@@ -25,10 +25,10 @@
 #include <typeinfo>
 
 #include "GameObject.h"
-#include "Componentes/Model.h"
+#include "Componentes/Render/Model.h"
 #include "SimpleObject.h"
-#include "Componentes/ComponentFactory.h"
-#include "Componentes/Transform.h"
+#include "Componentes/Nucleo/ComponentFactory.h"
+#include "Componentes/Escena/Transform.h"
 #include "../Herramientas/TypeUtils.h"
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
 

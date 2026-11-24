@@ -21,7 +21,7 @@
 
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/EmisorParticulas.h"
+#include "../../../Objetos/Componentes/Efectos/EmisorParticulas.h"
 
 // Panel del emisor de particulas en el inspector.
 class SettingsEmisorParticulas : public SettingsComponent {
@@ -31,7 +31,7 @@ public:
     explicit SettingsEmisorParticulas(GameObject* gameObject);
     void showDataComponent() override;
     Component* getComponent() override {
-        return gameObject ? gameObject->getComponent<EmisorParticulas>() : nullptr;
+        return objetivo<EmisorParticulas>(gameObject);
     }
 };
 

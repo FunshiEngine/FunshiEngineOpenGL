@@ -23,6 +23,6 @@ using namespace std;
 
 class InvalidPositionException : public RuntimeException {
    public:
-	   InvalidPositionException(string msg) : RuntimeException(msg + " Posicion invalida", "InvalidPositionException"){}
+       InvalidPositionException(string msg) : RuntimeException(msg + " Posicion invalida", "InvalidPositionException"){}
 };
 #endif

@@ -29,39 +29,39 @@ template<typename E>
 //Dicho esto siempre operaremos con TNodo por conveniencia tecnica
 class TNodo : public Position<E> {
 protected:
-	E element;
-	TNodo<E>* rootDad;
-	ListaDE<TNodo<E>*>* childs;
+    E element;
+    TNodo<E>* rootDad;
+    ListaDE<TNodo<E>*>* childs;
 public:
 
-	TNodo(E element, TNodo<E>* rootDad) {
-		this->element = element;
-		this->rootDad = rootDad;
-		childs = new ListaDE<TNodo<E>*>();
-	}
+    TNodo(E element, TNodo<E>* rootDad) {
+        this->element = element;
+        this->rootDad = rootDad;
+        childs = new ListaDE<TNodo<E>*>();
+    }
 
-	TNodo(E element) : TNodo(element, nullptr) {
-	}
+    TNodo(E element) : TNodo(element, nullptr) {
+    }
 
-	// Destructor recursivo: libera la ListaDE de hijos y cada hijo TNodo.
-	// Los elementos E del arbol NO son propiedad del nodo (no se borran aqui).
-	~TNodo() {
-		if (childs) {
-			while (!childs->isEmpty()) {
-				TNodo<E>* hijo = childs->remove(childs->first());
-				delete hijo;
-			}
-			delete childs;
-			childs = nullptr;
-		}
-	}
+    // Destructor recursivo: libera la ListaDE de hijos y cada hijo TNodo.
+    // Los elementos E del arbol NO son propiedad del nodo (no se borran aqui).
+    ~TNodo() {
+        if (childs) {
+            while (!childs->isEmpty()) {
+                TNodo<E>* hijo = childs->remove(childs->first());
+                delete hijo;
+            }
+            delete childs;
+            childs = nullptr;
+        }
+    }
 
-	void setRootDad(TNodo<E>* rootDad) { this->rootDad = rootDad; }
-	void setElement(E element) { this->element = element; }
-	
-	//los modifiadores setters para childs los tiene la estructura
-	ListaDE<TNodo<E>*>* getChilds() { return childs; }
-	TNodo<E>* getRootDad() { return rootDad; }
-	E getElement() override { return element; }
+    void setRootDad(TNodo<E>* rootDad) { this->rootDad = rootDad; }
+    void setElement(E element) { this->element = element; }
+    
+    //los modifiadores setters para childs los tiene la estructura
+    ListaDE<TNodo<E>*>* getChilds() { return childs; }
+    TNodo<E>* getRootDad() { return rootDad; }
+    E getElement() override { return element; }
 };
 #endif

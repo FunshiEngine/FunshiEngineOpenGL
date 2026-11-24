@@ -26,22 +26,22 @@
 
 #include "GameObject.h"
 #include "SimpleObject.h"
-#include "Scenes/EditorController.h"
+#include "Scenes/Editor/EditorController.h"
 #include "ClonadorObjetos.h"
 #include "Configuracion/EditorConfig.h"
 #include "Herramientas/TypeUtils.h"
-#include "Objetos/Componentes/ComponentFactory.h"
-#include "Objetos/Componentes/Material.h"
-#include "Objetos/Componentes/Light.h"
-#include "Objetos/Componentes/Model.h"
-#include "Objetos/Componentes/Skybox.h"
-#include "Objetos/Componentes/AudioSource.h"
-#include "Objetos/Componentes/InterfaceComponent.h"
-#include "Objetos/Componentes/CameraComponent.h"
-#include "Objetos/Componentes/Grid.h"
-#include "Objetos/Componentes/Transform.h"
-#include "Objetos/Componentes/Color.h"
-#include "Objetos/Componentes/Script.h"
+#include "Objetos/Componentes/Nucleo/ComponentFactory.h"
+#include "Objetos/Componentes/Render/Material.h"
+#include "Objetos/Componentes/Escena/Light.h"
+#include "Objetos/Componentes/Render/Model.h"
+#include "Objetos/Componentes/Render/Skybox.h"
+#include "Objetos/Componentes/Audio/AudioSource.h"
+#include "Objetos/Componentes/Interfaz/InterfaceComponent.h"
+#include "Objetos/Componentes/Escena/CameraComponent.h"
+#include "Objetos/Componentes/Escena/Grid.h"
+#include "Objetos/Componentes/Escena/Transform.h"
+#include "Objetos/Componentes/Render/Color.h"
+#include "Objetos/Componentes/Scripting/Script.h"
 #include "Objetos/Componentes/Colliders/EsfereCollider.h"
 #include "Objetos/Componentes/Colliders/CubeCollider.h"
 #include "Objetos/Componentes/Colliders/MallaCollider.h"
@@ -251,6 +251,12 @@ GameObject* leerArbol(std::ifstream& in, EditorController* editor, GameObject* p
 
 Prefab::Prefab(const std::string& nombre)
     : nombre_(nombre), rutaArchivo_(rutaParaNombre(nombre)) {}
+
+std::unique_ptr<Prefab> Prefab::desdeArchivo(const std::string& ruta) {
+    auto prefab = std::make_unique<Prefab>(fs::path(ruta).stem().string());
+    prefab->rutaArchivo_ = ruta;
+    return prefab;
+}
 
 std::string Prefab::rutaParaNombre(const std::string& nombre) const {
     fs::path base = EditorConfig::raizAssetsFijada();

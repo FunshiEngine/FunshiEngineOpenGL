@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "AnimacionesParticulasInterface.h"
+#include "../Tema/TemaEditor.h"
 
 #include <algorithm>
 #include <cctype>
@@ -27,12 +28,15 @@
 
 #include <imgui.h>
 
-#include "../../Assets/StbImageLoader.h"
+#include "../../Assets/Imagenes/StbImageLoader.h"
 #include "../../Configuracion/EditorConfig.h"
 #include "../../Configuracion/ProjectPaths.h"
-#include "../../Particulas/EscritorPerfil.h"
-#include "../../Particulas/LectorPerfil.h"
+#include "../../Particulas/Perfil/EscritorPerfil.h"
+#include "../../Particulas/Perfil/LectorPerfil.h"
 #include "../WindowNames.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 namespace {
 
@@ -50,18 +54,18 @@ AnimacionesParticulasInterface::AnimacionesParticulasInterface()
                            ImGuiWindowFlags_None) {}
 
 void AnimacionesParticulasInterface::printGUI() {
-    const bool mostrar = ImGui::Begin(nameGUI.c_str(), &stateGUI, flagGUI);
+    const bool mostrar = ImGui::Begin(WindowNames::titulo(nameGUI).c_str(), &stateGUI, flagGUI);
     if (mostrar) contentGUI();
     ImGui::End();
 }
 
 void AnimacionesParticulasInterface::contentGUI() {
     if (ImGui::BeginTabBar("##pestanasEfectos")) {
-        if (ImGui::BeginTabItem("Particulas")) {
+        if (ImGui::BeginTabItem(Localizacion::etiqueta(Texto::Particulas).c_str())) {
             pestanaParticulas();
             ImGui::EndTabItem();
         }
-        if (ImGui::BeginTabItem("Animaciones")) {
+        if (ImGui::BeginTabItem(Localizacion::etiqueta(Texto::Animaciones).c_str())) {
             pestanaAnimaciones();
             ImGui::EndTabItem();
         }
@@ -72,8 +76,8 @@ void AnimacionesParticulasInterface::contentGUI() {
     // dibuja fuera de ellas para que no desaparezca al cambiar de pestana.
     if (!mensaje_.empty()) {
         ImGui::TextColored(
-            mensajeError_ ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
-                          : ImVec4(0.5f, 1.0f, 0.5f, 1.0f),
+            mensajeError_ ? TemaEditor::color(TemaEditor::RolColor::Error)
+                          : TemaEditor::color(TemaEditor::RolColor::Exito),
             "%s", mensaje_.c_str());
     }
 }
@@ -92,9 +96,7 @@ void AnimacionesParticulasInterface::pestanaAnimaciones() {
     // El taller de animaciones 2D llegara cuando exista su formato de asset;
     // hoy la configuracion de una animacion vive en el inspector del
     // componente Animador2D (grilla, fps y rango de fotogramas).
-    ImGui::TextWrapped("La configuracion de las animaciones 2D se hace en el "
-                       "inspector del componente Animador2D: grilla de la "
-                       "planilla, rango de fotogramas y fps.");
+    ImGui::TextWrapped("%s", Localizacion::tr(Texto::LaConfiguracionDeLasAnimaciones));
 }
 
 void AnimacionesParticulasInterface::dibujarDatosGenerales() {
@@ -102,35 +104,35 @@ void AnimacionesParticulasInterface::dibujarDatosGenerales() {
     // emisor tiene el perfil cargado.
     char nombre[128];
     std::snprintf(nombre, sizeof(nombre), "%s", perfil_.nombre.c_str());
-    if (ImGui::InputText("Nombre del efecto", nombre, sizeof(nombre)))
+    if (ImGui::InputText(Localizacion::etiqueta(Texto::NombreDelEfecto).c_str(), nombre, sizeof(nombre)))
         perfil_.nombre = nombre;
 
     // Rango de vida y de velocidad, emparejados con el mismo acotado que usa
     // el inspector del emisor: el minimo nunca supera al maximo.
-    if (ImGui::DragFloat("Vida minima", &perfil_.vidaMinima, 0.05f, 0.05f,
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::VidaMinima).c_str(), &perfil_.vidaMinima, 0.05f, 0.05f,
                          60.0f, "%.2f s") ||
-        ImGui::DragFloat("Vida maxima", &perfil_.vidaMaxima, 0.05f, 0.05f,
+        ImGui::DragFloat(Localizacion::etiqueta(Texto::VidaMaxima).c_str(), &perfil_.vidaMaxima, 0.05f, 0.05f,
                          60.0f, "%.2f s")) {
         if (perfil_.vidaMaxima < perfil_.vidaMinima)
             perfil_.vidaMaxima = perfil_.vidaMinima;
     }
-    if (ImGui::DragFloat("Velocidad minima", &perfil_.velocidadMinima, 0.1f,
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::VelocidadMinima).c_str(), &perfil_.velocidadMinima, 0.1f,
                          0.0f, 50.0f, "%.2f") ||
-        ImGui::DragFloat("Velocidad maxima", &perfil_.velocidadMaxima, 0.1f,
+        ImGui::DragFloat(Localizacion::etiqueta(Texto::VelocidadMaxima).c_str(), &perfil_.velocidadMaxima, 0.1f,
                          0.0f, 50.0f, "%.2f")) {
         if (perfil_.velocidadMaxima < perfil_.velocidadMinima)
             perfil_.velocidadMaxima = perfil_.velocidadMinima;
     }
-    ImGui::DragFloat3("Aceleracion", perfil_.aceleracion, 0.05f, -20.0f,
+    ImGui::DragFloat3(Localizacion::etiqueta(Texto::Aceleracion).c_str(), perfil_.aceleracion, 0.05f, -20.0f,
                       20.0f);
-    ImGui::DragFloat("Rozamiento", &perfil_.rozamiento, 0.05f, 0.0f, 5.0f,
+    ImGui::DragFloat(Localizacion::etiqueta(Texto::Rozamiento).c_str(), &perfil_.rozamiento, 0.05f, 0.0f, 5.0f,
                      "%.2f");
 
     // Textura del efecto: relativa a la raiz de assets (el formato del perfil
     // es el mismo en el juego exportado). Se asigna arrastrando una imagen
     // desde el explorador de contenido, igual que en el emisor.
     ImGui::PushID("TexturaEfecto");
-    ImGui::Button(perfil_.textura.empty() ? "[Arrastra una imagen]"
+    ImGui::Button(perfil_.textura.empty() ? Localizacion::tr(Texto::ArrastraUnaImagen)
                                           : perfil_.textura.c_str());
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload =
@@ -150,7 +152,7 @@ void AnimacionesParticulasInterface::dibujarDatosGenerales() {
         ImGui::EndDragDropTarget();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Quitar")) perfil_.textura.clear();
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Quitar).c_str())) perfil_.textura.clear();
     ImGui::PopID();
 }
 
@@ -159,9 +161,9 @@ void AnimacionesParticulasInterface::dibujarCurvaTamanos() {
     // morir; sin puntos el perfil no cambia el tamano. La cantidad se edita
     // con InputInt y cada punto con su propio deslizador.
     int puntos = static_cast<int>(perfil_.tamanos.size());
-    ImGui::Text("Curva de tamano (del nacimiento a la muerte)");
+    ImGui::Text("%s", Localizacion::tr(Texto::CurvaDeTamanoDelNacimiento));
     ImGui::SetNextItemWidth(120.0f);
-    if (ImGui::InputInt("Puntos##tamanos", &puntos)) {
+    if (ImGui::InputInt(Localizacion::etiqueta(Texto::Puntos, "##tamanos").c_str(), &puntos)) {
         if (puntos < 0) puntos = 0;
         if (puntos > 64) puntos = 64;
         perfil_.tamanos.resize(static_cast<std::size_t>(puntos), 1.0f);
@@ -178,9 +180,9 @@ void AnimacionesParticulasInterface::dibujarCurvaTamanos() {
 void AnimacionesParticulasInterface::dibujarCurvaColores() {
     // Curva de colores RGBA, con la misma convencion que la de tamanos.
     int puntos = static_cast<int>(perfil_.colores.size());
-    ImGui::Text("Curva de color (del nacimiento a la muerte)");
+    ImGui::Text("%s", Localizacion::tr(Texto::CurvaDeColorDelNacimiento));
     ImGui::SetNextItemWidth(120.0f);
-    if (ImGui::InputInt("Puntos##colores", &puntos)) {
+    if (ImGui::InputInt(Localizacion::etiqueta(Texto::Puntos, "##colores").c_str(), &puntos)) {
         if (puntos < 0) puntos = 0;
         if (puntos > 64) puntos = 64;
         perfil_.colores.resize(static_cast<std::size_t>(puntos),
@@ -197,7 +199,7 @@ void AnimacionesParticulasInterface::dibujarCurvaColores() {
 
 void AnimacionesParticulasInterface::dibujarZonaCarga() {
     // Retocar un efecto existente: arrastrar su .json lo trae al editor.
-    ImGui::Button("Arrastra aqui un perfil .json para editarlo");
+    ImGui::Button(Localizacion::etiqueta(Texto::ArrastraAquiUnPerfilJson).c_str());
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload =
                 ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
@@ -227,9 +229,9 @@ void AnimacionesParticulasInterface::dibujarZonaCarga() {
     // Generar: escribe <raiz de assets>/Particulas/<nombre>.json con el mismo
     // formato que lee el emisor, para que aparezca en el explorador de
     // contenido y pueda arrastrarse sobre un EmisorParticulas.
-    ImGui::InputText("Nombre del archivo", nombreArchivo_,
+    ImGui::InputText(Localizacion::etiqueta(Texto::NombreDelArchivo).c_str(), nombreArchivo_,
                      sizeof(nombreArchivo_));
-    if (ImGui::Button("Generar perfil")) generarPerfil();
+    if (ImGui::Button(Localizacion::etiqueta(Texto::GenerarPerfil).c_str())) generarPerfil();
 }
 
 void AnimacionesParticulasInterface::generarPerfil() {

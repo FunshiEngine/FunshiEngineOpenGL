@@ -22,22 +22,25 @@
 
 #include <imgui.h>
 
-#include "../../../Assets/StbImageLoader.h"
+#include "../../../Assets/Imagenes/StbImageLoader.h"
 #include "../../../Herramientas/TypeUtils.h"
-#include "../../../Objetos/Componentes/SpriteRenderer.h"
+#include "../../../Objetos/Componentes/Render/SpriteRenderer.h"
 #include "../../../Objetos/GameObject.h"
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsSpriteRenderer::SettingsSpriteRenderer(GameObject* objeto)
     : SettingsComponent(demangle(typeid(SpriteRenderer).name())),
       gameObject_(objeto) {}
 
 Component* SettingsSpriteRenderer::getComponent() {
-    return gameObject_ ? gameObject_->getComponent<SpriteRenderer>() : nullptr;
+    return objetivo<SpriteRenderer>(gameObject_);
 }
 
 void SettingsSpriteRenderer::showDataComponent() {
     SpriteRenderer* sprite =
-        gameObject_ ? gameObject_->getComponent<SpriteRenderer>() : nullptr;
+        objetivo<SpriteRenderer>(gameObject_);
     if (!sprite) return;
 
     // Ruta de textura: el path (o el placeholder) es el target del drag & drop
@@ -62,24 +65,24 @@ void SettingsSpriteRenderer::showDataComponent() {
         ImGui::EndDragDropTarget();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Quitar")) sprite->setRutaTextura(std::string());
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Quitar).c_str())) sprite->setRutaTextura(std::string());
 
     float tamano[2] = {sprite->getTamano()[0], sprite->getTamano()[1]};
-    if (ImGui::DragFloat2("Tamano", tamano, 0.05f, 0.0f, 0.0f, "%.3f"))
+    if (ImGui::DragFloat2(Localizacion::etiqueta(Texto::Tamano).c_str(), tamano, 0.05f, 0.0f, 0.0f, "%.3f"))
         sprite->setTamano(tamano[0], tamano[1]);
 
     float tinte[4] = {sprite->getTint()[0], sprite->getTint()[1],
                       sprite->getTint()[2], sprite->getTint()[3]};
-    if (ImGui::ColorEdit4("Tinte", tinte))
+    if (ImGui::ColorEdit4(Localizacion::etiqueta(Texto::Tinte).c_str(), tinte))
         sprite->setTint(tinte[0], tinte[1], tinte[2], tinte[3]);
 
     float uv[4] = {sprite->getUvRect()[0], sprite->getUvRect()[1],
                    sprite->getUvRect()[2], sprite->getUvRect()[3]};
-    if (ImGui::DragFloat4("Region UV", uv, 0.01f, 0.0f, 1.0f, "%.3f"))
+    if (ImGui::DragFloat4(Localizacion::etiqueta(Texto::RegionUV).c_str(), uv, 0.01f, 0.0f, 1.0f, "%.3f"))
         sprite->setUvRect(uv[0], uv[1], uv[2], uv[3]);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip(
-            "u0, v0, u1, v1: recorte de la textura (spritesheet).");
+            "%s", Localizacion::tr(Texto::U0V0U1V1Recorte));
 
-    ImGui::TextDisabled("El orden en pantalla lo define la Z del Transform.");
+    ImGui::TextDisabled("%s", Localizacion::tr(Texto::ElOrdenEnPantallaLo));
 }

@@ -21,7 +21,7 @@
 
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/UIComponent.h"
+#include "../../../Objetos/Componentes/Interfaz/UIComponent.h"
 
 // Inspector del UIComponent: la lista de widgets del HUD nativo (etiquetas,
 // botones, imagenes y paneles) con su colocacion y su estilo, mas la
@@ -33,7 +33,7 @@ public:
     explicit SettingsUIComponent(GameObject* gameObject);
     void showDataComponent() override;
     Component* getComponent() override {
-        return gameObject ? gameObject->getComponent<UIComponent>() : nullptr;
+        return objetivo<UIComponent>(gameObject);
     }
 };
 

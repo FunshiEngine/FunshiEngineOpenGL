@@ -23,9 +23,9 @@
 
 #include "TiposShapeBullet.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Model.h"
-#include "../../../Rendering/LineBuilder.h"
-#include "../../../Rendering/LineRenderer.h"
+#include "../Render/Model.h"
+#include "../../../Rendering/Lineas/LineBuilder.h"
+#include "../../../Rendering/Lineas/LineRenderer.h"
 
 namespace {
 // Ancho del wireframe del collider en pixeles (2 px: se ve al-redondeado sin

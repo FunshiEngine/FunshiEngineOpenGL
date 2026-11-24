@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "TreeFilesInterface.h"
+#include "../Tema/TemaEditor.h"
 
 #include <cstring>
 #include <filesystem>
@@ -31,6 +32,10 @@
 #include "SoltarEnCarpeta.h"
 #include "CrearCarpeta.h"
 #include <imgui.h>
+#include "../../Localizacion/Localizacion.h"
+#include "../WindowNames.h"
+
+using Localizacion::Texto;
 
 namespace {
 std::string rutaDe(Carpeta* c) {
@@ -166,7 +171,7 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
         const std::string rutaCarpeta = rutaDe(folderRoot);
         ImGui::SetDragDropPayload("ARCHIVO_PATH", rutaCarpeta.c_str(),
                                   rutaCarpeta.size() + 1);
-        ImGui::Text("Moviendo carpeta %s", folderRoot->getPathName().c_str());
+        ImGui::Text(Localizacion::tr(Texto::MoviendoCarpeta), folderRoot->getPathName().c_str());
         ImGui::EndDragDropSource();
     }
 
@@ -195,7 +200,7 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
     if (const ImGuiPayload* arrastre = ImGui::GetDragDropPayload()) {
         if (strcmp(arrastre->DataType, "ARCHIVO_PATH") == 0 &&
             ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("Mover a %s", folderRoot->getPathName().c_str());
+            ImGui::SetTooltip(Localizacion::tr(Texto::MoverA), folderRoot->getPathName().c_str());
         }
     }
     if (ImGui::BeginDragDropTarget()) {
@@ -210,11 +215,11 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
     }
 
     if (ImGui::BeginPopupContextItem("MenuContextualCarpeta")) {
-        ImGui::Text("Carpeta: %s", folderRoot->getPathName().c_str());
+        ImGui::Text(Localizacion::tr(Texto::Carpeta), folderRoot->getPathName().c_str());
         ImGui::Separator();
         const bool esRaiz = (arbolDeArchivos && !arbolDeArchivos->isEmpty() &&
                              folderRoot == arbolDeArchivos->rootOfTree()->getElement());
-        if (!esRaiz && ImGui::MenuItem("Renombrar Carpeta")) {
+        if (!esRaiz && ImGui::MenuItem(Localizacion::etiqueta(Texto::RenombrarCarpeta).c_str())) {
             // El modal compartido con el grid se encarga del disco y del
             // aviso a la escena; aca se registra la RUTA (no el puntero: un
             // rescaneo reconstruye el arbol y deja punteros colgando) y el
@@ -222,14 +227,14 @@ TreeIG::RowResult TreeFilesInterface::drawFolderRow(File* element, bool wasOpen)
             modalRenombrar.solicitar(rutaDe(folderRoot), true,
                                      folderRoot->getPathName());
         }
-        if (ImGui::MenuItem("Nueva Carpeta")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NuevaCarpeta).c_str())) {
             errorNuevaCarpeta.clear();
             abrirPopupNombre = true;
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             rutaPadreNuevaCarpeta = rutaDe(folderRoot);
             ImGui::CloseCurrentPopup();
         }
-        if (!esRaiz && ImGui::MenuItem("Eliminar Carpeta")) {
+        if (!esRaiz && ImGui::MenuItem(Localizacion::etiqueta(Texto::EliminarCarpeta).c_str())) {
             carpetaAConfirmar = rutaDe(folderRoot);
             confirmarEliminar = true;
         }
@@ -242,13 +247,14 @@ void TreeFilesInterface::initGUI() {
     // Usa dockAlive_ (siempre true) para que la ventana exista en g.Windows
     // cada frame y ImGui pueda re-aplicar su DockId al restaurar el ini.
     // stateGUI controla solo la visibilidad visual (usuario cierra con X).
-    ImGui::Begin(getNameGui().c_str(), &dockAlive_, getFlagGui());
+    ImGui::Begin(WindowNames::titulo(getNameGui()).c_str(), &dockAlive_, getFlagGui());
 
     if (confirmarEliminar && !carpetaAConfirmar.empty()) {
-        ImGui::OpenPopup("ConfirmarEliminar");
+        ImGui::OpenPopup("###ConfirmarEliminar");
         confirmarEliminar = false;
     }
-    if (ImGui::BeginPopupModal("ConfirmarEliminar", nullptr,
+    if (ImGui::BeginPopupModal(
+            Localizacion::etiqueta(Texto::ConfirmarEliminar, "###ConfirmarEliminar").c_str(), nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
         // Ruta -> puntero SOLO contra el arbol del frame. Si la carpeta ya no
         // existe (rescaneo con el modal abierto), el modal se cierra en vez de
@@ -260,15 +266,15 @@ void TreeFilesInterface::initGUI() {
             carpetaAConfirmar.clear();
             ImGui::CloseCurrentPopup();
         } else {
-            ImGui::Text("Eliminar \"%s\" y todo su contenido?",
+            ImGui::Text(Localizacion::tr(Texto::EliminarYTodoSuContenido),
                         carpetaAConfirmarResuelta->getPathName().c_str());
-            if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Eliminar).c_str(), ImVec2(120, 0))) {
                 carpetaAEliminar = carpetaAConfirmar;
                 carpetaAConfirmar.clear();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0))) {
                 carpetaAConfirmar.clear();
                 ImGui::CloseCurrentPopup();
             }
@@ -278,18 +284,18 @@ void TreeFilesInterface::initGUI() {
 
     // Crear nueva carpeta: modal para ingresar nombre (patron del grid)
     if (abrirPopupNombre) {
-        ImGui::OpenPopup("Ingresar nombre");
+        ImGui::OpenPopup("###Ingresar nombre");
         abrirPopupNombre = false;
         errorNuevaCarpeta.clear();
     }
-    if (ImGui::BeginPopupModal("Ingresar nombre", nullptr,
+    if (ImGui::BeginPopupModal(Localizacion::etiqueta(Texto::IngresarNombre, "###Ingresar nombre").c_str(), nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
         if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
-        ImGui::Text("Escribe el nombre de la carpeta:");
+        ImGui::Text("%s", Localizacion::tr(Texto::EscribeElNombreDeLa));
         const bool enter = ImGui::InputText(
             "##nombreNuevo", nombreNuevo, IM_ARRAYSIZE(nombreNuevo),
             ImGuiInputTextFlags_EnterReturnsTrue);
-        const bool confirmado = ImGui::Button("Crear", ImVec2(120, 0)) || enter;
+        const bool confirmado = ImGui::Button(Localizacion::etiqueta(Texto::Crear).c_str(), ImVec2(120, 0)) || enter;
         if (confirmado) {
             // El modal se cierra SOLO si la carpeta quedo creada: con un nombre
             // repetido o invalido sigue abierto, con el motivo a la vista y el
@@ -305,14 +311,14 @@ void TreeFilesInterface::initGUI() {
             }
         }
         ImGui::SameLine();
-        const bool cancelar = ImGui::Button("Cancelar", ImVec2(120, 0)) ||
+        const bool cancelar = ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0)) ||
                               ImGui::IsKeyPressed(ImGuiKey_Escape);
         if (cancelar) {
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             ImGui::CloseCurrentPopup();
         }
         if (!errorNuevaCarpeta.empty())
-            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s",
+            ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error), "%s",
                                errorNuevaCarpeta.c_str());
         ImGui::EndPopup();
     }

@@ -23,6 +23,6 @@ using namespace std;
 class EmptyTreeException : public RuntimeException {
 
 public:
-	EmptyTreeException(string msg) : RuntimeException(msg + " Arbol Vacio", "EmptyTreeException") {}
+    EmptyTreeException(string msg) : RuntimeException(msg + " Arbol Vacio", "EmptyTreeException") {}
 };
 #endif

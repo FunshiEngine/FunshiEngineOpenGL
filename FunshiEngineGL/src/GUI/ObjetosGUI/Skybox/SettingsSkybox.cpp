@@ -18,13 +18,16 @@
 */
 #include "SettingsSkybox.h"
 
-#include "../../../Assets/StbImageLoader.h"
-#include "../../../Objetos/Componentes/Skybox.h"
+#include "../../../Assets/Imagenes/StbImageLoader.h"
+#include "../../../Objetos/Componentes/Render/Skybox.h"
 #include "../../../Objetos/GameObject.h"
 
 #include <cstring>
 
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsSkybox::SettingsSkybox(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Skybox).name())), gameObject(gameObject) {}
@@ -50,11 +53,11 @@ void SettingsSkybox::sondearDimensiones(
 }
 
 void SettingsSkybox::showDataComponent() {
-    Skybox* skybox = gameObject ? gameObject->getComponent<Skybox>() : nullptr;
+    Skybox* skybox = objetivo<Skybox>(gameObject);
     if (!skybox) return;
 
     bool visible = skybox->getVisible();
-    if (ImGui::Checkbox("Visible", &visible)) skybox->setVisible(visible);
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Visible).c_str(), &visible)) skybox->setVisible(visible);
     ImGui::Separator();
 
     // Seis caras en el orden que espera la pasada del cubemap (+X, -X, +Y,
@@ -63,17 +66,17 @@ void SettingsSkybox::showDataComponent() {
     using Getter = const std::string& (Skybox::*)() const;
     using Setter = void (Skybox::*)(const std::string&);
     struct Cara {
-        const char* etiqueta;
+        Texto texto; // nombre visible de la cara (traducible)
         Getter getter;
         Setter setter;
     };
     const Cara caras[SelectorArchivoCubemap::kCaras] = {
-        {"Cara +X (Right)", &Skybox::getCaraMasX, &Skybox::setCaraMasX},
-        {"Cara -X (Left)", &Skybox::getCaraMenosX, &Skybox::setCaraMenosX},
-        {"Cara +Y (Top)", &Skybox::getCaraMasY, &Skybox::setCaraMasY},
-        {"Cara -Y (Bottom)", &Skybox::getCaraMenosY, &Skybox::setCaraMenosY},
-        {"Cara +Z (Front)", &Skybox::getCaraMasZ, &Skybox::setCaraMasZ},
-        {"Cara -Z (Back)", &Skybox::getCaraMenosZ, &Skybox::setCaraMenosZ},
+        {Texto::CaraMasX, &Skybox::getCaraMasX, &Skybox::setCaraMasX},
+        {Texto::CaraMenosX, &Skybox::getCaraMenosX, &Skybox::setCaraMenosX},
+        {Texto::CaraMasY, &Skybox::getCaraMasY, &Skybox::setCaraMasY},
+        {Texto::CaraMenosY, &Skybox::getCaraMenosY, &Skybox::setCaraMenosY},
+        {Texto::CaraMasZ, &Skybox::getCaraMasZ, &Skybox::setCaraMasZ},
+        {Texto::CaraMenosZ, &Skybox::getCaraMenosZ, &Skybox::setCaraMenosZ},
     };
 
     // Ruta actual de cada cara, releida antes de los campos para tener a mano el
@@ -89,7 +92,7 @@ void SettingsSkybox::showDataComponent() {
         std::strncpy(buf, rutas[i].c_str(), sizeof(buf) - 1);
         buf[sizeof(buf) - 1] = '\0';
         ImGui::SetNextItemWidth(-60.0f);
-        if (ImGui::InputText(caras[i].etiqueta, buf, sizeof(buf))) {
+        if (ImGui::InputText(Localizacion::etiqueta(caras[i].texto).c_str(), buf, sizeof(buf))) {
             (skybox->*caras[i].setter)(buf);
         }
         // Arrastrar y soltar desde el explorador, igual que la malla y el
@@ -116,15 +119,13 @@ void SettingsSkybox::showDataComponent() {
     }
 
     ImGui::TextDisabled(
-        "Formatos: PNG, JPG, TGA, BMP, PSD, HDR. Las seis caras deben medir lo "
-        "mismo.");
+        "%s", Localizacion::tr(Texto::FormatosPNGJPGTGABMP));
 
     // Avisos de las dos condiciones que hacen que el motor caiga al degradado:
     // una cara sin asignar, o una cara que no mide lo mismo que la +X.
     const int sinAsignar = SelectorArchivoCubemap::carasSinAsignar(rutas);
     if (sinAsignar > 0) {
-        ImGui::TextDisabled("Faltan %d de 6 caras: hasta que esten las seis se "
-                            "dibuja el cielo degradado.",
+        ImGui::TextDisabled(Localizacion::tr(Texto::FaltanDe6CarasHasta),
                             sinAsignar);
     } else {
         sondearDimensiones(rutas);
@@ -132,8 +133,8 @@ void SettingsSkybox::showDataComponent() {
             dims_);
         if (distinta >= 0) {
             ImGui::TextDisabled(
-                "%s mide %dx%d y la +X mide %dx%d: el cubemap se descarta.",
-                caras[distinta].etiqueta, dims_[distinta].ancho,
+                Localizacion::tr(Texto::MideXYLaX),
+                Localizacion::tr(caras[distinta].texto), dims_[distinta].ancho,
                 dims_[distinta].alto, dims_[0].ancho, dims_[0].alto);
         }
     }

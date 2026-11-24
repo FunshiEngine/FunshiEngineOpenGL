@@ -93,3 +93,78 @@ FocoLuz focoDireccional(const glm::vec3& centro, const glm::vec3& direccion,
     foco.lejos = alcance * 2.f;
     return foco;
 }
+
+namespace {
+
+glm::vec3 direccionUnitaria(const glm::vec3& direccion) {
+    const float largo = glm::length(direccion);
+    if (largo < 1e-6f) return glm::vec3(0.f, -1.f, 0.f);
+    return direccion / largo;
+}
+
+}  // namespace
+
+glm::mat4 matrizDireccionalEstable(const glm::vec3& centro,
+                                   const glm::vec3& direccion, float radio,
+                                   float alcance, int resolucion) {
+    const glm::vec3 dir = direccionUnitaria(direccion);
+    if (radio < 0.001f) radio = 0.001f;
+    if (resolucion <= 0) return matrizLuz(focoDireccional(centro, dir, radio, alcance));
+
+    // La vista de la luz depende solo de la direccion: se arma en el origen y
+    // ahi se mide el centro. Redondear sus coordenadas X/Y al tamano de un
+    // texel deja el frustum siempre alineado con la misma grilla.
+    const glm::mat4 vistaOrigen = vistaLuz(glm::vec3(0.f), dir);
+    glm::vec3 centroLuz = glm::vec3(vistaOrigen * glm::vec4(centro, 1.f));
+    const float texel = (2.f * radio) / static_cast<float>(resolucion);
+    centroLuz.x = std::floor(centroLuz.x / texel) * texel;
+    centroLuz.y = std::floor(centroLuz.y / texel) * texel;
+    const glm::vec3 centroAjustado =
+        glm::vec3(glm::inverse(vistaOrigen) * glm::vec4(centroLuz, 1.f));
+
+    return matrizLuz(focoDireccional(centroAjustado, dir, radio, alcance));
+}
+
+float planoCercanoLuz(float alcance) {
+    const float cerca = alcance * 0.002f;
+    return cerca < 0.05f ? 0.05f : cerca;
+}
+
+glm::mat4 matrizLuzSpot(const glm::vec3& posicion, const glm::vec3& direccion,
+                        float anguloCorteGrados, float alcance) {
+    const glm::vec3 dir = direccionUnitaria(direccion);
+    // El cono abarca 2 * angulo; se agregan unos grados para el filtrado del
+    // borde y se acota a un campo que la perspectiva pueda representar.
+    float campo = 2.f * anguloCorteGrados + 4.f;
+    if (campo < 2.f) campo = 2.f;
+    if (campo > 170.f) campo = 170.f;
+    const float cerca = planoCercanoLuz(alcance);
+    float lejos = alcance;
+    if (lejos <= cerca) lejos = cerca + 0.001f;
+    return glm::perspective(glm::radians(campo), 1.f, cerca, lejos) *
+           vistaLuz(posicion, dir);
+}
+
+void matricesCaraCubo(const glm::vec3& posicion, float alcance,
+                      glm::mat4 salida[kCarasCuboLuz]) {
+    // Direccion y "arriba" de cada cara segun la especificacion de cubemaps de
+    // OpenGL (tabla 8.19 de la especificacion 3.3): las caras laterales usan
+    // -Y como arriba y las verticales +Z / -Z.
+    static const glm::vec3 kDirecciones[kCarasCuboLuz] = {
+        {1.f, 0.f, 0.f}, {-1.f, 0.f, 0.f}, {0.f, 1.f, 0.f},
+        {0.f, -1.f, 0.f}, {0.f, 0.f, 1.f}, {0.f, 0.f, -1.f}};
+    static const glm::vec3 kArriba[kCarasCuboLuz] = {
+        {0.f, -1.f, 0.f}, {0.f, -1.f, 0.f}, {0.f, 0.f, 1.f},
+        {0.f, 0.f, -1.f}, {0.f, -1.f, 0.f}, {0.f, -1.f, 0.f}};
+
+    const float cerca = planoCercanoLuz(alcance);
+    float lejos = alcance;
+    if (lejos <= cerca) lejos = cerca + 0.001f;
+    const glm::mat4 proyeccion =
+        glm::perspective(glm::radians(90.f), 1.f, cerca, lejos);
+    for (int cara = 0; cara < kCarasCuboLuz; ++cara) {
+        salida[cara] = proyeccion * glm::lookAt(posicion,
+                                                posicion + kDirecciones[cara],
+                                                kArriba[cara]);
+    }
+}

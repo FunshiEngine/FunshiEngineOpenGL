@@ -47,6 +47,10 @@ public:
     // Obtiene un prefab por nombre (lo carga si no esta en cache).
     Prefab* obtener(const std::string& nombre);
 
+    // Obtiene el prefab de un archivo concreto (cache por ruta canonica). Es
+    // lo que usa el arrastre de archivos: el .prefab puede estar en cualquier
+    // carpeta del proyecto y dos prefabs pueden llamarse igual.
+    Prefab* obtenerPorRuta(const std::string& ruta);
     // Lista de nombres de prefabs disponibles.
     std::vector<std::string> listarNombres() const;
 
@@ -58,6 +62,7 @@ public:
 
 private:
     std::unordered_map<std::string, std::unique_ptr<Prefab>> cache_;
+    std::unordered_map<std::string, std::unique_ptr<Prefab>> cachePorRuta_;
     std::string directorioPrefabs() const;
 };
 

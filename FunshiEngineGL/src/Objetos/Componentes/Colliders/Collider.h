@@ -20,8 +20,8 @@
 #define COLLIDER_H
 #include <memory>
 #include <vector>
-#include "../Component.h"
-#include "../Transform.h"
+#include "../Nucleo/Component.h"
+#include "../Escena/Transform.h"
 
 class btCollisionShape;
 class GameObject;
@@ -39,75 +39,77 @@ class LineBatch;
 // rotacion del padre) como respaldo.
 class Collider : public Component {
 protected:
-	float radio;
-	Transform* transformOfDadObject;
-	std::unique_ptr<Transform> myTransform;
-	std::unique_ptr<btCollisionShape> collisionShape;
-	GameObject* owner = nullptr;
-	bool visibleInScene = false;
+    float radio;
+    Transform* transformOfDadObject;
+    std::unique_ptr<Transform> myTransform;
+    std::unique_ptr<btCollisionShape> collisionShape;
+    GameObject* owner = nullptr;
+    bool visibleInScene = false;
 
-	// Batch de GPU con el wireframe del collider. Vive en la base para que los
-	// tres tipos reutilicen el mismo recurso: la geometria casi no cambia (solo
-	// el radio) y el dibujado es un unico draw por collider en vez de uno por
-	// arista.
-	// Va como puntero a incomplete type a proposito: Collider.h lo incluyen los
-	// scripts, la serializacion y los targets headless, que no deben arrastrar
-	// la pila de Rendering (LineBatch -> IRenderBackend -> glm). Se destruye en
-	// ~Collider(), que esta definido en el .cpp.
-	std::unique_ptr<LineBatch> wireBatch_;
+    // Batch de GPU con el wireframe del collider. Vive en la base para que los
+    // tres tipos reutilicen el mismo recurso: la geometria casi no cambia (solo
+    // el radio) y el dibujado es un unico draw por collider en vez de uno por
+    // arista.
+    // Va como puntero a incomplete type a proposito: Collider.h lo incluyen los
+    // scripts, la serializacion y los targets headless, que no deben arrastrar
+    // la pila de Rendering (LineBatch -> IRenderBackend -> glm). Se destruye en
+    // ~Collider(), que esta definido en el .cpp.
+    std::unique_ptr<LineBatch> wireBatch_;
 
-	// Devuelve el batch del wireframe, creandolo la primera vez (el dibujo
-	// ocurre con un contexto GL vivo).
-	LineBatch& obtenerWireBatch();
+    // Devuelve el batch del wireframe, creandolo la primera vez (el dibujo
+    // ocurre con un contexto GL vivo).
+    LineBatch& obtenerWireBatch();
 
-	void serializeComponent(std::ofstream* fileNamePathContentObject) override;
-	void deserializeComponent(std::ifstream* fileNamePathContentObject) override;
+    void serializeComponent(std::ofstream* fileNamePathContentObject) override;
+    void deserializeComponent(std::ifstream* fileNamePathContentObject) override;
 
-	// Construye la shape concreta del collider (se llama una sola vez).
-	virtual std::unique_ptr<btCollisionShape> createCollisionShape() = 0;
+    // Construye la shape concreta del collider (se llama una sola vez).
+    virtual std::unique_ptr<btCollisionShape> createCollisionShape() = 0;
 
 public:
-	Collider(float radio, Transform* transformOfDadObject,
-	         GameObject* owner = nullptr);
-	~Collider() override;
+    Collider(float radio, Transform* transformOfDadObject,
+             GameObject* owner = nullptr);
+    ~Collider() override;
 
-	// radio debe ser positivo
-	virtual void setRadio(float radio);
-	virtual float getRadio();
+    // radio debe ser positivo
+    virtual void setRadio(float radio);
+    virtual float getRadio();
 
-	Transform* getDadTransform() { return transformOfDadObject; }
+    Transform* getDadTransform() { return transformOfDadObject; }
 
-	Transform* getTransform() { return myTransform.get(); }
+    Transform* getTransform() { return myTransform.get(); }
 
-	// GameObject dueño (escena). No duenio: vive en la lista de GameObject.
-	GameObject* getOwner() const { return owner; }
-	bool estaVisibleEnEscena() const { return visibleInScene; }
-	void setVisibleEnEscena(bool visible) { visibleInScene = visible; }
-	void registrarContacto(Collider* otro);
-	void limpiarContactos() { contactos_.clear(); }
-	std::size_t cantidadContactos() const { return contactos_.size(); }
-	Collider* contactoEnIndice(std::size_t indice) const;
+    // GameObject dueño (escena). No duenio: vive en la lista de GameObject.
+    GameObject* getOwner() const { return owner; }
+    bool estaVisibleEnEscena() const { return visibleInScene; }
+    void setVisibleEnEscena(bool visible) { visibleInScene = visible; }
+    void registrarContacto(Collider* otro);
+    void limpiarContactos() { contactos_.clear(); }
+    // Quita un collider de los contactos (el que sale del mundo de fisica).
+    void olvidarContacto(const Collider* otro);
+    std::size_t cantidadContactos() const { return contactos_.size(); }
+    Collider* contactoEnIndice(std::size_t indice) const;
 
-	// Transform global POR VALOR. Composicion real con matrices si owner:
-	// global = owner->getGlobalTransform() x myTransform. Sin owner = fallback
-	// legacy (suma de posiciones, sin rotacion del padre).
-	Transform getGlobalTransform() const;
+    // Transform global POR VALOR. Composicion real con matrices si owner:
+    // global = owner->getGlobalTransform() x myTransform. Sin owner = fallback
+    // legacy (suma de posiciones, sin rotacion del padre).
+    Transform getGlobalTransform() const;
 
-	// Acceso no-duenio a la shape: la construye lazy y queda viva
-	// mientras exista el collider.
-	btCollisionShape* getCollisionShape();
+    // Acceso no-duenio a la shape: la construye lazy y queda viva
+    // mientras exista el collider.
+    btCollisionShape* getCollisionShape();
 
-	// Descarta la shape cacheada: se reconstruye lazy en el proximo
-	// getCollisionShape() (se usa cuando cambia la malla del modelo).
-	void invalidateCollisionShape();
+    // Descarta la shape cacheada: se reconstruye lazy en el proximo
+    // getCollisionShape() (se usa cuando cambia la malla del modelo).
+    void invalidateCollisionShape();
 
-	virtual void dibujarCollider() = 0;
+    virtual void dibujarCollider() = 0;
 
-	// seria ideal crear un metodo que recorra todos los objetos
-	// obtenga sus collider y verifique si se chocan con el mio
-	virtual bool isCollision(Collider* other);
+    // seria ideal crear un metodo que recorra todos los objetos
+    // obtenga sus collider y verifique si se chocan con el mio
+    virtual bool isCollision(Collider* other);
 
 private:
-	std::vector<Collider*> contactos_;
+    std::vector<Collider*> contactos_;
 };
 #endif

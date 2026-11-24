@@ -23,9 +23,12 @@
 #include <cstring>
 
 #include "../../../Herramientas/MaterialPresets.h"
-#include "../../../Objetos/Componentes/Material.h"
+#include "../../../Objetos/Componentes/Render/Material.h"
 #include "../../../Rendering/Preview/IPreviewMaterial.h"
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 bool dibujarEditorMaterial(Material& material, int& presetAplicado,
                             IPreviewMaterial* preview,
@@ -36,10 +39,14 @@ bool dibujarEditorMaterial(Material& material, int& presetAplicado,
     bool cambio = false;
 
     // Presets de MaterialPresets como DATOS aplicados al material actual.
-    static const char* const presets[] = {"Personalizado", "Bronce", "Cobre",
-                                          "Cromo",     "Laton", "Jade", "Luz"};
+    // Se traducen al dibujar: el idioma puede cambiar mientras el editor corre.
+    const char* const presets[] = {
+        Localizacion::tr(Texto::Personalizado), Localizacion::tr(Texto::Bronce),
+        Localizacion::tr(Texto::Cobre),         Localizacion::tr(Texto::Cromo),
+        Localizacion::tr(Texto::Laton),         Localizacion::tr(Texto::Jade),
+        Localizacion::tr(Texto::Luz)};
     int combo = presetAplicado + 1;
-    if (ImGui::Combo("Preset", &combo, presets,
+    if (ImGui::Combo(Localizacion::etiqueta(Texto::Preajuste).c_str(), &combo, presets,
                      (int)(sizeof(presets) / sizeof(presets[0])))) {
         switch (combo) {
             case 1: MaterialPresets::bronze(material); break;
@@ -57,7 +64,7 @@ bool dibujarEditorMaterial(Material& material, int& presetAplicado,
     // Toda edicion manual marca el material como Personalizado.
     float amb[3] = {material.getAmbient()[0], material.getAmbient()[1],
                     material.getAmbient()[2]};
-    if (ImGui::ColorEdit3("Ambient", amb)) {
+    if (ImGui::ColorEdit3(Localizacion::etiqueta(Texto::ColorAmbiente).c_str(), amb)) {
         material.setAmbient(amb[0], amb[1], amb[2]);
         presetAplicado = -1;
         cambio = true;
@@ -65,7 +72,7 @@ bool dibujarEditorMaterial(Material& material, int& presetAplicado,
 
     float diff[3] = {material.getDiffuse()[0], material.getDiffuse()[1],
                      material.getDiffuse()[2]};
-    if (ImGui::ColorEdit3("Diffuse", diff)) {
+    if (ImGui::ColorEdit3(Localizacion::etiqueta(Texto::ColorDifuso).c_str(), diff)) {
         material.setDiffuse(diff[0], diff[1], diff[2]);
         presetAplicado = -1;
         cambio = true;
@@ -73,7 +80,7 @@ bool dibujarEditorMaterial(Material& material, int& presetAplicado,
 
     float spec[3] = {material.getSpecular()[0], material.getSpecular()[1],
                      material.getSpecular()[2]};
-    if (ImGui::ColorEdit3("Specular", spec)) {
+    if (ImGui::ColorEdit3(Localizacion::etiqueta(Texto::ColorEspecular).c_str(), spec)) {
         material.setSpecular(spec[0], spec[1], spec[2]);
         presetAplicado = -1;
         cambio = true;
@@ -81,14 +88,14 @@ bool dibujarEditorMaterial(Material& material, int& presetAplicado,
 
     float emiss[3] = {material.getEmission()[0], material.getEmission()[1],
                       material.getEmission()[2]};
-    if (ImGui::ColorEdit3("Emission", emiss)) {
+    if (ImGui::ColorEdit3(Localizacion::etiqueta(Texto::ColorEmision).c_str(), emiss)) {
         material.setEmission(emiss[0], emiss[1], emiss[2]);
         presetAplicado = -1;
         cambio = true;
     }
 
     float shin = material.getShininess();
-    if (ImGui::SliderFloat("Shininess", &shin, 0.f, 128.f)) {
+    if (ImGui::SliderFloat(Localizacion::etiqueta(Texto::Brillo).c_str(), &shin, 0.f, 128.f)) {
         material.setShininess(shin);
         presetAplicado = -1;
         cambio = true;
@@ -108,14 +115,14 @@ bool dibujarEditorMaterial(Material& material, int& presetAplicado,
         }
     };
     ImGui::Separator();
-    ImGui::Text("Texturas (vacias = sin textura):");
-    campoTextura("Difusa", material.getDiffuseMapPath(),
+    ImGui::Text("%s", Localizacion::tr(Texto::TexturasVaciasSinTextura));
+    campoTextura(Localizacion::etiqueta(Texto::Difusa).c_str(), material.getDiffuseMapPath(),
                  &Material::setDiffuseMapPath);
-    campoTextura("Especular", material.getSpecularMapPath(),
+    campoTextura(Localizacion::etiqueta(Texto::Especular).c_str(), material.getSpecularMapPath(),
                  &Material::setSpecularMapPath);
-    campoTextura("Normal", material.getNormalMapPath(),
+    campoTextura(Localizacion::etiqueta(Texto::Normal).c_str(), material.getNormalMapPath(),
                  &Material::setNormalMapPath);
-    campoTextura("Emision", material.getEmissionMapPath(),
+    campoTextura(Localizacion::etiqueta(Texto::Emision).c_str(), material.getEmissionMapPath(),
                  &Material::setEmissionMapPath);
 
     // Vista previa: la esfera de muestra con el material. Se redibuja solo
@@ -126,7 +133,7 @@ bool dibujarEditorMaterial(Material& material, int& presetAplicado,
         const void* textura = preview->descriptorTextura(clave);
         if (textura) {
             ImGui::Separator();
-            ImGui::Text("Vista previa:");
+            ImGui::Text("%s", Localizacion::tr(Texto::TituloVistaPrevia));
             // La textura del render target tiene el origen abajo-izquierda:
             // se voltea la V para que la esfera no salga dada vuelta.
             ImGui::Image(

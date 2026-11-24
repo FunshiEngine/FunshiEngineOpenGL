@@ -25,6 +25,7 @@
 #include "../../Herramientas/IconosGUI/IResolutorIconos.h"
 #include <array>
 #include <functional>
+#include <string>
 
 class GameObject;
 class SettingsComponent;
@@ -36,99 +37,101 @@ class IPreviewMaterial;
 
 class SettingsObjectInterface : public GeneralUserInterface {
 private:
-	GameObject* object;
-	GameObject* tagBufferOwner_ = nullptr;
-	std::array<char, 128> tagBuffer_{};
-	ListaDE<SettingsComponent*>* listaDESettingsComponent;
-	EditorController* editor = nullptr;
-	AudioEngine* audioMotor = nullptr;
-	EventBus* events = nullptr;
-	// Iconos de componente (inyectado por la escena via GUIManager).
-	IResolutorIconos* resolutorIconos_ = nullptr;
-	// Vista previa de material (inyectado por la escena via GUIManager): la
-	// esfera de muestra del panel del material. Puede ser nullptr.
-	IPreviewMaterial* previewMaterial_ = nullptr;
-	// Proveedor de la dimension del proyecto (2D/3D), inyectado por la escena
-	// via GUIManager. Se consulta al armar el menu "agregar componente" para
-	// ofrecer solo los que aplican. Sin proveedor se asume 3D.
-	std::function<DimensionProyecto()> dimensionProvider_;
-	DimensionProyecto dimensionActual_ = DimensionProyecto::TresD;
-	size_t eventSubscription = 0;
-	bool mostrarVisualesDepuracion_ = true;
-	// Cuenta los cambios estructurales (alta/baja de componente) que
-	// reconciliaron la lista de paneles. La carga inicial no cuenta.
-	size_t reconciliaciones = 0;
-	// Paneles Settings* creados en total (monotono). Reutilizar un panel no
-	// crea ninguno; reconstruir de cero si. Sirve para distinguir ambos casos.
-	size_t creacionesSettings = 0;
+    // Archivo soltado en el inspector, aplicado al terminar el recorrido.
+    std::string archivoSoltado_;
+    GameObject* object;
+    GameObject* tagBufferOwner_ = nullptr;
+    std::array<char, 128> tagBuffer_{};
+    ListaDE<SettingsComponent*>* listaDESettingsComponent;
+    EditorController* editor = nullptr;
+    AudioEngine* audioMotor = nullptr;
+    EventBus* events = nullptr;
+    // Iconos de componente (inyectado por la escena via GUIManager).
+    IResolutorIconos* resolutorIconos_ = nullptr;
+    // Vista previa de material (inyectado por la escena via GUIManager): la
+    // esfera de muestra del panel del material. Puede ser nullptr.
+    IPreviewMaterial* previewMaterial_ = nullptr;
+    // Proveedor de la dimension del proyecto (2D/3D), inyectado por la escena
+    // via GUIManager. Se consulta al armar el menu "agregar componente" para
+    // ofrecer solo los que aplican. Sin proveedor se asume 3D.
+    std::function<DimensionProyecto()> dimensionProvider_;
+    DimensionProyecto dimensionActual_ = DimensionProyecto::TresD;
+    size_t eventSubscription = 0;
+    bool mostrarVisualesDepuracion_ = true;
+    // Cuenta los cambios estructurales (alta/baja de componente) que
+    // reconciliaron la lista de paneles. La carga inicial no cuenta.
+    size_t reconciliaciones = 0;
+    // Paneles Settings* creados en total (monotono). Reutilizar un panel no
+    // crea ninguno; reconstruir de cero si. Sirve para distinguir ambos casos.
+    size_t creacionesSettings = 0;
 
-	// Para evitar reentrencia durante iteracion: si ComponentStructureChanged
-	// llega mientras iteramos en contentGUI, no reconciliamos ya; lo hace el caller.
-	bool iterandoComponentes = false;
+    // Para evitar reentrencia durante iteracion: si ComponentStructureChanged
+    // llega mientras iteramos en contentGUI, no reconciliamos ya; lo hace el caller.
+    bool iterandoComponentes = false;
 
-	// Borrado diferido: el componente a eliminar se encola y se borra
-	// al final de contentGUI, fuera de la iteracion.
-	SettingsComponent* componenteABorrar = nullptr;
+    // Borrado diferido: el componente a eliminar se encola y se borra
+    // al final de contentGUI, fuera de la iteracion.
+    SettingsComponent* componenteABorrar = nullptr;
 
-	void desvincular();
-	// Reconciliacion ante un cambio estructural: reutiliza los Settings cuyo
-	// componente sigue vigente, borra los huerfanos y crea los que faltan.
-	void reconciliarComponentes();
-	void purgarSettingsHuerfanos();
-	void crearSettingsFaltantes();
-	bool tieneSettingsPara(Component* componente);
+    void desvincular();
+    // Reconciliacion ante un cambio estructural: reutiliza los Settings cuyo
+    // componente sigue vigente, borra los huerfanos y crea los que faltan.
+    void reconciliarComponentes();
+    void purgarSettingsHuerfanos();
+    void crearSettingsFaltantes();
+    bool tieneSettingsPara(Component* componente);
 
 public:
-	SettingsObjectInterface(GameObject* object, bool stateGUI);
-	~SettingsObjectInterface();
+    SettingsObjectInterface(GameObject* object, bool stateGUI);
+    ~SettingsObjectInterface();
 
-	void setEditor(EditorController* editor);
-	// Dimension vigente del proyecto, consultada al proveedor si esta inyectado.
-	DimensionProyecto dimensionProyecto() const {
-		return dimensionProvider_ ? dimensionProvider_() : dimensionActual_;
-	}
-	void setDimensionProvider(std::function<DimensionProyecto()> provider) {
-		dimensionProvider_ = std::move(provider);
-	}
-	void setMostrarVisualesDepuracion(bool mostrar) noexcept {
-		mostrarVisualesDepuracion_ = mostrar;
-	}
-	// El motor de audio se inyecta desde la escena para que los inspectores de
-	// AudioSource puedan probar la reproduccion. Puede ser nullptr.
-	void setAudioEngine(AudioEngine* motor) { audioMotor = motor; }
-	// Canal de eventos de la escena: el inspector se suscribe para desvincularse
-	// cuando el objeto inspeccionado se borra o se limpia la escena.
-	void setEventBus(EventBus* bus);
-	// Resolvedor de iconos de componente (dibuja el icono a la izquierda del
-	// nombre). Puede ser nullptr: entonces los componentes se listan sin icono.
-	void setResolutorIconos(IResolutorIconos* resolutor) {
-		resolutorIconos_ = resolutor;
-	}
-	// Vista previa de material (la esfera de muestra). Puede ser nullptr:
-	// entonces los paneles de material se dibujan sin vista previa.
-	void setPreviewMaterial(IPreviewMaterial* preview) {
-		previewMaterial_ = preview;
-	}
-	void loadComponents();
+    void setEditor(EditorController* editor);
+    // Dimension vigente del proyecto, consultada al proveedor si esta inyectado.
+    DimensionProyecto dimensionProyecto() const {
+        return dimensionProvider_ ? dimensionProvider_() : dimensionActual_;
+    }
+    void setDimensionProvider(std::function<DimensionProyecto()> provider) {
+        dimensionProvider_ = std::move(provider);
+    }
+    void setMostrarVisualesDepuracion(bool mostrar) noexcept {
+        mostrarVisualesDepuracion_ = mostrar;
+    }
+    // El motor de audio se inyecta desde la escena para que los inspectores de
+    // AudioSource puedan probar la reproduccion. Puede ser nullptr.
+    void setAudioEngine(AudioEngine* motor) { audioMotor = motor; }
+    // Canal de eventos de la escena: el inspector se suscribe para desvincularse
+    // cuando el objeto inspeccionado se borra o se limpia la escena.
+    void setEventBus(EventBus* bus);
+    // Resolvedor de iconos de componente (dibuja el icono a la izquierda del
+    // nombre). Puede ser nullptr: entonces los componentes se listan sin icono.
+    void setResolutorIconos(IResolutorIconos* resolutor) {
+        resolutorIconos_ = resolutor;
+    }
+    // Vista previa de material (la esfera de muestra). Puede ser nullptr:
+    // entonces los paneles de material se dibujan sin vista previa.
+    void setPreviewMaterial(IPreviewMaterial* preview) {
+        previewMaterial_ = preview;
+    }
+    void loadComponents();
 
-	// Numero de reconciliaciones disparadas por cambios estructurales (alta o
-	// baja de componente). La carga inicial y el cambio de objeto no cuentan.
-	size_t reconstruccionesSettings() const { return reconciliaciones; }
-	// Total de paneles creados (monotono). Si sube ante un cambio, hubo
-	// recreacion; si no, los paneles vigentes se reutilizaron.
-	size_t settingsCreados() const { return creacionesSettings; }
-	// Settings en la posicion indicada (0..n-1), o nullptr si esta fuera.
-	SettingsComponent* settingsEnIndice(size_t indice);
+    // Numero de reconciliaciones disparadas por cambios estructurales (alta o
+    // baja de componente). La carga inicial y el cambio de objeto no cuentan.
+    size_t reconstruccionesSettings() const { return reconciliaciones; }
+    // Total de paneles creados (monotono). Si sube ante un cambio, hubo
+    // recreacion; si no, los paneles vigentes se reutilizaron.
+    size_t settingsCreados() const { return creacionesSettings; }
+    // Settings en la posicion indicada (0..n-1), o nullptr si esta fuera.
+    SettingsComponent* settingsEnIndice(size_t indice);
 
-	// Cambia el objeto inspeccionado sin recrear la ventana: limpia y recarga
-	// solo el contenido (mismo patron que ContentFolderInterface).
-	void setTargetObject(GameObject* newObject);
+    // Cambia el objeto inspeccionado sin recrear la ventana: limpia y recarga
+    // solo el contenido (mismo patron que ContentFolderInterface).
+    void setTargetObject(GameObject* newObject);
 
-	virtual GameObject* getObjectInInspector();
+    virtual GameObject* getObjectInInspector();
 
-	virtual void initGUI() override;
-	virtual void contentGUI() override;
-	virtual void endGUI() override;
-	virtual void printGUI() override;
+    virtual void initGUI() override;
+    virtual void contentGUI() override;
+    virtual void endGUI() override;
+    virtual void printGUI() override;
 };
 #endif

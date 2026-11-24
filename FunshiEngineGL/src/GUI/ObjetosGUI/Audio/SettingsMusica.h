@@ -21,7 +21,7 @@
 
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Musica.h"
+#include "../../../Objetos/Componentes/Audio/Musica.h"
 
 class AudioEngine;
 
@@ -32,16 +32,16 @@ class AudioEngine;
 // (requieren el motor inyectado por el catalogo de componentes).
 class SettingsMusica : public SettingsComponent {
 private:
-	GameObject* gameObject = nullptr;
-	AudioEngine* motor = nullptr;
+    GameObject* gameObject = nullptr;
+    AudioEngine* motor = nullptr;
 
 public:
-	explicit SettingsMusica(GameObject* gameObject);
-	void setAudioEngine(AudioEngine* motor) noexcept { this->motor = motor; }
-	void showDataComponent() override;
-	Component* getComponent() override {
-		return gameObject ? gameObject->getComponent<Musica>() : nullptr;
-	}
+    explicit SettingsMusica(GameObject* gameObject);
+    void setAudioEngine(AudioEngine* motor) noexcept { this->motor = motor; }
+    void showDataComponent() override;
+    Component* getComponent() override {
+        return objetivo<Musica>(gameObject);
+    }
 };
 
 #endif // SETTINGSMUSICA_H

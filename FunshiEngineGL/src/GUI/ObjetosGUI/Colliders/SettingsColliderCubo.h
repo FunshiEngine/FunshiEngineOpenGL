@@ -21,20 +21,23 @@
 #include "../SettingsComponent.h"
 #include "../Transform/SettingsTransform.h"
 #include "../../../Objetos/Componentes/Colliders/CubeCollider.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 
 class SettingsColliderCubo : public SettingsComponent {
 protected:
-	SettingsTransform* settingsTransform;
-	CubeCollider* myCollider;
-	float newRadio;
-	EditorController* editor = nullptr;
+    SettingsTransform* settingsTransform;
+    CubeCollider* myCollider;
+    float newRadio;
+    EditorController* editor = nullptr;
 public:
-	explicit SettingsColliderCubo(GameObject* objeto);
-	~SettingsColliderCubo();
+    explicit SettingsColliderCubo(GameObject* objeto);
+    ~SettingsColliderCubo();
 
-	void setEditor(EditorController* editor);
-	void showDataComponent() override;
-	Component* getComponent() override { return myCollider; }
+    void setEditor(EditorController* editor);
+    void showDataComponent() override;
+    void alFijarObjetivo() override {
+        if (auto* propio = dynamic_cast<CubeCollider*>(objetivo_)) myCollider = propio;
+    }
+    Component* getComponent() override { return myCollider; }
 };
 #endif

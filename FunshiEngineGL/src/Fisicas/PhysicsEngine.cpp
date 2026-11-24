@@ -56,7 +56,7 @@ void PhysicsEngine::gravedad(float& x, float& y, float& z) const {
         return;
     }
     x = 0.0f;
-    y = -1.0f;
+    y = kGravedadPorDefectoY;
     z = 0.0f;
 }
 

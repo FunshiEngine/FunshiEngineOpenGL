@@ -25,15 +25,18 @@
 #include <string>
 #include <vector>
 
-#include "../../../Assets/AssetManager.h"
-#include "../../../Assets/Mesh.h"
-#include "../../../Objetos/Componentes/Materiales.h"
-#include "../../../Objetos/Componentes/Model.h"
+#include "../../../Assets/Mallas/AssetManager.h"
+#include "../../../Assets/Mallas/Mesh.h"
+#include "../../../Objetos/Componentes/Render/Materiales.h"
+#include "../../../Objetos/Componentes/Render/Model.h"
 #include "../../../Objetos/GameObject.h"
 #include "../../../Rendering/Preview/IPreviewMaterial.h"
-#include "../../../Scenes/EditorController.h"
+#include "../../../Scenes/Editor/EditorController.h"
 #include "../Material/EditorMaterialGUI.h"
 #include <imgui.h>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsMateriales::SettingsMateriales(GameObject* gameObject,
                                          EditorController* editor,
@@ -46,21 +49,18 @@ SettingsMateriales::SettingsMateriales(GameObject* gameObject,
 SettingsMateriales::~SettingsMateriales() {}
 
 Component* SettingsMateriales::getComponent() {
-    return gameObject->getComponent<Materiales>();
+    return objetivo<Materiales>(gameObject);
 }
 
 void SettingsMateriales::showDataComponent() {
-    Materiales* materiales = gameObject->getComponent<Materiales>();
+    Materiales* materiales = objetivo<Materiales>(gameObject);
     if (!materiales) return;
 
-    ImGui::Text("===Materiales por region===");
     ImGui::TextWrapped(
-        "Cada region de la malla (la cara de un cubo, la parte de un "
-        "personaje) puede llevar su propio material y sus texturas. La region "
-        "se identifica con el nombre del material del archivo.");
+        "%s", Localizacion::tr(Texto::CadaRegionDeLaMalla));
 
     // Sincronizar con el modelo: agrega las regiones que declara el archivo.
-    if (ImGui::Button("Sincronizar con el modelo")) {
+    if (ImGui::Button(Localizacion::etiqueta(Texto::SincronizarConElModelo).c_str())) {
         std::vector<std::string> nombres;
         Model* model = gameObject->getComponent<Model>();
         if (model && editor && editor->getAssetManager()) {
@@ -78,9 +78,9 @@ void SettingsMateriales::showDataComponent() {
         }
         const int anadidas = materiales->sincronizarCon(nombres);
         if (nombres.empty()) {
-            ImGui::Text("El modelo no declara regiones con material.");
+            ImGui::Text("%s", Localizacion::tr(Texto::ElModeloNoDeclaraRegiones));
         } else {
-            ImGui::Text("Regiones anadidas: %d", anadidas);
+            ImGui::Text(Localizacion::tr(Texto::RegionesAnadidas), anadidas);
         }
     }
 
@@ -90,13 +90,13 @@ void SettingsMateriales::showDataComponent() {
     char buffer[256] = {0};
     std::strncpy(buffer, nombreNuevaRegion_.c_str(), sizeof(buffer) - 1);
     buffer[sizeof(buffer) - 1] = '\0';
-    if (ImGui::InputText("Nueva region", buffer, sizeof(buffer))) {
+    if (ImGui::InputText(Localizacion::etiqueta(Texto::NuevaRegion).c_str(), buffer, sizeof(buffer))) {
         nombreNuevaRegion_ = buffer;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Anadir") && !nombreNuevaRegion_.empty()) {
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Anadir).c_str()) && !nombreNuevaRegion_.empty()) {
         if (!materiales->agregarRegion(nombreNuevaRegion_)) {
-            ImGui::Text("Ya existe una region con ese nombre.");
+            ImGui::Text("%s", Localizacion::tr(Texto::YaExisteUnaRegionCon));
         }
         nombreNuevaRegion_.clear();
     }
@@ -124,7 +124,7 @@ void SettingsMateriales::showDataComponent() {
             dibujarEditorMaterial(*region.material, presetsAplicados_[i],
                                   preview, clave);
         }
-        if (ImGui::SmallButton("Quitar region")) {
+        if (ImGui::SmallButton(Localizacion::etiqueta(Texto::QuitarRegion).c_str())) {
             materiales->quitarRegion(region.nombre);
             ImGui::PopID();
             break; // la lista cambio: se vuelve a dibujar en el proximo frame

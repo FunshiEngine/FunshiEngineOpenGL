@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "GeneralUserInterface.h"
+#include "WindowNames.h"
 #include <utility>
 
 GeneralUserInterface::GeneralUserInterface(std::string name, bool state, ImGuiWindowFlags flags)
@@ -26,5 +27,5 @@ void GeneralUserInterface::setStateGui(bool state) { stateGUI = state; }
 std::string GeneralUserInterface::getNameGui() const { return nameGUI; }
 bool GeneralUserInterface::getStateGui() const { return stateGUI; }
 ImGuiWindowFlags GeneralUserInterface::getFlagGui() const { return flagGUI; }
-void GeneralUserInterface::initGUI() { ImGui::Begin(nameGUI.c_str(), &stateGUI, flagGUI); }
+void GeneralUserInterface::initGUI() { ImGui::Begin(WindowNames::titulo(nameGUI).c_str(), &stateGUI, flagGUI); }
 void GeneralUserInterface::endGUI() { ImGui::End(); }

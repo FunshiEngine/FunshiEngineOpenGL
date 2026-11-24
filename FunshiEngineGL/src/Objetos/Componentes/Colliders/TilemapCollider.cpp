@@ -22,10 +22,10 @@
 
 #include <btBulletDynamicsCommon.h>
 
-#include "../../../Rendering/LineBuilder.h"
-#include "../../../Rendering/LineRenderer.h"
+#include "../../../Rendering/Lineas/LineBuilder.h"
+#include "../../../Rendering/Lineas/LineRenderer.h"
 #include "../../GameObject.h"
-#include "../Tilemap.h"
+#include "../Juego2D/Tilemap.h"
 
 namespace {
 // Ancho del wireframe del collider en pixeles (mismo criterio que los demas

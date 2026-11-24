@@ -36,6 +36,12 @@ private:
     btDefaultMotionState* groundMotionState;
     btRigidBody* groundRigidBody;
     std::unordered_set<RigidBody*> cuerpos_;
+    // Paso fijo de la simulacion y tope de subpasos por frame.
+    static constexpr float kPasoFijo = 1.0f / 60.0f;
+    static constexpr int kMaxSubPasos = 8;
+    // RigidBody registrado y activo de un objeto de Bullet (userPointer), o
+    // nullptr (suelo, cuerpo inactivo o no registrado).
+    RigidBody* cuerpoRegistrado(const btCollisionObject* objeto) const;
     using ParColliders = std::pair<Collider*, Collider*>;
     std::set<ParColliders> contactosAnteriores_;
     std::vector<EventoContacto> eventosContacto_;

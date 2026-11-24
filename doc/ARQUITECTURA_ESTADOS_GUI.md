@@ -194,7 +194,9 @@ proyecto ya usa de forma puntual, pero ahora **declarado para todas las GUI**.
      `scene->setSensibilidadCamara(...)` en el bucle y se setea al arrancar.
    - **Idioma con efecto en vivo**: `MenuModel::traducir(clave)` (diccionario
      declarativo es/en) y las etiquetas del menú se renderizan desde el idioma
-     actual (antes el selector no cambiaba nada visible).
+     actual (antes el selector no cambiaba nada visible). *Actualizado:* hoy
+     es `MenuModel::traducir(Texto::Nombre)` sobre `Localizacion/Textos.inc`
+     (ver "Textos e idiomas" en `PROJECT_STRUCTURE.md`).
    - **Reset de configuración**: botón "Restablecer configuracion" en Opciones
      → `restablecerConfiguracion()` (modelo) + `ReiniciarConfiguracion` (bus);
      main reaplica defaults generales y de proyecto (`EditorConfig::restablecer`)

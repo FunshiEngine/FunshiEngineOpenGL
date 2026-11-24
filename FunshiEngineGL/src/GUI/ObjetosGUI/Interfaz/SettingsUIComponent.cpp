@@ -18,7 +18,7 @@
 */
 #include "SettingsUIComponent.h"
 
-#include "../../../Objetos/Componentes/UIComponent.h"
+#include "../../../Objetos/Componentes/Interfaz/UIComponent.h"
 #include "../../../Objetos/GameObject.h"
 
 #include <imgui.h>
@@ -26,18 +26,29 @@
 #include <cctype>
 #include <cstring>
 #include <string>
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 namespace {
 
-const char* NOMBRES_TIPO[] = {"Panel", "Etiqueta", "Imagen", "Boton"};
+// Opciones del combo de tipo, en el orden del enum. Se traducen al dibujar.
+constexpr Texto TEXTOS_TIPO[] = {Texto::Panel, Texto::Etiqueta, Texto::Imagen, Texto::Boton};
 
-const char* NOMBRES_ANCLA[] = {
-    "Arriba izquierda", "Arriba centro", "Arriba derecha",
-    "Medio izquierda",  "Centro",        "Medio derecha",
-    "Abajo izquierda",  "Abajo centro",  "Abajo derecha"};
+// Opciones del combo de ancla, en el orden del enum. Se traducen al dibujar.
+constexpr Texto TEXTOS_ANCLA[] = {
+    Texto::ArribaIzquierda, Texto::ArribaCentro, Texto::ArribaDerecha,
+    Texto::MedioIzquierda,  Texto::Centro,       Texto::MedioDerecha,
+    Texto::AbajoIzquierda,  Texto::AbajoCentro,  Texto::AbajoDerecha};
 
 constexpr int TOTAL_TIPOS = 4;
 constexpr int TOTAL_ANCLAS = 9;
+
+// Textos de una lista de opciones en el idioma vigente (para ImGui::Combo).
+template <std::size_t N>
+void traducirOpciones(const Texto (&textos)[N], const char* (&salida)[N]) {
+    for (std::size_t i = 0; i < N; ++i) salida[i] = Localizacion::tr(textos[i]);
+}
 
 // Tope de los campos de texto del inspector.
 constexpr std::size_t kCapacidadTexto = 256;
@@ -84,13 +95,11 @@ SettingsUIComponent::SettingsUIComponent(GameObject* gameObject)
       gameObject(gameObject) {}
 
 void SettingsUIComponent::showDataComponent() {
-    UIComponent* comp = gameObject->getComponent<UIComponent>();
+    UIComponent* comp = objetivo<UIComponent>(gameObject);
     if (!comp) return;
 
-    ImGui::Text("===Interfaz de juego nativa===");
     ImGui::TextWrapped(
-        "Widgets que dibuja el motor en pantalla. El identificador es el "
-        "nombre con el que un script consulta el widget.");
+        "%s", Localizacion::tr(Texto::WidgetsQueDibujaElMotor));
 
     // Origen de arrastre: lleva el nombre del objeto dueno de la interfaz
     // para asignarla a un campo TagTipo::Componente de un script.
@@ -101,17 +110,17 @@ void SettingsUIComponent::showDataComponent() {
     ImGui::Button(etiquetaDrag.c_str());
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip(
-            "Arrastra a un campo de script para asignar esta interfaz");
+            "%s", Localizacion::tr(Texto::ArrastraAUnCampoDe));
     if (ImGui::BeginDragDropSource()) {
         const char* dueno = gameObject->inputName;
         ImGui::SetDragDropPayload("COMPONENTE_INTERFAZ", dueno,
                                   std::strlen(dueno) + 1);
-        ImGui::TextUnformatted("Asignar interfaz a un script");
+        ImGui::TextUnformatted(Localizacion::tr(Texto::AsignarInterfazAUnScript));
         ImGui::EndDragDropSource();
     }
 
     bool activo = comp->estaActivo();
-    if (ImGui::Checkbox("Activa", &activo)) comp->setActivo(activo);
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Activa).c_str(), &activo)) comp->setActivo(activo);
 
     float z = comp->getZ();
     if (ImGui::DragFloat("Z", &z, 0.1f)) comp->setZ(z);
@@ -120,30 +129,30 @@ void SettingsUIComponent::showDataComponent() {
 
     LienzoUI& lienzo = comp->lienzo();
 
-    if (ImGui::Button("Anadir widget")) ImGui::OpenPopup("Anadir widget");
+    if (ImGui::Button(Localizacion::etiqueta(Texto::AnadirWidget).c_str())) ImGui::OpenPopup("Anadir widget");
 
     if (ImGui::BeginPopup("Anadir widget")) {
-        if (ImGui::MenuItem("Panel")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::Panel).c_str())) {
             WidgetUI widget;
             widget.tipo = TipoWidgetUI::Panel;
             widget.tamano = {240.0f, 160.0f};
             widget.color = {0.15f, 0.15f, 0.18f, 0.85f};
             lienzo.agregar(widget);
         }
-        if (ImGui::MenuItem("Etiqueta")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::Etiqueta).c_str())) {
             WidgetUI widget;
             widget.tipo = TipoWidgetUI::Etiqueta;
             widget.tamano = {200.0f, 28.0f};
             widget.texto = "Texto";
             lienzo.agregar(widget);
         }
-        if (ImGui::MenuItem("Imagen")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::Imagen).c_str())) {
             WidgetUI widget;
             widget.tipo = TipoWidgetUI::Imagen;
             widget.tamano = {128.0f, 128.0f};
             lienzo.agregar(widget);
         }
-        if (ImGui::MenuItem("Boton")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::Boton).c_str())) {
             WidgetUI widget;
             widget.tipo = TipoWidgetUI::Boton;
             widget.tamano = {160.0f, 36.0f};
@@ -164,51 +173,55 @@ void SettingsUIComponent::showDataComponent() {
 
         ImGui::PushID(static_cast<int>(i));
         std::string titulo = widget.texto.empty() ? widget.id : widget.texto;
-        if (titulo.empty()) titulo = NOMBRES_TIPO[static_cast<int>(widget.tipo)];
+        if (titulo.empty()) titulo = Localizacion::tr(TEXTOS_TIPO[static_cast<int>(widget.tipo)]);
 
         const bool abierto = ImGui::CollapsingHeader(titulo.c_str());
         if (abierto) {
-            editarTexto("Identificador", &widget.id, kCapacidadId);
+            editarTexto(Localizacion::etiqueta(Texto::Identificador).c_str(), &widget.id, kCapacidadId);
 
+            const char* nombresTipo[TOTAL_TIPOS];
+            traducirOpciones(TEXTOS_TIPO, nombresTipo);
             int tipo = static_cast<int>(widget.tipo);
-            if (ImGui::Combo("Tipo", &tipo, NOMBRES_TIPO, TOTAL_TIPOS))
+            if (ImGui::Combo(Localizacion::etiqueta(Texto::Tipo).c_str(), &tipo, nombresTipo, TOTAL_TIPOS))
                 widget.tipo = static_cast<TipoWidgetUI>(tipo);
 
+            const char* nombresAncla[TOTAL_ANCLAS];
+            traducirOpciones(TEXTOS_ANCLA, nombresAncla);
             int ancla = static_cast<int>(widget.ancla);
-            if (ImGui::Combo("Ancla", &ancla, NOMBRES_ANCLA, TOTAL_ANCLAS))
+            if (ImGui::Combo(Localizacion::etiqueta(Texto::Ancla).c_str(), &ancla, nombresAncla, TOTAL_ANCLAS))
                 widget.ancla = static_cast<AnclaUI>(ancla);
 
             float desplazamiento[2] = {widget.desplazamiento.x,
                                        widget.desplazamiento.y};
-            if (ImGui::DragFloat2("Desplazamiento", desplazamiento, 1.0f)) {
+            if (ImGui::DragFloat2(Localizacion::etiqueta(Texto::Desplazamiento).c_str(), desplazamiento, 1.0f)) {
                 widget.desplazamiento.x = desplazamiento[0];
                 widget.desplazamiento.y = desplazamiento[1];
             }
 
             float tamano[2] = {widget.tamano.x, widget.tamano.y};
-            if (ImGui::DragFloat2("Tamano", tamano, 1.0f)) {
+            if (ImGui::DragFloat2(Localizacion::etiqueta(Texto::Tamano).c_str(), tamano, 1.0f)) {
                 widget.tamano.x = tamano[0];
                 widget.tamano.y = tamano[1];
             }
 
             float color[4] = {widget.color.r, widget.color.g, widget.color.b,
                               widget.color.a};
-            if (ImGui::ColorEdit4("Color", color)) {
+            if (ImGui::ColorEdit4(Localizacion::etiqueta(Texto::Color).c_str(), color)) {
                 widget.color = {color[0], color[1], color[2], color[3]};
             }
 
             float colorTexto[4] = {widget.colorTexto.r, widget.colorTexto.g,
                                    widget.colorTexto.b, widget.colorTexto.a};
-            if (ImGui::ColorEdit4("Color del texto", colorTexto)) {
+            if (ImGui::ColorEdit4(Localizacion::etiqueta(Texto::ColorDelTexto).c_str(), colorTexto)) {
                 widget.colorTexto = {colorTexto[0], colorTexto[1],
                                      colorTexto[2], colorTexto[3]};
             }
 
             if (widget.tipo == TipoWidgetUI::Etiqueta ||
                 widget.tipo == TipoWidgetUI::Boton) {
-                editarTexto("Texto", &widget.texto, kCapacidadTexto);
+                editarTexto(Localizacion::etiqueta(Texto::TextoDelWidget).c_str(), &widget.texto, kCapacidadTexto);
                 float tamanoTexto = widget.tamanoTexto;
-                if (ImGui::DragFloat("Tamano del texto", &tamanoTexto, 1.0f))
+                if (ImGui::DragFloat(Localizacion::etiqueta(Texto::TamanoDelTexto).c_str(), &tamanoTexto, 1.0f))
                     widget.tamanoTexto = tamanoTexto;
             }
 
@@ -233,20 +246,20 @@ void SettingsUIComponent::showDataComponent() {
             }
 
             bool visible = widget.visible;
-            if (ImGui::Checkbox("Visible", &visible)) widget.visible = visible;
+            if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Visible).c_str(), &visible)) widget.visible = visible;
 
             ImGui::Separator();
             // El orden de la lista es el orden de apilado: el ultimo se dibuja
             // encima.
             ImGui::BeginDisabled(i == 0);
-            if (ImGui::Button("Subir")) lienzo.mover(i, i - 1);
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Subir).c_str())) lienzo.mover(i, i - 1);
             ImGui::EndDisabled();
             ImGui::SameLine();
             ImGui::BeginDisabled(i + 1 >= cantidad);
-            if (ImGui::Button("Bajar")) lienzo.mover(i, i + 1);
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Bajar).c_str())) lienzo.mover(i, i + 1);
             ImGui::EndDisabled();
             ImGui::SameLine();
-            if (ImGui::Button("Quitar widget")) {
+            if (ImGui::Button(Localizacion::etiqueta(Texto::QuitarWidget).c_str())) {
                 lienzo.quitar(i);
                 ImGui::PopID();
                 break; // la lista cambio: se vuelve a dibujar en el proximo frame
