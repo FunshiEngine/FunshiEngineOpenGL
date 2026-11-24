@@ -28,6 +28,9 @@
 #include "../../Scenes/Registro/SceneRegistry.h"
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SceneSelectedInterface::SceneSelectedInterface(bool state)
     : GeneralUserInterface("SelectedObjects", state, ImGuiWindowFlags_MenuBar) {}
@@ -74,7 +77,7 @@ void SceneSelectedInterface::contentGUI() {
     if (ImGui::BeginPopupContextWindow(
             "SelectedEntitysPopup",
             ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
-        if (ImGui::MenuItem("New SimpleObject")) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NewSimpleObject).c_str())) {
             if (editor) {
                 // El raiz se pasa a la factoria para que el nombre por defecto
                 // no repita el de ningun objeto del arbol (H-6).

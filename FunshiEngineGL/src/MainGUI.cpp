@@ -72,6 +72,7 @@ void configurarGUI(ContextoEditor& c) {
         eventosGUI->subscribe([&editorConfig](const EditorEvent& ev) {
             if (ev.type != EditorEventType::IdiomaCambio) return;
             editorConfig.datos().idioma = ev.idioma;
+            Localizacion::fijarIdiomaActual(ev.idioma);
             editorConfig.solicitarGuardadoGeneral();
         });
     }

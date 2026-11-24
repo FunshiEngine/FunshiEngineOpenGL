@@ -229,6 +229,7 @@ static int EjecutarMotor(int argc, char* argv[])
         gestor.prepararProyectoAlArrancar();
 
     mainMenu->setNombreProyecto(proyectoActual);
+    Localizacion::fijarIdiomaActual(editorConfig.datos().idioma);
     mainMenu->setIdioma(editorConfig.datos().idioma);
     mainMenu->setSensibilidadCamara(editorConfig.datos().sensibilidadCamara);
     mainMenu->setSensibilidadMovimientoCamara(

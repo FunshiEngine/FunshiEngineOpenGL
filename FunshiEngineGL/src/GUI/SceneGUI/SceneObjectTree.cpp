@@ -17,6 +17,9 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SceneObjectTreeDetalle.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SceneObjectTree::~SceneObjectTree() { unbind(); }
 
@@ -174,19 +177,19 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
     if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && editor)
         editor->selectObject(object);
     if (hovered)
-        ImGui::SetTooltip("ID: %d", object->getId());
+        ImGui::SetTooltip(Localizacion::tr(Texto::ID), object->getId());
 
 // Menu contextual con 5 opciones: Cambiar ID, Renombrar, Desanidar a raiz, Crear Prefab, Eliminar
         if (ImGui::BeginPopupContextItem("MenuObjeto")) {
             ImGui::Text("%s", etiqueta.c_str());
             ImGui::Separator();
-            if (ImGui::MenuItem("Cambiar ID")) {
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CambiarID).c_str())) {
                 dialogoActivo = DialogoTipo::CambiarID;
                 objetoEnDialogo = object;
                 std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%d", object->getId());
                 dialogoRecienAbierto = true;
             }
-            if (ImGui::MenuItem("Renombrar")) {
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::Renombrar).c_str())) {
                 dialogoActivo = DialogoTipo::Renombrar;
                 objetoEnDialogo = object;
                 std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
@@ -195,19 +198,19 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
             // Desanidar a raiz: solo si cuelga de un padre intermedio (un hijo
             // directo de la raiz ya esta al nivel superior).
             if (esCandidatoADesanidar(object, scene ? scene->getRoot() : nullptr)) {
-                if (ImGui::MenuItem("Desanidar a raiz")) {
+                if (ImGui::MenuItem(Localizacion::etiqueta(Texto::DesanidarARaiz).c_str())) {
                     // Diferido: mutar el arbol tras el recorrido para no invalidar
                     // iteradores (patron igual que objetoAReParentar).
                     objetoADesanidar = object;
                 }
             }
-            if (ImGui::MenuItem("Crear Prefab")) {
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CrearPrefab).c_str())) {
                 dialogoActivo = DialogoTipo::CrearPrefab;
                 objetoEnDialogo = object;
                 std::snprintf(bufferDialogo, sizeof(bufferDialogo), "%s", object->inputName);
                 dialogoRecienAbierto = true;
             }
-            if (ImGui::MenuItem("Eliminar")) {
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::Eliminar).c_str())) {
                 dialogoActivo = DialogoTipo::Eliminar;
                 objetoEnDialogo = object;
                 dialogoRecienAbierto = true;
@@ -220,7 +223,7 @@ TreeIG::RowResult SceneObjectTree::drawRow(GameObject* object, bool wasOpen) {
         GameObject* draggable = object;
         ImGui::SetDragDropPayload("ENTITY_NODE", &draggable,
                                   sizeof(draggable));
-        ImGui::Text("Moviendo %s", etiqueta.c_str());
+        ImGui::Text(Localizacion::tr(Texto::Moviendo), etiqueta.c_str());
         ImGui::EndDragDropSource();
     }
     if (ImGui::BeginDragDropTarget()) {

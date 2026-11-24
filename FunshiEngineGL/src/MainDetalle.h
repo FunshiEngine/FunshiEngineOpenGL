@@ -68,6 +68,7 @@
 #include "../src/WebUI/WebUIRuntime.h"
 #endif
 #include "ImGuizmo.h"
+#include "Localizacion/Localizacion.h"
 #include <iostream>
 #include <cstdio>
 #include <ctime>

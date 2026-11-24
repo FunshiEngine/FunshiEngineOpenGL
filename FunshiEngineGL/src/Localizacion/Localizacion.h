@@ -81,8 +81,23 @@ const char* texto(std::size_t numeroIdioma, Texto texto);
 const char* texto(const std::string& codigoIdioma, Texto texto);
 
 // Nombre del texto en Textos.inc ("IniciarEstudio"); sirve como ID estable de
-// ImGui ("Texto##IniciarEstudio") y para mensajes de diagnostico.
+// ImGui y para mensajes de diagnostico.
 const char* nombre(Texto texto);
+
+// Idioma vigente del editor. Lo fija quien aplica la configuracion (al
+// arrancar y al cambiar el idioma); las ventanas solo lo leen con tr().
+void fijarIdiomaActual(const std::string& codigo);
+std::size_t idiomaActual();
+
+// Texto en el idioma vigente.
+const char* tr(Texto texto);
+
+// Etiqueta de widget ImGui en el idioma vigente con ID independiente del
+// idioma: "<texto>###<Nombre><sufijo>". Asi cambiar de idioma no cambia el ID
+// (estado de arboles y popups, foco). sufijo es el "##algo" que tenia la
+// etiqueta original para distinguir widgets con el mismo texto; si empieza con
+// "###" se usa tal cual como ID.
+std::string etiqueta(Texto texto, const char* sufijo = "");
 
 } // namespace Localizacion
 

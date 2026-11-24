@@ -19,6 +19,7 @@
 #include "Localizacion.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <unordered_map>
 
@@ -90,6 +91,8 @@ static_assert(sizeof(kTextos) / sizeof(kTextos[0]) == kCantidadIdiomas * kCantid
 static_assert(bloquesAlineados(),
               "Textos.inc: un bloque tiene los textos en otro orden que el bloque 0");
 
+std::atomic<std::size_t> gIdiomaActual{0};
+
 std::string minusculas(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -143,6 +146,26 @@ const char* texto(std::size_t numeroIdioma, Texto texto) {
 
 const char* texto(const std::string& codigoIdioma, Texto t) {
     return texto(numeroIdioma(codigoIdioma), t);
+}
+
+void fijarIdiomaActual(const std::string& codigo) {
+    gIdiomaActual.store(numeroIdioma(normalizarIdioma(codigo)));
+}
+
+std::size_t idiomaActual() { return gIdiomaActual.load(); }
+
+const char* tr(Texto t) { return texto(idiomaActual(), t); }
+
+std::string etiqueta(Texto t, const char* sufijo) {
+    std::string resultado = tr(t);
+    if (sufijo && sufijo[0] == '#' && sufijo[1] == '#' && sufijo[2] == '#') {
+        resultado += sufijo;
+        return resultado;
+    }
+    resultado += "###";
+    resultado += nombre(t);
+    if (sufijo) resultado += sufijo;
+    return resultado;
 }
 
 const char* nombre(Texto texto) {

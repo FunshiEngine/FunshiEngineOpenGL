@@ -17,6 +17,9 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SceneObjectTreeDetalle.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 void SceneObjectTree::dibujarDialogosModales() {
     if (dialogoActivo == DialogoTipo::Ninguno || !objetoEnDialogo) return;
@@ -24,16 +27,17 @@ void SceneObjectTree::dibujarDialogosModales() {
     // Dialogo Cambiar ID
     if (dialogoActivo == DialogoTipo::CambiarID) {
         if (dialogoRecienAbierto) {
-            ImGui::OpenPopup("DialogoCambiarID");
+            ImGui::OpenPopup("###DialogoCambiarID");
             dialogoRecienAbierto = false;
         }
-        if (ImGui::BeginPopupModal("DialogoCambiarID", nullptr,
+        if (ImGui::BeginPopupModal(
+                Localizacion::etiqueta(Texto::DialogoCambiarID, "###DialogoCambiarID").c_str(), nullptr,
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Nuevo ID para '%s':", objetoEnDialogo->inputName);
+            ImGui::Text(Localizacion::tr(Texto::NuevoIDPara), objetoEnDialogo->inputName);
             ImGui::InputText("##id", bufferDialogo, sizeof(bufferDialogo),
                              ImGuiInputTextFlags_CharsDecimal);
             ImGui::Separator();
-            if (ImGui::Button("Aceptar", ImVec2(120, 0))) {
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Aceptar).c_str(), ImVec2(120, 0))) {
                 int nuevoId = std::atoi(bufferDialogo);
                 const bool esRaiz = objetoEnDialogo->getParentEntity() == nullptr;
                 if (nuevoId > 0 || (esRaiz && nuevoId >= 0)) {
@@ -47,7 +51,7 @@ void SceneObjectTree::dibujarDialogosModales() {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0))) {
                 dialogoActivo = DialogoTipo::Ninguno;
                 objetoEnDialogo = nullptr;
                 ImGui::CloseCurrentPopup();
@@ -59,21 +63,22 @@ void SceneObjectTree::dibujarDialogosModales() {
     // Dialogo Renombrar
     if (dialogoActivo == DialogoTipo::Renombrar) {
         if (dialogoRecienAbierto) {
-            ImGui::OpenPopup("DialogoRenombrar");
+            ImGui::OpenPopup("###DialogoRenombrar");
         }
-        if (ImGui::BeginPopupModal("DialogoRenombrar", nullptr,
+        if (ImGui::BeginPopupModal(
+                Localizacion::etiqueta(Texto::DialogoRenombrar, "###DialogoRenombrar").c_str(), nullptr,
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
             if (dialogoRecienAbierto) {
                 ImGui::SetKeyboardFocusHere();
                 dialogoRecienAbierto = false;
             }
-            ImGui::Text("Nuevo nombre:");
+            ImGui::Text("%s", Localizacion::tr(Texto::NuevoNombre));
             bool enterPresionado = ImGui::InputText("##nombre", bufferDialogo, sizeof(bufferDialogo),
                                                      ImGuiInputTextFlags_EnterReturnsTrue);
             ImGui::Separator();
-            bool confirmado = ImGui::Button("Aceptar", ImVec2(120, 0));
+            bool confirmado = ImGui::Button(Localizacion::etiqueta(Texto::Aceptar).c_str(), ImVec2(120, 0));
             ImGui::SameLine();
-            bool cancelado = ImGui::Button("Cancelar", ImVec2(120, 0));
+            bool cancelado = ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0));
             if (confirmado || cancelado || enterPresionado) {
                 if ((confirmado || enterPresionado) && bufferDialogo[0] != '\0') {
                     std::snprintf(objetoEnDialogo->inputName,
@@ -94,17 +99,18 @@ void SceneObjectTree::dibujarDialogosModales() {
     // Dialogo Eliminar
     if (dialogoActivo == DialogoTipo::Eliminar) {
         if (dialogoRecienAbierto) {
-            ImGui::OpenPopup("DialogoEliminar");
+            ImGui::OpenPopup("###DialogoEliminar");
             dialogoRecienAbierto = false;
         }
-        if (ImGui::BeginPopupModal("DialogoEliminar", nullptr,
+        if (ImGui::BeginPopupModal(
+                Localizacion::etiqueta(Texto::DialogoEliminar, "###DialogoEliminar").c_str(), nullptr,
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Eliminar '%s' (ID: %d)?",
+            ImGui::Text(Localizacion::tr(Texto::EliminarID),
                         objetoEnDialogo->inputName, objetoEnDialogo->getId());
             ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error),
-                               "Esta accion no se puede deshacer.");
+                               "%s", Localizacion::tr(Texto::EstaAccionNoSePuede));
             ImGui::Separator();
-            if (ImGui::Button("Eliminar", ImVec2(120, 0))) {
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Eliminar).c_str(), ImVec2(120, 0))) {
                 if (editor) editor->clearSelection();
                 renombrando = nullptr;
                 objetoAEliminar = objetoEnDialogo;
@@ -113,7 +119,7 @@ void SceneObjectTree::dibujarDialogosModales() {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0))) {
                 dialogoActivo = DialogoTipo::Ninguno;
                 objetoEnDialogo = nullptr;
                 ImGui::CloseCurrentPopup();
@@ -125,16 +131,17 @@ void SceneObjectTree::dibujarDialogosModales() {
     // Dialogo Crear Prefab
     if (dialogoActivo == DialogoTipo::CrearPrefab) {
         if (dialogoRecienAbierto) {
-            ImGui::OpenPopup("DialogoCrearPrefab");
+            ImGui::OpenPopup("###DialogoCrearPrefab");
             dialogoRecienAbierto = false;
         }
-        if (ImGui::BeginPopupModal("DialogoCrearPrefab", nullptr,
+        if (ImGui::BeginPopupModal(
+                Localizacion::etiqueta(Texto::DialogoCrearPrefab, "###DialogoCrearPrefab").c_str(), nullptr,
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Nombre del prefab:");
+            ImGui::Text("%s", Localizacion::tr(Texto::NombreDelPrefab));
             ImGui::InputText("##NombrePrefab", bufferDialogo, sizeof(bufferDialogo),
                              ImGuiInputTextFlags_EnterReturnsTrue);
             ImGui::Separator();
-            if (ImGui::Button("Crear", ImVec2(120, 0))) {
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Crear).c_str(), ImVec2(120, 0))) {
                 if (bufferDialogo[0] != '\0' && editor && editor->getPrefabLibrary()) {
                     editor->getPrefabLibrary()->crearPrefab(bufferDialogo, objetoEnDialogo, editor);
                 }
@@ -143,7 +150,7 @@ void SceneObjectTree::dibujarDialogosModales() {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancelar", ImVec2(120, 0))) {
+            if (ImGui::Button(Localizacion::etiqueta(Texto::Cancelar).c_str(), ImVec2(120, 0))) {
                 dialogoActivo = DialogoTipo::Ninguno;
                 objetoEnDialogo = nullptr;
                 ImGui::CloseCurrentPopup();

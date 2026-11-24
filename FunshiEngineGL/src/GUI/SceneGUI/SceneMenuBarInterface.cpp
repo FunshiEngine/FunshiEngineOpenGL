@@ -19,6 +19,9 @@
 #include "SceneMenuBarInterface.h"
 #include "../WindowNames.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SceneMenuBarInterface::SceneMenuBarInterface(bool state)
     : GeneralUserInterface("MenuBar", state, ImGuiWindowFlags_MenuBar), toggleBool(nullptr) {}
@@ -114,8 +117,8 @@ static bool botonSimulacion(const char* id, const char* etiqueta,
 void SceneMenuBarInterface::contentGUI() {
     ImGui::BeginDisabled(modoJuego_ && *modoJuego_);
     ImGui::BeginMenuBar();
-    if (ImGui::BeginMenu("Archivo")) {
-        if (ImGui::MenuItem("Exportar juego")) {
+    if (ImGui::BeginMenu(Localizacion::etiqueta(Texto::Archivo).c_str())) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::ExportarJuego).c_str())) {
             abrirDialogoExportacion();
         }
         ImGui::EndMenu();
@@ -124,7 +127,7 @@ void SceneMenuBarInterface::contentGUI() {
     // explorador, que la config persistia cerrado y no se podia volver a
     // mostrar). Al tildar/destildar se publica VentanaEstadoCambio; main lo
     // aplica a la ventana y lo persiste en la config del proyecto.
-    if (ImGui::BeginMenu("Ventanas")) {
+    if (ImGui::BeginMenu(Localizacion::etiqueta(Texto::Ventanas).c_str())) {
         static const char* kVentanasEditables[] = {
             WindowNames::BrowseFile, WindowNames::ShowFolder,
             WindowNames::SelectedObjects, WindowNames::Status,
@@ -147,7 +150,7 @@ void SceneMenuBarInterface::contentGUI() {
         // llega desde afuera. El estado viaja en el mismo mapa de ventanas.
         if (!panelesMods_.empty()) {
             ImGui::Separator();
-            ImGui::TextDisabled("Paneles de mods");
+            ImGui::TextDisabled("%s", Localizacion::tr(Texto::PanelesDeMods));
             for (const auto& panel : panelesMods_) {
                 auto it = ventanas_.find(panel.first);
                 const bool abierta =
@@ -164,19 +167,19 @@ void SceneMenuBarInterface::contentGUI() {
         }
         ImGui::EndMenu();
     }
-    if (gizmoGlobal && ImGui::BeginMenu("Gizmo")) {
+    if (gizmoGlobal && ImGui::BeginMenu(Localizacion::etiqueta(Texto::Gizmo).c_str())) {
         // Sistema de coordenadas del gizmo: LOCAL (los ejes rotan con el
         // objeto seleccionado) o GLOBAL (ejes del mundo fijos, el gizmo no
         // rota con el objeto). Tambien se alterna con la tecla G.
         if (*gizmoGlobal) {
-            if (ImGui::MenuItem("Local (ejes del objeto)", "G")) *gizmoGlobal = false;
-            ImGui::MenuItem("Global (ejes del mundo)", "G", true);
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::LocalEjesDelObjeto).c_str(), "G")) *gizmoGlobal = false;
+            ImGui::MenuItem(Localizacion::etiqueta(Texto::GlobalEjesDelMundo).c_str(), "G", true);
         } else {
-            ImGui::MenuItem("Local (ejes del objeto)", "G", true);
-            if (ImGui::MenuItem("Global (ejes del mundo)", "G")) *gizmoGlobal = true;
+            ImGui::MenuItem(Localizacion::etiqueta(Texto::LocalEjesDelObjeto).c_str(), "G", true);
+            if (ImGui::MenuItem(Localizacion::etiqueta(Texto::GlobalEjesDelMundo).c_str(), "G")) *gizmoGlobal = true;
         }
         ImGui::Separator();
-        ImGui::TextDisabled("La tecla G alterna entre ambos.\nOperacion: 1/T mover, 2/R rotar, 3/Y escalar");
+        ImGui::TextDisabled("%s", Localizacion::tr(Texto::LaTeclaGAlternaEntre));
         ImGui::EndMenu();
     }
     ImGui::EndMenuBar();
@@ -212,7 +215,7 @@ void SceneMenuBarInterface::contentGUI() {
             accionSimulacion_)
             accionSimulacion_(AccionSimulacion::Terminar);
         ImGui::SameLine();
-        ImGui::Text("Estado: %s%s",
+        ImGui::Text(Localizacion::tr(Texto::Estado),
                     pausada ? "PAUSADO" : "ACTIVO",
                     modoJuego_ && *modoJuego_ ? " (Juego)" : " (Depuracion)");
     } else {
