@@ -369,6 +369,24 @@ int main() {
               "el nombre del texto sirve como ID estable");
     }
 
+    // Idioma vigente del editor: tr() y etiquetas ImGui con ID fijo.
+    {
+        Localizacion::fijarIdiomaActual("English");
+        CHECK(Localizacion::idiomaActual() == 1, "el idioma vigente se fija por nombre o codigo");
+        CHECK(std::string(Localizacion::tr(Texto::Archivo)) == "File",
+              "tr() usa el idioma vigente");
+        CHECK(Localizacion::etiqueta(Texto::Aceptar) == "Accept###Aceptar",
+              "la etiqueta lleva el nombre del texto como ID fijo");
+        CHECK(Localizacion::etiqueta(Texto::Aceptar, "##fila3") == "Accept###Aceptar##fila3",
+              "el sufijo ## original distingue widgets con el mismo texto");
+        CHECK(Localizacion::etiqueta(Texto::DialogoRenombrar, "###DialogoRenombrar") ==
+                  "Rename###DialogoRenombrar",
+              "un sufijo ### se usa tal cual como ID");
+        Localizacion::fijarIdiomaActual("es");
+        CHECK(Localizacion::etiqueta(Texto::Aceptar) == "Aceptar###Aceptar",
+              "cambiar de idioma cambia el texto y no el ID");
+    }
+
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;
     std::cout << (fallos == 0 ? "MENUMODEL TESTS OK" : "MENUMODEL TESTS FALLO")
               << std::endl;
