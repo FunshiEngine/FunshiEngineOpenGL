@@ -54,19 +54,19 @@ int main() {
     // 2. Traduccion es/en con efecto en vivo al cambiar el idioma.
     {
         MenuModel m;
-        CHECK(std::string(m.traducir(Texto::IniciarEstudio)) == "Iniciar Estudio",
+        CHECK(std::string(m.traducir(Texto::IniciarEstudio)) == "Iniciar estudio",
               "traduce al espanol en estado inicial");
         CHECK(std::string(m.traducir(Texto::Volver)) == "Volver", "clave volver es");
 
         m.setIdioma("English");
-        CHECK(std::string(m.traducir(Texto::IniciarEstudio)) == "Start Studio",
+        CHECK(std::string(m.traducir(Texto::IniciarEstudio)) == "Start studio",
               "al cambiar de idioma la etiqueta se traduce");
         CHECK(std::string(m.traducir(Texto::ConfigProyecto)) == "Configure project",
               "traduce config_proyecto");
         CHECK(std::string(m.traducir(Texto::Volver)) == "Back", "traduce volver");
 
         m.setIdioma("Espanol");
-        CHECK(std::string(m.traducir(Texto::IniciarEstudio)) == "Iniciar Estudio",
+        CHECK(std::string(m.traducir(Texto::IniciarEstudio)) == "Iniciar estudio",
               "vuelve al espanol al cambiar de nuevo");
     }
 
@@ -380,7 +380,7 @@ int main() {
         CHECK(Localizacion::etiqueta(Texto::Aceptar, "##fila3") == "Accept###Aceptar##fila3",
               "el sufijo ## original distingue widgets con el mismo texto");
         CHECK(Localizacion::etiqueta(Texto::DialogoRenombrar, "###DialogoRenombrar") ==
-                  "Rename###DialogoRenombrar",
+                  "Rename object###DialogoRenombrar",
               "un sufijo ### se usa tal cual como ID");
         Localizacion::fijarIdiomaActual("es");
         CHECK(Localizacion::etiqueta(Texto::Aceptar) == "Aceptar###Aceptar",

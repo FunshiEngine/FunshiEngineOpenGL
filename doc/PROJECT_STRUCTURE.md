@@ -418,7 +418,7 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── SceneSelectedInterface.h/.cpp  ← jerarquía y selección; usa EditorController
         │       ├── SceneObjectTree.h/.cpp         ← árbol de objetos (drag & drop para reparentar;
         │       │                                  soltar un .prefab instancia en la raíz y
-        │       │                                  Crear Prefab guarda la selección)
+        │       │                                  Crear prefab guarda la selección)
         │       └── SceneMenuBarInterface.h/.cpp   ← controles Depuración/Juego/Pausa/Reset/Terminar
         ├── GUIManager/
         │   └── GUIManager.h/.cpp         ← fábrica de ventanas y su registro (cada
@@ -1102,13 +1102,26 @@ Todos los textos que muestra el motor viven en un solo archivo,
 - Agregar un texto: una linea `TEXTO(Nombre, "...")` en **cada** bloque, en la
   misma posicion. Agregar un idioma: copiar el bloque 0 al final, numerarlo y
   traducirlo; aparece solo en el combo de idioma.
-- Para ImGui, la etiqueta lleva el nombre del texto como ID oculto
-  (`"Salir##Salir"`): el ID no cambia al cambiar de idioma.
+- Para ImGui, `Localizacion::etiqueta(Texto::X)` arma `"<texto>###X"`: el ID
+  no cambia al cambiar de idioma. Los modales traducen el título y mantienen
+  un ID fijo (`"###DialogoRenombrar"`); su `OpenPopup` usa ese mismo ID.
+- Idioma vigente del editor: lo fijan `main` al arrancar y `MainGUI` al
+  cambiar el idioma (`Localizacion::fijarIdiomaActual`); las ventanas lo leen
+  con `Localizacion::tr(Texto::X)` y cambian en el momento.
+- Normas de redacción: el archivo está en UTF-8 y los textos llevan su
+  ortografía (tildes, ñ, `¿?`; la fuente por defecto de ImGui tiene esos
+  caracteres y MSVC compila con `/utf-8`). En español se usa voseo
+  ("Escribí", "Seleccioná") y solo la primera letra en mayúscula
+  ("Eliminar carpeta"); en inglés también ("Delete folder"). Siempre frases
+  enteras: nada de "del %s" con una palabra suelta, porque otro idioma no
+  arma la frase igual.
+- Herramienta: los textos se pasan del código a `Textos.inc` con
+  `ExtractorTextosCpp` (repositorio aparte, `TheOpenTool`).
 
-Estado: hoy usan `Textos.inc` el menu de inicio y sus vistas (Opciones,
-proyectos). El resto del editor (barra de menus, jerarquia, inspector,
-dialogos) todavia tiene textos fijos en espanol y se esta pasando a
-`Textos.inc` por ventana.
+Estado: usan `Textos.inc` el menú de inicio, la barra de menús de la escena,
+la jerarquía y sus diálogos, y el explorador de archivos. El resto (inspector,
+barra de estado, exportación, partículas, terminal) todavía tiene textos fijos
+en español y se está pasando por ventana.
 
 ### Persistencia
 

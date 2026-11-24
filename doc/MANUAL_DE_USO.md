@@ -72,7 +72,7 @@ cmake --build FunshiEngineGL/build -j$(nproc)
    **Eliminar proyecto**: el modal pide confirmacion y borra de disco la
    escena, los assets y la configuracion de ese proyecto (irreversible). Si
    eliminabas el proyecto abierto, el motor vuelve al estado "sin proyecto".
-   "Iniciar Estudio" crea el proyecto y sus carpetas automaticamente.
+   "Iniciar estudio" crea el proyecto y sus carpetas automaticamente.
 2. Navega la escena con `W`/`A`/`S`/`D`, `Espacio`/`Shift` y el mouse (nav FPS).
    `E` oculta los paneles; `Escape` vuelve al menu desde edicion y termina la
    simulacion desde Depuración o Juego.
@@ -319,7 +319,7 @@ escena con IDs nuevos; el original no se toca.
 **Crear un prefab**
 
 1. Selecciona el objeto raiz en la jerarquía (**SelectedObjects**).
-2. Clic derecho sobre el objeto y elige **Crear Prefab**.
+2. Clic derecho sobre el objeto y elige **Crear prefab**.
 3. Escribe el nombre y confirma. El archivo aparece en
    `Prefabs/<nombre>.prefab` dentro de los assets del proyecto y se lista en
    el explorador de contenido.
@@ -665,8 +665,8 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 **Como usar:**
 
-1. Copia tus assets a las carpetas del proyecto (o crealas con "New Folder" /
-   "New File"); el FileSystemWatcher rescanea al detectar cambios externos.
+1. Copia tus assets a las carpetas del proyecto (o crealas con "Nueva carpeta" /
+   "Nuevo archivo"); el FileSystemWatcher rescanea al detectar cambios externos.
 2. Selecciona el objeto y arrastra el asset sobre el control correspondiente
    del panel del componente ("Arrastra modelo", campo Fuente del script,
    boton de la fuente de audio, zona de pistas de Musica, dropdown de
@@ -1048,7 +1048,7 @@ La vista **Opciones** del menú de inicio tiene tres pestañas:
   (mouse-look, 0.02 a 5.0) y *Sensibilidad de movimiento* (velocidad de
   `WASD`, 0.1 a 5.0).
 
-Ademas hay un boton **Restablecer configuracion** (fuera de las pestañas) que
+Ademas hay un boton **Restablecer configuración** (fuera de las pestañas) que
 vuelve **toda** la configuracion a los defaults, conservando el nombre del
 proyecto.
 
@@ -2129,7 +2129,7 @@ genera el archivo que después se arrastra sobre un emisor.
   de vuelta al editor para retocarlo y regenerarlo.
 - Los **prefabs** se manejan desde **SelectedObjects**: se instancian
   arrastrando su `.prefab` sobre el panel y se guardan con clic derecho sobre
-  el objeto (**Crear Prefab**). El flujo completo está en el capítulo 4,
+  el objeto (**Crear prefab**). El flujo completo está en el capítulo 4,
   "Prefabs: reutilizar jerarquías completas".
 - **Pestaña Animaciones**: referencia a dónde se configura una animación 2D
   (el inspector del componente `Animador2D`); el taller propio de animaciones

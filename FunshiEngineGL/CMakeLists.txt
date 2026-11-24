@@ -51,6 +51,13 @@ else()
     endif()
 endif()
 
+# Localizacion/Textos.inc guarda los textos del editor en UTF-8 (tildes, enie,
+# signos de apertura). GCC y Clang leen y generan UTF-8 por defecto; MSVC usa la
+# pagina de codigos del sistema salvo que se le pida /utf-8.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # Runtime de C++ de MSVC (CMP0091): el engine y las .dll de script que compila
 # en runtime tienen que usar el MISMO CRT. Los SerializeField cruzan la frontera
 # de la .dll con std::string, std::vector y std::function: la memoria se aloca

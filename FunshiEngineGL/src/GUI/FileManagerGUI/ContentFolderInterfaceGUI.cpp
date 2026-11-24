@@ -90,27 +90,27 @@ void ContentFolderInterface::initGUI() {
     }
 
     if (ImGui::BeginPopupContextWindow("AddFilesPopup", ImGuiPopupFlags_MouseButtonRight)) {
-        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NewScript).c_str())) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NuevoScript).c_str())) {
             // Abre dialogo para elegir tipo de script (C++ o Java)
             tipoScriptSeleccionado = 0; // default C++
             abrirPopupTipoScript = true;
             ImGui::CloseCurrentPopup();
         }
-        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NewFolder).c_str())) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NuevaCarpeta).c_str())) {
             creandoCarpeta = true; creandoScript = false;
             creandoScriptJava = false;
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             abrirPopupNombre = true;
             ImGui::CloseCurrentPopup();
         }
-        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NewFile).c_str())) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::NuevoArchivo).c_str())) {
             creandoCarpeta = false; creandoScript = false;
             creandoScriptJava = false;
             memset(nombreNuevo, 0, sizeof(nombreNuevo));
             abrirPopupNombre = true;
             ImGui::CloseCurrentPopup();
         }
-        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CopyExistFolder).c_str()) && sel->carpetaActual) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CopiarCarpetaExistente).c_str()) && sel->carpetaActual) {
             std::string sourceFolder = FileManager::seleccionarCarpetaSistema();
             if (!sourceFolder.empty()) {
                 const std::string destFolder =
@@ -127,7 +127,7 @@ void ContentFolderInterface::initGUI() {
                 }
             }
         }
-        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CopyExistFile).c_str()) && sel->carpetaActual) {
+        if (ImGui::MenuItem(Localizacion::etiqueta(Texto::CopiarArchivoExistente).c_str()) && sel->carpetaActual) {
             std::string sourceFile = FileManager::seleccionarArchivoSistema();
             if (!sourceFile.empty()) {
                 const std::string destFolder =
