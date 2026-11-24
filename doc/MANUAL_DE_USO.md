@@ -791,6 +791,9 @@ Detalles que conviene saber:
   segun su escala al cambiar. Hasta la version anterior arrancaba en
   `(0, -1, 0)`: un juego que dependa de esa caida lenta puede fijarla con
   `fijarGravedadGlobal(0, -1, 0)` al empezar.
+- La simulacion avanza con un **paso fijo de 1/60 s**: si un frame tarda mas,
+  se hacen varios pasos (hasta 8) para que el tiempo simulado siga al real
+  (antes un frame lento hacia que todo fuera en camara lenta).
 - Mientras se manipula el gizmo, `stepSimulation` se pausa (la gravedad podria
   "eyectar" el objeto); al soltar, la simulacion sigue.
 - Gizmo dedicado de fisica para el collider activo.

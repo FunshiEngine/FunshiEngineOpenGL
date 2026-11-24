@@ -21,10 +21,12 @@
 RigidBody::RigidBody(Collider* collider, float mass)
     : collider(collider), mass(mass) {
     pos[0] = pos[1] = pos[2] = 0.0f;
-    rot[0] = 0.0f; // angulo en grados
+    // rot es un cuaternion x, y, z, w: sin collider queda la identidad (antes
+    // (0, 0, 1, 0), un giro de 180 grados en Z que se serializaba asi).
+    rot[0] = 0.0f;
     rot[1] = 0.0f;
-    rot[2] = 1.0f; // eje Y por defecto
-    rot[3] = 0.0f;
+    rot[2] = 0.0f;
+    rot[3] = 1.0f;
     createRigidBody();
 }
 
@@ -86,6 +88,8 @@ void RigidBody::createRigidBody() {
     btRigidBody::btRigidBodyConstructionInfo rbInfo(mass, motionState.get(),
                                                     shape, localInertia);
     rigidBody = std::make_unique<btRigidBody>(rbInfo);
+    // El backend de fisica resuelve el RigidBody de cada contacto por aca.
+    rigidBody->setUserPointer(this);
     if (!activo) rigidBody->forceActivationState(DISABLE_SIMULATION);
     aplicarPropiedades();
 }

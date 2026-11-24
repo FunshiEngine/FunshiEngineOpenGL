@@ -85,6 +85,8 @@ public:
     void setVisibleEnEscena(bool visible) { visibleInScene = visible; }
     void registrarContacto(Collider* otro);
     void limpiarContactos() { contactos_.clear(); }
+    // Quita un collider de los contactos (el que sale del mundo de fisica).
+    void olvidarContacto(const Collider* otro);
     std::size_t cantidadContactos() const { return contactos_.size(); }
     Collider* contactoEnIndice(std::size_t indice) const;
 

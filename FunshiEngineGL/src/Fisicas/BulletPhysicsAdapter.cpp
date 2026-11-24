@@ -18,6 +18,7 @@
 */
 #include "BulletPhysicsAdapter.h"
 
+#include <algorithm>
 #include <functional>
 
 #include "../Objetos/Componentes/RigidBody/RigidBody.h"
@@ -61,7 +62,10 @@ void BulletPhysicsAdapter::stepSimulation(float deltaTime) {
         if (Collider* collider = body->getCollider())
             collider->limpiarContactos();
     }
-    dynamicsWorld->stepSimulation(deltaTime);
+    // Paso fijo de 1/60 s con hasta kMaxSubPasos subpasos por frame: la
+    // simulacion avanza en tiempo real aunque el frame tarde mas de 16 ms (con
+    // un solo subpaso, Bullet descartaba el resto y todo iba en camara lenta).
+    dynamicsWorld->stepSimulation(deltaTime, kMaxSubPasos, kPasoFijo);
 
     std::set<ParColliders> contactosActuales;
     for (int i = 0; i < dispatcher->getNumManifolds(); ++i) {
@@ -71,32 +75,22 @@ void BulletPhysicsAdapter::stepSimulation(float deltaTime) {
             static_cast<const btCollisionObject*>(manifold->getBody0());
         const auto* objetoB =
             static_cast<const btCollisionObject*>(manifold->getBody1());
-        const auto* cuerpoA = static_cast<const btRigidBody*>(objetoA);
-        const auto* cuerpoB = static_cast<const btRigidBody*>(objetoB);
         for (int contacto = 0; contacto < manifold->getNumContacts(); ++contacto) {
             const btManifoldPoint& punto = manifold->getContactPoint(contacto);
             if (punto.getDistance() > 0.01f) continue;
             const btVector3 normalHaciaA = punto.m_normalWorldOnB;
-            RigidBody* bodyA = nullptr;
-            RigidBody* bodyB = nullptr;
-            for (RigidBody* body : cuerpos_) {
-                if (!body || !body->estaActivo()) continue;
-                if (body->getRigidBody() == cuerpoA) {
-                    bodyA = body;
-                } else if (body->getRigidBody() == cuerpoB) {
-                    bodyB = body;
-                }
-                // Un sensor no es suelo: atraviesa lo que detecta y no debe
-                // habilitar saltos al cuerpo que lo toca.
-                if (!body->esSensor() && body->getRigidBody() == cuerpoA &&
-                    normalHaciaA.y() > 0.5f) {
-                    body->actualizarEstadoSuelo(true);
-                } else if (!body->esSensor() &&
-                           body->getRigidBody() == cuerpoB &&
-                           normalHaciaA.y() < -0.5f) {
-                    body->actualizarEstadoSuelo(true);
-                }
-            }
+            // Cada btRigidBody guarda su RigidBody en el userPointer: se
+            // resuelve en O(1) en vez de recorrer todos los cuerpos por punto.
+            // Solo cuentan los cuerpos registrados y activos (el suelo
+            // infinito no tiene RigidBody).
+            RigidBody* bodyA = cuerpoRegistrado(objetoA);
+            RigidBody* bodyB = cuerpoRegistrado(objetoB);
+            // Un sensor no es suelo: atraviesa lo que detecta y no debe
+            // habilitar saltos al cuerpo que lo toca.
+            if (bodyA && !bodyA->esSensor() && normalHaciaA.y() > 0.5f)
+                bodyA->actualizarEstadoSuelo(true);
+            if (bodyB && !bodyB->esSensor() && normalHaciaA.y() < -0.5f)
+                bodyB->actualizarEstadoSuelo(true);
             Collider* colliderA = bodyA ? bodyA->getCollider() : nullptr;
             Collider* colliderB = bodyB ? bodyB->getCollider() : nullptr;
             if (colliderA && colliderB && colliderA != colliderB) {
@@ -158,13 +152,36 @@ void BulletPhysicsAdapter::removeRigidBody(RigidBody* body) {
     cuerpos_.erase(body);
     if (dynamicsWorld && body->getRigidBody())
         dynamicsWorld->removeRigidBody(body->getRigidBody());
+    Collider* quitado = body->getCollider();
+    if (quitado) quitado->limpiarContactos();
+    // Ningun collider que quede en el mundo sigue apuntando al que sale.
     for (RigidBody* registrado : cuerpos_)
         if (registrado && registrado->getCollider())
-            registrado->getCollider()->limpiarContactos();
-    if (Collider* collider = body->getCollider())
-        collider->limpiarContactos();
-    contactosAnteriores_.clear();
-    eventosContacto_.clear();
+            registrado->getCollider()->olvidarContacto(quitado);
+    // Se olvidan solo los contactos del cuerpo que sale del mundo: los demas
+    // pares siguen siendo los mismos y no deben volver a reportarse como
+    // "Inicio" en el proximo paso. Tampoco se entregan eventos que lo
+    // nombren (su collider puede destruirse despues de esto).
+    for (auto it = contactosAnteriores_.begin(); it != contactosAnteriores_.end();) {
+        if (it->first == quitado || it->second == quitado) {
+            it = contactosAnteriores_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    eventosContacto_.erase(
+        std::remove_if(eventosContacto_.begin(), eventosContacto_.end(),
+                       [quitado](const EventoContacto& e) {
+                           return e.colliderA == quitado || e.colliderB == quitado;
+                       }),
+        eventosContacto_.end());
+}
+
+RigidBody* BulletPhysicsAdapter::cuerpoRegistrado(const btCollisionObject* objeto) const {
+    if (!objeto) return nullptr;
+    auto* body = static_cast<RigidBody*>(objeto->getUserPointer());
+    if (!body || !cuerpos_.count(body) || !body->estaActivo()) return nullptr;
+    return body;
 }
 
 BulletPhysicsAdapter::ParColliders BulletPhysicsAdapter::ordenarPar(
@@ -204,15 +221,8 @@ ResultadoRaycast BulletPhysicsAdapter::raycast(float ox, float oy, float oz,
         // El collider golpeado se recupera del objeto de colision de Bullet.
         // Cada Collider del motor envuelve un btCollisionObject; lo buscamos
         // comparando punteros de cuerpo rigid.
-        const btCollisionObject* obj = callback.m_collisionObject;
-        if (obj) {
-            for (RigidBody* body : cuerpos_) {
-                if (body && body->getRigidBody() == obj) {
-                    resultado.collider = body->getCollider();
-                    break;
-                }
-            }
-        }
+        if (RigidBody* body = cuerpoRegistrado(callback.m_collisionObject))
+            resultado.collider = body->getCollider();
     }
     return resultado;
 }

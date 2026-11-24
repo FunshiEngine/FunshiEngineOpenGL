@@ -18,7 +18,95 @@
 */
 #include "SceneSerializationTestsDetalle.h"
 
+// Fisica: el paso es fijo (1/60) con subpasos, asi un frame largo avanza su
+// tiempo completo; quitar un cuerpo no reinicia los contactos de los demas; y
+// cada btRigidBody conoce su RigidBody (busqueda O(1) en los contactos).
+void fisicaPasoFijoYContactosAlQuitar() {
+    // 1. Caida libre de 0.1 s en un solo frame: v = g * t con g = -9.81.
+    {
+        GameObject cae;
+        Transform* t = cae.getComponent<Transform>();
+        t->setTranslatef(0.0f, 100.0f, 0.0f);
+        auto col = std::make_unique<EsfereCollider>(0.5f, t, &cae);
+        Collider* colPtr = col.get();
+        cae.addComponent(std::move(col));
+        auto cuerpo = std::make_unique<RigidBody>(colPtr, 1.0f);
+        RigidBody* cuerpoPtr = cuerpo.get();
+        cae.addComponent(std::move(cuerpo));
+        CHECK(cuerpoPtr->getRigidBody()->getUserPointer() == cuerpoPtr,
+              "el btRigidBody apunta a su RigidBody");
+
+        BulletPhysicsAdapter fisica;
+        fisica.addRigidBody(cuerpoPtr);
+        fisica.stepSimulation(0.1f);
+        const float vy = cuerpoPtr->getRigidBody()->getLinearVelocity().y();
+        CHECK(std::abs(vy - (-9.81f * 0.1f)) < 0.05f,
+              "un frame de 0.1 s simula 0.1 s completos (antes solo 1/60)");
+        fisica.removeRigidBody(cuerpoPtr);
+    }
+
+    // 2. Un contacto que sigue no vuelve a ser "Inicio" porque salga del mundo
+    //    otro cuerpo que no participa en el.
+    {
+        GameObject sensor, movil, lejano;
+        Transform* tS = sensor.getComponent<Transform>();
+        Transform* tM = movil.getComponent<Transform>();
+        Transform* tL = lejano.getComponent<Transform>();
+        tS->setTranslatef(0.0f, 10.0f, 0.0f);
+        tM->setTranslatef(0.1f, 10.0f, 0.0f);
+        tL->setTranslatef(50.0f, 10.0f, 0.0f);
+        auto colS = std::make_unique<EsfereCollider>(1.0f, tS, &sensor);
+        auto colM = std::make_unique<EsfereCollider>(1.0f, tM, &movil);
+        auto colL = std::make_unique<EsfereCollider>(1.0f, tL, &lejano);
+        Collider* pS = colS.get();
+        Collider* pM = colM.get();
+        Collider* pL = colL.get();
+        sensor.addComponent(std::move(colS));
+        movil.addComponent(std::move(colM));
+        lejano.addComponent(std::move(colL));
+        auto bS = std::make_unique<RigidBody>(pS, 0.0f);
+        auto bM = std::make_unique<RigidBody>(pM, 1.0f);
+        auto bL = std::make_unique<RigidBody>(pL, 0.0f);
+        RigidBody* rS = bS.get();
+        RigidBody* rM = bM.get();
+        RigidBody* rL = bL.get();
+        rS->fijarSensor(true);
+        rM->fijarUsoGravedad(false);
+        sensor.addComponent(std::move(bS));
+        movil.addComponent(std::move(bM));
+        lejano.addComponent(std::move(bL));
+
+        BulletPhysicsAdapter fisica;
+        fisica.addRigidBody(rS);
+        fisica.addRigidBody(rM);
+        fisica.addRigidBody(rL);
+        auto tipoDelPar = [&](const std::vector<EventoContacto>& eventos, int& tipo) {
+            tipo = -1;
+            for (const EventoContacto& e : eventos)
+                if ((e.colliderA == pS && e.colliderB == pM) || (e.colliderA == pM && e.colliderB == pS))
+                    tipo = static_cast<int>(e.tipo);
+        };
+        int tipo = -1;
+        for (int i = 0; i < 3; ++i) {
+            fisica.stepSimulation(1.0f / 60.0f);
+            tipoDelPar(fisica.tomarEventosContacto(), tipo);
+        }
+        CHECK(tipo == static_cast<int>(TipoContacto::Persistencia),
+              "el sensor y el movil siguen en contacto");
+        fisica.removeRigidBody(rL);
+        CHECK(pM->cantidadContactos() > 0, "quitar otro cuerpo no borra los contactos del movil");
+        fisica.stepSimulation(1.0f / 60.0f);
+        tipoDelPar(fisica.tomarEventosContacto(), tipo);
+        CHECK(tipo == static_cast<int>(TipoContacto::Persistencia),
+              "el contacto sigue siendo persistente tras quitar un cuerpo ajeno");
+        fisica.removeRigidBody(rS);
+        CHECK(pM->cantidadContactos() == 0, "al quitar el sensor el movil lo olvida");
+        fisica.removeRigidBody(rM);
+    }
+}
+
 int main() {
+    fisicaPasoFijoYContactosAlQuitar();
     nombresPorDefecto();
     roundTripDeEscena();
     tagsCompatiblesConEscenasAnteriores();

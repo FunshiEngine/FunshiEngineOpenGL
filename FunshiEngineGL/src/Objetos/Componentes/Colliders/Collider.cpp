@@ -18,6 +18,8 @@
 */
 #include "Collider.h"
 
+#include <algorithm>
+
 #include <cmath>
 #include <cstdint>
 #include <btBulletDynamicsCommon.h>
@@ -205,6 +207,11 @@ void Collider::registrarContacto(Collider* otro) {
     for (Collider* contacto : contactos_)
         if (contacto == otro) return;
     contactos_.push_back(otro);
+}
+
+void Collider::olvidarContacto(const Collider* otro) {
+    contactos_.erase(std::remove(contactos_.begin(), contactos_.end(), otro),
+                     contactos_.end());
 }
 
 Collider* Collider::contactoEnIndice(std::size_t indice) const {
