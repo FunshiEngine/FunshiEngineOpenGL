@@ -129,6 +129,16 @@ void MenuGUI::limpiarProyectoAEliminar() noexcept {
     model.limpiarProyectoAEliminar();
 }
 
+const MenuModel::PedidoImportar& MenuGUI::getImportacion() const noexcept {
+    return model.getImportacion();
+}
+
+void MenuGUI::limpiarImportacion() noexcept { model.limpiarImportacion(); }
+
+void MenuGUI::setResultadoImportacion(const MenuModel::ResultadoImportar& resultado) {
+    model.setResultadoImportacion(resultado);
+}
+
 MenuModel::SeccionConfig MenuGUI::getSeccionConfig() const noexcept {
     return model.getSeccionConfig();
 }
@@ -168,8 +178,11 @@ void MenuGUI::actualizarProyectos() {
     const std::filesystem::directory_iterator fin;
     for (; it != fin; it.increment(ec)) {
         if (ec) break;
-        if (it->is_directory(ec)) {
-            proyectos.push_back(it->path().filename().string());
+        // Las carpetas ocultas (".importando-X" de una importacion en curso o
+        // cortada) no son proyectos.
+        const std::string nombre = it->path().filename().string();
+        if (it->is_directory(ec) && !nombre.empty() && nombre[0] != '.') {
+            proyectos.push_back(nombre);
         }
     }
     std::sort(proyectos.begin(), proyectos.end());

@@ -134,6 +134,12 @@ public:
     void setProyectoAEliminar(const std::string& nombre) noexcept;
     void limpiarProyectoAEliminar() noexcept;
 
+    // Importar proyecto (passthrough al modelo): la vista pide la copia y main
+    // la ejecuta y deja el resultado.
+    const MenuModel::PedidoImportar& getImportacion() const noexcept;
+    void limpiarImportacion() noexcept;
+    void setResultadoImportacion(const MenuModel::ResultadoImportar& resultado);
+
     // ---- Vista ConfigProyecto (barra de secciones + intenciones) ----
 
     // Seccion activa de la barra de navegacion de ConfigProyecto (el gestor

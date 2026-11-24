@@ -27,6 +27,7 @@
 
 #include "MenuModel.h"
 #include "StartMenuPresenter.h"
+#include "../../Configuracion/Proyecto/ImportarProyecto.h"
 
 // Vista del menu de inicio: pantalla completa a traves del paquete MenuGUI.
 // Es la capa de presentacion del patron MVP que define este paquete. NO
@@ -61,6 +62,13 @@ private:
     // modal ("EliminarProyecto": aviso irreversible + Eliminar/Cancelar).
     std::string proyectoEliminando;
     bool abrirModalEliminar = false;
+
+    // Seccion Importar: lo que eligio el usuario (analizado una vez, al
+    // elegirlo, no en cada frame) y el nombre con el que entraria.
+    ImportarProyecto::Origen origenImportar;
+    bool hayOrigenImportar = false;
+    char nombreImportarBuffer[256] = "";
+    void elegirOrigenImportar(const std::string& ruta);
 
     void renderizarPrincipal();
     void renderizarOpciones();

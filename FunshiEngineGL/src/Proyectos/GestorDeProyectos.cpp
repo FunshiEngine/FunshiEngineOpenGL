@@ -25,6 +25,8 @@
 #include "../GUI/MenusGUI/MenuGUI.h"
 #include "../Scenes/GameScene.h"
 #include "../Scenes/Serializacion/RutasReescritura.h"
+#include "../GUI/MenusGUI/TextosImportar.h"
+#include "../Configuracion/Proyecto/ImportarProyecto.h"
 
 namespace fs = std::filesystem;
 
@@ -215,6 +217,29 @@ void GestorDeProyectos::eliminarProyectoDesdeMenu() {
             }
         }
         menu_->limpiarProyectoAEliminar();
+    }
+}
+
+void GestorDeProyectos::importarProyectoDesdeMenu() {
+    const MenuModel::PedidoImportar pedido = menu_->getImportacion();
+    if (pedido.carpeta.empty()) return;
+    menu_->limpiarImportacion();
+
+    // Se vuelve a analizar en el momento de copiar: entre la eleccion y el
+    // clic el origen pudo cambiar en disco.
+    const ImportarProyecto::Origen origen = ImportarProyecto::analizar(pedido.carpeta);
+    const ImportarProyecto::Problema problema = ImportarProyecto::importar(origen, pedido.nombre);
+
+    MenuModel::ResultadoImportar resultado;
+    resultado.hay = true;
+    resultado.exito = problema == ImportarProyecto::Problema::Ninguno;
+    resultado.texto = textoProblemaImportar(problema);
+    resultado.nombre = pedido.nombre;
+    menu_->setResultadoImportacion(resultado);
+    if (resultado.exito) {
+        std::cerr << "[proyectos] importado '" << pedido.nombre << "' desde " << origen.carpeta << "\n";
+    } else {
+        std::cerr << "[proyectos] no se pudo importar desde " << pedido.carpeta << "\n";
     }
 }
 

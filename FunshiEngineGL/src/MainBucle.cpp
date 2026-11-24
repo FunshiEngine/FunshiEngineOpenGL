@@ -185,6 +185,9 @@ void ejecutarBucle(ContextoEditor& c) {
             // Eliminacion de proyecto confirmada desde el modal del menu.
             gestor.eliminarProyectoDesdeMenu();
 
+            // Importacion pedida desde Configurar proyecto (copia en disco).
+            gestor.importarProyectoDesdeMenu();
+
             if (mainMenu->ConsultarMenu()) {
                 // Refresca el listado de proyectos (carpetas de FunshiEngine-DATA):
                 // recoge proyectos creados/borrados mientras el menu esta abierto.
