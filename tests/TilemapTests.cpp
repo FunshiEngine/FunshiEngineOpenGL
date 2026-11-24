@@ -16,62 +16,19 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-// Pruebas headless del tileset (JSON estilo Tiled) y del componente Tilemap:
-//   - parseo del tileset, geometria de la grilla y flag de solidez por tile,
-//   - capas, pintado por celda y revision,
-//   - horneado de la malla (una malla por tilemap, cuatriangulos por tile),
-//   - round-trip binario del componente.
-//
-// Patron de autoria (ver Skills): CHECK definido en este archivo, sin
-// dependencias de GUI/OpenGL, y salida final "OK/FALLOS: N comprobaciones".
+#include "TilemapTestsDetalle.h"
 
-#include <cmath>
-#include <cstdint>
-#include <fstream>
-#include <iostream>
-#include <memory>
-#include <string>
-
-#include <btBulletDynamicsCommon.h>
-
-#include "TempPruebas.h"
-#include "../FunshiEngineGL/src/Assets/Mallas/Mesh.h"
-#include "../FunshiEngineGL/src/Assets/Tiles/Tileset.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/TilemapCollider.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Colliders/TiposShapeBullet.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Juego2D/Tilemap.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Juego2D/PincelTilemap.h"
-#include "../FunshiEngineGL/src/Comandos/GestorComandos.h"
-#include "../FunshiEngineGL/src/Comandos/Tilemap/PintarTilesComando.h"
-#include "../FunshiEngineGL/src/Scenes/Registro/SceneRegistry.h"
-#include "../FunshiEngineGL/src/Objetos/Componentes/Escena/Transform.h"
-#include "../FunshiEngineGL/src/Objetos/GameObject.h"
-#include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
+namespace TilemapTestsDetalle {
 
 int total = 0;
 int fallos = 0;
 
-#define CHECK(cond, msg)                                                       \
-    do {                                                                       \
-        ++total;                                                               \
-        if (!(cond)) {                                                         \
-            ++fallos;                                                          \
-            std::cout << "  [FALLO] " << msg << std::endl;                     \
-        }                                                                      \
-    } while (0)
+}  // namespace TilemapTestsDetalle
+using namespace TilemapTestsDetalle;
 
 namespace {
+
 bool casi(float a, float b) { return std::fabs(a - b) < 1e-4f; }
-
-std::string ruta(const TempPruebas::CarpetaPrueba& carpeta,
-                 const std::string& nombre) {
-    return (carpeta.ruta() / nombre).string();
-}
-
-void escribir(const std::string& ruta, const std::string& contenido) {
-    std::ofstream file(ruta, std::ios::binary);
-    file << contenido;
-}
 
 // Tileset de 4 columnas x 2 filas de tiles de 16x16 en un atlas de 64x32, con
 // los tiles 2 y 5 marcados como solidos.
@@ -388,7 +345,8 @@ void identificacionShapesSinRtti() {
     CHECK(TiposShapeBullet::comoCascoConvexo(nullptr) == nullptr,
           "una shape nula no se toma por casco convexo");
 }
-} // namespace
+
+}  // namespace
 
 // Pintado desde la escena: la celda bajo un punto local es la inversa exacta
 // de la geometria horneada, y cada herramienta devuelve solo lo que cambio.

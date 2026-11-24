@@ -16,74 +16,19 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-// Pruebas headless de la API de inspeccion de escena (src/Inspeccion).
-//
-// Cubren: las conversiones texto <-> valor, el catalogo de propiedades de los
-// componentes, los filtros de objetos, las vistas, las mutaciones (crear
-// objeto, etiquetar, agregar y quitar componentes, asignar variables) y que
-// todas las mutaciones se puedan deshacer.
-//
-// No se requiere pila grafica ni AudioManager. La fisica no se instancia: los
-// comandos toleran que el editor no tenga mundo de fisica.
+#include "InspeccionEscenaTestsDetalle.h"
 
-#include <cstdio>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <memory>
-#include <string>
-#include <vector>
-
-#include "Assets/Mallas/AssetManager.h"
-#include "Behaviour/ScriptGameObject.h"
-#include "Events/EventBus.h"
-#include "Inspeccion/ApiEscena.h"
-#include "Inspeccion/InspeccionEscena.h"
-#include "Inspeccion/PropiedadesComponentes.h"
-#include "Inspeccion/TextoValor.h"
-#include "Objetos/Componentes/Escena/Light.h"
-#include "Objetos/Componentes/Escena/Transform.h"
-#include "Objetos/GameObject.h"
-#include "Scenes/Editor/EditorController.h"
-#include "Scenes/Registro/SceneRegistry.h"
-#include "Scenes/Serializacion/SceneSerializer.h"
-
-#include "TempPruebas.h"
-
-namespace fs = std::filesystem;
-using MotorInspeccion::FiltroObjetos;
-using MotorInspeccion::VistaComponente;
-using MotorInspeccion::VistaObjeto;
-
-namespace {
+namespace InspeccionEscenaTestsDetalle {
 
 int total = 0;
 int fallos = 0;
 
-#define CHECK(cond, msg)                                                      \
-    do {                                                                      \
-        ++total;                                                              \
-        if (!(cond)) {                                                        \
-            ++fallos;                                                         \
-            std::cout << "FALLO: " << msg << " (linea " << __LINE__ << ")"    \
-                      << std::endl;                                           \
-        }                                                                     \
-    } while (0)
-
-// Escena de trabajo: registro de objetos, controlador del editor y la API
-// encima. Sin fisica ni eventos: la API no los necesita para leer ni para
-// mutar.
-struct Contexto {
-    SceneRegistry escena;
-    EditorController editor;
-    MotorInspeccion::InspeccionEscena api;
-
-    Contexto() : escena(), editor(&escena), api(&escena, &editor) {}
-};
+}  // namespace InspeccionEscenaTestsDetalle
+using namespace InspeccionEscenaTestsDetalle;
 
 // Crea un objeto por la API. Todos los objetos nacen con un Transform (lo
 // agrega Entity al construirlos), asi que aqui no hay que agregarlo.
-int crearObjeto(Contexto& ctx, const std::string& nombre, int idPadre = 0) {
+int crearObjeto(Contexto& ctx, const std::string& nombre, int idPadre) {
     std::string error;
     int id = -1;
     if (!ctx.api.crearObjeto(nombre, idPadre, id, error)) return -1;
@@ -469,93 +414,4 @@ void probarObjetos() {
     CHECK(!ctx.editor.deshacer().empty(), "la creacion se puede deshacer");
     CHECK(!ctx.api.objetoPorId(huerfano).has_value(),
           "tras deshacer el objeto ya no esta");
-}
-
-// --- Tipos y version ------------------------------------------------------------
-
-void probarVersion() {
-    Contexto ctx;
-    const std::vector<std::string> tipos = ctx.api.tiposDeComponente();
-    bool tieneTransform = false;
-    bool tieneRigidBody = false;
-    for (const std::string& tipo : tipos) {
-        if (tipo == "Transform") tieneTransform = true;
-        if (tipo == "RigidBody") tieneRigidBody = true;
-    }
-    CHECK(tieneTransform && tieneRigidBody,
-          "la API enumera los tipos de componente del catalogo");
-    CHECK(ctx.api.version() == MotorInspeccion::versionApiEscena,
-          "la version del contrato es la del modulo de inspeccion");
-    CHECK(MotorInspeccion::versionApiEscena != MotorScript::versionRuntimeScript,
-          "el contrato de inspeccion y el de scripts se versionan por separado");
-}
-
-// --- Guardar y cargar ------------------------------------------------------------
-
-void probarGuardarCargar() {
-    TempPruebas::CarpetaPrueba carpeta("funshi_inspeccion_tests");
-    const fs::path base = carpeta.ruta();
-
-    EventBus events;
-    AssetManager assets;
-    SceneRegistry escena;
-    EditorController editor(&escena, nullptr, &events, &assets);
-    SceneSerializer serializer(&escena, &editor, &assets);
-    MotorInspeccion::InspeccionEscena api(&escena, &editor, &serializer);
-
-    std::string error;
-    int id = -1;
-    CHECK(api.crearObjeto("Enemigo", 0, id, error), "se crea el objeto");
-    CHECK(api.asignarVariable(id, "Transform", "position", "1 2 3", error),
-          "se le mueve");
-
-    const fs::path archivo = base / "escena.db";
-    CHECK(api.guardarEscena(archivo.string(), error), "se guarda la escena");
-    CHECK(fs::exists(std::string(archivo.string()) + MotorInspeccion::indiceEscena),
-          "el indice de la escena existe");
-    CHECK(fs::is_directory(archivo),
-          "la escena se guarda en una carpeta con un binario por objeto");
-
-    // Recargar en una escena nueva debe recuperar el cambio: si la escritura
-    // del transform se desincronizara de la copia que se serializa, el
-    // valor guardado seria el viejo.
-    SceneRegistry recargada;
-    EditorController editorRecarga(&recargada, nullptr, &events, &assets);
-    SceneSerializer serializerRecarga(&recargada, &editorRecarga, &assets);
-    MotorInspeccion::InspeccionEscena apiRecarga(&recargada, &editorRecarga,
-                                                  &serializerRecarga);
-    CHECK(apiRecarga.cargarEscena(archivo.string(), error),
-          "la escena guardada se puede cargar");
-    std::optional<VistaObjeto> vista = apiRecarga.objetoPorId(id);
-    CHECK(vista.has_value() && vista->posicionLocal[0] == 1.0f,
-          "el objeto recargado conserva la posicion");
-
-    // Una ruta imposible: dentro de un archivo, no de una carpeta.
-    const fs::path bloqueo = base / "bloqueo";
-    {
-        std::ofstream archivo(bloqueo);
-        archivo << "bloquea la carpeta";
-    }
-    CHECK(!api.guardarEscena((bloqueo / "escena").string(), error),
-          "guardar en una ruta imposible falla con motivo");
-    CHECK(!error.empty(), "el motivo de la ruta imposible se explica");
-    CHECK(!api.cargarEscena((base / "no-existe").string(), error),
-          "cargar una escena inexistente falla con motivo");
-}
-
-}  // namespace
-
-int main() {
-    probarTextoValor();
-    probarCatalogo();
-    probarFiltros();
-    probarPosiciones();
-    probarMutaciones();
-    probarObjetos();
-    probarVersion();
-    probarGuardarCargar();
-
-    std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
-              << " comprobaciones" << std::endl;
-    return fallos == 0 ? 0 : 1;
 }

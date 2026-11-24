@@ -583,7 +583,7 @@ if(NOT BUILD_RUNTIME)
 # dependencias del motor (ImGui, componentes, EditorController, SceneRegistry).
 # Solo se compila el archivo de test; las fuentes del motor vienen del engine.
 add_executable(comandos-tests
-    ${FUNSHI_TESTS_CI_DIR}/ComandosTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ComandosTests.cpp ${FUNSHI_TESTS_CI_DIR}/ComandosTests2.cpp
 )
 target_include_directories(comandos-tests PRIVATE
     ${SRC_DIR}
@@ -609,7 +609,7 @@ endif()
 # Necesita funshi_engine (SceneRegistry/SceneSerializer/EditorController), asi
 # que al igual que comandos-tests solo se compila con BUILD_ENGINE=ON.
 add_executable(escena-serializacion-tests
-    ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests.cpp ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests2.cpp ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests3.cpp ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests4.cpp ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests5.cpp ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests6.cpp ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests7.cpp ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests8.cpp ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests9.cpp
 )
 target_include_directories(escena-serializacion-tests PRIVATE
     ${SRC_DIR}
@@ -636,7 +636,7 @@ set_tests_properties(escena-serializacion-tests PROPERTIES TIMEOUT 60)
 # Necesita funshi_engine (SceneRegistry/SceneSerializer/EditorController y los
 # componentes), asi que solo se compila con BUILD_ENGINE=ON.
 add_executable(inspeccion-escena-tests
-    ${FUNSHI_TESTS_CI_DIR}/InspeccionEscenaTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/InspeccionEscenaTests.cpp ${FUNSHI_TESTS_CI_DIR}/InspeccionEscenaTests2.cpp
 )
 target_include_directories(inspeccion-escena-tests PRIVATE
     ${SRC_DIR}
@@ -996,7 +996,7 @@ endif()
 # Cubre: guardar prefab -> instanciar -> conservar nombre, tag, jerarquia,
 # componentes, Transform; PrefabLibrary cache y validacion de archivos corruptos.
 add_executable(prefab-tests
-    ${FUNSHI_TESTS_CI_DIR}/PrefabTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/PrefabTests.cpp ${FUNSHI_TESTS_CI_DIR}/PrefabTests2.cpp
 )
 target_include_directories(prefab-tests PRIVATE
     ${SRC_DIR}
@@ -1200,7 +1200,7 @@ add_executable(sombras-tests
     ${SRC_DIR}/Iluminacion/MatrizLuz.cpp
     ${SRC_DIR}/Objetos/Componentes/Sombras/Sombras.cpp
     ${SRC_DIR}/Rendering/Sombras/MapaSombras.cpp
-    ${FUNSHI_TESTS_CI_DIR}/SombrasTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/SombrasTests.cpp ${FUNSHI_TESTS_CI_DIR}/SombrasTests2.cpp
 )
 target_link_libraries(sombras-tests PRIVATE
     funshi_diagnostics_core funshi_glm)
@@ -1661,7 +1661,7 @@ add_executable(rendering-tests
     ${SRC_DIR}/Rendering/Lineas/GuiaEje.cpp
     ${SRC_DIR}/Rendering/Cielo/Difuminado.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
-    ${FUNSHI_TESTS_CI_DIR}/RenderingTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/RenderingTests.cpp ${FUNSHI_TESTS_CI_DIR}/RenderingTests2.cpp ${FUNSHI_TESTS_CI_DIR}/RenderingTests3.cpp
 )
 set_target_properties(rendering-tests PROPERTIES
     CXX_STANDARD 17
@@ -1678,7 +1678,7 @@ add_executable(particulas-tests
     ${SRC_DIR}/Particulas/Perfil/PerfilParticula.cpp
     ${SRC_DIR}/Particulas/Perfil/LectorPerfil.cpp
     ${SRC_DIR}/Particulas/ParticulasBuilder.cpp
-    ${FUNSHI_TESTS_CI_DIR}/ParticulasTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ParticulasTests.cpp ${FUNSHI_TESTS_CI_DIR}/ParticulasTests2.cpp
 )
 target_include_directories(particulas-tests PRIVATE ${CMAKE_SOURCE_DIR}/External)
 set_target_properties(particulas-tests PROPERTIES
@@ -1743,7 +1743,7 @@ add_executable(scripts-runtime-tests
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
-    ${FUNSHI_TESTS_CI_DIR}/ScriptsRuntimeTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ScriptsRuntimeTests.cpp ${FUNSHI_TESTS_CI_DIR}/ScriptsRuntimeTests2.cpp
 )
 set_target_properties(scripts-runtime-tests PROPERTIES
     CXX_STANDARD 17
@@ -1853,7 +1853,7 @@ if(FUNSHI_JAVA)
         ${SRC_DIR}/Configuracion/ProjectPaths.cpp
         ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
         ${SRC_DIR}/Matematicas/StructVec3.cpp
-        ${FUNSHI_TESTS_CI_DIR}/ScriptsJavaTests.cpp
+        ${FUNSHI_TESTS_CI_DIR}/ScriptsJavaTests.cpp ${FUNSHI_TESTS_CI_DIR}/ScriptsJavaTests2.cpp
     )
     set_target_properties(scripts-java-tests PROPERTIES
         CXX_STANDARD 17
