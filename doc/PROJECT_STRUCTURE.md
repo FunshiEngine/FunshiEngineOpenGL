@@ -439,6 +439,11 @@ FunshiEngineGL/                          ← raíz del repo
         │       ├── ReglaIconoCatalogo.h/.cpp ← la regla que lee el catálogo (fuente única)
         │       ├── IResolutorIconos.h   ← contrato: tipo de componente → textura
         │       └── CatalogoIconos.h/.cpp← une la regla con la carga en GPU (a demanda)
+        ├── Localizacion/
+        │   ├── Textos.inc               ← TODOS los textos del motor, un bloque por idioma
+        │   │                              (formato posicional; ver "Textos e idiomas")
+        │   └── Localizacion.h/.cpp      ← enum Texto, idiomas numerados y busqueda
+        │                                  numeroIdioma * N + texto (biblioteca funshi_localizacion)
         ├── Iluminacion/
         │   ├── LightSystem.h/.cpp        ← dueño del estado GL de luces (GL_LIGHT0..7) por frame
         │   │                              (además devuelve el objeto dueño de cada luz)
@@ -1071,6 +1076,40 @@ solo como orquestador de arranque y bucle.
   (lógica pura) + `MenuView` (ImGui) + `StartMenuPresenter` (puente motor).
   Ver `src/GUI/MenusGUI/README.md`.
 
+### Textos e idiomas
+
+Todos los textos que muestra el motor viven en un solo archivo,
+`src/Localizacion/Textos.inc`, en formato **posicional**:
+
+- El archivo tiene un bloque por idioma. Cada bloque empieza con
+  `IDIOMA(numero, "codigo", "nombre")` y los numeros van en orden: `0` es el
+  espanol (idioma base), `1` el ingles, y asi.
+- Todos los bloques tienen los mismos **N** textos en el mismo orden
+  (`Localizacion::kCantidadTextos`). N es la distancia entre un idioma y el
+  siguiente.
+- El texto en la posicion `i` del idioma `n` esta en `n * N + i` de una sola
+  tabla. El codigo lo pide con `Localizacion::texto(numeroIdioma, Texto::Nombre)`;
+  `Texto::Nombre` es la posicion `i`, generada del bloque 0, asi nadie escribe
+  numeros sueltos.
+- El compilador comprueba (`static_assert`) que los idiomas esten numerados en
+  orden y que cada bloque tenga los mismos textos en las mismas posiciones: un
+  texto faltante o fuera de lugar no compila.
+- Un texto vacio (`""`) en un idioma muestra el del idioma 0. Un numero de
+  idioma inexistente usa el idioma 0.
+- La configuracion guarda el **codigo** (`"es"`, `"en"`), no el numero ni el
+  nombre, asi reordenar o renombrar idiomas no rompe lo guardado. Los valores
+  viejos (`"Espanol"`, `"English"`) se migran al cargar.
+- Agregar un texto: una linea `TEXTO(Nombre, "...")` en **cada** bloque, en la
+  misma posicion. Agregar un idioma: copiar el bloque 0 al final, numerarlo y
+  traducirlo; aparece solo en el combo de idioma.
+- Para ImGui, la etiqueta lleva el nombre del texto como ID oculto
+  (`"Salir##Salir"`): el ID no cambia al cambiar de idioma.
+
+Estado: hoy usan `Textos.inc` el menu de inicio y sus vistas (Opciones,
+proyectos). El resto del editor (barra de menus, jerarquia, inspector,
+dialogos) todavia tiene textos fijos en espanol y se esta pasando a
+`Textos.inc` por ventana.
+
 ### Persistencia
 
 - `SceneSerializer` es el único responsable del archivo `BBDDObjetos.txt` y de los
@@ -1107,7 +1146,7 @@ solo como orquestador de arranque y bucle.
   junto al binario (Linux y Windows), y cada campo va a uno u otro según si es
   una preferencia de la máquina o del proyecto abierto:
   `<directorioEjecutable>/FunshiEngine-DATA/Configuraciones/Configuracion.json`
-  (**general**: último proyecto, idioma, sensibilidad de cámara, sensibilidad de
+  (**general**: último proyecto, idioma (código `es`/`en`), sensibilidad de cámara, sensibilidad de
   movimiento y perfil de apariencia) y
   `Proyects/<proyecto>/Memory/ConfiguracionProyecto.json` (**por proyecto**:
   operación y sistema de coordenadas del gizmo, ventana de cámaras, estado
@@ -1339,7 +1378,9 @@ Los módulos con muchos archivos se agrupan en subcarpetas por responsabilidad
 ### 6.2 Archivos divididos por tamaño
 
 Ningún archivo propio del motor pasa de 450 líneas (los de terceros —ImGui,
-miniaudio, stb, json, miniz— quedan como vienen). Una clase grande se reparte
+miniaudio, stb, json, miniz— quedan como vienen). La excepción es
+`Localizacion/Textos.inc`: es un archivo de datos con todos los textos y crece
+con cada idioma, así que no se divide. Una clase grande se reparte
 en varias unidades con el mismo prefijo y una responsabilidad cada una, por
 ejemplo `GameScene.cpp`, `GameSceneSimulacion.cpp`, `GameSceneCamaras.cpp`,
 `GameSceneGUI.cpp`, `GameSceneUpdate.cpp`, `GameSceneScripts.cpp` y
@@ -1411,8 +1452,10 @@ restantes compilan también con `BUILD_ENGINE=OFF`):
   escribir; si no, la carpeta de datos del usuario, migrando lo que ya hubiera
   junto al ejecutable).
 - `eventbus-tests` (17): suscripción/publicación/unsubscribe del canal tipado de GUI.
-- `menu-tests` (40): lógica pura del menú (traducción, observer de cambios —sin
-  notificar al reaplicar una apariencia idéntica— y reset).
+- `menu-tests` (91): lógica pura del menú (traducción, observer de cambios —sin
+  notificar al reaplicar una apariencia idéntica— y reset) y `Localizacion`
+  (idiomas numerados, posición `numeroIdioma * N + texto`, respaldo al idioma 0,
+  migración de nombres viejos de idioma).
 - `assetmanager-tests` (95): caché Flyweight de meshes (rutas `AssetPath`, con los prefijos
   UNC y `\\?` preservados al normalizar) y geometría de `Mesh` con `computeBounds`,
   `computeNormals` —incluido el modo `soloFaltantes` para assets que mezclan sub-mallas con

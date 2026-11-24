@@ -26,6 +26,8 @@
 #include "../FunshiEngineGL/src/GUI/MenusGUI/MenuModel.h"
 #include "../FunshiEngineGL/src/Localizacion/Localizacion.h"
 
+using Localizacion::Texto;
+
 namespace {
 int total = 0;
 int fallos = 0;
@@ -52,27 +54,29 @@ int main() {
     // 2. Traduccion es/en con efecto en vivo al cambiar el idioma.
     {
         MenuModel m;
-        CHECK(m.traducir("iniciar_estudio") == "Iniciar Estudio",
+        CHECK(std::string(m.traducir(Texto::IniciarEstudio)) == "Iniciar Estudio",
               "traduce al espanol en estado inicial");
-        CHECK(m.traducir("volver") == "Volver", "clave volver es");
+        CHECK(std::string(m.traducir(Texto::Volver)) == "Volver", "clave volver es");
 
         m.setIdioma("English");
-        CHECK(m.traducir("iniciar_estudio") == "Start Studio",
+        CHECK(std::string(m.traducir(Texto::IniciarEstudio)) == "Start Studio",
               "al cambiar de idioma la etiqueta se traduce");
-        CHECK(m.traducir("config_proyecto") == "Configure project",
+        CHECK(std::string(m.traducir(Texto::ConfigProyecto)) == "Configure project",
               "traduce config_proyecto");
-        CHECK(m.traducir("volver") == "Back", "traduce volver");
+        CHECK(std::string(m.traducir(Texto::Volver)) == "Back", "traduce volver");
 
         m.setIdioma("Espanol");
-        CHECK(m.traducir("iniciar_estudio") == "Iniciar Estudio",
+        CHECK(std::string(m.traducir(Texto::IniciarEstudio)) == "Iniciar Estudio",
               "vuelve al espanol al cambiar de nuevo");
     }
 
-    // 3. Claves inexistentes se devuelven tal cual (nunca rompe).
+    // 3. Un texto fuera de rango no rompe: devuelve cadena vacia (no nullptr).
     {
         MenuModel m;
-        CHECK(m.traducir("clave_inexistente") == "clave_inexistente",
-              "clave desconocida se devuelve intacta");
+        const char* fuera = m.traducir(
+            static_cast<Texto>(Localizacion::kCantidadTextos + 5));
+        CHECK(fuera != nullptr && std::string(fuera).empty(),
+              "texto fuera de rango devuelve vacio, nunca nullptr");
     }
 
     // 4. Observer: cada mutacion notifica el campo correcto.
@@ -193,12 +197,12 @@ int main() {
     // 8. Etiquetas del selector de proyectos traducidas.
     {
         MenuModel m;
-        CHECK(m.traducir("proyectos") == "Proyectos", "clave proyectos es");
-        CHECK(m.traducir("sin_proyectos").find("Configurar proyecto") != std::string::npos,
+        CHECK(std::string(m.traducir(Texto::Proyectos)) == "Proyectos", "clave proyectos es");
+        CHECK(std::string(m.traducir(Texto::SinProyectos)).find("Configurar proyecto") != std::string::npos,
               "aviso de lista vacia menciona Configurar proyecto");
         m.setIdioma("English");
-        CHECK(m.traducir("proyectos") == "Projects", "clave proyectos en");
-        CHECK(m.traducir("editar_nombre") == "Edit name", "clave editar_nombre en");
+        CHECK(std::string(m.traducir(Texto::Proyectos)) == "Projects", "clave proyectos en");
+        CHECK(std::string(m.traducir(Texto::EditarNombre)) == "Edit name", "clave editar_nombre en");
     }
 
     // 9. Edicion de nombre por click derecho (vacia = confirmar normal).
@@ -273,32 +277,32 @@ int main() {
     // 13. Claves nuevas del diseno por secciones (es/en).
     {
         MenuModel m;
-        CHECK(m.traducir("crear_proyecto") == "Crear proyecto",
+        CHECK(std::string(m.traducir(Texto::CrearProyecto)) == "Crear proyecto",
               "clave crear_proyecto es");
-        CHECK(m.traducir("importar_proyecto") == "Importar proyecto",
+        CHECK(std::string(m.traducir(Texto::ImportarProyecto)) == "Importar proyecto",
               "clave importar_proyecto es");
-        CHECK(m.traducir("proyecto_actual") == "Proyecto actual",
+        CHECK(std::string(m.traducir(Texto::ProyectoActual)) == "Proyecto actual",
               "clave proyecto_actual es");
-        CHECK(m.traducir("dimension") == "Tipo de proyecto",
+        CHECK(std::string(m.traducir(Texto::Dimension)) == "Tipo de proyecto",
               "clave dimension es");
-        CHECK(m.traducir("dimension_2d") == "2D - Plano",
+        CHECK(std::string(m.traducir(Texto::Dimension2D)) == "2D - Plano",
               "clave dimension_2d es");
-        CHECK(m.traducir("dimension_3d") == "3D - Profundidad",
+        CHECK(std::string(m.traducir(Texto::Dimension3D)) == "3D - Profundidad",
               "clave dimension_3d es");
-        CHECK(m.traducir("crear") == "Crear", "clave crear es");
-        CHECK(m.traducir("cancelar") == "Cancelar", "clave cancelar es");
+        CHECK(std::string(m.traducir(Texto::Crear)) == "Crear", "clave crear es");
+        CHECK(std::string(m.traducir(Texto::Cancelar)) == "Cancelar", "clave cancelar es");
         m.setIdioma("English");
-        CHECK(m.traducir("crear_proyecto") == "Create project",
+        CHECK(std::string(m.traducir(Texto::CrearProyecto)) == "Create project",
               "clave crear_proyecto en");
-        CHECK(m.traducir("importar_proyecto") == "Import project",
+        CHECK(std::string(m.traducir(Texto::ImportarProyecto)) == "Import project",
               "clave importar_proyecto en");
-        CHECK(m.traducir("proyecto_actual") == "Current project",
+        CHECK(std::string(m.traducir(Texto::ProyectoActual)) == "Current project",
               "clave proyecto_actual en");
-        CHECK(m.traducir("dimension_2d") == "2D - Flat", "clave dimension_2d en");
-        CHECK(m.traducir("dimension_3d") == "3D - Depth", "clave dimension_3d en");
-        CHECK(m.traducir("crear") == "Create", "clave crear en");
-        CHECK(m.traducir("cancelar") == "Cancel", "clave cancelar en");
-        CHECK(m.traducir("aviso_no_revertir").find("cannot") != std::string::npos,
+        CHECK(std::string(m.traducir(Texto::Dimension2D)) == "2D - Flat", "clave dimension_2d en");
+        CHECK(std::string(m.traducir(Texto::Dimension3D)) == "3D - Depth", "clave dimension_3d en");
+        CHECK(std::string(m.traducir(Texto::Crear)) == "Create", "clave crear en");
+        CHECK(std::string(m.traducir(Texto::Cancelar)) == "Cancel", "clave cancelar en");
+        CHECK(std::string(m.traducir(Texto::AvisoNoRevertir)).find("cannot") != std::string::npos,
               "aviso_no_revertir en menciona que no se puede");
     }
 
@@ -319,7 +323,7 @@ int main() {
     }
 
     // Localizacion: el idioma se guarda por codigo, los nombres viejos se
-    // migran y cada idioma tiene su texto (sin claves mezcladas).
+    // migran y el texto sale de la posicion numeroIdioma * N + texto.
     {
         CHECK(Localizacion::normalizarIdioma("English") == "en",
               "el nombre viejo English se normaliza a en");
@@ -332,25 +336,37 @@ int main() {
         CHECK(Localizacion::nombreIdioma("en") == "English",
               "el combo muestra el nombre del idioma, no el codigo");
 
+        // Idiomas numerados en orden: 0 = es, 1 = en.
+        CHECK(Localizacion::cantidadIdiomas() == 2, "dos bloques de idioma");
+        CHECK(Localizacion::numeroIdioma("es") == 0, "espanol es el idioma 0");
+        CHECK(Localizacion::numeroIdioma("en") == 1, "ingles es el idioma 1");
+        CHECK(Localizacion::idioma(1).numero == 1 &&
+                  std::string(Localizacion::idioma(1).codigo) == "en",
+              "idioma(1) es el bloque del ingles");
+
         MenuModel m;
         m.setIdioma("English");
         CHECK(m.getIdioma() == "en", "setIdioma guarda el codigo");
-        CHECK(m.traducir("salir") == "Exit", "salir en ingles");
+        CHECK(std::string(m.traducir(Texto::Salir)) == "Exit", "salir en ingles");
         m.setIdioma("es");
-        CHECK(m.traducir("salir") == "Salir",
+        CHECK(std::string(m.traducir(Texto::Salir)) == "Salir",
               "salir en espanol ya no dice Exit");
-        CHECK(Localizacion::texto("fr", "volver") == "Volver",
-              "un idioma sin tabla usa el texto en espanol");
+        CHECK(std::string(Localizacion::texto("fr", Texto::Volver)) == "Volver",
+              "un idioma sin bloque usa el texto del idioma 0");
+        CHECK(std::string(Localizacion::texto(99, Texto::Volver)) == "Volver",
+              "un numero de idioma fuera de rango usa el idioma 0");
 
-        // Cada idioma disponible responde con texto (propio o de respaldo).
-        for (const auto& idioma : Localizacion::idiomas()) {
-            CHECK(!Localizacion::texto(idioma.codigo, "iniciar_estudio").empty(),
-                  "cada idioma tiene texto para iniciar_estudio");
+        // Cada idioma tiene texto para cada posicion (propio o de respaldo).
+        bool completos = true;
+        for (std::size_t n = 0; n < Localizacion::cantidadIdiomas(); ++n) {
+            for (std::size_t i = 0; i < Localizacion::kCantidadTextos; ++i) {
+                const char* t = Localizacion::texto(n, static_cast<Texto>(i));
+                if (t == nullptr || t[0] == '\0') completos = false;
+            }
         }
-        CHECK(Localizacion::existeClave("config_proyecto"),
-              "la clave config_proyecto existe en el idioma base");
-        CHECK(!Localizacion::existeClave("clave_inexistente"),
-              "una clave inexistente no figura en el idioma base");
+        CHECK(completos, "ningun texto queda vacio en ningun idioma");
+        CHECK(std::string(Localizacion::nombre(Texto::ConfigProyecto)) == "ConfigProyecto",
+              "el nombre del texto sirve como ID estable");
     }
 
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;

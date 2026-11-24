@@ -29,12 +29,12 @@ void MenuView::renderizarOpciones() {
     ImGui::BeginChild("##opciones", ImVec2(kAncho, win.y - 50.0f - kAltoInferior),
                       false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
-    ImGui::TextUnformatted(model->traducir("opciones").c_str());
+    ImGui::TextUnformatted(model->traducir(Texto::Opciones));
     ImGui::Separator();
 
     // Idioma: afecta a todas las pestanas, por eso vive fuera de ellas.
     {
-        ImGui::TextUnformatted(model->traducir("idioma").c_str());
+        ImGui::TextUnformatted(model->traducir(Texto::Idioma));
         const std::vector<std::string>& idiomas = model->getIdiomas();
         const std::string& actual = model->getIdioma();
         ImGui::SetNextItemWidth(-1.0f);
@@ -57,7 +57,7 @@ void MenuView::renderizarOpciones() {
 
     if (ImGui::BeginTabBar("##pestanasOpciones")) {
         // ---- Audio: volumen maestro de efectos de sonido. ----
-        if (ImGui::BeginTabItem(model->traducir("audio").c_str())) {
+        if (ImGui::BeginTabItem(model->traducir(Texto::Audio))) {
             float volumen = model->getVolumenMaestro();
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::SliderFloat("##volumenMaestro", &volumen, 0.0f, 1.0f,
@@ -70,8 +70,8 @@ void MenuView::renderizarOpciones() {
         }
 
         // ---- Apariencia: tema, B/N, acento y fondos de cielo. ----
-        if (ImGui::BeginTabItem(model->traducir("apariencia").c_str())) {
-            ImGui::TextUnformatted(model->traducir("radio_difuminado").c_str());
+        if (ImGui::BeginTabItem(model->traducir(Texto::Apariencia))) {
+            ImGui::TextUnformatted(model->traducir(Texto::RadioDifuminado));
             // Radio del circulo-horizonte de la grilla y de la guia de eje,
             // en unidades de mundo: por debajo del slider el piso se ve mas
             // cerca y con menos lineas (mas performant); por encima llega mas
@@ -96,11 +96,11 @@ void MenuView::renderizarOpciones() {
             Apariencia ap = model->getApariencia();
             bool cambio = false;
 
-            cambio |= ImGui::Checkbox(etiqueta(model, "tema_claro").c_str(),
+            cambio |= ImGui::Checkbox(etiqueta(model, Texto::TemaClaro).c_str(),
                                       &ap.temaClaro);
-            cambio |= ImGui::Checkbox(etiqueta(model, "modo_bn").c_str(),
+            cambio |= ImGui::Checkbox(etiqueta(model, Texto::ModoBN).c_str(),
                                       &ap.blancoYNegro);
-            ImGui::TextUnformatted(model->traducir("color_acento").c_str());
+            ImGui::TextUnformatted(model->traducir(Texto::ColorAcento));
             // Acento solo RGB (ColorEdit3 = ColorEdit4 + NoAlpha): el alpha
             // del perfil no participa del tema (cada rol aporta su propia
             // transparencia, ver TemaEditor::acento), asi que no se expone la
@@ -108,13 +108,13 @@ void MenuView::renderizarOpciones() {
             // enlaces de la interfaz. ColorEdit3 preserva acento[3] tal como
             // estaba guardado.
             cambio |= ImGui::ColorEdit3("##acento", ap.acento);
-            ImGui::TextUnformatted(model->traducir("color_cielo_superior").c_str());
+            ImGui::TextUnformatted(model->traducir(Texto::ColorCieloSuperior));
             cambio |= ImGui::ColorEdit3("##cieloSuperior", ap.fondoSuperior);
-            ImGui::TextUnformatted(model->traducir("color_cielo_inferior").c_str());
+            ImGui::TextUnformatted(model->traducir(Texto::ColorCieloInferior));
             cambio |= ImGui::ColorEdit3("##cieloInferior", ap.fondoInferior);
-            ImGui::TextDisabled("%s", model->traducir("ayuda_bn").c_str());
+            ImGui::TextDisabled("%s", model->traducir(Texto::AyudaBN));
 
-            if (ImGui::Button(etiqueta(model, "restablecer_apariencia").c_str(),
+            if (ImGui::Button(etiqueta(model, Texto::RestablecerApariencia).c_str(),
                               ImVec2(-1.0f, 0.0f))) {
                 ap.restablecer();
                 cambio = true;
@@ -125,8 +125,8 @@ void MenuView::renderizarOpciones() {
         }
 
         // ---- Controles: sensibilidad de camara y de movimiento. ----
-        if (ImGui::BeginTabItem(model->traducir("controles").c_str())) {
-            ImGui::TextUnformatted(model->traducir("sensibilidad_camara").c_str());
+        if (ImGui::BeginTabItem(model->traducir(Texto::Controles))) {
+            ImGui::TextUnformatted(model->traducir(Texto::SensibilidadCamara));
             float sensibilidad = model->getSensibilidadCamara();
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::SliderFloat("##sensibilidad", &sensibilidad, 0.02f,
@@ -134,7 +134,7 @@ void MenuView::renderizarOpciones() {
                 model->setSensibilidadCamara(sensibilidad);
             }
 
-            ImGui::TextUnformatted(model->traducir("sensibilidad_movimiento").c_str());
+            ImGui::TextUnformatted(model->traducir(Texto::SensibilidadMovimiento));
             float movimiento = model->getSensibilidadMovimientoCamara();
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::SliderFloat("##sensibilidadMovimiento", &movimiento,
@@ -152,7 +152,7 @@ void MenuView::renderizarOpciones() {
     // Boton "Volver" fijo abajo, centrado, fuera del area con scroll.
     ImGui::SetCursorPos(ImVec2((win.x - kBotonAncho) * 0.5f,
                                win.y - kAltoInferior + 20.0f));
-    if (ImGui::Button(etiqueta(model, "volver").c_str(),
+    if (ImGui::Button(etiqueta(model, Texto::Volver).c_str(),
                       ImVec2(kBotonAncho, kBotonAlto))) {
         model->volver();
     }

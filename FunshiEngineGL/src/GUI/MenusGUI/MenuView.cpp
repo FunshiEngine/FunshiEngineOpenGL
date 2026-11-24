@@ -107,7 +107,7 @@ void MenuView::renderizarPrincipal() {
         ImGui::BeginDisabled();
     }
     cursorFila(0);
-    if (ImGui::Button(etiqueta(model, "iniciar_estudio").c_str(),
+    if (ImGui::Button(etiqueta(model, Texto::IniciarEstudio).c_str(),
                       ImVec2(kBotonAncho, kBotonAlto))) {
         // Cerrar el menu afecta al resto del motor: se notifica por el
         // presenter (DebeCerrar -> ConsultarCierre en main), que hace la
@@ -120,7 +120,7 @@ void MenuView::renderizarPrincipal() {
 
     cursorFila(1);
     ImVec2 posBoton = ImGui::GetCursorScreenPos();
-    if (ImGui::Button(etiqueta(model, "config_proyecto").c_str(),
+    if (ImGui::Button(etiqueta(model, Texto::ConfigProyecto).c_str(),
                       ImVec2(kBotonAncho, kBotonAlto))) {
         model->abrirConfigProyecto();
     }
@@ -128,14 +128,14 @@ void MenuView::renderizarPrincipal() {
 
     cursorFila(2);
     posBoton = ImGui::GetCursorScreenPos();
-    if (ImGui::Button(etiqueta(model, "opciones").c_str(),
+    if (ImGui::Button(etiqueta(model, Texto::Opciones).c_str(),
                       ImVec2(kBotonAncho, kBotonAlto))) {
         model->abrirOpciones();
     }
     etiquetaDerecha(posBoton, Localizacion::nombreIdioma(model->getIdioma()).c_str());
 
     cursorFila(3);
-    if (ImGui::Button(etiqueta(model, "salir").c_str(),
+    if (ImGui::Button(etiqueta(model, Texto::Salir).c_str(),
                       ImVec2(kBotonAncho, kBotonAlto))) {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     }

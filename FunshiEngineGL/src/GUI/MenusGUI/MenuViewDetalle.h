@@ -28,6 +28,8 @@
 
 namespace {
 
+using Localizacion::Texto;
+
 // Constantes de layout del menu: tamanio de boton y desvios verticales desde
 // el centro de la ventana para cada fila del menu principal.
 constexpr float kBotonAncho = 200.0f;
@@ -55,10 +57,10 @@ constexpr float kEspacioTarjetas = 24.0f;
 // Etiqueta traducida con ID estable. ImGui deriva el ID de un widget de su
 // texto, asi que pasar la traduccion directa hacia que el ID cambiara al
 // cambiar de idioma (se perdia el foco/estado del widget en ese frame y los
-// IDs no eran predecibles). Se agrega el sufijo oculto "##<clave>": el usuario
-// ve solo el texto traducido y el ID queda atado a la clave, no al idioma.
-std::string etiqueta(const MenuModel* model, const char* clave) {
-    return model->traducir(clave) + "##" + clave;
+// IDs no eran predecibles). Se agrega el sufijo oculto "##<NombreDelTexto>": el
+// usuario ve solo el texto traducido y el ID queda atado al texto, no al idioma.
+std::string etiqueta(const MenuModel* model, Texto texto) {
+    return std::string(model->traducir(texto)) + "##" + Localizacion::nombre(texto);
 }
 
 }  // namespace

@@ -147,7 +147,15 @@ void MenuModel::setIdioma(const std::string& valor) {
 }
 
 const std::vector<std::string>& MenuModel::getIdiomas() const noexcept {
-    return idiomasDisponibles;
+    // Codigos de los idiomas de Textos.inc, en el orden de sus numeros: un
+    // idioma nuevo aparece en el combo sin tocar el menu.
+    static const std::vector<std::string> codigos = [] {
+        std::vector<std::string> v;
+        for (std::size_t n = 0; n < Localizacion::cantidadIdiomas(); ++n)
+            v.emplace_back(Localizacion::idioma(n).codigo);
+        return v;
+    }();
+    return codigos;
 }
 
 float MenuModel::getSensibilidadCamara() const noexcept {
@@ -210,8 +218,8 @@ void MenuModel::setOnCampoCambio(OnCampoCambio cb) {
     onCampoCambio = std::move(cb);
 }
 
-std::string MenuModel::traducir(const std::string& clave) const {
-    // Los textos viven en Localizacion (una tabla por idioma, con respaldo al
-    // espanol y a la clave). El modelo solo aporta el idioma elegido.
-    return Localizacion::texto(idioma, clave);
+const char* MenuModel::traducir(Localizacion::Texto texto) const {
+    // El modelo solo aporta el idioma elegido; la posicion del texto la
+    // resuelve Localizacion.
+    return Localizacion::texto(idioma, texto);
 }

@@ -83,11 +83,11 @@ bool tarjetaDimension(const MenuModel* model, const char* id,
     // el unico item de layout es el Selectable, asi que la tarjeta se comporta
     // como un bloque y las dos quedan alineadas por arriba.
     const std::string titulo =
-        model->traducir(dimension == DimensionProyecto::DosD ? "dimension_2d"
-                                                             : "dimension_3d");
+        model->traducir(dimension == DimensionProyecto::DosD ? Texto::Dimension2D
+                                                             : Texto::Dimension3D);
     const std::string descripcion =
-        model->traducir(dimension == DimensionProyecto::DosD ? "descripcion_2d"
-                                                             : "descripcion_3d");
+        model->traducir(dimension == DimensionProyecto::DosD ? Texto::Descripcion2D
+                                                             : Texto::Descripcion3D);
     const ImU32 colorTexto = ImGui::GetColorU32(ImGuiCol_Text);
     ImFont* fuente = ImGui::GetFont();
     const float tamFuente = ImGui::GetFontSize();
@@ -113,27 +113,27 @@ void MenuView::renderizarConfigProyecto() {
     ImGui::SetCursorPos(ImVec2(kMargen, kMargen));
     ImGui::BeginChild("##barraSecciones", ImVec2(kBarraAncho, altoContenido),
                       true);
-    ImGui::TextUnformatted(model->traducir("config_proyecto").c_str());
+    ImGui::TextUnformatted(model->traducir(Texto::ConfigProyecto));
     ImGui::Separator();
 
     const MenuModel::SeccionConfig activa = model->getSeccionConfig();
-    if (ImGui::Selectable(etiqueta(model, "crear_proyecto").c_str(),
+    if (ImGui::Selectable(etiqueta(model, Texto::CrearProyecto).c_str(),
                           activa == MenuModel::SeccionConfig::CrearProyecto)) {
         model->setSeccionConfig(MenuModel::SeccionConfig::CrearProyecto);
     }
-    if (ImGui::Selectable(etiqueta(model, "proyectos").c_str(),
+    if (ImGui::Selectable(etiqueta(model, Texto::Proyectos).c_str(),
                           activa == MenuModel::SeccionConfig::Proyectos)) {
         model->setSeccionConfig(MenuModel::SeccionConfig::Proyectos);
     }
     ImGui::BeginDisabled();
-    ImGui::Selectable(etiqueta(model, "importar_proyecto").c_str(),
+    ImGui::Selectable(etiqueta(model, Texto::ImportarProyecto).c_str(),
                       activa == MenuModel::SeccionConfig::Importar);
     ImGui::EndDisabled();
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
-    if (ImGui::Button(etiqueta(model, "volver").c_str(), ImVec2(-1.0f, 0.0f))) {
+    if (ImGui::Button(etiqueta(model, Texto::Volver).c_str(), ImVec2(-1.0f, 0.0f))) {
         model->volver();
     }
     ImGui::EndChild();
@@ -161,7 +161,7 @@ void MenuView::renderizarConfigProyecto() {
 }
 
 void MenuView::renderizarSeccionCrearProyecto() {
-    ImGui::TextUnformatted(model->traducir("dimension").c_str());
+    ImGui::TextUnformatted(model->traducir(Texto::Dimension));
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -185,7 +185,7 @@ void MenuView::renderizarSeccionCrearProyecto() {
     ImGui::Spacing();
     // Advertencia de que el tipo de proyecto no se puede revertir: se muestra
     // debajo de las opciones, como pide el diseno.
-    ImGui::TextWrapped(model->traducir("aviso_no_revertir").c_str());
+    ImGui::TextWrapped(model->traducir(Texto::AvisoNoRevertir));
 
     if (clic2D || clic3D) {
         model->setDimensionProyecto(clic2D ? DimensionProyecto::DosD
@@ -199,7 +199,7 @@ void MenuView::renderizarSeccionCrearProyecto() {
 
 void MenuView::renderizarSeccionProyectos() {
     // Encabezado de la seccion: cual proyecto esta activo ahora mismo.
-    ImGui::TextWrapped("%s: %s", model->traducir("proyecto_actual").c_str(),
+    ImGui::TextWrapped("%s: %s", model->traducir(Texto::ProyectoActual),
                        model->getNombreProyecto().c_str());
     ImGui::Separator();
     ImGui::Spacing();
@@ -210,7 +210,7 @@ void MenuView::renderizarSeccionProyectos() {
     // la carpeta; la intencion solo redacta los mensajes).
     const std::vector<std::string>& proyectos = model->getProyectosDisponibles();
     if (proyectos.empty()) {
-        ImGui::TextDisabled("%s", model->traducir("sin_proyectos").c_str());
+        ImGui::TextDisabled("%s", model->traducir(Texto::SinProyectos));
     } else {
         for (size_t i = 0; i < proyectos.size(); i++) {
             const std::string& nombre = proyectos[i];
@@ -233,7 +233,7 @@ void MenuView::renderizarSeccionProyectos() {
             // (igual que ContentFolderInterface). El renombre se registra en
             // el modelo y lo ejecuta main en disco.
             if (ImGui::BeginPopupContextItem()) {
-                if (ImGui::MenuItem(etiqueta(model, "editar_nombre").c_str())) {
+                if (ImGui::MenuItem(etiqueta(model, Texto::EditarNombre).c_str())) {
                     proyectoRenombrando = nombre;
                     std::memset(nombreRenombrarBuffer, 0,
                                 sizeof(nombreRenombrarBuffer));
@@ -243,7 +243,7 @@ void MenuView::renderizarSeccionProyectos() {
                     ImGui::CloseCurrentPopup();
                 }
                 if (ImGui::MenuItem(
-                        etiqueta(model, "eliminar_proyecto").c_str())) {
+                        etiqueta(model, Texto::EliminarProyecto).c_str())) {
                     proyectoEliminando = nombre;
                     abrirModalEliminar = true;
                     ImGui::CloseCurrentPopup();
@@ -260,7 +260,7 @@ void MenuView::renderizarSeccionProyectos() {
     if (!proyectoRenombrando.empty() &&
         ImGui::BeginPopupModal("RenombrarProyecto", NULL,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("%s", model->traducir("nombre").c_str());
+        ImGui::Text("%s", model->traducir(Texto::Nombre));
         ImGui::InputText("##renombrarProyecto", nombreRenombrarBuffer,
                          sizeof(nombreRenombrarBuffer));
         const bool esValido = nombreRenombrarBuffer[0] != '\0' &&
@@ -269,14 +269,14 @@ void MenuView::renderizarSeccionProyectos() {
             ImGui::BeginDisabled();
         }
         const bool confirmado =
-            ImGui::Button(etiqueta(model, "confirmar").c_str(),
+            ImGui::Button(etiqueta(model, Texto::Confirmar).c_str(),
                           ImVec2(140, 0)) ||
             (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
         if (!esValido) {
             ImGui::EndDisabled();
         }
         ImGui::SameLine();
-        if (ImGui::Button(etiqueta(model, "volver").c_str(), ImVec2(140, 0))) {
+        if (ImGui::Button(etiqueta(model, Texto::Volver).c_str(), ImVec2(140, 0))) {
             proyectoRenombrando.clear();
             std::memset(nombreRenombrarBuffer, 0,
                         sizeof(nombreRenombrarBuffer));
@@ -304,17 +304,17 @@ void MenuView::renderizarSeccionProyectos() {
     if (!proyectoEliminando.empty() &&
         ImGui::BeginPopupModal("EliminarProyecto", NULL,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("%s", model->traducir("aviso_eliminar").c_str());
+        ImGui::Text("%s", model->traducir(Texto::AvisoEliminar));
         ImGui::TextUnformatted(proyectoEliminando.c_str());
         ImGui::Separator();
         // Confirmar registra en el modelo la carpeta a eliminar; main la borra
         // de disco el proximo frame al detectar el cambio (mismo mecanismo que
         // el renombre por click derecho).
         const bool borrarConfirmado =
-            ImGui::Button(etiqueta(model, "eliminar").c_str(), ImVec2(140, 0)) ||
+            ImGui::Button(etiqueta(model, Texto::Eliminar).c_str(), ImVec2(140, 0)) ||
             (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
         ImGui::SameLine();
-        if (ImGui::Button(etiqueta(model, "volver").c_str(), ImVec2(140, 0))) {
+        if (ImGui::Button(etiqueta(model, Texto::Volver).c_str(), ImVec2(140, 0))) {
             proyectoEliminando.clear();
             ImGui::CloseCurrentPopup();
         }
@@ -328,12 +328,12 @@ void MenuView::renderizarSeccionProyectos() {
 }
 
 void MenuView::renderizarSeccionImportar() {
-    ImGui::TextUnformatted(model->traducir("importar_proyecto").c_str());
+    ImGui::TextUnformatted(model->traducir(Texto::ImportarProyecto));
     ImGui::Separator();
     ImGui::Spacing();
     // Visible pero deshabilitada: la seccion comunica que la opcion existe y
     // por que no se puede usar todavia.
-    ImGui::TextWrapped(model->traducir("importar_no_disponible").c_str());
+    ImGui::TextWrapped(model->traducir(Texto::ImportarNoDisponible));
 }
 
 void MenuView::renderizarModalCrearProyecto() {
@@ -346,7 +346,7 @@ void MenuView::renderizarModalCrearProyecto() {
         return;
     }
 
-    ImGui::Text("%s", model->traducir("nombre").c_str());
+    ImGui::Text("%s", model->traducir(Texto::Nombre));
     ImGui::InputText("##nombreCrearProyecto", nombreCrearBuffer,
                      sizeof(nombreCrearBuffer));
 
@@ -358,20 +358,20 @@ void MenuView::renderizarModalCrearProyecto() {
     const bool repetido = model->existeProyecto(nombre);
     const bool esValido = !vacio && !repetido;
     if (vacio) {
-        ImGui::TextDisabled("%s", model->traducir("nombre_vacio").c_str());
+        ImGui::TextDisabled("%s", model->traducir(Texto::NombreVacio));
     } else if (repetido) {
-        ImGui::TextDisabled("%s", model->traducir("nombre_repetido").c_str());
+        ImGui::TextDisabled("%s", model->traducir(Texto::NombreRepetido));
     } else {
         ImGui::Spacing();
     }
 
     if (!esValido) ImGui::BeginDisabled();
     const bool confirmado =
-        ImGui::Button(etiqueta(model, "crear").c_str(), ImVec2(140, 0)) ||
+        ImGui::Button(etiqueta(model, Texto::Crear).c_str(), ImVec2(140, 0)) ||
         (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
     if (!esValido) ImGui::EndDisabled();
     ImGui::SameLine();
-    if (ImGui::Button(etiqueta(model, "cancelar").c_str(), ImVec2(140, 0))) {
+    if (ImGui::Button(etiqueta(model, Texto::Cancelar).c_str(), ImVec2(140, 0))) {
         nombreCrearBuffer[0] = '\0';
         ImGui::CloseCurrentPopup();
     }

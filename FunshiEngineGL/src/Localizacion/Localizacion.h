@@ -19,45 +19,70 @@
 #ifndef LOCALIZACION_LOCALIZACION_H
 #define LOCALIZACION_LOCALIZACION_H
 
+#include <cstddef>
 #include <string>
-#include <vector>
 
-// Textos del editor en varios idiomas.
+// Textos del motor en varios idiomas, en formato posicional.
 //
-// Un idioma se identifica por su CODIGO ("es", "en"), nunca por el nombre que
-// se muestra: renombrar la etiqueta del combo no rompe la traduccion ni la
-// configuracion guardada. Las claves son identificadores estables
-// ("iniciar_estudio", "volver"...) y sus textos viven en Textos/<Idioma>.cpp.
+// Todos los textos viven en Textos.inc, en un bloque por idioma. Los idiomas
+// se numeran en orden (0 = espanol, 1 = ingles, ...) y cada bloque tiene los
+// mismos N textos en el mismo orden, asi que el texto i del idioma n esta en
+// la posicion n * N + i de una sola tabla. El codigo nombra cada texto con un
+// valor de Texto (su posicion i), nunca con un numero suelto.
 //
-// Respaldo: si el idioma pedido no tiene la clave se usa el espanol, y si
-// tampoco existe se devuelve la clave tal cual (la interfaz nunca queda en
-// blanco). En debug, una clave inexistente se avisa una sola vez por stderr.
+// La configuracion guarda el CODIGO del idioma ("es", "en"), no el numero ni
+// el nombre: reordenar o renombrar idiomas no rompe lo guardado.
 namespace Localizacion {
 
+// Posicion de cada texto dentro de un bloque (generado del bloque 0).
+#define TEXTOS_BLOQUE 0
+#define IDIOMA(numero, codigo, nombre)
+#define TEXTO(nombre, texto) nombre,
+enum class Texto : std::size_t {
+#include "Textos.inc"
+};
+#undef TEXTO
+
+// N: cantidad de textos de cada idioma (la distancia entre bloques).
+#define TEXTO(nombre, texto) +1
+inline constexpr std::size_t kCantidadTextos = 0
+#include "Textos.inc"
+    ;
+#undef TEXTO
+#undef IDIOMA
+#undef TEXTOS_BLOQUE
+
 struct Idioma {
-    const char* codigo; // "es"
+    std::size_t numero; // orden del bloque en Textos.inc
+    const char* codigo; // "es" (lo que se guarda en la configuracion)
     const char* nombre; // "Espanol" (lo que muestra el combo)
 };
 
-// Codigo del idioma base y de respaldo.
+// Idioma 0: base y respaldo.
 inline constexpr const char* kIdiomaBase = "es";
 
-// Idiomas disponibles, en el orden en que se ofrecen.
-const std::vector<Idioma>& idiomas();
+std::size_t cantidadIdiomas();
+// Idioma por numero (un numero fuera de rango da el idioma 0).
+const Idioma& idioma(std::size_t numero);
 
-// Codigo valido a partir de un codigo o de un nombre viejo guardado en la
-// configuracion ("Espanol", "English"...). Un valor desconocido o vacio da
-// el idioma base.
+// Numero del idioma con ese codigo (0 si no se conoce).
+std::size_t numeroIdioma(const std::string& codigo);
+
+// Codigo valido a partir de un codigo o de un nombre guardado por versiones
+// viejas ("Espanol", "English"...). Desconocido o vacio da el idioma base.
 std::string normalizarIdioma(const std::string& valor);
 
 // Nombre visible del idioma (el codigo si no se conoce).
 std::string nombreIdioma(const std::string& codigo);
 
-// Texto de la clave en el idioma indicado (con respaldo, ver arriba).
-std::string texto(const std::string& codigo, const std::string& clave);
+// Texto en la posicion numeroIdioma * N + texto. Si ese idioma lo deja vacio
+// o el numero no existe, devuelve el del idioma 0. Nunca nullptr.
+const char* texto(std::size_t numeroIdioma, Texto texto);
+const char* texto(const std::string& codigoIdioma, Texto texto);
 
-// true si la clave existe en el idioma base.
-bool existeClave(const std::string& clave);
+// Nombre del texto en Textos.inc ("IniciarEstudio"); sirve como ID estable de
+// ImGui ("Texto##IniciarEstudio") y para mensajes de diagnostico.
+const char* nombre(Texto texto);
 
 } // namespace Localizacion
 

@@ -54,7 +54,7 @@ bool estaVisible() const noexcept;
 Vista getVista() const noexcept;
 // datos: nombreProyecto (get/set), idioma (get/set), idiomas (get),
 // sensibilidadCamara (get/set, multiplicador del mouse look en Opciones),
-// traducir(clave) (diccionario es/en segun el idioma activo),
+// traducir(Texto::Nombre) (texto de Localizacion/Textos.inc en el idioma activo),
 // setOnCampoCambio(observer) y restablecerConfiguracion() (reset de opciones)
 ```
 
@@ -64,9 +64,9 @@ Todas las transiciones son asignaciones triviales del enum `vista`.
 
 | Vista | Contenido |
 |---|---|
-| `Principal` | Botones centrados: "Iniciar Estudio", "Config Proyect" (etiqueta con el nombre actual), "Opciones" (etiqueta con el idioma actual), "Exit". |
+| `Principal` | Botones centrados: "Iniciar Estudio", "Configurar proyecto" (etiqueta con el nombre actual), "Opciones" (etiqueta con el idioma actual), "Salir". |
 | `Opciones` | Título "Opciones", selector de idioma (`BeginCombo` sobre las opciones del modelo) y slider de sensibilidad de cámara, "Volver". |
-| `ConfigProyecto` | Título "Config Proyect", `InputText` del nombre del proyecto (buffer de 128 en la vista), "Volver". |
+| `ConfigProyecto` | Título "Configurar proyecto", `InputText` del nombre del proyecto (buffer de 128 en la vista), "Volver". |
 | `Ninguna` | Menú oculto → corre el editor (equivale a "Iniciar Estudio"). |
 
 ## Opciones del menú (vista Opciones) — efecto en vivo y persistencia
@@ -85,7 +85,11 @@ Reglas del flujo:
   **main** es quien aplica a la escena/persiste. La vista no conoce el bus.
 - El **nombre del proyecto** se conserva en el reset: define la carpeta/proyecto
   (`src<Nombre>` + `Memory`) y un reset no debe cambiar de proyecto.
-- Persistencia: `apariencia`, `idioma`, `sensibilidadCamara` viven en la config
+- Textos: ninguno esta escrito en las vistas; salen de `Localizacion/Textos.inc`
+  (un bloque por idioma, posicion `numeroIdioma * N + texto`). La lista de
+  idiomas del combo tambien sale de ahi. Ver "Textos e idiomas" en
+  `doc/PROJECT_STRUCTURE.md`.
+- Persistencia: `apariencia`, `idioma` (codigo `es`/`en`), `sensibilidadCamara` viven en la config
   **general**; `estadoVentanas`, `gizmoOperacion`, `camaraActivaId` en la del
   **proyecto** (ver `EditorConfig`).
 

@@ -25,6 +25,7 @@
 
 #include "../../Configuracion/Apariencia.h"
 #include "../../Configuracion/DimensionProyecto.h"
+#include "../../Localizacion/Localizacion.h"
 
 // Modelo del paquete MenuGUI: la capa de logica pura del menu de inicio del
 // motor (sin ImGui/GLFW ni rendering). Es el patron MVP de este paquete:
@@ -117,10 +118,10 @@ public:
 
 // Idioma: codigo de Localizacion ("es", "en"). setIdioma acepta tambien los
 // nombres viejos ("Espanol", "English") y los normaliza.
-// traducir: texto de la clave en el idioma actual (Localizacion::texto). Vive
-// en el modelo para que el efecto del idioma sea probable sin ImGui. Las
-// claves y sus textos estan en Localizacion/Textos/<Idioma>.cpp.
-    std::string traducir(const std::string& clave) const;
+// traducir: el texto en el idioma actual (Localizacion::texto, posicion
+// numeroIdioma * N + texto). Vive en el modelo para que el efecto del idioma
+// sea probable sin ImGui. Todos los textos estan en Localizacion/Textos.inc.
+    const char* traducir(Localizacion::Texto texto) const;
 
     // Sensibilidad global del mouse look de la camara (vista Opciones del
     // menu). Multiplicador aplicado en main al offset del raton; 1.0 = 1:1
@@ -180,7 +181,6 @@ private:
     // Carpeta pendiente de eliminacion (vacia = sin eliminacion registrada).
     std::string proyectoAEliminar;
     std::string idioma = "es";
-    std::vector<std::string> idiomasDisponibles = {"es", "en"}; // codigos
     float sensibilidadCamara = 0.15f;
     // Sensibilidad de movimiento (WASD) de la camara del editor. Se configura
     // en la vista Opciones junto a la sensibilidad de camara y se aplica a la

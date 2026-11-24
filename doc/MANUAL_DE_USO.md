@@ -63,7 +63,7 @@ cmake --build FunshiEngineGL/build -j$(nproc)
 
 **Primeros pasos:**
 
-1. En el menu de inicio elegi idioma y sensibilidad de camara. Abri **Config Proyect**: a la izquierda se lista la
+1. En el menu de inicio elegi idioma y sensibilidad de camara. Abri **Configurar proyecto**: a la izquierda se lista la
    carpeta de proyectos (cada carpeta de `FunshiEngine-DATA/` es un proyecto);
    elegi uno con click o crea uno escribiendo su nombre en el campo de la
    derecha y pulsando **Confirmar**. Con boton derecho sobre un proyecto se
@@ -1043,7 +1043,8 @@ La vista **Opciones** del menú de inicio tiene tres pestañas:
   - *Restablecer apariencia* — vuelve el perfil completo a los valores de
     fabrica (tema oscuro, sin modo blanco y negro, acento azul, cielo gris
     oscuro).
-- **Controles:** idioma (Espanol / English), *Sensibilidad de camara*
+- **Controles:** idioma (Espanol / English; cambia los textos al instante y
+  se recuerda al volver a abrir el editor), *Sensibilidad de camara*
   (mouse-look, 0.02 a 5.0) y *Sensibilidad de movimiento* (velocidad de
   `WASD`, 0.1 a 5.0).
 
