@@ -143,6 +143,24 @@ target_include_directories(funshi_miniz PUBLIC
 # (tests, herramientas, otros front-ends) sin recompilar todo. CI puede compilar
 # SOLO las pruebas headless con BUILD_ENGINE=OFF.
 option(BUILD_ENGINE "Build engine library and executable" ON)
+
+# Pruebas headless. Hay tests necesarios y tests no necesarios: los
+# necesarios se versionan en <repo>/tests y son los que corre la CI de GitHub;
+# los no necesarios viven en <repo>/.local/tests (ignorado por git) y se usan
+# en local para verificar el codigo producido. Los targets locales solo se
+# definen si su carpeta existe, asi un checkout limpio configura igual.
+# Se definen ANTES de if(BUILD_ENGINE): la CI configura los tests headless con
+# BUILD_ENGINE=OFF y dentro del bloque la variable quedaba vacia.
+set(FUNSHI_TESTS_CI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../tests" CACHE PATH
+    "Tests versionados (los que corre la CI)")
+set(FUNSHI_TESTS_LOCAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../.local/tests" CACHE PATH
+    "Tests locales no versionados")
+if(EXISTS "${FUNSHI_TESTS_LOCAL_DIR}")
+    set(FUNSHI_TESTS_LOCALES ON)
+else()
+    set(FUNSHI_TESTS_LOCALES OFF)
+    message(STATUS "Sin ${FUNSHI_TESTS_LOCAL_DIR}: solo se definen los tests de la CI")
+endif()
 # Soporte de scripts Java via JNI: requiere JDK en tiempo de build para jni.h.
 # El JVM en runtime se carga dinamicamente solo si hay una escena con .java.
 # Por defecto ON: si el build encuentra el JDK se habilita solo, si no, el
@@ -580,21 +598,6 @@ else()
 endif()
 target_link_libraries(funshi_engine PUBLIC funshi_glm)
 
-# Pruebas headless. Hay tests necesarios y tests no necesarios: los
-# necesarios se versionan en <repo>/tests y son los que corre la CI de GitHub;
-# los no necesarios viven en <repo>/.local/tests (ignorado por git) y se usan
-# en local para verificar el codigo producido. Los targets locales solo se
-# definen si su carpeta existe, asi un checkout limpio configura igual.
-set(FUNSHI_TESTS_CI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../tests" CACHE PATH
-    "Tests versionados (los que corre la CI)")
-set(FUNSHI_TESTS_LOCAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../.local/tests" CACHE PATH
-    "Tests locales no versionados")
-if(EXISTS "${FUNSHI_TESTS_LOCAL_DIR}")
-    set(FUNSHI_TESTS_LOCALES ON)
-else()
-    set(FUNSHI_TESTS_LOCALES OFF)
-    message(STATUS "Sin ${FUNSHI_TESTS_LOCAL_DIR}: solo se definen los tests de la CI")
-endif()
 
 if(NOT BUILD_RUNTIME)
 # Comandos (sistema undo/redo): se enlaza con funshi_engine que provee todas las
@@ -1556,30 +1559,34 @@ set_target_properties(eventbus-tests PROPERTIES
 )
 add_test(NAME eventbus-tests COMMAND eventbus-tests)
 
-# Model (componente de malla) serializa el path con prefijo de longitud. Se
-# prueba headless el round-trip y, sobre todo, que un path mas largo que el
-# buffer de lectura NO desalinee el stream: regresion del core al cargar
-# escenas con paths de mas de 99 bytes (std::length_error -> abort).
-add_executable(model-serialization-tests
-    ${SRC_DIR}/Configuracion/ProjectPaths.cpp
-    ${SRC_DIR}/Configuracion/ProjectManager.cpp
-    ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
-    ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
-    ${SRC_DIR}/Objetos/Componentes/Render/Model.cpp
-    ${SRC_DIR}/Configuracion/EditorConfig.cpp
-    ${FUNSHI_TESTS_CI_DIR}/ModelSerializationTests.cpp
-)
-target_link_libraries(model-serialization-tests PRIVATE funshi_engine)
-target_include_directories(model-serialization-tests PRIVATE
-    ${SRC_DIR}
-    ${CMAKE_SOURCE_DIR}/External
-)
-set_target_properties(model-serialization-tests PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS OFF
-)
-add_test(NAME model-serialization-tests COMMAND model-serialization-tests)
+# Enlaza funshi_engine: solo existe con BUILD_ENGINE=ON (los jobs headless de
+# la CI configuran sin engine y no lo piden).
+if(TARGET funshi_engine)
+    # Model (componente de malla) serializa el path con prefijo de longitud. Se
+    # prueba headless el round-trip y, sobre todo, que un path mas largo que el
+    # buffer de lectura NO desalinee el stream: regresion del core al cargar
+    # escenas con paths de mas de 99 bytes (std::length_error -> abort).
+    add_executable(model-serialization-tests
+        ${SRC_DIR}/Configuracion/ProjectPaths.cpp
+        ${SRC_DIR}/Configuracion/ProjectManager.cpp
+        ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
+        ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
+        ${SRC_DIR}/Objetos/Componentes/Render/Model.cpp
+        ${SRC_DIR}/Configuracion/EditorConfig.cpp
+        ${FUNSHI_TESTS_CI_DIR}/ModelSerializationTests.cpp
+    )
+    target_link_libraries(model-serialization-tests PRIVATE funshi_engine)
+    target_include_directories(model-serialization-tests PRIVATE
+        ${SRC_DIR}
+        ${CMAKE_SOURCE_DIR}/External
+    )
+    set_target_properties(model-serialization-tests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+    )
+    add_test(NAME model-serialization-tests COMMAND model-serialization-tests)
+endif()
 
 # MenuModel (logica pura del menu: traduccion, observer de cambios y reset) se
 # prueba headless como los demas: no depende de ImGui/GLFW.

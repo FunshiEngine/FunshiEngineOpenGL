@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Valida el GLSL embebido en el motor.
 
-Los shaders del motor van embebidos en el binario (ShaderSources.h), asi que
+Los shaders del motor van embebidos en el binario (ShaderSources.h y los
+headers que incluye), asi que
 un error de sintaxis no lo ve el compilador de C++: solo aparece cuando el
 driver intenta compilar el programa, con la app ya abierta. Este script
 extrae los fuentes embebidos y los compila con glslangValidator, que es un
@@ -36,6 +37,26 @@ def clasificar(nombre):
     return None
 
 
+def leer_con_includes(ruta, vistos=None):
+    """Contenido de ruta mas el de los headers locales que incluye.
+
+    ShaderSources.h agrupa los shaders por tema en varios headers
+    (ShaderMalla.h, ShaderSombras.h...) y solo los incluye: hay que seguir esos
+    #include para encontrar los fuentes.
+    """
+    vistos = set() if vistos is None else vistos
+    ruta = os.path.normpath(ruta)
+    if ruta in vistos or not os.path.isfile(ruta):
+        return ""
+    vistos.add(ruta)
+    with open(ruta, encoding="utf-8") as archivo:
+        contenido = archivo.read()
+    carpeta = os.path.dirname(ruta)
+    for incluido in re.findall(r'^\s*#include "([^"]+)"', contenido, re.M):
+        contenido += "\n" + leer_con_includes(os.path.join(carpeta, incluido), vistos)
+    return contenido
+
+
 def main():
     if not os.path.isfile(RUTO_SHADERS):
         print("No se encuentra el archivo de shaders: " + RUTO_SHADERS)
@@ -46,8 +67,7 @@ def main():
         print("glslangValidator no esta disponible: se salta la validacion.")
         return 77
 
-    with open(RUTO_SHADERS, encoding="utf-8") as archivo:
-        contenido = archivo.read()
+    contenido = leer_con_includes(RUTO_SHADERS)
 
     shaders = PATRON.findall(contenido)
     if not shaders:
