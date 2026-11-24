@@ -42,6 +42,9 @@ void GestorShaders::registrarIncorporados() {
     // Pases de profundidad del mapa de sombras: no colorea, solo deja la
     // profundidad de la geometria vista desde la luz.
     registrarShader("profundidad", kDepthVertexShader, kDepthFragmentShader);
+    // Luces puntuales: el cubemap guarda la distancia lineal a la luz.
+    registrarShader("profundidad_cubo", kDepthCuboVertexShader,
+                    kDepthCuboFragmentShader);
 }
 
 void GestorShaders::registrarFragmento(const std::string& nombre,

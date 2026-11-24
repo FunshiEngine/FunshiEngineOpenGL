@@ -63,7 +63,7 @@ cmake --build FunshiEngineGL/build -j$(nproc)
 
 **Primeros pasos:**
 
-1. En el menu de inicio elegi idioma y sensibilidad de camara. Abri **Config Proyect**: a la izquierda se lista la
+1. En el menu de inicio elegi idioma y sensibilidad de camara. Abri **Configurar proyecto**: a la izquierda se lista la
    carpeta de proyectos (cada carpeta de `FunshiEngine-DATA/` es un proyecto);
    elegi uno con click o crea uno escribiendo su nombre en el campo de la
    derecha y pulsando **Confirmar**. Con boton derecho sobre un proyecto se
@@ -72,7 +72,7 @@ cmake --build FunshiEngineGL/build -j$(nproc)
    **Eliminar proyecto**: el modal pide confirmacion y borra de disco la
    escena, los assets y la configuracion de ese proyecto (irreversible). Si
    eliminabas el proyecto abierto, el motor vuelve al estado "sin proyecto".
-   "Iniciar Estudio" crea el proyecto y sus carpetas automaticamente.
+   "Iniciar estudio" crea el proyecto y sus carpetas automaticamente.
 2. Navega la escena con `W`/`A`/`S`/`D`, `Espacio`/`Shift` y el mouse (nav FPS).
    `E` oculta los paneles; `Escape` vuelve al menu desde edicion y termina la
    simulacion desde Depuración o Juego.
@@ -112,6 +112,7 @@ FunshiEngine-DATA/
 │   └── FunshiEngineGL_<AAAAMMDD_HHMMSS>.log   ← log de arranque (UTC), uno por ejecucion
 ├── Proyects/
 │   └── <proyecto>/
+│       ├── <proyecto>.fnep           ← archivo del proyecto: doble clic lo abre
 │       ├── Memory/
 │       │   ├── Binarios/Scene        ← escenas binarias
 │       │   ├── ConfiguracionProyecto.json
@@ -139,6 +140,22 @@ FunshiEngine-DATA/
         ├── lib/                      ← dependencias runtime (.so Linux)
         └── JuegoExportado.json       ← metadatos del proyecto
 ```
+
+**Archivo de proyecto (`.fnep`).** Cada proyecto tiene un `<proyecto>.fnep`
+dentro de su carpeta. Abrirlo (doble clic, o `FunshiEngineGL ruta/al/proyecto.fnep`)
+arranca el editor directo en ese proyecto, sin pasar por el menú. El editor lo
+crea al crear el proyecto, lo renombra junto con el proyecto y, al arrancar, lo
+genera para los proyectos que todavía no lo tienen. Es un JSON chico
+(`formato`, `version`, `nombre`, `motor`); un `.fnep` copiado fuera de la
+carpeta de su proyecto no se abre (el editor lo avisa en el log y arranca en el
+menú).
+
+Asociar la extensión con el editor:
+
+- **Windows**: el instalador lo hace solo.
+- **Linux**: correr `packaging/instalar_asociacion_linux.sh <carpeta de instalación>`
+  una vez (instala el lanzador y el tipo MIME para el usuario actual).
+
 
 En el arbol, las carpetas marcadas con `#` las crea el motor (no hace falta
 hacerlas a mano). El motor crea su carpeta global de `Mods/` y, al crear un
@@ -301,18 +318,47 @@ escena con IDs nuevos; el original no se toca.
 
 **Crear un prefab**
 
-1. Selecciona el objeto raiz en la jerarquía (**SelectedObjects**).
-2. Clic derecho sobre el objeto y elige **Crear Prefab**.
+1. Selecciona el objeto raiz en la jerarquía (**Objetos seleccionados**).
+2. Clic derecho sobre el objeto y elige **Crear prefab**.
 3. Escribe el nombre y confirma. El archivo aparece en
    `Prefabs/<nombre>.prefab` dentro de los assets del proyecto y se lista en
    el explorador de contenido.
 
 **Instanciar un prefab**
 
-Arrastra el `.prefab` desde el explorador de contenido y suéltalo sobre
-cualquier fila del panel **SelectedObjects**: la instancia entra en la raíz de
-la escena y queda seleccionada para moverla con el gizmo. Conserva **nombre, tag, Transform,
-jerarquía completa y todos los componentes** del prefab original.
+Arrastra el `.prefab` desde el explorador de contenido y suéltalo:
+
+- sobre la **escena** (viewport): la instancia aparece donde apunta el mouse;
+- sobre una **fila de la jerarquía** o sobre el **Inspector** de un objeto: la
+  instancia entra como **hija** de ese objeto.
+
+La instancia queda seleccionada y conserva **nombre, tag, Transform, jerarquía
+completa y todos los componentes** del prefab original. El `.prefab` puede estar
+en cualquier carpeta del proyecto: se resuelve por su ruta, no por su nombre.
+
+### Arrastrar archivos a la escena y al Inspector
+
+Cualquier archivo del explorador de contenido se puede soltar en la escena: el
+editor reconoce su tipo y crea un objeto con el componente que corresponde, en
+el punto del plano de juego bajo el mouse (z = 0 en 2D, y = 0 en 3D). Mientras
+arrastras, junto al cursor se indica que se va a crear. Ctrl+Z deshace la
+creación.
+
+| Archivo | Objeto que se crea |
+|---------|--------------------|
+| `.prefab` | instancia del prefab |
+| `.obj` `.fbx` `.gltf` `.glb` `.dae` `.3ds` `.blend` ... | objeto con `Model` |
+| `.png` `.jpg` `.tga` `.bmp` ... | objeto con `SpriteRenderer` |
+| `.wav` `.ogg` `.mp3` `.flac` | objeto con `AudioSource` |
+| `.json` de tileset (estilo Tiled) | objeto con `Tilemap` y una capa de 16x16 |
+| `.json` de perfil de partículas | objeto con `EmisorParticulas` |
+| `.html` | objeto con `InterfaceComponent` |
+| `.cpp` / `.java` | objeto con `Script` (si se suelta **sobre un objeto** de la escena, el script se agrega a ese objeto) |
+
+Soltado sobre el **Inspector** (en cualquier parte que no sea un campo propio
+de un componente) o sobre una **fila de la jerarquía**, el archivo se aplica al
+objeto: reemplaza la ruta del componente de ese tipo si ya lo tiene, o se lo
+agrega si no.
 
 **Biblioteca de prefabs (`PrefabLibrary`)**
 
@@ -491,16 +537,26 @@ consulta el mapa para oscurecer lo que queda tapado.
   objetos, bajalo.
 - **Fuerza**: cuanto se oscurece la zona en sombra. 0 deja la sombra sin efecto
   y 1 la deja completa.
-- **Radio**: semi-lado del frustum ortografico de la luz. La sombra abarca una
-  caja de lado `2 * radio` alrededor del foco: un radio grande cubre mas
-  escena, con menos resolucion efectiva.
+- **Radio** (solo luz direccional): semi-lado del area con sombra. La sombra
+  abarca una caja de lado `2 * radio` centrada delante de la camara: un radio
+  grande cubre mas escena, con menos resolucion efectiva. El encuadre se ajusta
+  a la grilla de texeles del mapa, asi que la sombra no "tiembla" al mover la
+  camara.
 - **Distancia**: alcance de la sombra, en unidades desde la luz.
 
-Dos limites del motor:
+Cada tipo de luz usa su proyeccion:
 
-- Solo proyectan sombra las luces **direccionales** y **spot**. Las puntuales
-  proyectan en todas las direcciones, asi que necesitarian un mapa por cara; el
-  motor las cuenta aparte y avisa por consola de que no proyectan.
+- **Direccional**: ortografica, delante de la camara.
+- **Spot**: perspectiva que cubre el cono de la luz (su angulo de corte).
+- **Puntual**: un cubemap de 6 caras que guarda la distancia a la luz, con
+  filtrado suave en el borde.
+
+El sesgo crece solo en las superficies inclinadas respecto de la luz y el punto
+consultado se corre un poco a lo largo de la normal: asi se evita el acne sin
+despegar la sombra de los objetos.
+
+Limite del motor:
+
 - Como mucho **4 mapas de sombra** a la vez. Si hay mas luces con sombra, las
   que se quedan fuera se avisan por consola (las primeras 4 son las que
   proyectan).
@@ -609,8 +665,8 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 **Como usar:**
 
-1. Copia tus assets a las carpetas del proyecto (o crealas con "New Folder" /
-   "New File"); el FileSystemWatcher rescanea al detectar cambios externos.
+1. Copia tus assets a las carpetas del proyecto (o crealas con "Nueva carpeta" /
+   "Nuevo archivo"); el FileSystemWatcher rescanea al detectar cambios externos.
 2. Selecciona el objeto y arrastra el asset sobre el control correspondiente
    del panel del componente ("Arrastra modelo", campo Fuente del script,
    boton de la fuente de audio, zona de pistas de Musica, dropdown de
@@ -619,7 +675,7 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 **Modelos 3D (.obj/.fbx/... que admita Assimp):**
 
-1. En la jerarquia (**SelectedObjects**), selecciona el objeto que llevara el
+1. En la jerarquia (**Objetos seleccionados**), selecciona el objeto que llevara el
    modelo o crealo (clic derecho → **New GameObject**).
 2. **Add Component → Model**: aparece el panel **Model** del Inspector con el
    boton "[Arrastra modelo]".
@@ -632,12 +688,12 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 Importante: soltar un `.obj` (o cualquier asset) sobre **Vista de contenido**
 solo lo mueve o copia entre carpetas del proyecto; **no lo coloca en la
 escena**. Para instanciarlo como modelo 3D usa el panel **Model** del objeto en
-**SelectedObjects** (arriba).
+**Objetos seleccionados** (arriba).
 
 **Instanciar prefab por drag & drop:**
 1. En el explorador, localiza un archivo `.prefab` en la carpeta `Prefabs/`
    de los assets del proyecto.
-2. Arrástralo y suéltalo sobre cualquier objeto del panel **SelectedObjects**
+2. Arrástralo y suéltalo sobre cualquier objeto del panel **Objetos seleccionados**
    (la jerarquía de la escena).
 3. La instancia se crea en la raíz de la escena y se selecciona
    automáticamente.
@@ -649,16 +705,22 @@ escena**. Para instanciarlo como modelo 3D usa el panel **Model** del objeto en
     `imageheight`, `margin`/`spacing` opcionales, y `tiles[]` con propiedad
     `solid: true` en los tiles que deben colisionar. Guárdalo en
     `Assets/Tilesets/`.
- 2. En la jerarquía: clic derecho → **New GameObject** → con el objeto
-    seleccionado, **Add Component → Tilemap**.
- 3. En el **panel Tilemap del Inspector**: arrastra el `.json` del tileset al
-    drop zone (valida antes de asignar).
- 4. Click **Agregar capa** → pon nombre (ej. "Suelo"), dimensiones (ej. 20×15),
-    marca **Colisión** si esa capa debe chocar → **OK**.
- 5. En la **paleta** verás los IDs de tile (fondo rojo = sólido). Click en un
-    ID → se vuelve el pincel activo.
- 6. **Click izquierdo** en la grilla → pinta el tile; **click derecho** → borra.
-    Puedes cambiar de capa y pincel a voluntad.
+ 2. Arrastra el `.json` del tileset desde el explorador a la **escena**: se crea
+    un objeto con `Tilemap`, ese tileset y una capa de 16×16. (También se puede
+    crear un objeto y hacer **Add Component → Tilemap**, y soltar el `.json` en
+    el panel.)
+ 3. En el **panel Tilemap del Inspector**, sección **Capas**: elegí la capa
+    activa o agregá otra con su ancho × alto; **Vis** la oculta y **Col** la
+    marca para colisión.
+ 4. En **Paleta** se ven las imágenes reales de cada tile del atlas: clic en
+    uno lo vuelve el tile activo.
+ 5. En **Pintar**, activá **Pintar en escena** y elegí la herramienta:
+    **Pincel** (clic o arrastre), **Borrador**, **Relleno** (llena la región
+    contigua igual) o **Rectángulo** (arrastrá de una esquina a la otra).
+ 6. **Clic izquierdo en la escena** pinta sobre la capa activa; **Shift + clic**
+    borra. La celda bajo el mouse y el borde de la capa se marcan en la escena.
+    Cada trazo se deshace entero con **Ctrl+Z**. Mientras el modo está activo
+    el clic no cambia la selección ni mueve el gizmo; **Escape** sale del modo.
  7. Para colisión física: **Add Component → TilemapCollider** (requiere Tilemap
     en el mismo objeto) → en su panel click **Recargar colisión** (reconstruye
     las cajas desde los tiles sólidos actuales).
@@ -724,8 +786,14 @@ Detalles que conviene saber:
   **Friccion** de contacto (`0` = desliza) y **Freeze posicion/rotacion** por
   ejes X/Y/Z. Todo se guarda con la escena; las escenas anteriores toman los
   valores por defecto (cae normal, friccion `0.5`, sin freeze).
-- La **gravedad global** del mundo es manipulable (tambien desde scripts) y se
-  re-aplica a cada cuerpo segun su escala al cambiar.
+- La **gravedad global** del mundo arranca en `(0, -9.81, 0)` (la terrestre, en
+  m/s^2), es manipulable (tambien desde scripts) y se re-aplica a cada cuerpo
+  segun su escala al cambiar. Hasta la version anterior arrancaba en
+  `(0, -1, 0)`: un juego que dependa de esa caida lenta puede fijarla con
+  `fijarGravedadGlobal(0, -1, 0)` al empezar.
+- La simulacion avanza con un **paso fijo de 1/60 s**: si un frame tarda mas,
+  se hacen varios pasos (hasta 8) para que el tiempo simulado siga al real
+  (antes un frame lento hacia que todo fuera en camara lenta).
 - Mientras se manipula el gizmo, `stepSimulation` se pausa (la gravedad podria
   "eyectar" el objeto); al soltar, la simulacion sigue.
 - Gizmo dedicado de fisica para el collider activo.
@@ -788,11 +856,21 @@ esta en la seccion 21.
   desde el ancla, **Tamaño automático** (el que fija el CSS del `.html`) o un
   **Tamaño** fijo, y **Z** (orden de apilado entre varias interfaces).
 - La escena reúne las interfaces activas y las ordena por z para el overlay del
-  juego, delante de la camara principal.
+  juego, delante de la camara principal. El overlay se ve en el juego exportado
+  y, en el editor, durante el modo juego (Play).
+- **Colocación**: el **Ancla** elige la esquina, el borde o el centro de la
+  pantalla contra el que se apoya la vista y el **Desplazamiento** la corre
+  desde ahí en píxeles (x hacia la derecha, y hacia abajo). Con **Tamaño
+  automático** la vista ocupa toda la pantalla y el ancla no cambia nada.
+- **Input en el juego**: el ratón (movimiento, botones y rueda) llega a la
+  interfaz de mayor z que está bajo el cursor, en coordenadas de la página, y
+  esa interfaz toma el foco del teclado. En el editor, con el ratón sobre un
+  panel la interfaz no recibe input.
 - La ventana dockable **Vista de interfaz** muestra la vista web de la interfaz
   del objeto seleccionado (preview del editor): ratón y rueda funcionan sobre
-  la preview, el foco sigue al ratón y el teclado llega a los campos de la
-  página. Sin backend web real la ventana avisa que no hay textura.
+  la preview y el foco sigue al ratón. Fuera del modo juego la preview recibe
+  el estado que fijan los scripts. Sin backend web real la ventana avisa que no
+  hay textura.
 - **Recarga en caliente**: al guardar el `.html` en un editor externo, la vista
   se recarga sola en el siguiente frame (por `mtime`), sin tocar el componente.
 - El motor web es CEF (Chromium): se compila con `-DFUNSHI_CEF=ON` (requiere
@@ -965,11 +1043,12 @@ La vista **Opciones** del menú de inicio tiene tres pestañas:
   - *Restablecer apariencia* — vuelve el perfil completo a los valores de
     fabrica (tema oscuro, sin modo blanco y negro, acento azul, cielo gris
     oscuro).
-- **Controles:** idioma (Espanol / English), *Sensibilidad de camara*
+- **Controles:** idioma (Espanol / English; cambia los textos al instante y
+  se recuerda al volver a abrir el editor), *Sensibilidad de camara*
   (mouse-look, 0.02 a 5.0) y *Sensibilidad de movimiento* (velocidad de
   `WASD`, 0.1 a 5.0).
 
-Ademas hay un boton **Restablecer configuracion** (fuera de las pestañas) que
+Ademas hay un boton **Restablecer configuración** (fuera de las pestañas) que
 vuelve **toda** la configuracion a los defaults, conservando el nombre del
 proyecto.
 
@@ -1061,9 +1140,9 @@ ejecuta durante Depuración y Juego.
   componente `Transform` los almacene internamente en grados.
 - Hot reload por mtime del fuente: durante la simulación, guardar el `.cpp`/`.java`
   recompila y recarga el comportamiento conservando los valores.
-- La ventana **Estado** muestra el toolchain (compilador C++, javac, libjvm,
+- La ventana **Barra de estado** muestra el toolchain (compilador C++, javac, libjvm,
   cache) y el resultado de compilacion/carga de cada script de la escena.
-- Los errores de carga/compilacion se informan en la ventana **Estado** y en el
+- Los errores de carga/compilacion se informan en la ventana **Barra de estado** y en el
   log del motor (`logs/FunshiEngineGL_*.log` en la carpeta de datos, seccion 2);
   el panel del componente no los repite: queda con el fuente asignado y sus
   SerializeField.
@@ -2048,9 +2127,9 @@ genera el archivo que después se arrastra sobre un emisor.
   existente.
 - Arrastrar un `.json` de perfil sobre la zona de carga de la pestaña lo trae
   de vuelta al editor para retocarlo y regenerarlo.
-- Los **prefabs** se manejan desde **SelectedObjects**: se instancian
+- Los **prefabs** se manejan desde **Objetos seleccionados**: se instancian
   arrastrando su `.prefab` sobre el panel y se guardan con clic derecho sobre
-  el objeto (**Crear Prefab**). El flujo completo está en el capítulo 4,
+  el objeto (**Crear prefab**). El flujo completo está en el capítulo 4,
   "Prefabs: reutilizar jerarquías completas".
 - **Pestaña Animaciones**: referencia a dónde se configura una animación 2D
   (el inspector del componente `Animador2D`); el taller propio de animaciones

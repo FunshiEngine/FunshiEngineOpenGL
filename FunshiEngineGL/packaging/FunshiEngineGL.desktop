@@ -4,11 +4,16 @@
 # rutas al lugar donde se instalo el motor. En un instalador IFW por defecto:
 #   Exec=/home/USUARIO/Desktop/FunshiEngineGL/FunshiEngineGL
 #   Icon=/home/USUARIO/Desktop/FunshiEngineGL/Imagenes/logo_256.png
+# Para que el doble clic sobre un .fnep abra el proyecto, correr
+# packaging/instalar_asociacion_linux.sh <RUTA_INSTALACION> (instala este
+# lanzador y el tipo MIME de los .fnep para el usuario actual).
 Type=Application
 Name=FunshiEngineGL
 Comment=Editor de escenas 3D de FunshiEngineGL
-Exec=<RUTA_INSTALACION>/FunshiEngineGL
+Exec=<RUTA_INSTALACION>/FunshiEngineGL %f
+Path=<RUTA_INSTALACION>
 Icon=<RUTA_INSTALACION>/Imagenes/logo_256.png
 Terminal=false
 Categories=Development;Graphics;
 Keywords=3D;motor;editor;escenas;
+MimeType=application/x-funshi-proyecto;

@@ -26,6 +26,7 @@
 #include "../../FileManager/FileManager.h"
 #include "../../Herramientas/PathUtils.h"
 #include <imgui.h>
+#include "../../Localizacion/Localizacion.h"
 
 // Renombre por click derecho, COMPARTIDO por el grid (ShowFolder) y el arbol
 // (BrowseFile): un solo modal y un solo camino de disco, para que renombrar un
@@ -118,10 +119,11 @@ public:
         Resultado resultado;
         if (ruta_.empty()) return resultado;
         if (abrir_) {
-            ImGui::OpenPopup("Renombrar");
+            ImGui::OpenPopup("###Renombrar");
             abrir_ = false;
         }
-        if (!ImGui::BeginPopupModal("Renombrar", nullptr,
+        if (!ImGui::BeginPopupModal(
+                Localizacion::etiqueta(Localizacion::Texto::Renombrar, "###Renombrar").c_str(), nullptr,
                                     ImGuiWindowFlags_AlwaysAutoResize)) {
             // No hay popup que editar (lo cerro el usuario): se descarta el
             // pedido en vez de dejarlo colgado esperando un dibujar() que ya no
@@ -130,16 +132,19 @@ public:
             return resultado;
         }
 
-        ImGui::Text("Nuevo nombre del %s:", esCarpeta_ ? "folder" : "archivo");
+        // Frase entera por caso: "del %s" no se traduce bien a otros idiomas.
+        ImGui::TextUnformatted(Localizacion::tr(esCarpeta_ ? Localizacion::Texto::NuevoNombreCarpeta
+                                                           : Localizacion::Texto::NuevoNombreArchivo));
         if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
         const bool enter = ImGui::InputText(
             "##renombrarElemento", buffer_, IM_ARRAYSIZE(buffer_),
             ImGuiInputTextFlags_AutoSelectAll |
                 ImGuiInputTextFlags_EnterReturnsTrue);
         const bool confirmar =
-            ImGui::Button("Renombrar", ImVec2(120, 0)) || enter;
+            ImGui::Button(Localizacion::etiqueta(Localizacion::Texto::Renombrar).c_str(), ImVec2(120, 0)) || enter;
         ImGui::SameLine();
-        const bool cancelar = ImGui::Button("Cancelar", ImVec2(120, 0)) ||
+        const bool cancelar = ImGui::Button(
+                Localizacion::etiqueta(Localizacion::Texto::Cancelar).c_str(), ImVec2(120, 0)) ||
                               ImGui::IsKeyPressed(ImGuiKey_Escape);
 
         if (confirmar) {

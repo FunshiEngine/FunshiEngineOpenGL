@@ -20,82 +20,81 @@
 
 #include "../../Iluminacion/MatrizLuz.h"
 
-#include <glm/gtc/matrix_transform.hpp>
+#include <cmath>
 
 namespace Rendering {
 
-// Direcciones de vista y vectores up para las 6 caras de un cubemap, en el
-// orden que OpenGL espera: +X, -X, +Y, -Y, +Z, -Z.
-constexpr std::array<std::pair<glm::vec3, glm::vec3>, kCarasCubemap> kCarasCubemapDir{{
-    {glm::vec3(1.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f)},  // +X
-    {glm::vec3(-1.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f)}, // -X
-    {glm::vec3(0.f, 1.f, 0.f), glm::vec3(0.f, 0.f, -1.f)}, // +Y
-    {glm::vec3(0.f, -1.f, 0.f), glm::vec3(0.f, 0.f, 1.f)}, // -Y
-    {glm::vec3(0.f, 0.f, 1.f), glm::vec3(0.f, 1.f, 0.f)},  // +Z
-    {glm::vec3(0.f, 0.f, -1.f), glm::vec3(0.f, 1.f, 0.f)}, // -Z
-}};
+static_assert(kCarasCubemap == kCarasCuboLuz,
+              "las caras del mapa y las de la matriz de luz deben coincidir");
+
+namespace {
+
+// Tamano de un texel en el mundo para una proyeccion en perspectiva de campo
+// 'campoGrados', medido a mitad del alcance (donde suelen estar los objetos
+// que reciben la sombra).
+float texelPerspectiva(float campoGrados, float alcance, int resolucion) {
+    const float mitad = std::tan(campoGrados * 0.5f * 3.14159265f / 180.f);
+    return (2.f * mitad * alcance * 0.5f) / static_cast<float>(resolucion);
+}
+
+}  // namespace
 
 ResultadoSeleccion seleccionarProyectores(const CandidatoProyector* candidatos,
                                            int cantidad, int limite,
                                            const glm::vec3& centroEscena,
                                            ProyectorSombra* salida) {
     ResultadoSeleccion resultado;
-    // Sin candidatos no hay nada que elegir.
     if (!candidatos || !salida || cantidad <= 0) return resultado;
 
     for (int i = 0; i < cantidad; ++i) {
         const CandidatoProyector& candidato = candidatos[i];
-
         if (resultado.elegidos >= limite) {
             ++resultado.porLimite;
             continue;
         }
 
         ProyectorSombra& proyector = salida[resultado.elegidos];
+        proyector = ProyectorSombra();
         proyector.indiceLuz = candidato.indiceLuz;
-        proyector.resolucion = candidato.resolucion;
+        proyector.resolucion = candidato.resolucion > 0 ? candidato.resolucion : 1;
         proyector.sesgo = candidato.sesgo;
         proyector.fuerza = candidato.fuerza;
         proyector.distancia = candidato.distancia;
-        proyector.textura = Backend::kInvalidHandle;
+        proyector.posicionLuz = candidato.posicion;
 
-        if (candidato.tipo == TipoLuzProyector::Puntual) {
-            // Luz puntual: proyecta en todas las direcciones, necesita un
-            // cubemap de 6 caras. Una entrada ocupa un slot del limite y
-            // almacena las 6 matrices (una por cara).
+        switch (candidato.tipo) {
+        case TipoLuzProyector::Puntual: {
             proyector.esCubemap = true;
-            for (int cara = 0; cara < kCarasCubemap; ++cara) {
-                const auto& [dir, up] = kCarasCubemapDir[cara];
-                glm::mat4 vista = glm::lookAt(
-                    candidato.posicion,
-                    candidato.posicion + dir,
-                    up);
-                glm::mat4 proj = glm::perspective(
-                    glm::radians(90.0f), 1.0f,
-                    0.05f, candidato.distancia);
-                proyector.matricesLuz[cara] = proj * vista;
-            }
-            proyector.matrizLuz = proyector.matricesLuz[0];
-        } else if (candidato.tipo == TipoLuzProyector::Direccional) {
+            glm::mat4 caras[kCarasCubemap];
+            matricesCaraCubo(candidato.posicion, candidato.distancia, caras);
+            for (int cara = 0; cara < kCarasCubemap; ++cara)
+                proyector.matricesCara[cara] = caras[cara];
+            proyector.matrizLuz = caras[0];
+            proyector.tamanoTexelMundo = texelPerspectiva(
+                90.f, candidato.distancia, proyector.resolucion);
+            break;
+        }
+        case TipoLuzProyector::Direccional:
             // La luz direccional no esta en ningun sitio: su frustum se
-            // coloca alrededor del centro de la escena.
-            FocoLuz foco = focoDireccional(centroEscena, candidato.direccion,
-                                           candidato.radio, candidato.distancia);
-            proyector.esCubemap = false;
-            proyector.matrizLuz = matrizLuz(foco);
-            proyector.matricesLuz[0] = proyector.matrizLuz;
-        } else {
-            // Spot: luz posicional con un solo frustum.
-            FocoLuz foco = focoPosicional(candidato.posicion, candidato.direccion,
-                                          candidato.radio, candidato.distancia);
-            proyector.esCubemap = false;
-            proyector.matrizLuz = matrizLuz(foco);
-            proyector.matricesLuz[0] = proyector.matrizLuz;
+            // encuadra alrededor del centro y se alinea a la grilla de texeles.
+            proyector.matrizLuz = matrizDireccionalEstable(
+                centroEscena, candidato.direccion, candidato.radio,
+                candidato.distancia, proyector.resolucion);
+            proyector.tamanoTexelMundo =
+                (2.f * candidato.radio) / static_cast<float>(proyector.resolucion);
+            break;
+        case TipoLuzProyector::Spot:
+            proyector.matrizLuz = matrizLuzSpot(
+                candidato.posicion, candidato.direccion,
+                candidato.anguloSpotGrados, candidato.distancia);
+            proyector.tamanoTexelMundo = texelPerspectiva(
+                2.f * candidato.anguloSpotGrados + 4.f, candidato.distancia,
+                proyector.resolucion);
+            break;
         }
 
         ++resultado.elegidos;
     }
-
     return resultado;
 }
 
@@ -103,34 +102,27 @@ MapaSombras::MapaSombras(Backend::IRenderBackend& backend)
     : backend_(backend) {}
 
 MapaSombras::~MapaSombras() {
-    for (Mapa& entrada : entradas_) {
-        if (entrada.target != Backend::kInvalidHandle) {
-            backend_.destroyDepthTarget(entrada.target);
-        }
-        // Un cubemap comparte el FBO de targetsCubo[0] con el target 2D;
-        // si es cubemap, entrada.target ya fue destruido arriba, pero las
-        // demas entradas de targetsCubo (si hubiera sido necesario separarlas)
-        // no existen: usamos un solo FBO para las 6 caras.
-    }
+    for (Mapa& entrada : entradas_) liberar(entrada);
     entradas_.clear();
+}
+
+void MapaSombras::liberar(Mapa& entrada) {
+    // destroyDepthTarget destruye el FBO y la textura del objetivo, sea 2D o
+    // cubemap: un solo handle basta para los dos casos.
+    if (entrada.target != Backend::kInvalidHandle)
+        backend_.destroyDepthTarget(entrada.target);
+    entrada = Mapa();
 }
 
 bool MapaSombras::preparar(int indice, int resolucion, bool esCubemap) {
     if (indice < 0) return false;
     if (indice < static_cast<int>(entradas_.size())) {
-        Mapa& entrada = entradas_[indice];
-        if (entrada.resolucion == resolucion &&
-            entrada.esCubemap == esCubemap &&
-            entrada.target != Backend::kInvalidHandle) {
+        Mapa& entrada = entradas_[static_cast<std::size_t>(indice)];
+        if (entrada.target != Backend::kInvalidHandle &&
+            entrada.resolucion == resolucion && entrada.esCubemap == esCubemap) {
             return true;
         }
-        // La resolucion o el tipo cambio: el mapa viejo ya no sirve.
-        backend_.destroyDepthTarget(entrada.target);
-        entrada.target = Backend::kInvalidHandle;
-        entrada.textura = Backend::kInvalidHandle;
-        entrada.esCubemap = false;
-        entrada.resolucion = 0;
-        for (auto& t : entrada.targetsCubo) t = Backend::kInvalidHandle;
+        liberar(entrada);
     } else {
         entradas_.resize(static_cast<std::size_t>(indice) + 1);
     }
@@ -138,22 +130,13 @@ bool MapaSombras::preparar(int indice, int resolucion, bool esCubemap) {
     if (resolucion <= 0) return false;
 
     Mapa& entrada = entradas_[static_cast<std::size_t>(indice)];
+    const Backend::Handle target = esCubemap
+                                       ? backend_.createDepthTargetCubo(resolucion)
+                                       : backend_.createDepthTarget(resolucion);
+    if (target == Backend::kInvalidHandle) return false;
+    entrada.target = target;
+    entrada.textura = backend_.depthTargetTexture(target);
     entrada.esCubemap = esCubemap;
-
-    if (esCubemap) {
-        const Backend::Handle fbo =
-            backend_.createDepthTargetCubo(resolucion);
-        if (fbo == Backend::kInvalidHandle) return false;
-        entrada.target = fbo;
-        entrada.targetsCubo[0] = fbo;
-        // La textura de cubemap se consulta por depthTargetTexture del FBO.
-        entrada.textura = backend_.depthTargetTexture(fbo);
-    } else {
-        const Backend::Handle target = backend_.createDepthTarget(resolucion);
-        if (target == Backend::kInvalidHandle) return false;
-        entrada.target = target;
-        entrada.textura = backend_.depthTargetTexture(target);
-    }
     entrada.resolucion = resolucion;
     return true;
 }
@@ -166,15 +149,9 @@ const MapaSombras::Mapa& MapaSombras::mapa(int indice) const {
 
 void MapaSombras::liberarDesde(int indice) {
     if (indice < 0) indice = 0;
-    for (std::size_t i = static_cast<std::size_t>(indice);
-         i < entradas_.size(); ++i) {
-        if (entradas_[i].target != Backend::kInvalidHandle) {
-            backend_.destroyDepthTarget(entradas_[i].target);
-        }
-    }
-    if (static_cast<std::size_t>(indice) < entradas_.size()) {
-        entradas_.resize(static_cast<std::size_t>(indice));
-    }
+    const std::size_t desde = static_cast<std::size_t>(indice);
+    for (std::size_t i = desde; i < entradas_.size(); ++i) liberar(entradas_[i]);
+    if (desde < entradas_.size()) entradas_.resize(desde);
 }
 
 }  // namespace Rendering

@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "ProjectManager.h"
+#include "Proyecto/ArchivoProyecto.h"
 
 #include <filesystem>
 #include <algorithm>
@@ -113,6 +114,13 @@ void ProjectManager::asegurarEstructuraBase() {
 
     migrarProyectosAntiguos();
     migrarConfiguracionGlobal();
+
+    // Proyectos creados antes de que existiera el .fnep: se les genera el
+    // suyo (nunca se pisa uno existente).
+    for (const Proyecto& proyecto : descubrirProyectos()) {
+        std::string error;
+        if (proyecto.valido) ArchivoProyecto::asegurar(proyecto.nombre, error);
+    }
 }
 
 std::vector<ProjectManager::Proyecto> ProjectManager::descubrirProyectos() {
@@ -153,14 +161,10 @@ std::optional<ProjectManager::Proyecto> ProjectManager::buscarProyecto(const std
 bool ProjectManager::crearProyecto(const std::string& nombre) {
     if (!ProjectPaths::esNombreValido(nombre)) return false;
 
-    const std::string ruta = ProjectPaths::directorioProyecto(nombre);
-    if (!existeDir(ruta)) {
-        if (!crearEstructuraProyecto(nombre)) return false;
-        return true;
-    }
-
-    // Proyecto ya existe: se completa la estructura que le falta.
-    return crearEstructuraProyecto(nombre);
+    // Si el proyecto ya existe, se completa la estructura que le falta.
+    if (!crearEstructuraProyecto(nombre)) return false;
+    std::string error;
+    return ArchivoProyecto::asegurar(nombre, error);
 }
 
 bool ProjectManager::crearProyectoNuevo(const std::string& nombre,
@@ -210,6 +214,11 @@ bool ProjectManager::crearProyectoNuevo(const std::string& nombre,
             actual = actual.parent_path();
         }
     }
+    std::string errorFnep;
+    if (!ArchivoProyecto::asegurar(nombre, errorFnep)) {
+        error = std::make_error_code(std::errc::io_error);
+        return false;
+    }
     return true;
 }
 
@@ -235,7 +244,11 @@ bool ProjectManager::renombrarProyecto(const std::string& viejo, const std::stri
         std::filesystem::rename(srcViejo, srcNuevo, ec);
         if (ec) return false;
     }
-    return true;
+    // El .fnep lleva el nombre del proyecto: se reescribe con el nuevo.
+    ec.clear();
+    std::filesystem::remove(rutaNuevo + "/" + viejo + ".fnep", ec);
+    std::string error;
+    return ArchivoProyecto::asegurar(nuevo, error);
 }
 
 bool ProjectManager::eliminarProyecto(const std::string& nombre) {

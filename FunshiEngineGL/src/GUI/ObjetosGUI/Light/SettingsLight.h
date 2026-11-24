@@ -20,13 +20,13 @@
 #define SETTINGSLIGHT_H
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Light.h"
+#include "../../../Objetos/Componentes/Escena/Light.h"
 
 class SettingsLight : public SettingsComponent {
-	GameObject* gameObject;
+    GameObject* gameObject;
 public:
-	explicit SettingsLight(GameObject* gameObject);
-	void showDataComponent() override;
-	Component* getComponent() override { return gameObject ? gameObject->getComponent<Light>() : nullptr; }
+    explicit SettingsLight(GameObject* gameObject);
+    void showDataComponent() override;
+    Component* getComponent() override { return objetivo<Light>(gameObject); }
 };
 #endif

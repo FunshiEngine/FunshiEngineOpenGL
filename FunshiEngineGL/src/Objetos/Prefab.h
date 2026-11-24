@@ -40,6 +40,10 @@ class EditorController;
 class Prefab {
 public:
     explicit Prefab(const std::string& nombre);
+    // Prefab de un archivo concreto (por ejemplo uno arrastrado desde el
+    // explorador, este o no en la carpeta Prefabs/). El nombre es el del
+    // archivo sin extension.
+    static std::unique_ptr<Prefab> desdeArchivo(const std::string& ruta);
     ~Prefab() = default;
 
     // Serializa el subarbol cuyo nodo raiz es `raiz` (incluye raiz + todos

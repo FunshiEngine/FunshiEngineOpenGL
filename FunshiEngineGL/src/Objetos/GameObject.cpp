@@ -17,10 +17,10 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "GameObject.h"
-#include "Componentes/CameraComponent.h"
-#include "Componentes/Color.h"
+#include "Componentes/Escena/CameraComponent.h"
+#include "Componentes/Render/Color.h"
 #include "Componentes/RigidBody/RigidBody.h"
-#include "Componentes/Script.h"
+#include "Componentes/Scripting/Script.h"
 #include "TagRegistry.h"
 
 #include <cmath>

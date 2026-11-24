@@ -47,6 +47,7 @@
 #include "../../../Assets/AssetPath.h"
 #include "../../../Configuracion/EditorConfig.h"
 #include "../../../FileManager/FileManager.h"
+#include "../../../Localizacion/Localizacion.h"
 
 namespace SelectorArchivoCubemap {
 
@@ -154,10 +155,13 @@ public:
         Resultado resultado;
         if (carpeta_.empty()) return resultado;
         if (abrir_) {
-            ImGui::OpenPopup("Seleccionar cara del cubemap");
+            ImGui::OpenPopup("###Seleccionar cara del cubemap");
             abrir_ = false;
         }
-        if (!ImGui::BeginPopupModal("Seleccionar cara del cubemap", nullptr,
+        if (!ImGui::BeginPopupModal(
+                Localizacion::etiqueta(Localizacion::Texto::SeleccionarCaraDelCubemap,
+                                       "###Seleccionar cara del cubemap").c_str(),
+                nullptr,
                                     ImGuiWindowFlags_AlwaysAutoResize)) {
             // No hay popup que editar (lo cerro el usuario): se descarta el
             // pedido en vez de dejarlo colgado esperando un dibujar() que ya no
@@ -176,7 +180,7 @@ public:
         }
 
         if (!dibujarListado()) {
-            ImGui::TextDisabled("No hay imagenes en esta carpeta.");
+            ImGui::TextDisabled("%s", Localizacion::tr(Localizacion::Texto::NoHayImagenesEnEsta));
         }
 
         // El doble clic en un archivo confirma: el listado marca el pedido y el
@@ -186,10 +190,11 @@ public:
 
         const bool elegir =
             porDobleClic || (!elegida_.empty() &&
-                             ImGui::Button("Elegir", ImVec2(120, 0)));
+                             ImGui::Button(
+                                     Localizacion::etiqueta(Localizacion::Texto::Elegir).c_str(), ImVec2(120, 0)));
         const bool cancelar =
             !porDobleClic &&
-            (ImGui::Button("Cancelar", ImVec2(120, 0)) ||
+            (ImGui::Button(Localizacion::etiqueta(Localizacion::Texto::Cancelar).c_str(), ImVec2(120, 0)) ||
              ImGui::IsKeyPressed(ImGuiKey_Escape));
         if (!elegir) ImGui::SameLine();
 
@@ -212,7 +217,7 @@ private:
     void dibujarRuta() {
         ImGui::TextUnformatted(carpeta_.c_str());
         if (std::filesystem::path(carpeta_).has_parent_path()) {
-            if (ImGui::SmallButton("Arriba")) {
+            if (ImGui::SmallButton(Localizacion::etiqueta(Localizacion::Texto::Arriba).c_str())) {
                 elegida_.clear();
                 carpeta_ =
                     std::filesystem::path(carpeta_).parent_path().string();

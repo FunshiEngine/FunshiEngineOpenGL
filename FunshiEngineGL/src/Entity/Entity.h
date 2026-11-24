@@ -6,9 +6,9 @@
 #include <vector>
 
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
-#include "../Objetos/Componentes/Component.h"
+#include "../Objetos/Componentes/Nucleo/Component.h"
 #include "../GestorDeArchivos/Binario.h"
-#include "../Objetos/Componentes/Transform.h"
+#include "../Objetos/Componentes/Escena/Transform.h"
 
 // Declaracion adelantada: al leer los componentes hace falta el dueno (el
 // componente se crea con el y su hook de post-carga lo recibe).

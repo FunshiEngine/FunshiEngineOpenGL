@@ -21,7 +21,7 @@
 
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/AudioSource.h"
+#include "../../../Objetos/Componentes/Audio/AudioSource.h"
 
 class AudioEngine;
 
@@ -31,14 +31,14 @@ class AudioEngine;
 // inyectado por Settings).
 class SettingsAudioSource : public SettingsComponent {
 private:
-	GameObject* gameObject = nullptr;
-	AudioEngine* motor = nullptr;
+    GameObject* gameObject = nullptr;
+    AudioEngine* motor = nullptr;
 
 public:
-	explicit SettingsAudioSource(GameObject* gameObject);
-	void setAudioEngine(AudioEngine* motor) noexcept { this->motor = motor; }
-	void showDataComponent() override;
-	Component* getComponent() override { return gameObject ? gameObject->getComponent<AudioSource>() : nullptr; }
+    explicit SettingsAudioSource(GameObject* gameObject);
+    void setAudioEngine(AudioEngine* motor) noexcept { this->motor = motor; }
+    void showDataComponent() override;
+    Component* getComponent() override { return objetivo<AudioSource>(gameObject); }
 };
 
 #endif // SETTINGSAUDIOSOURCE_H

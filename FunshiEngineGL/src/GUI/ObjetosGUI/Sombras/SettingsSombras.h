@@ -28,7 +28,7 @@ public:
     explicit SettingsSombras(GameObject* gameObject);
     void showDataComponent() override;
     Component* getComponent() override {
-        return gameObject ? gameObject->getComponent<Sombras>() : nullptr;
+        return objetivo<Sombras>(gameObject);
     }
 };
 #endif

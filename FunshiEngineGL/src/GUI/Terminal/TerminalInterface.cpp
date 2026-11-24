@@ -17,12 +17,16 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "TerminalInterface.h"
+#include "../Tema/TemaEditor.h"
 
 #include "../WindowNames.h"
 #include <imgui.h>
 
 #include <algorithm>
 #include <cmath>
+#include "../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 namespace {
 
@@ -151,10 +155,13 @@ void TerminalInterface::iniciar() {
 }
 
 void TerminalInterface::contentGUI() {
-    ImGui::Text("Proyecto: %s", directorioProyecto_.empty() ? "(sin proyecto)" : directorioProyecto_.c_str());
+    ImGui::Text(
+            Localizacion::tr(Texto::Proyecto),
+            directorioProyecto_.empty() ? "(sin proyecto)" : directorioProyecto_.c_str());
     ImGui::SameLine();
     ImGui::SetNextItemWidth(200.0f);
-    if (!sesion_.estaActiva() && ImGui::BeginCombo("Shell", shellActual_.c_str())) {
+    if (!sesion_.estaActiva() && ImGui::BeginCombo(
+            Localizacion::etiqueta(Texto::Shell).c_str(), shellActual_.c_str())) {
         for (const std::string& shell : shells_) {
             const bool seleccionada = shell == shellActual_;
             if (ImGui::Selectable(shell.c_str(), seleccionada)) shellActual_ = shell;
@@ -167,13 +174,13 @@ void TerminalInterface::contentGUI() {
         // El arranque se difiere hasta conocer el tamaño real del panel: la
         // sesión debe nacer con la cuadrícula de la vista, no con la del frame
         // anterior ni con la dimensión por defecto.
-        if (ImGui::Button("Iniciar")) iniciarPendiente_ = true;
-    } else if (ImGui::Button("Interrumpir")) {
+        if (ImGui::Button(Localizacion::etiqueta(Texto::Iniciar).c_str())) iniciarPendiente_ = true;
+    } else if (ImGui::Button(Localizacion::etiqueta(Texto::Interrumpir).c_str())) {
         sesion_.escribir("\x03");
     }
     ImGui::SameLine();
-    if (sesion_.estaActiva() && ImGui::Button("Cerrar sesión")) sesion_.detener();
-    if (!error_.empty()) ImGui::TextColored(ImVec4(1, 0.35f, 0.32f, 1), "%s", error_.c_str());
+    if (sesion_.estaActiva() && ImGui::Button(Localizacion::etiqueta(Texto::CerrarSesion).c_str())) sesion_.detener();
+    if (!error_.empty()) ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error), "%s", error_.c_str());
 
     const float altoLinea = ImGui::GetTextLineHeight();
     const float anchoCaracter = std::max(ImGui::CalcTextSize("M").x, 1.0f);
@@ -311,7 +318,7 @@ void TerminalInterface::contentGUI() {
 
 void TerminalInterface::printGUI() {
     if (!stateGUI) return;
-    const bool mostrar = ImGui::Begin(nameGUI.c_str(), &stateGUI, flagGUI);
+    const bool mostrar = ImGui::Begin(WindowNames::titulo(nameGUI).c_str(), &stateGUI, flagGUI);
     if (mostrar) contentGUI();
     ImGui::End();
 }

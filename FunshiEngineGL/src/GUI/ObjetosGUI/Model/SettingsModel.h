@@ -19,14 +19,17 @@
 #ifndef SETTINGSMODEL_H
 #define SETTINGSMODEL_H
 #include "../SettingsComponent.h"
-#include "../../../Objetos/Componentes/Model.h"
+#include "../../../Objetos/Componentes/Render/Model.h"
 
 class SettingsModel : public SettingsComponent {
 protected:
-	Model* myModel;
+    Model* myModel;
 public:
-	explicit SettingsModel(GameObject* objeto);
-	void showDataComponent() override;
-	Component* getComponent() override { return myModel; }
+    explicit SettingsModel(GameObject* objeto);
+    void showDataComponent() override;
+    void alFijarObjetivo() override {
+        if (auto* propio = dynamic_cast<Model*>(objetivo_)) myModel = propio;
+    }
+    Component* getComponent() override { return myModel; }
 };
 #endif

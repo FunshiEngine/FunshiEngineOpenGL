@@ -27,17 +27,17 @@ class IPreviewMaterial;
 
 class SettingsMaterial : public SettingsComponent {
 private:
-	GameObject* gameObject;
-	int presetAplicado = -1;
-	// Vista previa de material (la esfera de muestra). Puede ser nullptr.
-	IPreviewMaterial* preview = nullptr;
+    GameObject* gameObject;
+    int presetAplicado = -1;
+    // Vista previa de material (la esfera de muestra). Puede ser nullptr.
+    IPreviewMaterial* preview = nullptr;
 
 public:
-	SettingsMaterial(GameObject* gameObject, IPreviewMaterial* preview = nullptr);
-	~SettingsMaterial();
+    SettingsMaterial(GameObject* gameObject, IPreviewMaterial* preview = nullptr);
+    ~SettingsMaterial();
 
-	virtual void showDataComponent() override;
-	virtual Component* getComponent() override;
+    virtual void showDataComponent() override;
+    virtual Component* getComponent() override;
 };
 
 #endif // SETTINGSMATERIAL_H

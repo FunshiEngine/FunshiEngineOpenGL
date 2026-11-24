@@ -52,6 +52,20 @@ ImVec4 acento(const Apariencia& ap);
 // redondeos/espaciados. Idempotente: llamarlo con el mismo perfil es inocuo.
 void aplicarEstilo(const Apariencia& ap);
 
+// Colores con significado (mensajes de error, avisos, exito, texto
+// secundario). Los paneles los piden por rol en vez de escribir un ImVec4: asi
+// se leen bien en tema claro y oscuro y respetan el modo blanco y negro.
+enum class RolColor { Error, Aviso, Exito, Atenuado };
+
+// Color del rol para el perfil dado (funcion pura, testeable sin contexto).
+ImVec4 color(RolColor rol, const Apariencia& ap);
+
+// Color del rol para el ultimo perfil aplicado con aplicarEstilo().
+ImVec4 color(RolColor rol);
+
+// Atajo: texto con el color del rol (como ImGui::TextColored).
+void texto(RolColor rol, const char* formato, ...);
+
 } // namespace TemaEditor
 
 #endif

@@ -29,26 +29,26 @@ using namespace std;
 
 class GeneralUserInterface {
 protected:
-	string nameGUI;
-	bool stateGUI;
-	ImGuiWindowFlags flagGUI;
+    string nameGUI;
+    bool stateGUI;
+    ImGuiWindowFlags flagGUI;
 
 public:
-	GeneralUserInterface(string nameGUI, bool stateGUI, ImGuiWindowFlags flagGUI);
-	virtual ~GeneralUserInterface() = default;
+    GeneralUserInterface(string nameGUI, bool stateGUI, ImGuiWindowFlags flagGUI);
+    virtual ~GeneralUserInterface() = default;
 
-	void setNameGui(string nameGUI);
-	void setStateGui(bool stateGUI);
+    void setNameGui(string nameGUI);
+    void setStateGui(bool stateGUI);
 
-	string getNameGui() const;
-	bool getStateGui() const;
-	ImGuiWindowFlags getFlagGui() const;
+    string getNameGui() const;
+    bool getStateGui() const;
+    ImGuiWindowFlags getFlagGui() const;
 
-	virtual void initGUI();
+    virtual void initGUI();
 
-	virtual void contentGUI() = 0;
-	virtual void printGUI() = 0;
+    virtual void contentGUI() = 0;
+    virtual void printGUI() = 0;
 
-	virtual void endGUI();
+    virtual void endGUI();
 };
 #endif

@@ -19,6 +19,8 @@
 #ifndef SCENE_OBJECT_TREE_H
 #define SCENE_OBJECT_TREE_H
 
+#include <string>
+
 #include "../../Herramientas/TreeGUI/TreeGUI.h"
 
 class GameObject;
@@ -53,10 +55,6 @@ public:
     void setIconosGUI(IconosGUI* iconos);
     void draw();
 
-    // Instanciar un prefab al soltar su .prefab desde el explorador de
-    // contenido sobre cualquier fila del arbol: la instancia nace en la raiz
-    // de la escena y queda seleccionada.
-    bool instanciarPrefabDesdeRuta(const char* ruta);
 
 private:
     TreeIG::RowResult drawRow(GameObject* object, bool wasOpen);
@@ -85,6 +83,9 @@ private:
     GameObject* objetoAEliminar = nullptr;
     GameObject* objetoAReParentar = nullptr;
     GameObject* objetoPadreNuevo = nullptr;
+    // Archivo del explorador soltado sobre una fila (diferido como el resto).
+    std::string archivoSoltado_;
+    GameObject* objetoDestinoArchivo_ = nullptr;
     // Portapapeles de copiar/pegar (Ctrl+C/X/V): no es dueño, solo observa.
     // Pegar varias veces el mismo objeto conserva el portapapeles; cortar lo
     // vacia al pegar (es mover). El pegado tambien es diferido.

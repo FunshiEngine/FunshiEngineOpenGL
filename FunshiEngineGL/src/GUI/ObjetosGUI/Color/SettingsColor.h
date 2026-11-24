@@ -20,13 +20,13 @@
 #define SETTINGSCOLOR_H
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/Color.h"
+#include "../../../Objetos/Componentes/Render/Color.h"
 
 class SettingsColor : public SettingsComponent {
-	GameObject* gameObject;
+    GameObject* gameObject;
 public:
-	explicit SettingsColor(GameObject* gameObject);
-	void showDataComponent() override;
-	Component* getComponent() override { return gameObject ? gameObject->getComponent<Color>() : nullptr; }
+    explicit SettingsColor(GameObject* gameObject);
+    void showDataComponent() override;
+    Component* getComponent() override { return objetivo<Color>(gameObject); }
 };
 #endif

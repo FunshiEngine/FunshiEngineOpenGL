@@ -42,7 +42,7 @@
 
 #include <string>
 
-#include "../../FileManager/Proceso.h"
+#include "../../FileManager/Procesos/Proceso.h"
 
 namespace SondeoToolchain {
 

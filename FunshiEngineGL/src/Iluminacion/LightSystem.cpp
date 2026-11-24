@@ -21,8 +21,8 @@
 #include <cmath>
 
 #include "../Estructuras/ListasEnlazadas/ListasDoblementeEnlazada/ListaDE.h"
-#include "../Objetos/Componentes/Light.h"
-#include "../Objetos/Componentes/Transform.h"
+#include "../Objetos/Componentes/Escena/Light.h"
+#include "../Objetos/Componentes/Escena/Transform.h"
 #include "../Objetos/GameObject.h"
 
 

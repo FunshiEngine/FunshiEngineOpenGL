@@ -190,6 +190,7 @@ ImTextureID IconosGUI::getIconoPorExtension(const std::string& extension) const 
     if (ext == ".fbx") return aImTexture(iconoFbx);
     if (ext == ".obj") return aImTexture(iconoObj);
     if (ext == ".prefab") return aImTexture(iconoPrefab);
+    if (ext == ".fnep") return aImTexture(iconoLogo);  // proyecto de FunshiEngine
     if (ext == ".png") return aImTexture(iconoPng);
     if (ext == ".jpg" || ext == ".jpe") return aImTexture(iconoJpg);
     if (ext == ".jpeg") return aImTexture(iconoJpeg);

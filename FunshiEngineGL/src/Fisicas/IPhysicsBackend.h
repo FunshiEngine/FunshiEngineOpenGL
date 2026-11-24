@@ -25,6 +25,11 @@
 
 class RigidBody;
 
+// Gravedad del mundo con la que arranca todo backend (m/s^2, eje Y hacia
+// arriba): la de la Tierra. Antes era -1, diez veces menor, y los objetos
+// caian como en camara lenta.
+constexpr float kGravedadPorDefectoY = -9.81f;
+
 struct ResultadoRaycast {
     bool  impacto = false;
     float distancia = 0.0f;

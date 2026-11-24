@@ -17,9 +17,10 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SettingsEmisorParticulas.h"
+#include "../../Tema/TemaEditor.h"
 
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/EmisorParticulas.h"
+#include "../../../Objetos/Componentes/Efectos/EmisorParticulas.h"
 #include <imgui.h>
 
 #include <algorithm>
@@ -28,7 +29,10 @@
 #include <filesystem>
 #include <iostream>
 
-#include "../../../Assets/StbImageLoader.h"
+#include "../../../Assets/Imagenes/StbImageLoader.h"
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 namespace {
 
@@ -49,73 +53,72 @@ SettingsEmisorParticulas::SettingsEmisorParticulas(GameObject* gameObject)
 
 void SettingsEmisorParticulas::showDataComponent() {
     EmisorParticulas* emisor =
-        gameObject ? gameObject->getComponent<EmisorParticulas>() : nullptr;
+        objetivo<EmisorParticulas>(gameObject);
     if (!emisor) return;
 
-    ImGui::Text("===Emisor de particulas===");
 
     bool activa = emisor->activa();
-    if (ImGui::Checkbox("Activo", &activa)) emisor->setActiva(activa);
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Activo).c_str(), &activa)) emisor->setActiva(activa);
 
     ParametrosEmisor& parametros = emisor->parametros();
 
     int cantidad = parametros.cantidadPorSegundo;
-    if (ImGui::SliderInt("Particulas por segundo", &cantidad, 0, 500))
+    if (ImGui::SliderInt(Localizacion::etiqueta(Texto::ParticulasPorSegundo).c_str(), &cantidad, 0, 500))
         parametros.cantidadPorSegundo = cantidad;
 
-    if (ImGui::DragFloat("Vida minima", &parametros.vidaMinima, 0.05f, 0.0f,
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::VidaMinima).c_str(), &parametros.vidaMinima, 0.05f, 0.0f,
                          60.0f, "%.2f s") ||
-        ImGui::DragFloat("Vida maxima", &parametros.vidaMaxima, 0.05f, 0.0f,
+        ImGui::DragFloat(Localizacion::etiqueta(Texto::VidaMaxima).c_str(), &parametros.vidaMaxima, 0.05f, 0.0f,
                          60.0f, "%.2f s")) {
         if (parametros.vidaMaxima < parametros.vidaMinima)
             parametros.vidaMaxima = parametros.vidaMinima;
     }
 
-    if (ImGui::DragFloat("Velocidad minima", &parametros.velocidadMinima, 0.1f,
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::VelocidadMinima).c_str(), &parametros.velocidadMinima, 0.1f,
                          0.0f, 50.0f, "%.2f") ||
-        ImGui::DragFloat("Velocidad maxima", &parametros.velocidadMaxima, 0.1f,
+        ImGui::DragFloat(Localizacion::etiqueta(Texto::VelocidadMaxima).c_str(), &parametros.velocidadMaxima, 0.1f,
                          0.0f, 50.0f, "%.2f")) {
         if (parametros.velocidadMaxima < parametros.velocidadMinima)
             parametros.velocidadMaxima = parametros.velocidadMinima;
     }
 
-    if (ImGui::DragFloat("Tamano minimo", &parametros.tamanoMinimo, 0.01f,
+    if (ImGui::DragFloat(Localizacion::etiqueta(Texto::TamanoMinimo).c_str(), &parametros.tamanoMinimo, 0.01f,
                          0.0f, 10.0f, "%.2f") ||
-        ImGui::DragFloat("Tamano maximo", &parametros.tamanoMaximo, 0.01f,
+        ImGui::DragFloat(Localizacion::etiqueta(Texto::TamanoMaximo).c_str(), &parametros.tamanoMaximo, 0.01f,
                          0.0f, 10.0f, "%.2f")) {
         if (parametros.tamanoMaximo < parametros.tamanoMinimo)
             parametros.tamanoMaximo = parametros.tamanoMinimo;
     }
 
-    ImGui::ColorEdit4("Color", parametros.color);
+    ImGui::ColorEdit4(Localizacion::etiqueta(Texto::Color).c_str(), parametros.color);
 
-    ImGui::DragFloat3("Direccion", parametros.direccion, 0.05f, -1.0f, 1.0f);
-    ImGui::SliderFloat("Dispersion", &parametros.dispersion, 0.0f, 1.0f,
+    ImGui::DragFloat3(Localizacion::etiqueta(Texto::Direccion).c_str(), parametros.direccion, 0.05f, -1.0f, 1.0f);
+    ImGui::SliderFloat(Localizacion::etiqueta(Texto::Dispersion).c_str(), &parametros.dispersion, 0.0f, 1.0f,
                        "%.2f");
-    ImGui::DragFloat3("Gravedad", parametros.gravedad, 0.05f, -20.0f, 20.0f);
-    ImGui::SliderFloat("Rozamiento", &parametros.rozamiento, 0.0f, 5.0f,
+    ImGui::DragFloat3(Localizacion::etiqueta(Texto::Gravedad).c_str(), parametros.gravedad, 0.05f, -20.0f, 20.0f);
+    ImGui::SliderFloat(Localizacion::etiqueta(Texto::Rozamiento).c_str(), &parametros.rozamiento, 0.0f, 5.0f,
                        "%.2f");
-    ImGui::DragFloat("Rotacion", &parametros.rotacionInicial, 0.05f, -10.0f,
+    ImGui::DragFloat(Localizacion::etiqueta(Texto::Rotacion).c_str(), &parametros.rotacionInicial, 0.05f, -10.0f,
                      10.0f, "%.2f rad");
-    ImGui::DragFloat("Velocidad de rotacion", &parametros.velocidadRotacion,
+    ImGui::DragFloat(Localizacion::etiqueta(Texto::VelocidadDeRotacion).c_str(), &parametros.velocidadRotacion,
                      0.05f, -20.0f, 20.0f, "%.2f rad/s");
 
     // Perfil de efecto: la ruta del JSON. El perfil manda sobre la vida, la
     // velocidad, la gravedad y el rozamiento, y agrega las curvas de tamano y
     // color.
     ImGui::Separator();
-    ImGui::Text("Perfil de efecto");
+    ImGui::Text("%s", Localizacion::tr(Texto::PerfilDeEfecto));
     char buffer[1024];
     const std::string ruta = emisor->rutaPerfil();
     std::snprintf(buffer, sizeof(buffer), "%s", ruta.c_str());
-    if (ImGui::InputText("Ruta", buffer, sizeof(buffer))) {
+    if (ImGui::InputText(Localizacion::etiqueta(Texto::Ruta).c_str(), buffer, sizeof(buffer))) {
         emisor->setRutaPerfil(std::string(buffer));
     }
     // El perfil tambien se asigna arrastrando el JSON desde el explorador de
     // contenido. Solo se aceptan .json; si el contenido no es un perfil
     // valido, el motivo queda en errorPerfil y se muestra abajo.
     ImGui::PushID("PerfilEfecto");
-    ImGui::Button(ruta.empty() ? "[Arrastra un perfil .json]" : ruta.c_str());
+    ImGui::Button(ruta.empty() ? Localizacion::tr(Texto::ArrastraUnPerfilJson) : ruta.c_str());
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload =
                 ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
@@ -131,21 +134,21 @@ void SettingsEmisorParticulas::showDataComponent() {
         ImGui::EndDragDropTarget();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Quitar")) {
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Quitar).c_str())) {
         emisor->setRutaPerfil(std::string());
     }
     ImGui::PopID();
     if (!emisor->errorPerfil().empty()) {
-        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s",
+        ImGui::TextColored(TemaEditor::color(TemaEditor::RolColor::Error), "%s",
                             emisor->errorPerfil().c_str());
     } else if (emisor->perfil()) {
-        ImGui::Text("Perfil: %s", emisor->perfil()->nombre.c_str());
+        ImGui::Text(Localizacion::tr(Texto::Perfil), emisor->perfil()->nombre.c_str());
     }
 
     // Textura de particula: se puede asignar arrastrando una imagen desde el
     // explorador de contenido (showfolder). Sobreescribe la textura del perfil.
     ImGui::Separator();
-    ImGui::Text("Textura de particula");
+    ImGui::Text("%s", Localizacion::tr(Texto::TexturaDeParticula));
     const std::string& textura = emisor->texturaParticula();
     const char* textoBoton = textura.empty() ? "[Arrastra una imagen]"
                                                : textura.c_str();
@@ -168,7 +171,7 @@ void SettingsEmisorParticulas::showDataComponent() {
         ImGui::EndDragDropTarget();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Quitar")) {
+    if (ImGui::Button(Localizacion::etiqueta(Texto::Quitar).c_str())) {
         emisor->setTexturaParticula(std::string());
     }
     ImGui::PopID();

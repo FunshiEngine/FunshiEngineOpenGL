@@ -20,10 +20,10 @@
 #include "../Configuracion/EditorConfig.h"
 #include "../Configuracion/ProjectPaths.h"
 #include "../Objetos/GameObject.h"
-#include "../Objetos/Componentes/Model.h"
-#include "../Scenes/EditorController.h"
-#include "../Scenes/SceneRegistry.h"
-#include "../Mods/RegistroPanelesMods.h"
+#include "../Objetos/Componentes/Render/Model.h"
+#include "../Scenes/Editor/EditorController.h"
+#include "../Scenes/Registro/SceneRegistry.h"
+#include "../Mods/Api/RegistroPanelesMods.h"
 
 #include <cstdlib>
 #include <vector>

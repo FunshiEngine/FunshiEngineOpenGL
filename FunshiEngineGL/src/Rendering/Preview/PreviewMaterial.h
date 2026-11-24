@@ -26,9 +26,9 @@
 
 #include <glm/glm.hpp>
 
-#include "../../Assets/Mesh.h"
-#include "../MeshRenderer.h"
-#include "../RenderTarget.h"
+#include "../../Assets/Mallas/Mesh.h"
+#include "../Mallas/MeshRenderer.h"
+#include "../Escena/RenderTarget.h"
 #include "IPreviewMaterial.h"
 
 class TextureManager;

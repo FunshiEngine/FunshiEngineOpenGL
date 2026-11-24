@@ -18,29 +18,32 @@
 */
 #include "SettingsGrid.h"
 
-#include "../../../Objetos/Componentes/Grid.h"
+#include "../../../Objetos/Componentes/Escena/Grid.h"
 #include "../../../Objetos/GameObject.h"
+#include "../../../Localizacion/Localizacion.h"
+
+using Localizacion::Texto;
 
 SettingsGrid::SettingsGrid(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Grid).name())), gameObject(gameObject) {}
 
 void SettingsGrid::showDataComponent() {
-    Grid* grid = gameObject ? gameObject->getComponent<Grid>() : nullptr;
+    Grid* grid = objetivo<Grid>(gameObject);
     if (!grid) return;
 
     // El checkbox de la grilla vive aca (en sus settings), no mas como entrada
     // fija en la jerarquia.
     bool visible = grid->getVisible();
-    if (ImGui::Checkbox("Visible", &visible)) grid->setVisible(visible);
+    if (ImGui::Checkbox(Localizacion::etiqueta(Texto::Visible).c_str(), &visible)) grid->setVisible(visible);
     ImGui::Separator();
 
     float color[3] = {grid->getColor()[0], grid->getColor()[1], grid->getColor()[2]};
-    if (ImGui::ColorEdit3("Color", color)) {
+    if (ImGui::ColorEdit3(Localizacion::etiqueta(Texto::Color).c_str(), color)) {
         grid->setColor(color[0], color[1], color[2]);
     }
 
     // La grilla es infinita con densidad FIJA de lineas (secundarias cada 1
     // unidad, principales cada 5) y difuminado en el horizonte: NO hay
     // tamano ni separacion configurables (se eliminaron por diseño).
-    ImGui::TextDisabled("Grilla infinita con densidad fija");
+    ImGui::TextDisabled("%s", Localizacion::tr(Texto::GrillaInfinitaConDensidadFija));
 }

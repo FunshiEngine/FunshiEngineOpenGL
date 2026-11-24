@@ -21,7 +21,7 @@
 
 #include "../SettingsComponent.h"
 #include "../../../Objetos/GameObject.h"
-#include "../../../Objetos/Componentes/InterfaceComponent.h"
+#include "../../../Objetos/Componentes/Interfaz/InterfaceComponent.h"
 
 // Inspector del InterfaceComponent: ruta del .html de la interfaz (HUD) que se
 // muestra delante de la camara principal al entrar en modo play, mas su
@@ -32,7 +32,7 @@ class SettingsInterface : public SettingsComponent {
 public:
     explicit SettingsInterface(GameObject* gameObject);
     void showDataComponent() override;
-    Component* getComponent() override { return gameObject ? gameObject->getComponent<InterfaceComponent>() : nullptr; }
+    Component* getComponent() override { return objetivo<InterfaceComponent>(gameObject); }
 };
 
 #endif // SETTINGSINTERFACE_H

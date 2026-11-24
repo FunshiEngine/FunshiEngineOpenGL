@@ -19,7 +19,7 @@
 
 #include "ReglaIconoCatalogo.h"
 
-#include "../../Objetos/Componentes/CatalogoComponentes.h"
+#include "../../Objetos/Componentes/Nucleo/CatalogoComponentes.h"
 
 std::string ReglaIconoCatalogo::rutaIconoPara(
     const std::string& tipo) const {
