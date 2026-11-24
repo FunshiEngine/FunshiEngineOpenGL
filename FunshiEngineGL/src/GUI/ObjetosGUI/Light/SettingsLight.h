@@ -27,6 +27,6 @@ class SettingsLight : public SettingsComponent {
 public:
     explicit SettingsLight(GameObject* gameObject);
     void showDataComponent() override;
-    Component* getComponent() override { return gameObject ? gameObject->getComponent<Light>() : nullptr; }
+    Component* getComponent() override { return objetivo<Light>(gameObject); }
 };
 #endif

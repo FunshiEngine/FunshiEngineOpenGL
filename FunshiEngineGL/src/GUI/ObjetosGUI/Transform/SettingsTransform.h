@@ -33,6 +33,9 @@ public:
     explicit SettingsTransform(Transform* componentTransform, GameObject* ownerObject = nullptr);
     void setDimension(DimensionProyecto dimension) noexcept { dimension_ = dimension; }
     virtual void showDataComponent() override;
+    void alFijarObjetivo() override {
+        if (auto* propio = dynamic_cast<Transform*>(objetivo_)) componentTransform = propio;
+    }
     virtual Component* getComponent() override { return componentTransform; }
 };
 #endif

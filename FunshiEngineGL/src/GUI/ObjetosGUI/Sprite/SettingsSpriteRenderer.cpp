@@ -32,12 +32,12 @@ SettingsSpriteRenderer::SettingsSpriteRenderer(GameObject* objeto)
       gameObject_(objeto) {}
 
 Component* SettingsSpriteRenderer::getComponent() {
-    return gameObject_ ? gameObject_->getComponent<SpriteRenderer>() : nullptr;
+    return objetivo<SpriteRenderer>(gameObject_);
 }
 
 void SettingsSpriteRenderer::showDataComponent() {
     SpriteRenderer* sprite =
-        gameObject_ ? gameObject_->getComponent<SpriteRenderer>() : nullptr;
+        objetivo<SpriteRenderer>(gameObject_);
     if (!sprite) return;
 
     // Ruta de textura: el path (o el placeholder) es el target del drag & drop

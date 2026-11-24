@@ -26,7 +26,7 @@ SettingsSombras::SettingsSombras(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Sombras).name())), gameObject(gameObject) {}
 
 void SettingsSombras::showDataComponent() {
-    Sombras* sombras = gameObject->getComponent<Sombras>();
+    Sombras* sombras = objetivo<Sombras>(gameObject);
     if (!sombras) return;
 
     bool activado = sombras->estaActivado();

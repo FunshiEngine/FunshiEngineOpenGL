@@ -33,7 +33,7 @@ public:
     explicit SettingsUIComponent(GameObject* gameObject);
     void showDataComponent() override;
     Component* getComponent() override {
-        return gameObject ? gameObject->getComponent<UIComponent>() : nullptr;
+        return objetivo<UIComponent>(gameObject);
     }
 };
 

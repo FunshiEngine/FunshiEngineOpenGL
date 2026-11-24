@@ -56,7 +56,7 @@ SettingsInterface::SettingsInterface(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(InterfaceComponent).name())), gameObject(gameObject) {}
 
 void SettingsInterface::showDataComponent() {
-    InterfaceComponent* comp = gameObject->getComponent<InterfaceComponent>();
+    InterfaceComponent* comp = objetivo<InterfaceComponent>(gameObject);
     if (!comp) return;
 
 

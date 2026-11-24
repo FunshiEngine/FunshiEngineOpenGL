@@ -39,12 +39,12 @@ SettingsTilemap::SettingsTilemap(GameObject* objeto, EditorController* editor)
 SettingsTilemap::~SettingsTilemap() { liberarAtlas(); }
 
 Component* SettingsTilemap::getComponent() {
-    return gameObject_ ? gameObject_->getComponent<Tilemap>() : nullptr;
+    return objetivo<Tilemap>(gameObject_);
 }
 
 void SettingsTilemap::showDataComponent() {
     Tilemap* tilemap =
-        gameObject_ ? gameObject_->getComponent<Tilemap>() : nullptr;
+        objetivo<Tilemap>(gameObject_);
     if (!tilemap) return;
 
     dibujarTileset(tilemap);

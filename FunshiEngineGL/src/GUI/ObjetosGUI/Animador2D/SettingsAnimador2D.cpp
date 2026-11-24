@@ -30,12 +30,12 @@ SettingsAnimador2D::SettingsAnimador2D(GameObject* objeto)
       gameObject_(objeto) {}
 
 Component* SettingsAnimador2D::getComponent() {
-    return gameObject_ ? gameObject_->getComponent<Animador2D>() : nullptr;
+    return objetivo<Animador2D>(gameObject_);
 }
 
 void SettingsAnimador2D::showDataComponent() {
     Animador2D* anim =
-        gameObject_ ? gameObject_->getComponent<Animador2D>() : nullptr;
+        objetivo<Animador2D>(gameObject_);
     if (!anim) return;
 
     if (gameObject_->getComponent<SpriteRenderer>() == nullptr) {

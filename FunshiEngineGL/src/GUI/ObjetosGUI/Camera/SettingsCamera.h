@@ -34,6 +34,6 @@ public:
         dimension_ = dimension;
     }
     void showDataComponent() override;
-    Component* getComponent() override { return gameObject ? gameObject->getComponent<CameraComponent>() : nullptr; }
+    Component* getComponent() override { return objetivo<CameraComponent>(gameObject); }
 };
 #endif

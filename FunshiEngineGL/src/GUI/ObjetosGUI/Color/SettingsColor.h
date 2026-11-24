@@ -27,6 +27,6 @@ class SettingsColor : public SettingsComponent {
 public:
     explicit SettingsColor(GameObject* gameObject);
     void showDataComponent() override;
-    Component* getComponent() override { return gameObject ? gameObject->getComponent<Color>() : nullptr; }
+    Component* getComponent() override { return objetivo<Color>(gameObject); }
 };
 #endif

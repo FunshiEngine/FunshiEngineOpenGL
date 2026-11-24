@@ -38,7 +38,7 @@ public:
     explicit SettingsAudioSource(GameObject* gameObject);
     void setAudioEngine(AudioEngine* motor) noexcept { this->motor = motor; }
     void showDataComponent() override;
-    Component* getComponent() override { return gameObject ? gameObject->getComponent<AudioSource>() : nullptr; }
+    Component* getComponent() override { return objetivo<AudioSource>(gameObject); }
 };
 
 #endif // SETTINGSAUDIOSOURCE_H

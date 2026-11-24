@@ -44,7 +44,7 @@ public:
     explicit SettingsSkybox(GameObject* gameObject);
 
     void showDataComponent() override;
-    Component* getComponent() override { return gameObject ? gameObject->getComponent<Skybox>() : nullptr; }
+    Component* getComponent() override { return objetivo<Skybox>(gameObject); }
 };
 
 #endif // SETTINGSSKYBOX_H

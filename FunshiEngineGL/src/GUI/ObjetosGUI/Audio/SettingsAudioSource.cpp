@@ -32,7 +32,7 @@ SettingsAudioSource::SettingsAudioSource(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(AudioSource).name())), gameObject(gameObject) {}
 
 void SettingsAudioSource::showDataComponent() {
-    AudioSource* source = gameObject->getComponent<AudioSource>();
+    AudioSource* source = objetivo<AudioSource>(gameObject);
     if (!source) return;
 
 

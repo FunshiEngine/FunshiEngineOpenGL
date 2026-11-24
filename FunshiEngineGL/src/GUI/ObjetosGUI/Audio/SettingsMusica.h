@@ -40,7 +40,7 @@ public:
     void setAudioEngine(AudioEngine* motor) noexcept { this->motor = motor; }
     void showDataComponent() override;
     Component* getComponent() override {
-        return gameObject ? gameObject->getComponent<Musica>() : nullptr;
+        return objetivo<Musica>(gameObject);
     }
 };
 

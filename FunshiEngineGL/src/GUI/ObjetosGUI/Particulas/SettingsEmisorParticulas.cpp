@@ -50,7 +50,7 @@ SettingsEmisorParticulas::SettingsEmisorParticulas(GameObject* gameObject)
 
 void SettingsEmisorParticulas::showDataComponent() {
     EmisorParticulas* emisor =
-        gameObject ? gameObject->getComponent<EmisorParticulas>() : nullptr;
+        objetivo<EmisorParticulas>(gameObject);
     if (!emisor) return;
 
 

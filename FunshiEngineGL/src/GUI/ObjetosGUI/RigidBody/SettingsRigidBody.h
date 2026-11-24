@@ -30,6 +30,9 @@ public:
     explicit SettingsRigidBody(GameObject* objeto);
     void setEditor(EditorController* editor);
     void showDataComponent() override;
+    void alFijarObjetivo() override {
+        if (auto* propio = dynamic_cast<RigidBody*>(objetivo_)) myCollider = propio;
+    }
     Component* getComponent() override { return myCollider; }
 };
 #endif

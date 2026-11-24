@@ -89,7 +89,7 @@ bool SettingsObjectInterface::tieneSettingsPara(Component* componente) {
     Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
     while (pos != nullptr) {
         SettingsComponent* s = pos->getElement();
-        if (s != nullptr && s->getComponent() == componente) return true;
+        if (s != nullptr && s->componenteDelPanel() == componente) return true;
         pos = (pos != listaDESettingsComponent->last())
                   ? listaDESettingsComponent->next(pos)
                   : nullptr;
@@ -98,8 +98,6 @@ bool SettingsObjectInterface::tieneSettingsPara(Component* componente) {
 }
 
 // Borra los Settings cuyo componente ya no pertenece al objeto inspeccionado.
-// Usa el nombre de tipo almacenado en SettingsComponent (estable en construccion)
-// para evitar desreferenciar punteros colgantes.
 void SettingsObjectInterface::purgarSettingsHuerfanos() {
     if (!object || listaDESettingsComponent->isEmpty()) return;
     ListaDE<Component*>* componentes = object->getComponents();
@@ -126,24 +124,23 @@ void SettingsObjectInterface::purgarSettingsHuerfanos() {
             continue;
         }
 
-        // Verificar si existe un componente de este tipo en el objeto
+        // Vigente si SU componente sigue en el objeto. Se compara la direccion
+        // contra la lista viva (sin leer el puntero del panel, que puede estar
+        // colgando) y se confirma el tipo con el elemento de la lista. Antes se
+        // miraba solo el tipo: con dos componentes iguales, borrar uno dejaba
+        // vivo su panel apuntando a memoria liberada.
         const std::string& tipoEsperado = s->getTipoComponente();
+        Component* propio = s->componenteDelPanel();
         bool vigente = false;
-        if (!tipoEsperado.empty()) {
-            Position<Component*>* pc = componentes->first();
-            while (pc != nullptr) {
-                Component* c = pc->getElement();
-                if (c) {
-                    std::string tipoActual = demangle(typeid(*c).name());
-                    if (tipoActual == tipoEsperado) {
-                        vigente = true;
-                        break;
-                    }
-                }
-                pc = (pc != componentes->last())
-                         ? componentes->next(pc)
-                         : nullptr;
+        Position<Component*>* pc = componentes->first();
+        while (pc != nullptr) {
+            Component* c = pc->getElement();
+            if (c && c == propio) {
+                vigente = tipoEsperado.empty() ||
+                          demangle(typeid(*c).name()) == tipoEsperado;
+                break;
             }
+            pc = (pc != componentes->last()) ? componentes->next(pc) : nullptr;
         }
 
         if (!vigente) {
@@ -196,6 +193,9 @@ void SettingsObjectInterface::crearSettingsFaltantes() {
                     !tieneSettingsPara(componente)) {
                     std::unique_ptr<SettingsComponent> panel =
                         descriptor.crearPanel(componente, object, contexto);
+                    // Cada panel edita SU componente (importa cuando hay
+                    // varios del mismo tipo en el objeto).
+                    if (panel) panel->fijarObjetivo(componente);
                     if (panel)
                         listaDESettingsComponent->addLast(panel.release());
                 }

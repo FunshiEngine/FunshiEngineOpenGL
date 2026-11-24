@@ -84,7 +84,7 @@ SettingsUIComponent::SettingsUIComponent(GameObject* gameObject)
       gameObject(gameObject) {}
 
 void SettingsUIComponent::showDataComponent() {
-    UIComponent* comp = gameObject->getComponent<UIComponent>();
+    UIComponent* comp = objetivo<UIComponent>(gameObject);
     if (!comp) return;
 
     ImGui::TextWrapped(

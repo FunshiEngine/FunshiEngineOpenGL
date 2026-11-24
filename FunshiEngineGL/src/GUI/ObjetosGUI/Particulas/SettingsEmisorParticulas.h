@@ -31,7 +31,7 @@ public:
     explicit SettingsEmisorParticulas(GameObject* gameObject);
     void showDataComponent() override;
     Component* getComponent() override {
-        return gameObject ? gameObject->getComponent<EmisorParticulas>() : nullptr;
+        return objetivo<EmisorParticulas>(gameObject);
     }
 };
 

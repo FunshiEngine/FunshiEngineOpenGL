@@ -26,7 +26,7 @@ SettingsCamera::SettingsCamera(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(CameraComponent).name())), gameObject(gameObject) {}
 
 void SettingsCamera::showDataComponent() {
-    CameraComponent* camera = gameObject->getComponent<CameraComponent>();
+    CameraComponent* camera = objetivo<CameraComponent>(gameObject);
     if (!camera) return;
 
 

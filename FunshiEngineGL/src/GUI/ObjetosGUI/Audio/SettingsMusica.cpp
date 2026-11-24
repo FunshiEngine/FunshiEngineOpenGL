@@ -43,7 +43,7 @@ SettingsMusica::SettingsMusica(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Musica).name())), gameObject(gameObject) {}
 
 void SettingsMusica::showDataComponent() {
-    Musica* musica = gameObject->getComponent<Musica>();
+    Musica* musica = objetivo<Musica>(gameObject);
     if (!musica) return;
 
 

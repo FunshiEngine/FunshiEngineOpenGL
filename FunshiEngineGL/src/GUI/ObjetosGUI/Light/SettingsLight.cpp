@@ -26,7 +26,7 @@ SettingsLight::SettingsLight(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Light).name())), gameObject(gameObject) {}
 
 void SettingsLight::showDataComponent() {
-    Light* light = gameObject->getComponent<Light>();
+    Light* light = objetivo<Light>(gameObject);
     if (!light) return;
 
 

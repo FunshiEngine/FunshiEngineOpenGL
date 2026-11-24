@@ -37,6 +37,9 @@ public:
 
     // CONFIGURAR EL SISTEMA PARA QUE AL ACTIVAR SEA UN GHOST BODY, FALSO UN COMUN BODY
     void showDataComponent() override;
+    void alFijarObjetivo() override {
+        if (auto* propio = dynamic_cast<Script*>(objetivo_)) myScript = propio;
+    }
     Component* getComponent() override { return myScript; }
 };
 #endif

@@ -50,7 +50,7 @@ void SettingsSkybox::sondearDimensiones(
 }
 
 void SettingsSkybox::showDataComponent() {
-    Skybox* skybox = gameObject ? gameObject->getComponent<Skybox>() : nullptr;
+    Skybox* skybox = objetivo<Skybox>(gameObject);
     if (!skybox) return;
 
     bool visible = skybox->getVisible();

@@ -25,7 +25,7 @@ SettingsGrid::SettingsGrid(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Grid).name())), gameObject(gameObject) {}
 
 void SettingsGrid::showDataComponent() {
-    Grid* grid = gameObject ? gameObject->getComponent<Grid>() : nullptr;
+    Grid* grid = objetivo<Grid>(gameObject);
     if (!grid) return;
 
     // El checkbox de la grilla vive aca (en sus settings), no mas como entrada

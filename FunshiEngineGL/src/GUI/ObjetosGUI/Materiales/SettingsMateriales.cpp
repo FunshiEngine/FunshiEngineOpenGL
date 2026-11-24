@@ -46,11 +46,11 @@ SettingsMateriales::SettingsMateriales(GameObject* gameObject,
 SettingsMateriales::~SettingsMateriales() {}
 
 Component* SettingsMateriales::getComponent() {
-    return gameObject->getComponent<Materiales>();
+    return objetivo<Materiales>(gameObject);
 }
 
 void SettingsMateriales::showDataComponent() {
-    Materiales* materiales = gameObject->getComponent<Materiales>();
+    Materiales* materiales = objetivo<Materiales>(gameObject);
     if (!materiales) return;
 
     ImGui::TextWrapped(

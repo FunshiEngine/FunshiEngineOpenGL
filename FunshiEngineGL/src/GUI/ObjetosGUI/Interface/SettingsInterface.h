@@ -32,7 +32,7 @@ class SettingsInterface : public SettingsComponent {
 public:
     explicit SettingsInterface(GameObject* gameObject);
     void showDataComponent() override;
-    Component* getComponent() override { return gameObject ? gameObject->getComponent<InterfaceComponent>() : nullptr; }
+    Component* getComponent() override { return objetivo<InterfaceComponent>(gameObject); }
 };
 
 #endif // SETTINGSINTERFACE_H

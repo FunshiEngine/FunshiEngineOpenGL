@@ -33,7 +33,7 @@ SettingsMaterial::SettingsMaterial(GameObject* gameObject,
 SettingsMaterial::~SettingsMaterial() {}
 
 void SettingsMaterial::showDataComponent() {
-    Material* material = gameObject->getComponent<Material>();
+    Material* material = objetivo<Material>(gameObject);
     if (!material) return;
 
     // La vista previa (esfera de muestra) tiene su propia clave: la del
@@ -45,5 +45,5 @@ void SettingsMaterial::showDataComponent() {
 }
 
 Component* SettingsMaterial::getComponent() {
-    return gameObject->getComponent<Material>();
+    return objetivo<Material>(gameObject);
 }

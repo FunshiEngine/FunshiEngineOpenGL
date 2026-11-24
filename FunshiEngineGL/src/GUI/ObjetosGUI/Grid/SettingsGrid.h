@@ -29,7 +29,7 @@ class SettingsGrid : public SettingsComponent {
 public:
     explicit SettingsGrid(GameObject* gameObject);
     void showDataComponent() override;
-    Component* getComponent() override { return gameObject ? gameObject->getComponent<Grid>() : nullptr; }
+    Component* getComponent() override { return objetivo<Grid>(gameObject); }
 };
 
 #endif

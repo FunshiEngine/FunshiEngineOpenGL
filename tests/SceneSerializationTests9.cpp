@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "SceneSerializationTestsDetalle.h"
+#include "../FunshiEngineGL/src/GUI/ObjetosGUI/SettingsComponent.h"
 
 // Fisica: el paso es fijo (1/60) con subpasos, asi un frame largo avanza su
 // tiempo completo; quitar un cuerpo no reinicia los contactos de los demas; y
@@ -105,8 +106,58 @@ void fisicaPasoFijoYContactosAlQuitar() {
     }
 }
 
+// --- Dos componentes del mismo tipo: cada panel edita el suyo ----------------
+// El inspector decidia si un panel seguia vigente mirando solo el NOMBRE del
+// tipo. Con dos Color en el objeto, borrar uno dejaba vivo su panel (seguia
+// habiendo "un Color") y ese panel quedaba apuntando al componente liberado.
+// Ahora el panel guarda su componente y la purga compara direcciones contra la
+// lista viva del objeto.
+void dosComponentesIgualesTienenPanelPropio() {
+    SceneRegistry registry;
+    EventBus events;
+    AssetManager assets;
+    EditorController editor(&registry, nullptr, &events, &assets);
+    GameObject* raiz = registry.getRoot();
+
+    GameObject* a =
+        editor.createGameObject(GameObjectFactory::createSimpleObject(raiz), raiz);
+    CHECK(a != nullptr, "el objeto con dos Color entra en la escena");
+    if (!a) return;
+
+    SettingsObjectInterface inspector(a, true);
+    inspector.setEditor(&editor);
+    inspector.setEventBus(&events);
+
+    auto primero = std::make_unique<Color>();
+    auto segundo = std::make_unique<Color>();
+    Color* c1 = primero.get();
+    Color* c2 = segundo.get();
+    CHECK(editor.addComponent(a, std::move(primero)), "se agrega el primer Color");
+    CHECK(editor.addComponent(a, std::move(segundo)), "se agrega el segundo Color");
+
+    SettingsComponent* p1 = inspector.settingsEnIndice(1);
+    SettingsComponent* p2 = inspector.settingsEnIndice(2);
+    CHECK(p1 && p1->componenteDelPanel() == c1,
+          "el primer panel de Color edita el primer Color");
+    CHECK(p2 && p2->componenteDelPanel() == c2,
+          "el segundo panel de Color edita el segundo Color (no el primero)");
+    CHECK(p2 && p2->getComponent() == c2,
+          "getComponent() del segundo panel devuelve su propio Color");
+
+    // Borrar el PRIMER Color: su panel se va y el del segundo sobrevive.
+    CHECK(editor.removeComponent(a, c1), "se borra el primer Color");
+    CHECK(inspector.settingsEnIndice(1) == p2,
+          "el panel del segundo Color sobrevive y ocupa el lugar del borrado");
+    CHECK(inspector.settingsEnIndice(2) == nullptr,
+          "el panel del Color borrado no queda en la lista");
+    CHECK(inspector.settingsEnIndice(1) &&
+              inspector.settingsEnIndice(1)->componenteDelPanel() == c2,
+          "ningun panel queda apuntando al Color liberado");
+}
+
 int main() {
     fisicaPasoFijoYContactosAlQuitar();
+    dosComponentesIgualesTienenPanelPropio();
     nombresPorDefecto();
     roundTripDeEscena();
     tagsCompatiblesConEscenasAnteriores();
