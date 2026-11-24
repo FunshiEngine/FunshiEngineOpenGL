@@ -145,7 +145,8 @@ option(BUILD_RUNTIME "Construir solo la libreria del motor (sin editor ni prueba
 
 if(BUILD_ENGINE)
     # main.cpp y main_juego.cpp son puntos de entrada, no parte de la libreria.
-    list(REMOVE_ITEM SOURCES ${SRC_DIR}/main.cpp)
+    list(REMOVE_ITEM SOURCES ${SRC_DIR}/main.cpp
+        ${SRC_DIR}/MainArranque.cpp ${SRC_DIR}/MainGUI.cpp ${SRC_DIR}/MainBucle.cpp)
     list(REMOVE_ITEM SOURCES ${SRC_DIR}/Runtime/main_juego.cpp)
 
     # El backend Java se compila cuando FUNSHI_JAVA=ON y hay JDK disponible.
@@ -170,7 +171,9 @@ if(BUILD_ENGINE)
 
     if(NOT BUILD_RUNTIME)
     # Ejecutable principal (solo el entry point).
-    add_executable(${PROJECT_NAME} ${SRC_DIR}/main.cpp)
+    # Punto de entrada del editor: main.cpp y sus fases (MainDetalle.h).
+    add_executable(${PROJECT_NAME} ${SRC_DIR}/main.cpp ${SRC_DIR}/MainArranque.cpp
+        ${SRC_DIR}/MainGUI.cpp ${SRC_DIR}/MainBucle.cpp)
     target_link_libraries(${PROJECT_NAME} PRIVATE funshi_engine)
     # En Windows el binario es GUI (sin consola): WinMain arma argc/argv desde
     # GetCommandLineW y delega en el arranque comun, y la salida va al log, asi
