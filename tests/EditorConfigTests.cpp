@@ -63,15 +63,8 @@ int fallos = 0;
     } while (0)
 } // namespace
 
-int main() {
-    // Carpeta temporal unica por proceso: crea y se limpia al salir (RAII).
-    TempPruebas::CarpetaPrueba carpetaBase("funshi_editorconfig_tests");
-    const fs::path base = carpetaBase.ruta();
-    const std::string rutaGeneral  = (base / "Configuracion.json").string();
-    const std::string proyNombreTest = "TestProyecto";
-    const std::string rutaProyecto = (base / "ConfiguracionProyecto.json").string();
-
-    // 1. Sin archivo: todo default, sin crashear.
+// 1. Sin archivo: todo default, sin crashear.
+static void seccion01(const std::string& rutaGeneral, const std::string& proyNombreTest, const std::string& rutaProyecto) {
     {
         EditorConfig cfg;
         cfg.cargarGeneral(rutaGeneral);
@@ -107,10 +100,12 @@ int main() {
                   cfg.datos().apariencia.fondoInferior[2] == 0.10f,
               "default fondoInferior = 0.1, 0.1, 0.1");
     }
+}
 
-    // 1b. Persistencia del proyecto activo: sin "ultimoProyecto" no se abre
-    //     ningun proyecto y el nombre queda vacio; asi guardarGeneral no
-    //     materializa un proyecto fantasma ("Nuevo Proyecto").
+// 1b. Persistencia del proyecto activo: sin "ultimoProyecto" no se abre
+//     ningun proyecto y el nombre queda vacio; asi guardarGeneral no
+//     materializa un proyecto fantasma ("Nuevo Proyecto").
+static void seccion02(const std::string& rutaGeneral) {
     {
         // JSON general existente pero sin ultimoProyecto: el proyecto resuelto
         // es ninguno (vacio), no el default del struct.
@@ -131,10 +126,12 @@ int main() {
         CHECK(contenido.find("ultimoProyecto") == std::string::npos,
               "nombre vacio: guardarGeneral no escribe ultimoProyecto");
     }
+}
 
-    // 1c. ProyectoInicial::resolver: politica de arranque sin disco ni UI.
-    // Sin --proyecto SIEMPRE arranca en el menu (nombre vacio): el
-    // ultimoProyecto persistido NO reabre solo el editor.
+// 1c. ProyectoInicial::resolver: politica de arranque sin disco ni UI.
+// Sin --proyecto SIEMPRE arranca en el menu (nombre vacio): el
+// ultimoProyecto persistido NO reabre solo el editor.
+static void seccion03() {
     {
         using ProyectoInicial::resolver;
         const auto conConfig = resolver("MiEscena", "", true);
@@ -159,11 +156,13 @@ int main() {
         CHECK(!conCLI.primerArranque,
               "resolver: --proyecto entra directo al editor");
     }
+}
 
-    // 1d. Colores del cielo: se guardan y se leen tal cual quedaron, incluidos
-    // los claros (un cielo de tonos altos es una eleccion valida del usuario).
-    // Solo se acotan los valores que no pueden salir del selector y romperian
-    // el degradado: componentes fuera de [0, 1].
+// 1d. Colores del cielo: se guardan y se leen tal cual quedaron, incluidos
+// los claros (un cielo de tonos altos es una eleccion valida del usuario).
+// Solo se acotan los valores que no pueden salir del selector y romperian
+// el degradado: componentes fuera de [0, 1].
+static void seccion04(const std::string& rutaGeneral) {
     {
         // Par claro y casi igual: antes se reseteaba al default 0.1 y el cielo
         // perdia el color elegido (y la division, si los dos extremos caian).
@@ -209,9 +208,11 @@ int main() {
                   cfgFueraDeRango.datos().apariencia.fondoInferior[2] == 1.0f,
               "cielo fuera de rango: fondoInferior acotado a [0, 1]");
     }
+}
 
-    // 2. Round-trip: los valores cambiados sobreviven a guardar/cargar.
-    //    Config general y config de proyecto se guardan en archivos separados.
+// 2. Round-trip: los valores cambiados sobreviven a guardar/cargar.
+//    Config general y config de proyecto se guardan en archivos separados.
+static void seccion05(const std::string& rutaGeneral, const std::string& proyNombreTest, const std::string& rutaProyecto) {
     {
         EditorConfig cfg;
         cfg.datos().nombreProyecto = "MiEscena";
@@ -276,11 +277,13 @@ int main() {
         CHECK(cfg2.datos().apariencia == cfg.datos().apariencia,
               "roundtrip Apariencia completa");
     }
+}
 
-    // 2b. Dimension del proyecto: roundtrip 3D explicito, clave ausente e
-    //     invalida. Los proyectos previos al campo (sin "dimension") y los
-    //     valores fuera de rango se leen como 3D, la dimension con la que se
-    //     crearon todos los proyectos anteriores.
+// 2b. Dimension del proyecto: roundtrip 3D explicito, clave ausente e
+//     invalida. Los proyectos previos al campo (sin "dimension") y los
+//     valores fuera de rango se leen como 3D, la dimension con la que se
+//     crearon todos los proyectos anteriores.
+static void seccion06(const fs::path& base, const std::string& proyNombreTest) {
     {
         const std::string rutaDim = (base / "dim_proyecto.json").string();
 
@@ -327,8 +330,10 @@ int main() {
                   "JSON guarda editor.dimension = 2");
         }
     }
+}
 
-    // 3. Archivo corrupto: defaults (sin crash).
+// 3. Archivo corrupto: defaults (sin crash).
+static void seccion07(const fs::path& base, const std::string& rutaGeneral, const std::string& proyNombreTest) {
     {
         {
             std::ofstream f(rutaGeneral, std::ios::trunc);
@@ -372,9 +377,11 @@ int main() {
                   "el mod del motor no se guarda en la config del proyecto");
         }
     }
+}
 
-    // 4. Parcial: el campo presente se aplica, el ausente conserva el default.
-    //    El campo "editor" (ventanaCamarasAbierta) vive en el archivo de proyecto.
+// 4. Parcial: el campo presente se aplica, el ausente conserva el default.
+//    El campo "editor" (ventanaCamarasAbierta) vive en el archivo de proyecto.
+static void seccion08(const std::string& proyNombreTest, const std::string& rutaProyecto) {
     {
         {
             std::ofstream f(rutaProyecto, std::ios::trunc);
@@ -390,11 +397,13 @@ int main() {
         CHECK(cfg.datos().nombreProyecto.empty(),
               "parcial: sin seccion general -> proyecto no abierto");
     }
+}
 
-    // 4b. Radio de difuminado: un archivo sin el campo conserva el default (no
-    //     falla al cargar una configuracion anterior a la opcion) y uno con un
-    //     valor fuera del rango admitido lo acota, para que el perfil en memoria
-    //     sea siempre valido aunque el archivo se haya editado a mano.
+// 4b. Radio de difuminado: un archivo sin el campo conserva el default (no
+//     falla al cargar una configuracion anterior a la opcion) y uno con un
+//     valor fuera del rango admitido lo acota, para que el perfil en memoria
+//     sea siempre valido aunque el archivo se haya editado a mano.
+static void seccion09(const std::string& rutaGeneral) {
     {
         {
             std::ofstream f(rutaGeneral, std::ios::trunc);
@@ -429,10 +438,12 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               AparienciaUtil::kRadioDifuminadoMinimo,
               "radio negativo -> acotado al minimo");
     }
+}
 
-    // 4c. Colores del cielo (fondoSuperior/fondoInferior): compatibilidad con
-    //     "fondo" antiguo (se copia a ambos), modo B/N fuerza ambos a
-    //     blanco/negro segun el tema, y round-trip de colores personalizados.
+// 4c. Colores del cielo (fondoSuperior/fondoInferior): compatibilidad con
+//     "fondo" antiguo (se copia a ambos), modo B/N fuerza ambos a
+//     blanco/negro segun el tema, y round-trip de colores personalizados.
+static void seccion10(const std::string& rutaGeneral) {
     {
         // Compatibilidad: archivo viejo con "fondo" -> se copia a superior e inferior.
         {
@@ -505,11 +516,13 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
                   "roundtrip fondoInferior personalizado");
         }
     }
+}
 
-    // 5. Nuevo sistema de guardado por proyecto:
-    // Cada proyecto genera su carpeta en FunshiEngine-DATA, con Memory (escena, config, imgui)
-    // y su hermano srcProyectName como raiz del explorador de archivos.
-    // La config general vive en la raiz de FunshiEngine-DATA (hermana de los proyectos).
+// 5. Nuevo sistema de guardado por proyecto:
+// Cada proyecto genera su carpeta en FunshiEngine-DATA, con Memory (escena, config, imgui)
+// y su hermano srcProyectName como raiz del explorador de archivos.
+// La config general vive en la raiz de FunshiEngine-DATA (hermana de los proyectos).
+static void seccion11() {
     {
         const std::string baseMotor = EditorConfig::directorioBaseDatos();
         CHECK(!baseMotor.empty(), "directorioBaseDatos no vacio");
@@ -595,9 +608,11 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         std::error_code ec;
         fs::remove_all(proyDir, ec);
     }
+}
 
-    // 5b. Las carpetas de assets las crea el usuario: el motor no mueve lo que
-    //     el usuario tenga en la raiz del proyecto.
+// 5b. Las carpetas de assets las crea el usuario: el motor no mueve lo que
+//     el usuario tenga en la raiz del proyecto.
+static void seccion12() {
     {
         const std::string proyNombre = "JuegoMigracion";
         const std::string proyDir = EditorConfig::directorioProyecto(proyNombre);
@@ -615,10 +630,12 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
 
         fs::remove_all(proyDir, ec);
     }
+}
 
-    // 5c. Renombre fisico de proyecto: mueve la carpeta raiz y la raiz src
-    //     (src<viejo> -> src<nuevo>); no hace nada si falta el origen o si el
-    //     destino ya existe (main conmuta en ese caso).
+// 5c. Renombre fisico de proyecto: mueve la carpeta raiz y la raiz src
+//     (src<viejo> -> src<nuevo>); no hace nada si falta el origen o si el
+//     destino ya existe (main conmuta en ese caso).
+static void seccion13() {
     {
         const std::string viejo = "JuegoRenombrado";
         const std::string nuevo = "JuegoRenombradoV2";
@@ -642,10 +659,12 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
               "sin origen ya no se puede renombrar de nuevo");
         fs::remove_all(dirNuevo, ec);
     }
+}
 
-    // 5c-bis. Archivo .fnep: se crea dentro de la carpeta del proyecto,
-    //     abrirlo resuelve ese proyecto, sigue al proyecto al renombrarlo y se
-    //     genera para proyectos viejos que no lo tienen.
+// 5c-bis. Archivo .fnep: se crea dentro de la carpeta del proyecto,
+//     abrirlo resuelve ese proyecto, sigue al proyecto al renombrarlo y se
+//     genera para proyectos viejos que no lo tienen.
+static void seccion14(const fs::path& base) {
     {
         const std::string nombre = "JuegoFnep";
         const std::string renombrado = "JuegoFnepV2";
@@ -684,9 +703,11 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(fs::exists(fnepNuevo), "un proyecto sin .fnep lo recibe al arrancar");
         fs::remove_all(EditorConfig::directorioProyecto(renombrado), ec);
     }
+}
 
-    // 5d. Eliminacion de proyecto: borra la carpeta completa (escena, src,
-    //     config). No toca nada si el proyecto no existe o el nombre es vacio.
+// 5d. Eliminacion de proyecto: borra la carpeta completa (escena, src,
+//     config). No toca nada si el proyecto no existe o el nombre es vacio.
+static void seccion15() {
     {
         const std::string nombre = "JuegoAEliminar";
         const std::string dirProyecto = EditorConfig::directorioProyecto(nombre);
@@ -703,9 +724,11 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(EditorConfig::eliminarProyecto(nombre) == false,
               "una vez eliminado ya no se puede eliminar de nuevo");
     }
+}
 
-    // 6a. Contexto de rutas de la serializacion portable: sin raiz fijada las
-    //     rutas pasan tal cual (passthrough, igual que antes del cambio).
+// 6a. Contexto de rutas de la serializacion portable: sin raiz fijada las
+//     rutas pasan tal cual (passthrough, igual que antes del cambio).
+static void seccion16() {
     {
         EditorConfig::limpiarRaizAssets();
         CHECK(EditorConfig::hayRaizAssets() == false,
@@ -728,10 +751,12 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
                   .empty(),
               "reemplazo identico no hace nada");
     }
+}
 
-    // 6b. Con raiz de assets fijada (src<nombre> del proyecto abierto): las
-    //     rutas de la escena se guardan relativas y se resuelven al cargar.
-    //     Las escenas legacy (absolutas) se dejan intactas.
+// 6b. Con raiz de assets fijada (src<nombre> del proyecto abierto): las
+//     rutas de la escena se guardan relativas y se resuelven al cargar.
+//     Las escenas legacy (absolutas) se dejan intactas.
+static void seccion17() {
     {
         const std::string raiz = "/dato/FunshiEngine-DATA/JuegoX/srcJuegoX";
         EditorConfig::fijarRaizAssets(raiz);
@@ -768,13 +793,15 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
                   "Modelos/Auto/model.fbx",
               "sin raiz la relativa almacenada queda como estaba");
     }
+}
 
-    // 6c. Cotejo de prefijos del explorador contra las rutas de la
-    //     escena. ProjectPaths arma la raiz con '/' y absolutizarRuta
-    //     concatena con '/', mientras que el explorador publica la ruta con
-    //     el separador nativo (std::filesystem: '\' en Windows). Antes del
-    //     fix, mover o renombrar una carpeta devolvia 0 cambios en silencio
-    //     y las referencias de la escena quedaban apuntando al lugar viejo.
+// 6c. Cotejo de prefijos del explorador contra las rutas de la
+//     escena. ProjectPaths arma la raiz con '/' y absolutizarRuta
+//     concatena con '/', mientras que el explorador publica la ruta con
+//     el separador nativo (std::filesystem: '\' en Windows). Antes del
+//     fix, mover o renombrar una carpeta devolvia 0 cambios en silencio
+//     y las referencias de la escena quedaban apuntando al lugar viejo.
+static void seccion18() {
     {
         EditorConfig::limpiarRaizAssets();
         const std::string raiz =
@@ -852,8 +879,10 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
 
         EditorConfig::limpiarRaizAssets();
     }
+}
 
-    // Reset (Fase 3): restablecer vuelve a los defaults de fabrica.
+// Reset (Fase 3): restablecer vuelve a los defaults de fabrica.
+static void seccion19() {
     {
         EditorConfig cfg;
 
@@ -893,13 +922,15 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(cfg.datos().estadoVentanas.empty(),
               "restablecer limpia el estado de ventanas");
     }
+}
 
-    // Escritura atomica + guardado diferido de la config general:
-    //  - la escritura va a un ".tmp" y se renombra encima (un corte a mitad de
-    //    escritura deja el JSON original intacto y no deja temporales colgados);
-    //  - los cambios en vivo de Opciones se encolan y NO reescriben el archivo
-    //    en cada evento, solo cuando vence el intervalo o en un guardarGeneral()
-    //    explicito (Ctrl+S, salida, reset).
+// Escritura atomica + guardado diferido de la config general:
+//  - la escritura va a un ".tmp" y se renombra encima (un corte a mitad de
+//    escritura deja el JSON original intacto y no deja temporales colgados);
+//  - los cambios en vivo de Opciones se encolan y NO reescriben el archivo
+//    en cada evento, solo cuando vence el intervalo o en un guardarGeneral()
+//    explicito (Ctrl+S, salida, reset).
+static void seccion20(const fs::path& base) {
     {
         const std::string rutaDif = (base / "ConfiguracionDiferida.json").string();
 
@@ -938,12 +969,14 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(!fs::exists(rutaDif + ".tmp"),
               "ninguna de las escrituras dejo temporales");
     }
+}
 
-    // 8. Resolucion de la raiz de datos (ProjectPaths). El motor instalado en
-    //    Program Files no puede escribir junto al ejecutable, asi que la raiz
-    //    cae a la carpeta de datos del usuario. Lo que se comprueba aqui es el
-    //    CONTRATO, no el entorno: que la raiz exista y sea escribible, que las
-    //    funciones derivadas cuelguen de ella y que la migracion no pise datos.
+// 8. Resolucion de la raiz de datos (ProjectPaths). El motor instalado en
+//    Program Files no puede escribir junto al ejecutable, asi que la raiz
+//    cae a la carpeta de datos del usuario. Lo que se comprueba aqui es el
+//    CONTRATO, no el entorno: que la raiz exista y sea escribible, que las
+//    funciones derivadas cuelguen de ella y que la migracion no pise datos.
+static void seccion21(const fs::path& base) {
     {
         const std::string raizDatos = ProjectPaths::directorioBase();
         const std::string original = ProjectPaths::directorioBaseOriginal();
@@ -1038,13 +1071,15 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         std::error_code ec;
         fs::remove(sembrado, ec);
     }
+}
 
-    // 8.b La copia de la migracion, aislada. La migracion completa solo se
-    //     puede ejecutar cuando la carpeta del ejecutable no es escribible, y en
-    //     un runner de CI siempre lo es, asi que sin esto la parte que de verdad
-    //     se ejecuta en un fallo real (copiar el arbol) quedaria sin cubrir.
-    //     Se comprueba que copia, que trae la estructura anidada y que se niega a
-    //     pisar un destino poblado.
+// 8.b La copia de la migracion, aislada. La migracion completa solo se
+//     puede ejecutar cuando la carpeta del ejecutable no es escribible, y en
+//     un runner de CI siempre lo es, asi que sin esto la parte que de verdad
+//     se ejecuta en un fallo real (copiar el arbol) quedaria sin cubrir.
+//     Se comprueba que copia, que trae la estructura anidada y que se niega a
+//     pisar un destino poblado.
+static void seccion22() {
     {
         // Carpeta unica por proceso, como el resto de la suite, para que dos
         // ctest simultaneos no se pisen.
@@ -1093,11 +1128,13 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(!copio3, "falla si el origen no es un directorio");
         CHECK(!error3.empty(), "deja el motivo en error");
     }
+}
 
-    // 9. Carpetas candidatas del log: la de la raiz de datos va primero (ya cae
-    //    a la carpeta del usuario cuando el ejecutable no admite escritura), y
-    //    la temporal del sistema es el ultimo recurso. Sin esto, instalado en
-    //    Program Files el motor se queda sin log ni consola que lo muestre.
+// 9. Carpetas candidatas del log: la de la raiz de datos va primero (ya cae
+//    a la carpeta del usuario cuando el ejecutable no admite escritura), y
+//    la temporal del sistema es el ultimo recurso. Sin esto, instalado en
+//    Program Files el motor se queda sin log ni consola que lo muestre.
+static void seccion23() {
     {
         const std::string exe = "/opt/FunshiEngineGL";
         const std::string datosUsuario = "/home/usuario/.local/share/FunshiEngineGL/FunshiEngine-DATA";
@@ -1129,23 +1166,27 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
                   repetidas[1] == (fs::path(temp) / "FunshiEngineGL" / "logs").string(),
               "una ruta repetida no se prueba dos veces");
     }
+}
 
-    // 10. La carpeta "logs" es de la raiz de datos, no un proyecto legacy: si
-    //     no estuviera reservada, la migracion de proyectos antiguos la
-    //     arrastraba dentro de Proyects/ y el log se escribia a otro sitio del
-    //     que el motor anuncia.
+// 10. La carpeta "logs" es de la raiz de datos, no un proyecto legacy: si
+//     no estuviera reservada, la migracion de proyectos antiguos la
+//     arrastraba dentro de Proyects/ y el log se escribia a otro sitio del
+//     que el motor anuncia.
+static void seccion24() {
     {
         CHECK(!ProjectPaths::esNombreValido("logs"),
               "'logs' no es un proyecto: queda reservada en la raiz de datos");
         CHECK(ProjectPaths::esNombreValido("Loges del Pueblo"),
               "un nombre de proyecto corriente sigue siendo valido");
     }
+}
 
-    // 11. La carpeta global de mods del motor NO es un proyecto legacy: la raiz
-    //     de datos la crea en cada arranque (asegurarEstructuraBase) y la
-    //     migracion de proyectos antiguos la movia a Proyects/, de modo que el
-    //     listado mostraba un proyecto falso llamado "Mods" y la carpeta real
-    //     de mods volvia a aparecer vacia en la raiz.
+// 11. La carpeta global de mods del motor NO es un proyecto legacy: la raiz
+//     de datos la crea en cada arranque (asegurarEstructuraBase) y la
+//     migracion de proyectos antiguos la movia a Proyects/, de modo que el
+//     listado mostraba un proyecto falso llamado "Mods" y la carpeta real
+//     de mods volvia a aparecer vacia en la raiz.
+static void seccion25() {
     {
         CHECK(!ProjectPaths::esNombreValido("Mods"),
               "'Mods' no es un proyecto: queda reservada en la raiz de datos");
@@ -1183,6 +1224,65 @@ CHECK(cfgBajo.datos().apariencia.radioDifuminado ==
         CHECK(!fs::exists(raizMigracion / "MiJuego"),
               "el proyecto legacy sale de la raiz de datos");
     }
+}
+
+int main() {
+    // Carpeta temporal unica por proceso: crea y se limpia al salir (RAII).
+    TempPruebas::CarpetaPrueba carpetaBase("funshi_editorconfig_tests");
+    const fs::path base = carpetaBase.ruta();
+    const std::string rutaGeneral  = (base / "Configuracion.json").string();
+    const std::string proyNombreTest = "TestProyecto";
+    const std::string rutaProyecto = (base / "ConfiguracionProyecto.json").string();
+
+    seccion01(rutaGeneral, proyNombreTest, rutaProyecto);
+
+    seccion02(rutaGeneral);
+
+    seccion03();
+
+    seccion04(rutaGeneral);
+
+    seccion05(rutaGeneral, proyNombreTest, rutaProyecto);
+
+    seccion06(base, proyNombreTest);
+
+    seccion07(base, rutaGeneral, proyNombreTest);
+
+    seccion08(proyNombreTest, rutaProyecto);
+
+    seccion09(rutaGeneral);
+
+    seccion10(rutaGeneral);
+
+    seccion11();
+
+    seccion12();
+
+    seccion13();
+
+    seccion14(base);
+
+    seccion15();
+
+    seccion16();
+
+    seccion17();
+
+    seccion18();
+
+    seccion19();
+
+    seccion20(base);
+
+    seccion21(base);
+
+    seccion22();
+
+    seccion23();
+
+    seccion24();
+
+    seccion25();
 
     fs::remove_all(base);
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;

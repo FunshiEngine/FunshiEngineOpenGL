@@ -305,8 +305,8 @@ bool falsoObtenerComponente(void*, int indiceObjeto, int indiceComponente,
 
 } // namespace
 
-int main() {
-    // 1. ModVersion: parseo y comparacion.
+// 1. ModVersion: parseo y comparacion.
+static void seccion01() {
     {
         ModVersion v;
         CHECK(ModVersion::parsear("1.2.3", v), "parsear acepta X.Y.Z");
@@ -336,8 +336,10 @@ int main() {
         CHECK(igual.satisfaceMinimo(igual), "una version satisface su propio minimo");
         CHECK(!minimo.satisfaceMinimo(v), "1.2.0 no satisface >= 1.2.3");
     }
+}
 
-    // 2. RangoVersion: cotas motor<->mod y mod<->mod.
+// 2. RangoVersion: cotas motor<->mod y mod<->mod.
+static void seccion02() {
     {
         RangoVersion rango;
         CHECK(RangoVersion::parsear(">=1.0.0 <2.0.0", rango), "parsear rango con cota superior");
@@ -366,8 +368,10 @@ int main() {
         CHECK(!RangoVersion::parsear("", malo), "rechaza rango vacio");
         CHECK(!malo.contiene(enRango), "un rango invalido no contiene nada");
     }
+}
 
-    // 3. Manifiesto completo: parseo de todos los campos de la v1.
+// 3. Manifiesto completo: parseo de todos los campos de la v1.
+static void seccion03() {
     {
         ManifiestoMod mod;
         std::string error;
@@ -399,8 +403,10 @@ int main() {
         CHECK(mod.conflictos.size() == 1 && mod.conflictos[0] == "Tercero.Malo",
               "se lee la lista de conflictos");
     }
+}
 
-    // 4. Tolerancia: los campos opcionales pueden faltar.
+// 4. Tolerancia: los campos opcionales pueden faltar.
+static void seccion04() {
     {
         ManifiestoMod mod;
         std::string error;
@@ -441,8 +447,10 @@ int main() {
                   mod.dependencias[0].orden == DependenciaMod::Orden::Ninguno,
               "orden por defecto es ninguno");
     }
+}
 
-    // 5. Cortafuegos y validacion de campos obligatorios.
+// 5. Cortafuegos y validacion de campos obligatorios.
+static void seccion05() {
     {
         ManifiestoMod mod;
         std::string error;
@@ -546,8 +554,10 @@ int main() {
                   mod, error),
               "un orden desconocido se rechaza");
     }
+}
 
-    // 6. leerDeArchivo: manifiesto desde disco y archivo inexistente.
+// 6. leerDeArchivo: manifiesto desde disco y archivo inexistente.
+static void seccion06() {
     {
         TempPruebas::CarpetaPrueba carpeta("funshi_mods_manifiesto_tests");
         const std::string ruta =
@@ -570,8 +580,10 @@ int main() {
         CHECK(!error.empty(),
               "el archivo inexistente deja mensaje de error");
     }
+}
 
-    // 7. LectorZip: manifiesto desde un .fmod y extraccion anti zip-slip.
+// 7. LectorZip: manifiesto desde un .fmod y extraccion anti zip-slip.
+static void seccion07() {
     {
         TempPruebas::CarpetaPrueba carpeta("funshi_mods_zip_tests");
         const fs::path zip = carpeta.ruta() / "mod.fmod";
@@ -693,9 +705,11 @@ int main() {
               "un ZIP inexistente no se lee");
         CHECK(!error.empty(), "el ZIP inexistente deja mensaje de error");
     }
+}
 
-    // 8. GestorMods: descubrimiento, validacion, orden por dependencias y
-    //    ambito motor/proyecto, con reporte al registro de diagnosticos.
+// 8. GestorMods: descubrimiento, validacion, orden por dependencias y
+//    ambito motor/proyecto, con reporte al registro de diagnosticos.
+static void seccion08() {
     {
         TempPruebas::CarpetaPrueba carpeta("funshi_mods_gestor_tests");
         const fs::path motor = carpeta.ruta() / "motor" / "Mods";
@@ -761,9 +775,11 @@ int main() {
         CHECK(contiene(resumen, "mods de proyecto encontrados: 2"),
               "el reporte cuenta los mods del proyecto");
     }
+}
 
-    // 9. GestorMods: casos de rechazo (id duplicado, dependencia faltante,
-    //    ciclo, version del motor, versionMin y conflicto).
+// 9. GestorMods: casos de rechazo (id duplicado, dependencia faltante,
+//    ciclo, version del motor, versionMin y conflicto).
+static void seccion09() {
     {
         TempPruebas::CarpetaPrueba carpeta("funshi_mods_rechazos_tests");
         const fs::path motor = carpeta.ruta() / "Mods";
@@ -876,10 +892,12 @@ int main() {
         CHECK(vacio.mods.empty() && vacio.fallos.empty(),
               "una carpeta inexistente no aporta mods ni fallos");
     }
+}
 
-    // 10. Rutas de mods: la global cuelga de la raiz de datos y la del
-    //     proyecto de su carpeta. ProjectPaths compone con '/', que es su
-    //     contrato (no el separador nativo): se compara contra el mismo texto.
+// 10. Rutas de mods: la global cuelga de la raiz de datos y la del
+//     proyecto de su carpeta. ProjectPaths compone con '/', que es su
+//     contrato (no el separador nativo): se compara contra el mismo texto.
+static void seccion10() {
     {
         CHECK(ProjectPaths::directorioMods() ==
                   ProjectPaths::directorioBase() + "/Mods",
@@ -890,12 +908,14 @@ int main() {
         CHECK(fs::path(ProjectPaths::directorioMods()).filename() == "Mods",
               "la carpeta global se llama Mods");
     }
+}
 
-    // 11. CargadorMods: carga real del binario de un mod desde la cache.
-    //     Se empaquetan los plugins de prueba (bibliotecas compartidas que
-    //     exportan la funcion de entrada) como .fmod y se cargan de verdad:
-    //    'extraction a cache, apertura del binario, inicializacion, orden de
-    //     descarga y los rechazos con su causa.
+// 11. CargadorMods: carga real del binario de un mod desde la cache.
+//     Se empaquetan los plugins de prueba (bibliotecas compartidas que
+//     exportan la funcion de entrada) como .fmod y se cargan de verdad:
+//    'extraction a cache, apertura del binario, inicializacion, orden de
+//     descarga y los rechazos con su causa.
+static void seccion11() {
     {
         const fs::path pluginA = FUNSHI_MODS_PLUGIN_A;
         const fs::path pluginB = FUNSHI_MODS_PLUGIN_B;
@@ -994,10 +1014,12 @@ int main() {
         CHECK(carga.modsCargados.empty(),
               "la descarga deja la lista de mods vacia");
     }
+}
 
-    // 12. CargadorMods: rechazos. Un mod sin punto de entrada, uno cuyo
-    //     paquete no trae el binario y uno cuyo binario no exporta la funcion
-    //     de entrada: los tres se rechazan con una causa legible.
+// 12. CargadorMods: rechazos. Un mod sin punto de entrada, uno cuyo
+//     paquete no trae el binario y uno cuyo binario no exporta la funcion
+//     de entrada: los tres se rechazan con una causa legible.
+static void seccion12() {
     {
         TempPruebas::CarpetaPrueba carpeta("funshi_mods_cargador_fallos_tests");
         const fs::path cache = carpeta.ruta() / "cache";
@@ -1080,9 +1102,11 @@ int main() {
         CHECK(contiene(texto, "funshi_mod_api"),
               "el reporte incluye la causa del fallo");
     }
+}
 
-    // 13. Registro de paneles de mods: alta de paneles, estado por ventana de
-    //     panel y atribucion al mod que los registra.
+// 13. Registro de paneles de mods: alta de paneles, estado por ventana de
+//     panel y atribucion al mod que los registra.
+static void seccion13() {
     {
         using FunshiMods::RegistroPanelesMods;
         auto& registro = RegistroPanelesMods::global();
@@ -1178,9 +1202,11 @@ int main() {
         CHECK(registro.paneles().empty(),
               "el registro se puede vaciar por completo");
     }
+}
 
-    // 14. Tabla de servicios de mods: version en offset fijo, registro de
-    //     paneles y consultas de datos de la escena.
+// 14. Tabla de servicios de mods: version en offset fijo, registro de
+//     paneles y consultas de datos de la escena.
+static void seccion14() {
     {
         using FunshiMods::RegistroPanelesMods;
         auto& registro = RegistroPanelesMods::global();
@@ -1275,9 +1301,11 @@ int main() {
         FunshiMods::fijarNombreProyecto("");
         registro.limpiar();
     }
+}
 
-    // 15. CargadorMods: los panels de un mod cargado, su actualizacion por
-    //     frame y su retirada al descargarlo.
+// 15. CargadorMods: los panels de un mod cargado, su actualizacion por
+//     frame y su retirada al descargarlo.
+static void seccion15() {
     {
         using FunshiMods::RegistroPanelesMods;
         auto& registro = RegistroPanelesMods::global();
@@ -1326,6 +1354,38 @@ int main() {
         CHECK(registro.paneles().empty(),
               "los paneles del mod se retiran al descargarlo");
     }
+}
+
+int main() {
+    seccion01();
+
+    seccion02();
+
+    seccion03();
+
+    seccion04();
+
+    seccion05();
+
+    seccion06();
+
+    seccion07();
+
+    seccion08();
+
+    seccion09();
+
+    seccion10();
+
+    seccion11();
+
+    seccion12();
+
+    seccion13();
+
+    seccion14();
+
+    seccion15();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << (total - fallos)
               << '/' << total << " comprobaciones" << std::endl;
