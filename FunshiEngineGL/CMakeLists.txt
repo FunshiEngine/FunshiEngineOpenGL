@@ -556,22 +556,20 @@ else()
 endif()
 target_link_libraries(funshi_engine PUBLIC funshi_glm)
 
-# Directorio de las pruebas headless. Las suites vivian en <repo>/tests y se
-# movieron a <repo>/.local/tests: se usa la primera que exista y se puede fijar a
-# mano con -DFUNSHI_TESTS_DIR=<ruta>. Sin directorio de pruebas el motor
-# configura igual, pero los targets de test no tendrian fuentes: se avisa.
-if(NOT DEFINED FUNSHI_TESTS_DIR)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../tests")
-        set(_funshi_tests_dir "${CMAKE_CURRENT_SOURCE_DIR}/../tests")
-    else()
-        set(_funshi_tests_dir "${CMAKE_CURRENT_SOURCE_DIR}/../.local/tests")
-    endif()
-    set(FUNSHI_TESTS_DIR "${_funshi_tests_dir}" CACHE PATH
-        "Directorio con las fuentes de las pruebas headless")
-endif()
-if(NOT EXISTS "${FUNSHI_TESTS_DIR}")
-    message(WARNING "FUNSHI_TESTS_DIR no existe (${FUNSHI_TESTS_DIR}): "
-                    "configure con -DBUILD_RUNTIME=ON o indique el directorio.")
+# Pruebas headless. Hay tests necesarios y tests no necesarios: los
+# necesarios se versionan en <repo>/tests y son los que corre la CI de GitHub;
+# los no necesarios viven en <repo>/.local/tests (ignorado por git) y se usan
+# en local para verificar el codigo producido. Los targets locales solo se
+# definen si su carpeta existe, asi un checkout limpio configura igual.
+set(FUNSHI_TESTS_CI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../tests" CACHE PATH
+    "Tests versionados (los que corre la CI)")
+set(FUNSHI_TESTS_LOCAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../.local/tests" CACHE PATH
+    "Tests locales no versionados")
+if(EXISTS "${FUNSHI_TESTS_LOCAL_DIR}")
+    set(FUNSHI_TESTS_LOCALES ON)
+else()
+    set(FUNSHI_TESTS_LOCALES OFF)
+    message(STATUS "Sin ${FUNSHI_TESTS_LOCAL_DIR}: solo se definen los tests de la CI")
 endif()
 
 if(NOT BUILD_RUNTIME)
@@ -579,7 +577,7 @@ if(NOT BUILD_RUNTIME)
 # dependencias del motor (ImGui, componentes, EditorController, SceneRegistry).
 # Solo se compila el archivo de test; las fuentes del motor vienen del engine.
 add_executable(comandos-tests
-    ${FUNSHI_TESTS_DIR}/ComandosTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ComandosTests.cpp
 )
 target_include_directories(comandos-tests PRIVATE
     ${SRC_DIR}
@@ -605,7 +603,7 @@ endif()
 # Necesita funshi_engine (SceneRegistry/SceneSerializer/EditorController), asi
 # que al igual que comandos-tests solo se compila con BUILD_ENGINE=ON.
 add_executable(escena-serializacion-tests
-    ${FUNSHI_TESTS_DIR}/SceneSerializationTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/SceneSerializationTests.cpp
 )
 target_include_directories(escena-serializacion-tests PRIVATE
     ${SRC_DIR}
@@ -632,7 +630,7 @@ set_tests_properties(escena-serializacion-tests PROPERTIES TIMEOUT 60)
 # Necesita funshi_engine (SceneRegistry/SceneSerializer/EditorController y los
 # componentes), asi que solo se compila con BUILD_ENGINE=ON.
 add_executable(inspeccion-escena-tests
-    ${FUNSHI_TESTS_DIR}/InspeccionEscenaTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/InspeccionEscenaTests.cpp
 )
 target_include_directories(inspeccion-escena-tests PRIVATE
     ${SRC_DIR}
@@ -658,7 +656,7 @@ endif()
 # componente resuelve la ruta del perfil con la configuracion del editor, asi
 # que su suite necesita funshi_engine.
 add_executable(emisor-particulas-tests
-    ${FUNSHI_TESTS_DIR}/EmisorParticulasTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EmisorParticulasTests.cpp
 )
 target_include_directories(emisor-particulas-tests PRIVATE
     ${SRC_DIR}
@@ -679,8 +677,8 @@ add_executable(particulas-textura-tests
     ${SRC_DIR}/Particulas/SistemaParticulas.cpp
     ${SRC_DIR}/Particulas/Perfil/LectorPerfil.cpp
     ${SRC_DIR}/Particulas/Perfil/PerfilParticula.cpp
-    ${FUNSHI_TESTS_DIR}/ParticulasTexturaTests.cpp
-    ${FUNSHI_TESTS_DIR}/EditorConfigStubs.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ParticulasTexturaTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EditorConfigStubs.cpp
 )
 target_include_directories(particulas-textura-tests PRIVATE ${SRC_DIR} ${CMAKE_SOURCE_DIR}/External)
 set_target_properties(particulas-textura-tests PROPERTIES
@@ -699,8 +697,8 @@ add_executable(particulas-perfil-tests
     ${SRC_DIR}/Particulas/Perfil/LectorPerfil.cpp
     ${SRC_DIR}/Particulas/Perfil/EscritorPerfil.cpp
     ${SRC_DIR}/Particulas/Perfil/PerfilParticula.cpp
-    ${FUNSHI_TESTS_DIR}/ParticulasPerfilTests.cpp
-    ${FUNSHI_TESTS_DIR}/EditorConfigStubs.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ParticulasPerfilTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EditorConfigStubs.cpp
 )
 target_include_directories(particulas-perfil-tests PRIVATE ${SRC_DIR} ${CMAKE_SOURCE_DIR}/External)
 set_target_properties(particulas-perfil-tests PROPERTIES
@@ -716,7 +714,7 @@ add_test(NAME particulas-perfil-tests COMMAND particulas-perfil-tests)
 # absurda (lo que abortaba el motor). Necesita funshi_engine (los componentes
 # Script y AudioSource), como escena-serializacion-tests.
 add_executable(serializacion-tests
-    ${FUNSHI_TESTS_DIR}/SerializacionTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/SerializacionTests.cpp
 )
 target_include_directories(serializacion-tests PRIVATE
     ${SRC_DIR}
@@ -736,7 +734,7 @@ add_test(NAME serializacion-tests COMMAND serializacion-tests)
 # dimension aplican y que requisitos piden; la consumen ComponentFactory y el
 # menu del inspector. Necesita funshi_engine (GameObject), como comandos-tests.
 add_executable(catalogo-componentes-tests
-    ${FUNSHI_TESTS_DIR}/CatalogoComponentesTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/CatalogoComponentesTests.cpp
 )
 target_include_directories(catalogo-componentes-tests PRIVATE
     ${SRC_DIR}
@@ -758,7 +756,7 @@ add_test(NAME catalogo-componentes-tests COMMAND catalogo-componentes-tests)
 # en el disco y que la regla resuelva por tipo, por alias y con el prefijo que
 # antepone MSVC.
 add_executable(iconos-componentes-tests
-    ${FUNSHI_TESTS_DIR}/IconosComponentesTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/IconosComponentesTests.cpp
 )
 target_include_directories(iconos-componentes-tests PRIVATE
     ${SRC_DIR}
@@ -778,7 +776,7 @@ add_test(NAME iconos-componentes-tests COMMAND iconos-componentes-tests)
 # una; ahora la malla guarda una region (rango de indices + nombre del
 # material) por sub-malla. La suite carga un .obj con dos materiales reales.
 add_executable(malla-regiones-tests
-    ${FUNSHI_TESTS_DIR}/MallaRegionesTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/MallaRegionesTests.cpp
 )
 target_include_directories(malla-regiones-tests PRIVATE
     ${SRC_DIR}
@@ -793,12 +791,13 @@ set_target_properties(malla-regiones-tests PROPERTIES
 )
 add_test(NAME malla-regiones-tests COMMAND malla-regiones-tests)
 
+if(FUNSHI_TESTS_LOCALES)
 # --- Pruebas headless del dibujado de mallas por regiones --------------------
 # Con un backend falso (sin GPU) se comprueba que MeshRenderer invoca
 # drawMesh(handle, firstIndex, indexCount) una vez por region, con el rango
 # de indices exacto de cada una, y que una malla sin regiones se dibuja entera.
 add_executable(render-regiones-tests
-    ${FUNSHI_TESTS_DIR}/RenderRegionesTests.cpp
+    ${FUNSHI_TESTS_LOCAL_DIR}/RenderRegionesTests.cpp
 )
 target_include_directories(render-regiones-tests PRIVATE
     ${SRC_DIR}
@@ -812,12 +811,14 @@ set_target_properties(render-regiones-tests PROPERTIES
     CXX_EXTENSIONS OFF
 )
 add_test(NAME render-regiones-tests COMMAND render-regiones-tests)
+endif()
 
 
+if(FUNSHI_TESTS_LOCALES)
 # --- Pruebas headless del camino completo del componente Model (drag&drop) ---
 # AssetManager -> resolverDibujoModelo -> intentarRenderMesh -> regiones.
 add_executable(modelo-component-render-tests
-    ${FUNSHI_TESTS_DIR}/ModeloModelComponentTests.cpp
+    ${FUNSHI_TESTS_LOCAL_DIR}/ModeloModelComponentTests.cpp
 )
 target_include_directories(modelo-component-render-tests PRIVATE
     ${SRC_DIR}
@@ -831,12 +832,13 @@ set_target_properties(modelo-component-render-tests PROPERTIES
     CXX_EXTENSIONS OFF
 )
 add_test(NAME modelo-component-render-tests COMMAND modelo-component-render-tests)
+endif()
 
 # --- Pruebas headless de los materiales por region ---------------------------
 # El componente Materiales guarda una region por parte de la malla con su
 # material, y el resolvedor decide que material se dibuja en cada region.
 add_executable(materiales-regiones-tests
-    ${FUNSHI_TESTS_DIR}/MaterialesRegionesTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/MaterialesRegionesTests.cpp
 )
 target_include_directories(materiales-regiones-tests PRIVATE
     ${SRC_DIR}
@@ -855,7 +857,7 @@ add_test(NAME materiales-regiones-tests COMMAND materiales-regiones-tests)
 # La esfera es la muestra de un material (el editor la dibuja en una textura
 # para mostrar como queda). Es geometria pura, sin OpenGL.
 add_executable(primitivas3d-tests
-    ${FUNSHI_TESTS_DIR}/Primitivas3DTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/Primitivas3DTests.cpp
 )
 target_include_directories(primitivas3d-tests PRIVATE
     ${SRC_DIR}
@@ -876,7 +878,7 @@ add_test(NAME primitivas3d-tests COMMAND primitivas3d-tests)
 # falso (sin GPU): vistas por clave, render target, viewport y el material
 # editado llegando al shader.
 add_executable(preview-material-tests
-    ${FUNSHI_TESTS_DIR}/PreviewMaterialTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/PreviewMaterialTests.cpp
 )
 target_include_directories(preview-material-tests PRIVATE
     ${SRC_DIR}
@@ -897,7 +899,7 @@ add_test(NAME preview-material-tests COMMAND preview-material-tests)
 # son reglas de dominio: se comprueban sin ventana, con la barra de menu
 # reflejando el proyecto activo en el dialogo.
 add_executable(exportacion-tests
-    ${FUNSHI_TESTS_DIR}/ExportacionTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ExportacionTests.cpp
 )
 target_include_directories(exportacion-tests PRIVATE
     ${SRC_DIR}
@@ -940,7 +942,7 @@ endif()
 # (no solo la primera) y en orden. Necesita funshi_engine (GameObject), como
 # catalogo-componentes-tests.
 add_executable(interfaces-juego-tests
-    ${FUNSHI_TESTS_DIR}/InterfacesJuegoTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/InterfacesJuegoTests.cpp
 )
 target_include_directories(interfaces-juego-tests PRIVATE
     ${SRC_DIR}
@@ -965,7 +967,7 @@ endif()
 # tile, el pintado por capas, el horneado de la malla, el round-trip binario y
 # la shape compuesta del TilemapCollider (tramos horizontales de tiles solidos).
 add_executable(tilemap-tests
-    ${FUNSHI_TESTS_DIR}/TilemapTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/TilemapTests.cpp
 )
 target_include_directories(tilemap-tests PRIVATE
     ${SRC_DIR}
@@ -988,7 +990,7 @@ endif()
 # Cubre: guardar prefab -> instanciar -> conservar nombre, tag, jerarquia,
 # componentes, Transform; PrefabLibrary cache y validacion de archivos corruptos.
 add_executable(prefab-tests
-    ${FUNSHI_TESTS_DIR}/PrefabTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/PrefabTests.cpp
 )
 target_include_directories(prefab-tests PRIVATE
     ${SRC_DIR}
@@ -1002,10 +1004,11 @@ set_target_properties(prefab-tests PROPERTIES
 )
 add_test(NAME prefab-tests COMMAND prefab-tests)
 
+if(FUNSHI_TESTS_LOCALES)
 # Arrastre de archivos a la escena / inspector: clasificacion de archivos por
 # tipo, rayo de pantalla y creacion de objetos (con undo) por tipo de archivo.
 add_executable(arrastre-archivos-tests
-    ${FUNSHI_TESTS_DIR}/ArrastreArchivosTests.cpp
+    ${FUNSHI_TESTS_LOCAL_DIR}/ArrastreArchivosTests.cpp
 )
 target_include_directories(arrastre-archivos-tests PRIVATE
     ${SRC_DIR}
@@ -1018,6 +1021,7 @@ set_target_properties(arrastre-archivos-tests PROPERTIES
     CXX_EXTENSIONS OFF
 )
 add_test(NAME arrastre-archivos-tests COMMAND arrastre-archivos-tests)
+endif()
 
 # Nucleo del manifiesto de assets de la escena (SceneAssets.json): headless,
 # sin GameObjects (como MenuModel). Cubre JSON round-trip, tolerancia a
@@ -1029,7 +1033,7 @@ add_executable(manifiesto-assets-tests
     ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
     ${SRC_DIR}/Scenes/Serializacion/ManifiestoAssetsCore.cpp
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
-    ${FUNSHI_TESTS_DIR}/ManifiestoAssetsTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ManifiestoAssetsTests.cpp
 )
 target_link_libraries(manifiesto-assets-tests PRIVATE funshi_diagnostics_core)
 target_include_directories(manifiesto-assets-tests PRIVATE
@@ -1049,7 +1053,7 @@ add_test(NAME manifiesto-assets-tests COMMAND manifiesto-assets-tests)
 add_executable(orquestador-estado-tests
     ${SRC_DIR}/States/ApplicationStateMachine.cpp
     ${SRC_DIR}/States/OrquestadorEstadoGUI.cpp
-    ${FUNSHI_TESTS_DIR}/OrquestadorEstadoTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/OrquestadorEstadoTests.cpp
 )
 set_target_properties(orquestador-estado-tests PROPERTIES
     CXX_STANDARD 17
@@ -1071,7 +1075,7 @@ add_executable(tema-tests
     ${SRC_DIR}/ImGui/imgui_tables.cpp
     ${SRC_DIR}/ImGui/imgui_widgets.cpp
     ${SRC_DIR}/GUI/Tema/TemaEditor.cpp
-    ${FUNSHI_TESTS_DIR}/TemaEditorTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/TemaEditorTests.cpp
 )
 target_include_directories(tema-tests PRIVATE ${SRC_DIR} ${SRC_DIR}/ImGui)
 set_target_properties(tema-tests PROPERTIES
@@ -1092,7 +1096,7 @@ add_test(NAME tema-tests COMMAND tema-tests)
 # pruebas headless.
 add_executable(interface-component-tests
     ${SRC_DIR}/Objetos/Componentes/Interfaz/InterfaceComponent.cpp
-    ${FUNSHI_TESTS_DIR}/InterfaceComponentTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/InterfaceComponentTests.cpp
 )
 target_link_libraries(interface-component-tests PRIVATE
     funshi_diagnostics_core funshi_glm)
@@ -1113,7 +1117,7 @@ add_test(NAME interface-component-tests COMMAND interface-component-tests)
 # payload corrupto se acota sin desalinear la lectura. Necesita funshi_engine
 # (el componente vive en el motor).
 add_executable(ui-component-tests
-    ${FUNSHI_TESTS_DIR}/UIComponentTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/UIComponentTests.cpp
 )
 target_include_directories(ui-component-tests PRIVATE
     ${SRC_DIR}
@@ -1137,7 +1141,7 @@ add_executable(webui-runtime-tests
     ${SRC_DIR}/WebUI/VistasWebUI.cpp
     ${SRC_DIR}/WebUI/EstadoInterfaces.cpp
     ${SRC_DIR}/Objetos/Componentes/Interfaz/InterfaceComponent.cpp
-    ${FUNSHI_TESTS_DIR}/WebUIRuntimeTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/WebUIRuntimeTests.cpp
 )
 target_link_libraries(webui-runtime-tests PRIVATE
     funshi_diagnostics_core funshi_glm)
@@ -1165,7 +1169,7 @@ add_executable(shaders-tests
     ${SRC_DIR}/Rendering/Shaders/PreprocesadorShaders.cpp
     ${SRC_DIR}/Rendering/Shaders/GestorShaders.cpp
     ${SRC_DIR}/Rendering/Shaders/ShaderProgram.cpp
-    ${FUNSHI_TESTS_DIR}/ShadersTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ShadersTests.cpp
 )
 target_link_libraries(shaders-tests PRIVATE
     funshi_diagnostics_core funshi_glm)
@@ -1189,7 +1193,7 @@ add_executable(sombras-tests
     ${SRC_DIR}/Iluminacion/MatrizLuz.cpp
     ${SRC_DIR}/Objetos/Componentes/Sombras/Sombras.cpp
     ${SRC_DIR}/Rendering/Sombras/MapaSombras.cpp
-    ${FUNSHI_TESTS_DIR}/SombrasTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/SombrasTests.cpp
 )
 target_link_libraries(sombras-tests PRIVATE
     funshi_diagnostics_core funshi_glm)
@@ -1210,7 +1214,7 @@ add_test(NAME sombras-tests COMMAND sombras-tests)
 # pertenece cada mapa). Necesita funshi_engine (GameObject, Light, Transform),
 # como catalogo-componentes-tests.
 add_executable(iluminacion-tests
-    ${FUNSHI_TESTS_DIR}/IluminacionTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/IluminacionTests.cpp
 )
 target_include_directories(iluminacion-tests PRIVATE
     ${SRC_DIR}
@@ -1261,7 +1265,7 @@ enable_testing()
 # variantes en el archivo de log del test.
 function(funshi_mods_test_plugin nombre token)
     add_library(${nombre} SHARED
-        ${FUNSHI_TESTS_DIR}/ModsTestPlugin.cpp)
+        ${FUNSHI_TESTS_CI_DIR}/ModsTestPlugin.cpp)
     target_include_directories(${nombre} PRIVATE ${SRC_DIR})
     target_compile_definitions(${nombre} PRIVATE FUNSHI_MODS_TEST_TOKEN_${token})
     set_target_properties(${nombre} PROPERTIES
@@ -1313,7 +1317,7 @@ add_executable(mods-tests
     ${SRC_DIR}/Mods/Api/ServiciosMods.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
-    ${FUNSHI_TESTS_DIR}/ModsTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ModsTests.cpp
 )
 target_link_libraries(mods-tests PRIVATE funshi_diagnostics_core funshi_miniz)
 target_include_directories(mods-tests PRIVATE
@@ -1333,7 +1337,7 @@ add_dependencies(mods-tests
 add_test(NAME mods-tests COMMAND mods-tests)
 
 add_executable(diagnostic-registry-tests
-    ${FUNSHI_TESTS_DIR}/DiagnosticRegistryTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/DiagnosticRegistryTests.cpp
 )
 target_link_libraries(diagnostic-registry-tests PRIVATE funshi_diagnostics_core)
 target_include_directories(diagnostic-registry-tests PRIVATE ${SRC_DIR})
@@ -1351,7 +1355,7 @@ add_test(NAME diagnostic-registry-tests COMMAND diagnostic-registry-tests)
 add_executable(hilos-tests
     ${SRC_DIR}/Hilos/MotorHilos.cpp
     ${SRC_DIR}/Hilos/HiloActual.cpp
-    ${FUNSHI_TESTS_DIR}/HilosTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/HilosTests.cpp
 )
 target_include_directories(hilos-tests PRIVATE ${SRC_DIR})
 target_link_libraries(hilos-tests PRIVATE funshi_diagnostics_core)
@@ -1366,7 +1370,7 @@ add_test(NAME hilos-tests COMMAND hilos-tests)
 # BarraProgresoTexto es header-only y puro (solo std): acotado de `hecha` a
 # `[0, total]` y caso `total == 0`, sin enlazar funshi_engine.
 add_executable(barra-progreso-tests
-    ${FUNSHI_TESTS_DIR}/BarraProgresoTextoTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/BarraProgresoTextoTests.cpp
 )
 target_include_directories(barra-progreso-tests PRIVATE ${SRC_DIR})
 set_target_properties(barra-progreso-tests PROPERTIES
@@ -1383,7 +1387,7 @@ endif()
 # --- Pruebas headless del terminal emulado ---------------------------------
 add_executable(terminal-emulator-tests
     ${SRC_DIR}/Terminal/TerminalEmulator.cpp
-    ${FUNSHI_TESTS_DIR}/TerminalEmulatorTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/TerminalEmulatorTests.cpp
 )
 target_include_directories(terminal-emulator-tests PRIVATE ${SRC_DIR})
 set_target_properties(terminal-emulator-tests PROPERTIES
@@ -1399,7 +1403,7 @@ add_test(NAME terminal-emulator-tests COMMAND terminal-emulator-tests)
 # SKIP_RETURN_CODE. En Linux forkpty() requiere enlazar -lutil.
 add_executable(terminal-session-tests
     ${SRC_DIR}/Terminal/TerminalSession.cpp
-    ${FUNSHI_TESTS_DIR}/TerminalSessionTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/TerminalSessionTests.cpp
 )
 target_include_directories(terminal-session-tests PRIVATE ${SRC_DIR})
 set_target_properties(terminal-session-tests PROPERTIES
@@ -1430,7 +1434,7 @@ add_executable(filemanager-tests
     ${SRC_DIR}/FileManager/FileSystemWatcher.cpp
     ${SRC_DIR}/Events/EditorEventBus.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp
-    ${FUNSHI_TESTS_DIR}/FileManagerTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/FileManagerTests.cpp
 )
 target_include_directories(filemanager-tests PRIVATE ${SRC_DIR}/ImGui)
 set_target_properties(filemanager-tests PROPERTIES
@@ -1452,7 +1456,7 @@ add_executable(importar-archivos-tests
     ${SRC_DIR}/GestorDeArchivos/Carpeta.cpp
     ${SRC_DIR}/FileManager/FileManager.cpp
     ${SRC_DIR}/FileManager/FileSystemWatcher.cpp
-    ${FUNSHI_TESTS_DIR}/ImportarArchivosTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ImportarArchivosTests.cpp
 )
 # El nucleo de diagnostico aporta RuntimeException (la lanza el arbol de
 # carpetas) y su dependencia de plataforma (dbghelp en Windows).
@@ -1473,7 +1477,7 @@ add_test(NAME importar-archivos-tests COMMAND importar-archivos-tests)
 # (no hace falta funshi_engine: el modulo es std + API de SO).
 add_executable(proceso-tests
     ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
-    ${FUNSHI_TESTS_DIR}/ProcesoTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ProcesoTests.cpp
 )
 target_include_directories(proceso-tests PRIVATE ${SRC_DIR})
 set_target_properties(proceso-tests PROPERTIES
@@ -1490,7 +1494,7 @@ add_executable(configuracion-tests
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
     ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
-    ${FUNSHI_TESTS_DIR}/EditorConfigTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EditorConfigTests.cpp
 )
 target_link_libraries(configuracion-tests PRIVATE funshi_diagnostics_core)
 target_include_directories(configuracion-tests PRIVATE ${CMAKE_SOURCE_DIR}/External ${SRC_DIR})
@@ -1506,7 +1510,7 @@ add_test(NAME configuracion-tests COMMAND configuracion-tests)
 # pila grafica.
 add_executable(eventbus-tests
     ${SRC_DIR}/Events/EditorEventBus.cpp
-    ${FUNSHI_TESTS_DIR}/EditorEventBusTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EditorEventBusTests.cpp
 )
 target_include_directories(eventbus-tests PRIVATE ${SRC_DIR})
 set_target_properties(eventbus-tests PROPERTIES
@@ -1526,7 +1530,7 @@ add_executable(model-serialization-tests
     ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
     ${SRC_DIR}/Objetos/Componentes/Render/Model.cpp
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
-    ${FUNSHI_TESTS_DIR}/ModelSerializationTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ModelSerializationTests.cpp
 )
 target_link_libraries(model-serialization-tests PRIVATE funshi_engine)
 target_include_directories(model-serialization-tests PRIVATE
@@ -1544,7 +1548,7 @@ add_test(NAME model-serialization-tests COMMAND model-serialization-tests)
 # prueba headless como los demas: no depende de ImGui/GLFW.
 add_executable(menu-tests
     ${SRC_DIR}/GUI/MenusGUI/MenuModel.cpp
-    ${FUNSHI_TESTS_DIR}/MenuModelTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/MenuModelTests.cpp
 )
 target_include_directories(menu-tests PRIVATE ${SRC_DIR})
 set_target_properties(menu-tests PROPERTIES
@@ -1562,7 +1566,7 @@ add_executable(assetmanager-tests
     ${SRC_DIR}/Assets/Mallas/Mesh.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp
-    ${FUNSHI_TESTS_DIR}/AssetManagerTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/AssetManagerTests.cpp
 )
 target_include_directories(assetmanager-tests PRIVATE ${SRC_DIR})
 set_target_properties(assetmanager-tests PROPERTIES
@@ -1581,7 +1585,7 @@ add_executable(texturemanager-tests
     ${SRC_DIR}/Assets/Imagenes/StbImageLoader.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/External/stb_image/stb_image_impl.cpp
-    ${FUNSHI_TESTS_DIR}/TextureManagerTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/TextureManagerTests.cpp
 )
 target_include_directories(texturemanager-tests PRIVATE
     ${SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/External)
@@ -1608,7 +1612,7 @@ add_executable(editor-input-tests
     ${SRC_DIR}/ImGui/imgui_widgets.cpp
     ${SRC_DIR}/GUI/Estado/EstadoInterfazImGui.cpp
     ${SRC_DIR}/GUI/Navegacion/SidebarOrbitaGUI.cpp
-    ${FUNSHI_TESTS_DIR}/EditorInputTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EditorInputTests.cpp
 )
 target_include_directories(editor-input-tests PRIVATE
     ${SRC_DIR}
@@ -1628,7 +1632,7 @@ add_test(NAME editor-input-tests COMMAND editor-input-tests)
 # implementadas para el motor (Heaps, ListMergeSort, ArbolBinarioEnlazado).
 add_executable(estructuras-tests
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp
-    ${FUNSHI_TESTS_DIR}/EstructurasTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EstructurasTests.cpp
 )
 set_target_properties(estructuras-tests PROPERTIES
     CXX_STANDARD 17
@@ -1649,7 +1653,7 @@ add_executable(rendering-tests
     ${SRC_DIR}/Rendering/Lineas/GuiaEje.cpp
     ${SRC_DIR}/Rendering/Cielo/Difuminado.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
-    ${FUNSHI_TESTS_DIR}/RenderingTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/RenderingTests.cpp
 )
 set_target_properties(rendering-tests PROPERTIES
     CXX_STANDARD 17
@@ -1666,7 +1670,7 @@ add_executable(particulas-tests
     ${SRC_DIR}/Particulas/Perfil/PerfilParticula.cpp
     ${SRC_DIR}/Particulas/Perfil/LectorPerfil.cpp
     ${SRC_DIR}/Particulas/ParticulasBuilder.cpp
-    ${FUNSHI_TESTS_DIR}/ParticulasTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ParticulasTests.cpp
 )
 target_include_directories(particulas-tests PRIVATE ${CMAKE_SOURCE_DIR}/External)
 set_target_properties(particulas-tests PROPERTIES
@@ -1683,7 +1687,7 @@ add_test(NAME particulas-tests COMMAND particulas-tests)
 add_executable(interfaz-ui-tests
     ${SRC_DIR}/UI/LienzoUI.cpp
     ${SRC_DIR}/UI/SistemaUI.cpp
-    ${FUNSHI_TESTS_DIR}/InterfazUITests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/InterfazUITests.cpp
 )
 target_include_directories(interfaz-ui-tests PRIVATE ${CMAKE_SOURCE_DIR}/External)
 set_target_properties(interfaz-ui-tests PROPERTIES
@@ -1701,7 +1705,7 @@ add_executable(scripts-tests
     ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
     ${SRC_DIR}/Input/InputScripts.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
-    ${FUNSHI_TESTS_DIR}/ScriptsTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ScriptsTests.cpp
 )
 # El contrato de flags con el que se compilan los scripts C++ se verifica en
 # esta suite (headless y en las tres plataformas): el test necesita el mismo
@@ -1729,7 +1733,7 @@ add_executable(scripts-runtime-tests
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
-    ${FUNSHI_TESTS_DIR}/ScriptsRuntimeTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ScriptsRuntimeTests.cpp
 )
 set_target_properties(scripts-runtime-tests PROPERTIES
     CXX_STANDARD 17
@@ -1765,8 +1769,8 @@ set_tests_properties(scripts-runtime-tests PROPERTIES SKIP_RETURN_CODE 77)
 add_executable(audio-tests
     ${SRC_DIR}/Audio/AudioEngine.cpp
     ${SRC_DIR}/Audio/GestorMusica.cpp
-    ${FUNSHI_TESTS_DIR}/AudioEngineTests.cpp
-    ${FUNSHI_TESTS_DIR}/EditorConfigStubs.cpp
+    ${FUNSHI_TESTS_CI_DIR}/AudioEngineTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EditorConfigStubs.cpp
 )
 target_include_directories(audio-tests PRIVATE ${SRC_DIR})
 set_target_properties(audio-tests PROPERTIES
@@ -1780,6 +1784,7 @@ if(Threads_FOUND)
 endif()
 add_test(NAME audio-tests COMMAND audio-tests)
 
+if(FUNSHI_TESTS_LOCALES)
 # AudioSource (componente de fuente de sonido): testa que reproducir() sin
 # motor inyectado no hace nada, y que con motor y archivo existente encole
 # el comando y pase a estado sonando. Usa stubs de EditorConfig para evitar
@@ -1788,8 +1793,8 @@ add_executable(audio-source-tests
     ${SRC_DIR}/Audio/AudioEngine.cpp
     ${SRC_DIR}/Audio/GestorMusica.cpp
     ${SRC_DIR}/Objetos/Componentes/Audio/AudioSource.cpp
-    ${FUNSHI_TESTS_DIR}/AudioSourceTests.cpp
-    ${FUNSHI_TESTS_DIR}/EditorConfigStubs.cpp
+    ${FUNSHI_TESTS_LOCAL_DIR}/AudioSourceTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EditorConfigStubs.cpp
 )
 target_include_directories(audio-source-tests PRIVATE ${SRC_DIR})
 set_target_properties(audio-source-tests PROPERTIES
@@ -1802,13 +1807,14 @@ if(Threads_FOUND)
     target_link_libraries(audio-source-tests PRIVATE Threads::Threads)
 endif()
 add_test(NAME audio-source-tests COMMAND audio-source-tests)
+endif()
 
 # Reproductor de musica (GestorMusica) headless y portatil: la maquina de
 # estados del fundido cruzado, el paso automatico a la pista siguiente y el
 # bus se prueban con un backend de musica FALSO (sin audio ni hilo de trabajo).
 add_executable(musica-tests
     ${SRC_DIR}/Audio/GestorMusica.cpp
-    ${FUNSHI_TESTS_DIR}/MusicaTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/MusicaTests.cpp
 )
 target_include_directories(musica-tests PRIVATE ${SRC_DIR})
 set_target_properties(musica-tests PROPERTIES
@@ -1830,7 +1836,7 @@ if(FUNSHI_JAVA)
         ${SRC_DIR}/Configuracion/ProjectPaths.cpp
         ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
         ${SRC_DIR}/Matematicas/StructVec3.cpp
-        ${FUNSHI_TESTS_DIR}/ScriptsJavaTests.cpp
+        ${FUNSHI_TESTS_CI_DIR}/ScriptsJavaTests.cpp
     )
     set_target_properties(scripts-java-tests PROPERTIES
         CXX_STANDARD 17
