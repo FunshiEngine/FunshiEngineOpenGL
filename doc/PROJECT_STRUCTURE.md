@@ -1336,6 +1336,27 @@ Los módulos con muchos archivos se agrupan en subcarpetas por responsabilidad
 | `FileManager/` | `Portapapeles/`, `Drop/`, `Procesos/` |
 | `Particulas/` | `Perfil/` (lectura/escritura del perfil) |
 
+### 6.2 Archivos divididos por tamaño
+
+Ningún archivo propio del motor pasa de 450 líneas (los de terceros —ImGui,
+miniaudio, stb, json, miniz— quedan como vienen). Una clase grande se reparte
+en varias unidades con el mismo prefijo y una responsabilidad cada una, por
+ejemplo `GameScene.cpp`, `GameSceneSimulacion.cpp`, `GameSceneCamaras.cpp`,
+`GameSceneGUI.cpp`, `GameSceneUpdate.cpp`, `GameSceneScripts.cpp` y
+`GameSceneFrame.cpp`. Lo que comparten (includes, constantes, funciones
+auxiliares) vive en un header interno `<Nombre>Detalle.h` que solo incluyen
+esas unidades:
+
+- las auxiliares sin estado quedan con enlace interno (una copia por unidad);
+- las que tienen estado propio (variables `static` locales) y las variables
+  globales de la unidad original tienen una sola definición y se declaran
+  `extern` en el header interno;
+- los tipos que comparten las unidades van en el namespace `<Nombre>Detalle`.
+
+El editor arranca en `main.cpp` (`EjecutarMotor`), que crea los objetos y
+llama a las fases de `MainArranque.cpp`, `MainGUI.cpp` y `MainBucle.cpp` con un
+`ContextoEditor` (ver `MainDetalle.h`).
+
 `CMakeLists.txt` descubre automáticamente los `.cpp` y `.h` bajo `src/` mediante
 `GLOB_RECURSE CONFIGURE_DEPENDS`. Los nuevos archivos de implementación se incorporan
 al build sin enumerarlos manualmente. Los archivos de ImGui se recopilan por separado
