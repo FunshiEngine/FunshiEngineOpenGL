@@ -33,7 +33,7 @@ BulletPhysicsAdapter::BulletPhysicsAdapter()
       groundMotionState(new btDefaultMotionState(
           btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, -1, 0)))),
       groundRigidBody(nullptr) {
-    dynamicsWorld->setGravity(btVector3(0, -1.0f, 0));
+    dynamicsWorld->setGravity(btVector3(0, kGravedadPorDefectoY, 0));
     btRigidBody::btRigidBodyConstructionInfo info(
         0, groundMotionState, groundShape, btVector3(0, 0, 0));
     groundRigidBody = new btRigidBody(info);
@@ -143,7 +143,7 @@ void BulletPhysicsAdapter::fijarGravedad(float x, float y, float z) {
 void BulletPhysicsAdapter::gravedad(float& x, float& y, float& z) const {
     if (!dynamicsWorld) {
         x = 0.0f;
-        y = -1.0f;
+        y = kGravedadPorDefectoY;
         z = 0.0f;
         return;
     }

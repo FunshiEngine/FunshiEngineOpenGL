@@ -20,6 +20,7 @@
 #define RIGIDBODY_H
 #include <memory>
 #include "../Colliders/Collider.h"
+#include "../../../Fisicas/IPhysicsBackend.h"
 
 // El cuerpo fisico de bullet se usa por puntero; el include pesado de bullet
 // solo lo necesita RigidBody.cpp. El class-key de cada tipo es el de su
@@ -59,7 +60,7 @@ private:
     // Ultima gravedad del mundo conocida (la empuja el backend al registrar
     // el cuerpo y al cambiar la gravedad global). No se serializa: el mundo
     // la repone al cargar la escena.
-    float gravedadMundo[3] = {0.0f, -1.0f, 0.0f};
+    float gravedadMundo[3] = {0.0f, kGravedadPorDefectoY, 0.0f};
 
     void serializeComponent(std::ofstream* fileNamePathContentObject) override;
     void deserializeComponent(std::ifstream* fileNamePathContentObject) override;

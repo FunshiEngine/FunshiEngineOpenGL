@@ -763,8 +763,11 @@ Detalles que conviene saber:
   **Friccion** de contacto (`0` = desliza) y **Freeze posicion/rotacion** por
   ejes X/Y/Z. Todo se guarda con la escena; las escenas anteriores toman los
   valores por defecto (cae normal, friccion `0.5`, sin freeze).
-- La **gravedad global** del mundo es manipulable (tambien desde scripts) y se
-  re-aplica a cada cuerpo segun su escala al cambiar.
+- La **gravedad global** del mundo arranca en `(0, -9.81, 0)` (la terrestre, en
+  m/s^2), es manipulable (tambien desde scripts) y se re-aplica a cada cuerpo
+  segun su escala al cambiar. Hasta la version anterior arrancaba en
+  `(0, -1, 0)`: un juego que dependa de esa caida lenta puede fijarla con
+  `fijarGravedadGlobal(0, -1, 0)` al empezar.
 - Mientras se manipula el gizmo, `stepSimulation` se pausa (la gravedad podria
   "eyectar" el objeto); al soltar, la simulacion sigue.
 - Gizmo dedicado de fisica para el collider activo.
