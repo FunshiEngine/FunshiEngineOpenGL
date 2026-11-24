@@ -27,18 +27,18 @@ class Component;
 
 class SettingsComponent {
 protected:
-	bool mostrarVisualesDepuracion_ = true;
-	std::string tipoComponente_; // nombre del tipo (demangle) para validacion segura
+    bool mostrarVisualesDepuracion_ = true;
+    std::string tipoComponente_; // nombre del tipo (demangle) para validacion segura
 
 public:
-	SettingsComponent() = default;
-	explicit SettingsComponent(const std::string& tipo) : tipoComponente_(tipo) {}
-	virtual ~SettingsComponent() = default;
-	virtual void showDataComponent() = 0;
-	virtual Component* getComponent() = 0;
-	const std::string& getTipoComponente() const noexcept { return tipoComponente_; }
-	void setMostrarVisualesDepuracion(bool mostrar) noexcept {
-		mostrarVisualesDepuracion_ = mostrar;
-	}
+    SettingsComponent() = default;
+    explicit SettingsComponent(const std::string& tipo) : tipoComponente_(tipo) {}
+    virtual ~SettingsComponent() = default;
+    virtual void showDataComponent() = 0;
+    virtual Component* getComponent() = 0;
+    const std::string& getTipoComponente() const noexcept { return tipoComponente_; }
+    void setMostrarVisualesDepuracion(bool mostrar) noexcept {
+        mostrarVisualesDepuracion_ = mostrar;
+    }
 };
 #endif

@@ -31,14 +31,14 @@ class AudioEngine;
 // inyectado por Settings).
 class SettingsAudioSource : public SettingsComponent {
 private:
-	GameObject* gameObject = nullptr;
-	AudioEngine* motor = nullptr;
+    GameObject* gameObject = nullptr;
+    AudioEngine* motor = nullptr;
 
 public:
-	explicit SettingsAudioSource(GameObject* gameObject);
-	void setAudioEngine(AudioEngine* motor) noexcept { this->motor = motor; }
-	void showDataComponent() override;
-	Component* getComponent() override { return gameObject ? gameObject->getComponent<AudioSource>() : nullptr; }
+    explicit SettingsAudioSource(GameObject* gameObject);
+    void setAudioEngine(AudioEngine* motor) noexcept { this->motor = motor; }
+    void showDataComponent() override;
+    Component* getComponent() override { return gameObject ? gameObject->getComponent<AudioSource>() : nullptr; }
 };
 
 #endif // SETTINGSAUDIOSOURCE_H

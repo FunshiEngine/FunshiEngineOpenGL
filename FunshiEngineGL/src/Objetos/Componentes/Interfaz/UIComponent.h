@@ -41,40 +41,40 @@
 // ordenadas por `z`.
 class UIComponent : public Component {
 private:
-	// Datos del HUD (se serializan).
-	LienzoUI lienzo_;
-	// Estado vivo de la interaccion (no se serializa).
-	SistemaUI sistema_;
-	bool activo = true;
-	float z = 0.0f; // orden de apilado entre interfaces nativas
+    // Datos del HUD (se serializan).
+    LienzoUI lienzo_;
+    // Estado vivo de la interaccion (no se serializa).
+    SistemaUI sistema_;
+    bool activo = true;
+    float z = 0.0f; // orden de apilado entre interfaces nativas
 
 protected:
-	void serializeComponent(std::ofstream* file) override;
-	void deserializeComponent(std::ifstream* file) override;
+    void serializeComponent(std::ofstream* file) override;
+    void deserializeComponent(std::ifstream* file) override;
 
 public:
-	UIComponent() = default;
+    UIComponent() = default;
 
-	// Lienzo: la lista de widgets y su colocacion.
-	LienzoUI& lienzo() noexcept { return lienzo_; }
-	const LienzoUI& lienzo() const noexcept { return lienzo_; }
+    // Lienzo: la lista de widgets y su colocacion.
+    LienzoUI& lienzo() noexcept { return lienzo_; }
+    const LienzoUI& lienzo() const noexcept { return lienzo_; }
 
-	// Estado de interaccion del frame.
-	SistemaUI& sistema() noexcept { return sistema_; }
-	const SistemaUI& sistema() const noexcept { return sistema_; }
+    // Estado de interaccion del frame.
+    SistemaUI& sistema() noexcept { return sistema_; }
+    const SistemaUI& sistema() const noexcept { return sistema_; }
 
-	bool estaActivo() const noexcept { return activo; }
-	void setActivo(bool valor) noexcept { activo = valor; }
+    bool estaActivo() const noexcept { return activo; }
+    void setActivo(bool valor) noexcept { activo = valor; }
 
-	float getZ() const noexcept { return z; }
-	void setZ(float valor) noexcept { z = valor; }
+    float getZ() const noexcept { return z; }
+    void setZ(float valor) noexcept { z = valor; }
 
-	// Coloca los widgets para una pantalla de ese tamano y actualiza el estado
-	// de interaccion con la entrada del frame. Lo llama la escena antes de
-	// dibujar y antes de que corran los scripts, para que un script vea el
-	// clic en el mismo frame en que ocurre.
-	void actualizarInteraccion(const EntradaUI& entrada, float anchoPantalla,
-	                           float altoPantalla);
+    // Coloca los widgets para una pantalla de ese tamano y actualiza el estado
+    // de interaccion con la entrada del frame. Lo llama la escena antes de
+    // dibujar y antes de que corran los scripts, para que un script vea el
+    // clic en el mismo frame en que ocurre.
+    void actualizarInteraccion(const EntradaUI& entrada, float anchoPantalla,
+                               float altoPantalla);
 };
 
 #endif // UICOMPONENT_H

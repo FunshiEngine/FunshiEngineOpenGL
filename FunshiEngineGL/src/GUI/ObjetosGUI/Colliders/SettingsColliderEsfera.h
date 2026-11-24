@@ -25,16 +25,16 @@
 
 class SettingsColliderEsfera : public SettingsComponent {
 protected:
-	SettingsTransform* settingsTransform;
-	EsfereCollider* myCollider;
-	float newRadio;
-	EditorController* editor = nullptr;
+    SettingsTransform* settingsTransform;
+    EsfereCollider* myCollider;
+    float newRadio;
+    EditorController* editor = nullptr;
 public:
-	explicit SettingsColliderEsfera(GameObject* objeto);
-	~SettingsColliderEsfera();
+    explicit SettingsColliderEsfera(GameObject* objeto);
+    ~SettingsColliderEsfera();
 
-	void setEditor(EditorController* editor);
-	void showDataComponent() override;
-	Component* getComponent() override { return myCollider; }
+    void setEditor(EditorController* editor);
+    void showDataComponent() override;
+    Component* getComponent() override { return myCollider; }
 };
 #endif

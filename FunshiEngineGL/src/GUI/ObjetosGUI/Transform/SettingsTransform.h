@@ -25,14 +25,14 @@
 class GameObject;
 
 class SettingsTransform : public SettingsComponent {
-	Transform* componentTransform;
-	GameObject* ownerObject;
-	// Dimension del proyecto: en 2D la rotacion se limita al eje Z (el plano).
-	DimensionProyecto dimension_ = DimensionProyecto::TresD;
+    Transform* componentTransform;
+    GameObject* ownerObject;
+    // Dimension del proyecto: en 2D la rotacion se limita al eje Z (el plano).
+    DimensionProyecto dimension_ = DimensionProyecto::TresD;
 public:
-	explicit SettingsTransform(Transform* componentTransform, GameObject* ownerObject = nullptr);
-	void setDimension(DimensionProyecto dimension) noexcept { dimension_ = dimension; }
-	virtual void showDataComponent() override;
-	virtual Component* getComponent() override { return componentTransform; }
+    explicit SettingsTransform(Transform* componentTransform, GameObject* ownerObject = nullptr);
+    void setDimension(DimensionProyecto dimension) noexcept { dimension_ = dimension; }
+    virtual void showDataComponent() override;
+    virtual Component* getComponent() override { return componentTransform; }
 };
 #endif

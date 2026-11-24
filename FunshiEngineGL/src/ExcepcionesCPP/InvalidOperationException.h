@@ -23,6 +23,6 @@ using namespace std;
 
 class InvalidOperationException : public RuntimeException {
 public:
-	InvalidOperationException(string msg) : RuntimeException(msg + " No es posible realizar la Operacion", "InvalidOperationException") {}
+    InvalidOperationException(string msg) : RuntimeException(msg + " No es posible realizar la Operacion", "InvalidOperationException") {}
 };
 #endif

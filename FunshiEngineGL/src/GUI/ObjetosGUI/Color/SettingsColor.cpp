@@ -26,6 +26,6 @@ SettingsColor::SettingsColor(GameObject* gameObject)
     : SettingsComponent(demangle(typeid(Color).name())), gameObject(gameObject) {}
 
 void SettingsColor::showDataComponent() {
-	ImGui::ColorEdit3("Color", gameObject->auxColor);
-	gameObject->setColor(gameObject->auxColor);
+    ImGui::ColorEdit3("Color", gameObject->auxColor);
+    gameObject->setColor(gameObject->auxColor);
 }

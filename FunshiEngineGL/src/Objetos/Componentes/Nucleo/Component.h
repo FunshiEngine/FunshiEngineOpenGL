@@ -27,38 +27,38 @@ class GameObject;
 
 class Component {
 private:
-	bool terminalSelectScript = false;
-	char name[25] = "";
+    bool terminalSelectScript = false;
+    char name[25] = "";
 protected:
-	// Hooks de serializacion: lo que el componente escribe y lo que lee. Son los
-	// unicos dos metodos que un componente implementa.
-	virtual void serializeComponent(std::ofstream* fileNamePathContentObject) = 0;
+    // Hooks de serializacion: lo que el componente escribe y lo que lee. Son los
+    // unicos dos metodos que un componente implementa.
+    virtual void serializeComponent(std::ofstream* fileNamePathContentObject) = 0;
 
-	virtual void deserializeComponent(std::ifstream* fileNamePathContentObject) = 0;
+    virtual void deserializeComponent(std::ifstream* fileNamePathContentObject) = 0;
 public:
-	virtual ~Component() {} // Destructor virtual para hacer que la clase sea polimórfica.
+    virtual ~Component() {} // Destructor virtual para hacer que la clase sea polimórfica.
 
-	// Entrada que usa el motor: reenvian a los hooks y no se reimplementan, de
-	// modo que la serializacion de un componente vive en un solo sitio.
-	void saveComponent(std::ofstream* fileNamePathContentObject) {
-		serializeComponent(fileNamePathContentObject);
-	}
+    // Entrada que usa el motor: reenvian a los hooks y no se reimplementan, de
+    // modo que la serializacion de un componente vive en un solo sitio.
+    void saveComponent(std::ofstream* fileNamePathContentObject) {
+        serializeComponent(fileNamePathContentObject);
+    }
 
-	void loadComponent(std::ifstream* fileNamePathContentObject) {
-		deserializeComponent(fileNamePathContentObject);
-	}
+    void loadComponent(std::ifstream* fileNamePathContentObject) {
+        deserializeComponent(fileNamePathContentObject);
+    }
 
-	// Hook polimorfico de post-carga: se invoca desde deserializeEntityComponents
-	// justo despues de loadComponent() y antes de entregar el componente al
-	// objeto. Los componentes lo usan para aplicar su estado al dueno sin que
-	// el GameObejct tenga que despachar por nombre de tipo.
-	virtual void onLoaded(GameObject& /*owner*/) {}
+    // Hook polimorfico de post-carga: se invoca desde deserializeEntityComponents
+    // justo despues de loadComponent() y antes de entregar el componente al
+    // objeto. Los componentes lo usan para aplicar su estado al dueno sin que
+    // el GameObejct tenga que despachar por nombre de tipo.
+    virtual void onLoaded(GameObject& /*owner*/) {}
 
-	// Hook polimorico por frame, invocado desde GameObject::update. Por defecto
-	// no hace nada; los componentes con comportamiento en tiempo de ejecucion
-	// (animaciones, temporizadores) lo sobrescriben. El dueno se pasa para que
-	// el componente lea/escriba componentes hermanos sin acoplarse a su tipo.
-	virtual void onUpdate(GameObject& /*owner*/, float /*deltaTime*/) {}
+    // Hook polimorico por frame, invocado desde GameObject::update. Por defecto
+    // no hace nada; los componentes con comportamiento en tiempo de ejecucion
+    // (animaciones, temporizadores) lo sobrescriben. El dueno se pasa para que
+    // el componente lea/escriba componentes hermanos sin acoplarse a su tipo.
+    virtual void onUpdate(GameObject& /*owner*/, float /*deltaTime*/) {}
 
 };
 #endif

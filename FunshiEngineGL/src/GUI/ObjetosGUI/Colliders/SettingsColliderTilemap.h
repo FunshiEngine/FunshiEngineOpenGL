@@ -25,15 +25,15 @@
 
 class SettingsColliderTilemap : public SettingsComponent {
 protected:
-	SettingsTransform* settingsTransform;
-	TilemapCollider* myCollider;
-	EditorController* editor = nullptr;
+    SettingsTransform* settingsTransform;
+    TilemapCollider* myCollider;
+    EditorController* editor = nullptr;
 public:
-	explicit SettingsColliderTilemap(GameObject* objeto);
-	~SettingsColliderTilemap();
+    explicit SettingsColliderTilemap(GameObject* objeto);
+    ~SettingsColliderTilemap();
 
-	void setEditor(EditorController* editor);
-	void showDataComponent() override;
-	Component* getComponent() override { return myCollider; }
+    void setEditor(EditorController* editor);
+    void showDataComponent() override;
+    Component* getComponent() override { return myCollider; }
 };
 #endif

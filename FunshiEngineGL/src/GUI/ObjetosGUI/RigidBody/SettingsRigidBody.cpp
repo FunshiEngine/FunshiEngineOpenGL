@@ -28,61 +28,61 @@ SettingsRigidBody::SettingsRigidBody(GameObject* objeto)
       myCollider(objeto ? objeto->getComponent<RigidBody>() : nullptr) {}
 
 void SettingsRigidBody::setEditor(EditorController* editor) {
-	this->editor = editor;
+    this->editor = editor;
 }
 
 void SettingsRigidBody::showDataComponent() {
-	bool activo = myCollider->estaActivo();
-	if (ImGui::Checkbox("Activo", &activo)) myCollider->setActivo(activo);
-	bool sensor = myCollider->esSensor();
-	if (ImGui::Checkbox("Sensor (trigger)", &sensor))
-		myCollider->fijarSensor(sensor);
-	float masa = myCollider->masa();
-	if (ImGui::DragFloat("Masa", &masa, 0.1f, 0.0f, 100.0f)) {
-		const bool eraEstatico = myCollider->masa() == 0.0f;
-		if (myCollider->fijarMasa(masa) && editor &&
-		    myCollider->getCollider() &&
-		    myCollider->getCollider()->getOwner() &&
-		    (eraEstatico != (masa == 0.0f))) {
-			// Cruzar entre estatico y dinamico cambia la naturaleza del
-			// cuerpo en Bullet: reconstruirlo via el editor lo re-registra.
-			editor->refreshRigidBody(
-			    myCollider->getCollider()->getOwner());
-		}
-	}
-	bool usaGravedad = myCollider->usaGravedad();
-	if (ImGui::Checkbox("Usa gravedad", &usaGravedad))
-		myCollider->fijarUsoGravedad(usaGravedad);
-	float escala = myCollider->escalaGravedad();
-	if (ImGui::DragFloat("Escala gravedad", &escala, 0.05f, -5.0f, 5.0f))
-		myCollider->fijarEscalaGravedad(escala);
-	float friccion = myCollider->friccion();
-	if (ImGui::DragFloat("Friccion", &friccion, 0.05f, 0.0f, 10.0f))
-		myCollider->fijarFriccion(friccion);
-	if (ImGui::TreeNode("Freeze posicion")) {
-		bool x = myCollider->posicionCongelada(0);
-		bool y = myCollider->posicionCongelada(1);
-		bool z = myCollider->posicionCongelada(2);
-		bool cambio = false;
-		cambio |= ImGui::Checkbox("X", &x);
-		ImGui::SameLine();
-		cambio |= ImGui::Checkbox("Y", &y);
-		ImGui::SameLine();
-		cambio |= ImGui::Checkbox("Z", &z);
-		if (cambio) myCollider->fijarFreezePosicion(x, y, z);
-		ImGui::TreePop();
-	}
-	if (ImGui::TreeNode("Freeze rotacion")) {
-		bool x = myCollider->rotacionCongelada(0);
-		bool y = myCollider->rotacionCongelada(1);
-		bool z = myCollider->rotacionCongelada(2);
-		bool cambio = false;
-		cambio |= ImGui::Checkbox("X##rot", &x);
-		ImGui::SameLine();
-		cambio |= ImGui::Checkbox("Y##rot", &y);
-		ImGui::SameLine();
-		cambio |= ImGui::Checkbox("Z##rot", &z);
-		if (cambio) myCollider->fijarFreezeRotacion(x, y, z);
-		ImGui::TreePop();
-	}
+    bool activo = myCollider->estaActivo();
+    if (ImGui::Checkbox("Activo", &activo)) myCollider->setActivo(activo);
+    bool sensor = myCollider->esSensor();
+    if (ImGui::Checkbox("Sensor (trigger)", &sensor))
+        myCollider->fijarSensor(sensor);
+    float masa = myCollider->masa();
+    if (ImGui::DragFloat("Masa", &masa, 0.1f, 0.0f, 100.0f)) {
+        const bool eraEstatico = myCollider->masa() == 0.0f;
+        if (myCollider->fijarMasa(masa) && editor &&
+            myCollider->getCollider() &&
+            myCollider->getCollider()->getOwner() &&
+            (eraEstatico != (masa == 0.0f))) {
+            // Cruzar entre estatico y dinamico cambia la naturaleza del
+            // cuerpo en Bullet: reconstruirlo via el editor lo re-registra.
+            editor->refreshRigidBody(
+                myCollider->getCollider()->getOwner());
+        }
+    }
+    bool usaGravedad = myCollider->usaGravedad();
+    if (ImGui::Checkbox("Usa gravedad", &usaGravedad))
+        myCollider->fijarUsoGravedad(usaGravedad);
+    float escala = myCollider->escalaGravedad();
+    if (ImGui::DragFloat("Escala gravedad", &escala, 0.05f, -5.0f, 5.0f))
+        myCollider->fijarEscalaGravedad(escala);
+    float friccion = myCollider->friccion();
+    if (ImGui::DragFloat("Friccion", &friccion, 0.05f, 0.0f, 10.0f))
+        myCollider->fijarFriccion(friccion);
+    if (ImGui::TreeNode("Freeze posicion")) {
+        bool x = myCollider->posicionCongelada(0);
+        bool y = myCollider->posicionCongelada(1);
+        bool z = myCollider->posicionCongelada(2);
+        bool cambio = false;
+        cambio |= ImGui::Checkbox("X", &x);
+        ImGui::SameLine();
+        cambio |= ImGui::Checkbox("Y", &y);
+        ImGui::SameLine();
+        cambio |= ImGui::Checkbox("Z", &z);
+        if (cambio) myCollider->fijarFreezePosicion(x, y, z);
+        ImGui::TreePop();
+    }
+    if (ImGui::TreeNode("Freeze rotacion")) {
+        bool x = myCollider->rotacionCongelada(0);
+        bool y = myCollider->rotacionCongelada(1);
+        bool z = myCollider->rotacionCongelada(2);
+        bool cambio = false;
+        cambio |= ImGui::Checkbox("X##rot", &x);
+        ImGui::SameLine();
+        cambio |= ImGui::Checkbox("Y##rot", &y);
+        ImGui::SameLine();
+        cambio |= ImGui::Checkbox("Z##rot", &z);
+        if (cambio) myCollider->fijarFreezeRotacion(x, y, z);
+        ImGui::TreePop();
+    }
 }

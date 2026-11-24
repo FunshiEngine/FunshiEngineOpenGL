@@ -26,14 +26,14 @@
 
 class DockSpaceInterface : public GeneralUserInterface {
 protected:
-	ImGuiID dockspaceId = 0;
-	std::unordered_map<std::string, ImGuiID> ultimoDockValido_;
+    ImGuiID dockspaceId = 0;
+    std::unordered_map<std::string, ImGuiID> ultimoDockValido_;
 public:
-	DockSpaceInterface(bool stateGUI);
-	virtual void initGUI() override;
-	virtual void contentGUI() override;
-	virtual void endGUI() override;
-	virtual void printGUI() override;
-	void repararVentanasFlotantes();
+    DockSpaceInterface(bool stateGUI);
+    virtual void initGUI() override;
+    virtual void contentGUI() override;
+    virtual void endGUI() override;
+    virtual void printGUI() override;
+    void repararVentanasFlotantes();
 };
 #endif

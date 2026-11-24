@@ -23,10 +23,10 @@
 
 class SettingsModel : public SettingsComponent {
 protected:
-	Model* myModel;
+    Model* myModel;
 public:
-	explicit SettingsModel(GameObject* objeto);
-	void showDataComponent() override;
-	Component* getComponent() override { return myModel; }
+    explicit SettingsModel(GameObject* objeto);
+    void showDataComponent() override;
+    Component* getComponent() override { return myModel; }
 };
 #endif

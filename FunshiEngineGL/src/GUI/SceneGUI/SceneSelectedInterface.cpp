@@ -64,7 +64,7 @@ void SceneSelectedInterface::initGUI() {
 }
 
 void SceneSelectedInterface::contentGUI() {
-	auto* entitys = getEntitysTree();
+    auto* entitys = getEntitysTree();
     if (!entitys) return;
 
     // Sin deseleccion por clic en area vacia: la interface se conserva al

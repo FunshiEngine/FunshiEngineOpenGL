@@ -28,32 +28,32 @@ void decomposeMatrixToTransform(float inMatrix[16], class Transform* t);
 
 class Transform : public Component {
 private:
-	float objectTranslatef[3] = { 0.0f, 0.0f, 0.0f };
-	float objectScalef[3] = { 1.0f, 1.0f, 1.0f };
-	float objectRotatef[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    float objectTranslatef[3] = { 0.0f, 0.0f, 0.0f };
+    float objectScalef[3] = { 1.0f, 1.0f, 1.0f };
+    float objectRotatef[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	void serializeComponent(std::ofstream* fileNamePathContentObject) override;
-	void deserializeComponent(std::ifstream* fileNamePathContentObject) override;
+    void serializeComponent(std::ofstream* fileNamePathContentObject) override;
+    void deserializeComponent(std::ifstream* fileNamePathContentObject) override;
 
 public:
-	Transform();
+    Transform();
 
-	float arrTranslatef[3], arrScalef[3], arrRotatef[4];
-	bool childsFreeze = false;
+    float arrTranslatef[3], arrScalef[3], arrRotatef[4];
+    bool childsFreeze = false;
 
-	// Gizmo "activo/dormido" (solo editor, NO se serializa: cambia el formato
-	// binario de las escenas guardadas). true = el gizmo edita este transform
-	// cuando corresponde (objeto seleccionado u offset de collider habilitado);
-	// false = el gizmo se duerme y no aparece para este transform.
-	bool gizmoHabilitado = true;
+    // Gizmo "activo/dormido" (solo editor, NO se serializa: cambia el formato
+    // binario de las escenas guardadas). true = el gizmo edita este transform
+    // cuando corresponde (objeto seleccionado u offset de collider habilitado);
+    // false = el gizmo se duerme y no aparece para este transform.
+    bool gizmoHabilitado = true;
 
-	void setTranslatef(float x, float y, float z);
-	void setRotatef(float angle, float x, float y, float z);
-	void setScalef(float x, float y, float z);
+    void setTranslatef(float x, float y, float z);
+    void setRotatef(float angle, float x, float y, float z);
+    void setScalef(float x, float y, float z);
 
-	float* getTranslatef() { return arrTranslatef; }
-	float* getScalef() { return arrScalef; }
-	float* getRotatef() { return arrRotatef; }
+    float* getTranslatef() { return arrTranslatef; }
+    float* getScalef() { return arrScalef; }
+    float* getRotatef() { return arrRotatef; }
 
 };
 #endif

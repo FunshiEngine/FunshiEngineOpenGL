@@ -25,16 +25,16 @@
 
 class SettingsColliderCubo : public SettingsComponent {
 protected:
-	SettingsTransform* settingsTransform;
-	CubeCollider* myCollider;
-	float newRadio;
-	EditorController* editor = nullptr;
+    SettingsTransform* settingsTransform;
+    CubeCollider* myCollider;
+    float newRadio;
+    EditorController* editor = nullptr;
 public:
-	explicit SettingsColliderCubo(GameObject* objeto);
-	~SettingsColliderCubo();
+    explicit SettingsColliderCubo(GameObject* objeto);
+    ~SettingsColliderCubo();
 
-	void setEditor(EditorController* editor);
-	void showDataComponent() override;
-	Component* getComponent() override { return myCollider; }
+    void setEditor(EditorController* editor);
+    void showDataComponent() override;
+    Component* getComponent() override { return myCollider; }
 };
 #endif

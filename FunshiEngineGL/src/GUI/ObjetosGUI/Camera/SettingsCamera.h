@@ -24,16 +24,16 @@
 #include "../../../Configuracion/DimensionProyecto.h"
 
 class SettingsCamera : public SettingsComponent {
-	GameObject* gameObject;
-	// Dimension del proyecto: en 2D la camara es siempre ortografica, asi que
-	// se ocultan el selector de proyeccion y el FOV.
-	DimensionProyecto dimension_ = DimensionProyecto::TresD;
+    GameObject* gameObject;
+    // Dimension del proyecto: en 2D la camara es siempre ortografica, asi que
+    // se ocultan el selector de proyeccion y el FOV.
+    DimensionProyecto dimension_ = DimensionProyecto::TresD;
 public:
-	explicit SettingsCamera(GameObject* gameObject);
-	void setDimension(DimensionProyecto dimension) noexcept {
-		dimension_ = dimension;
-	}
-	void showDataComponent() override;
-	Component* getComponent() override { return gameObject ? gameObject->getComponent<CameraComponent>() : nullptr; }
+    explicit SettingsCamera(GameObject* gameObject);
+    void setDimension(DimensionProyecto dimension) noexcept {
+        dimension_ = dimension;
+    }
+    void showDataComponent() override;
+    Component* getComponent() override { return gameObject ? gameObject->getComponent<CameraComponent>() : nullptr; }
 };
 #endif

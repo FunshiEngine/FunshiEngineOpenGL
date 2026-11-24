@@ -25,6 +25,6 @@ using namespace std;
 template<typename E>
 class Ordenadora {
 public:
-	virtual bool ordenBy(E p1, E p2) const = 0;
+    virtual bool ordenBy(E p1, E p2) const = 0;
 };
 #endif

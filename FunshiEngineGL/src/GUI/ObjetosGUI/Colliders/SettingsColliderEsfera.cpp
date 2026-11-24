@@ -28,34 +28,34 @@ SettingsColliderEsfera::SettingsColliderEsfera(GameObject* objeto)
     : SettingsComponent(demangle(typeid(EsfereCollider).name())),
       myCollider(objeto ? objeto->getComponent<EsfereCollider>() : nullptr),
       newRadio(myCollider ? myCollider->getRadio() : 0.0f) {
-	this->settingsTransform =
-	    new SettingsTransform(myCollider ? myCollider->getTransform() : nullptr, objeto);
+    this->settingsTransform =
+        new SettingsTransform(myCollider ? myCollider->getTransform() : nullptr, objeto);
 }
 
 SettingsColliderEsfera::~SettingsColliderEsfera() { delete settingsTransform; }
 
 void SettingsColliderEsfera::setEditor(EditorController* editor) {
-	this->editor = editor;
+    this->editor = editor;
 }
 
 void SettingsColliderEsfera::showDataComponent() {
-	bool visible = myCollider->estaVisibleEnEscena();
-	if (ImGui::Checkbox("Visible en escena", &visible))
-		myCollider->setVisibleEnEscena(visible);
-	ImGui::InputFloat("Radio", &newRadio);
-	if (ImGui::Button("Confirmar")) {
-		if (newRadio > 0 && newRadio != myCollider->getRadio()) {
-			myCollider->setRadio(newRadio);
-			// La shape de Bullet se cachea con el radio viejo: sin
-			// reconstruirla, la fisica sigue chocando con la esfera del radio
-			// INICIAL (p.ej. 5) y el cuerpo en el mundo seria recreado sin la
-			// shape nueva. refreshRigidBody invalida la shape, saca el cuerpo
-			// viejo del mundo, lo recrea y re-registra.
-			if (editor && myCollider->getOwner())
-				editor->refreshRigidBody(myCollider->getOwner());
-			else
-				myCollider->invalidateCollisionShape();
-		}
-	}
-	settingsTransform->showDataComponent();
+    bool visible = myCollider->estaVisibleEnEscena();
+    if (ImGui::Checkbox("Visible en escena", &visible))
+        myCollider->setVisibleEnEscena(visible);
+    ImGui::InputFloat("Radio", &newRadio);
+    if (ImGui::Button("Confirmar")) {
+        if (newRadio > 0 && newRadio != myCollider->getRadio()) {
+            myCollider->setRadio(newRadio);
+            // La shape de Bullet se cachea con el radio viejo: sin
+            // reconstruirla, la fisica sigue chocando con la esfera del radio
+            // INICIAL (p.ej. 5) y el cuerpo en el mundo seria recreado sin la
+            // shape nueva. refreshRigidBody invalida la shape, saca el cuerpo
+            // viejo del mundo, lo recrea y re-registra.
+            if (editor && myCollider->getOwner())
+                editor->refreshRigidBody(myCollider->getOwner());
+            else
+                myCollider->invalidateCollisionShape();
+        }
+    }
+    settingsTransform->showDataComponent();
 }

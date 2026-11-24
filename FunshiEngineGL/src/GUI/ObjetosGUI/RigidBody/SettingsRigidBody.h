@@ -24,12 +24,12 @@
 
 class SettingsRigidBody : public SettingsComponent {
 protected:
-	RigidBody* myCollider;
-	EditorController* editor = nullptr;
+    RigidBody* myCollider;
+    EditorController* editor = nullptr;
 public:
-	explicit SettingsRigidBody(GameObject* objeto);
-	void setEditor(EditorController* editor);
-	void showDataComponent() override;
-	Component* getComponent() override { return myCollider; }
+    explicit SettingsRigidBody(GameObject* objeto);
+    void setEditor(EditorController* editor);
+    void showDataComponent() override;
+    Component* getComponent() override { return myCollider; }
 };
 #endif

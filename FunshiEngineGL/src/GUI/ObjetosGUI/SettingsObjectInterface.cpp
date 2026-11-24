@@ -78,12 +78,12 @@ constexpr float kTamanoIconoComponente = 18.4f;
 
 SettingsObjectInterface::SettingsObjectInterface(GameObject* object,
                                                  bool stateGUI)
-	: GeneralUserInterface("Settings", stateGUI, ImGuiWindowFlags_MenuBar) {
-	this->object = object;
-	listaDESettingsComponent = new ListaDE<SettingsComponent*>();
-	if (object && !object->getComponents()->isEmpty()) {
-		loadComponents();
-	}
+    : GeneralUserInterface("Settings", stateGUI, ImGuiWindowFlags_MenuBar) {
+    this->object = object;
+    listaDESettingsComponent = new ListaDE<SettingsComponent*>();
+    if (object && !object->getComponents()->isEmpty()) {
+        loadComponents();
+    }
 }
 
 SettingsObjectInterface::~SettingsObjectInterface() {
@@ -96,11 +96,11 @@ SettingsObjectInterface::~SettingsObjectInterface() {
 }
 
 void SettingsObjectInterface::setEditor(EditorController* editor) {
-	this->editor = editor;
-	// Si ya hay objeto inspeccionado, reconciliar para crear panel Prefab si falta.
-	if (object && editor) {
-		crearSettingsFaltantes();
-	}
+    this->editor = editor;
+    // Si ya hay objeto inspeccionado, reconciliar para crear panel Prefab si falta.
+    if (object && editor) {
+        crearSettingsFaltantes();
+    }
 }
 
 // Desvincula el inspector del objeto actual: libera los Settings* y deja
@@ -143,145 +143,145 @@ void SettingsObjectInterface::setEventBus(EventBus* bus) {
 }
 
 bool SettingsObjectInterface::tieneSettingsPara(Component* componente) {
-	if (!componente || listaDESettingsComponent->isEmpty()) return false;
-	Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
-	while (pos != nullptr) {
-		SettingsComponent* s = pos->getElement();
-		if (s != nullptr && s->getComponent() == componente) return true;
-		pos = (pos != listaDESettingsComponent->last())
-		          ? listaDESettingsComponent->next(pos)
-		          : nullptr;
-	}
-	return false;
+    if (!componente || listaDESettingsComponent->isEmpty()) return false;
+    Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+    while (pos != nullptr) {
+        SettingsComponent* s = pos->getElement();
+        if (s != nullptr && s->getComponent() == componente) return true;
+        pos = (pos != listaDESettingsComponent->last())
+                  ? listaDESettingsComponent->next(pos)
+                  : nullptr;
+    }
+    return false;
 }
 
 // Borra los Settings cuyo componente ya no pertenece al objeto inspeccionado.
 // Usa el nombre de tipo almacenado en SettingsComponent (estable en construccion)
 // para evitar desreferenciar punteros colgantes.
 void SettingsObjectInterface::purgarSettingsHuerfanos() {
-	if (!object || listaDESettingsComponent->isEmpty()) return;
-	ListaDE<Component*>* componentes = object->getComponents();
-	if (!componentes || componentes->isEmpty()) {
-		// Si no hay componentes, todos los settings son huerfanos
-		while (!listaDESettingsComponent->isEmpty()) {
-			Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
-			delete pos->getElement();
-			listaDESettingsComponent->remove(pos);
-		}
-		return;
-	}
+    if (!object || listaDESettingsComponent->isEmpty()) return;
+    ListaDE<Component*>* componentes = object->getComponents();
+    if (!componentes || componentes->isEmpty()) {
+        // Si no hay componentes, todos los settings son huerfanos
+        while (!listaDESettingsComponent->isEmpty()) {
+            Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+            delete pos->getElement();
+            listaDESettingsComponent->remove(pos);
+        }
+        return;
+    }
 
-	Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
-	while (pos != nullptr) {
-		Position<SettingsComponent*>* siguiente =
-		    (pos != listaDESettingsComponent->last())
-		        ? listaDESettingsComponent->next(pos)
-		        : nullptr;
-		SettingsComponent* s = pos->getElement();
-		if (!s) {
-			listaDESettingsComponent->remove(pos);
-			pos = siguiente;
-			continue;
-		}
+    Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+    while (pos != nullptr) {
+        Position<SettingsComponent*>* siguiente =
+            (pos != listaDESettingsComponent->last())
+                ? listaDESettingsComponent->next(pos)
+                : nullptr;
+        SettingsComponent* s = pos->getElement();
+        if (!s) {
+            listaDESettingsComponent->remove(pos);
+            pos = siguiente;
+            continue;
+        }
 
-		// Verificar si existe un componente de este tipo en el objeto
-		const std::string& tipoEsperado = s->getTipoComponente();
-		bool vigente = false;
-		if (!tipoEsperado.empty()) {
-			Position<Component*>* pc = componentes->first();
-			while (pc != nullptr) {
-				Component* c = pc->getElement();
-				if (c) {
-					std::string tipoActual = demangle(typeid(*c).name());
-					if (tipoActual == tipoEsperado) {
-						vigente = true;
-						break;
-					}
-				}
-				pc = (pc != componentes->last())
-				         ? componentes->next(pc)
-				         : nullptr;
-			}
-		}
+        // Verificar si existe un componente de este tipo en el objeto
+        const std::string& tipoEsperado = s->getTipoComponente();
+        bool vigente = false;
+        if (!tipoEsperado.empty()) {
+            Position<Component*>* pc = componentes->first();
+            while (pc != nullptr) {
+                Component* c = pc->getElement();
+                if (c) {
+                    std::string tipoActual = demangle(typeid(*c).name());
+                    if (tipoActual == tipoEsperado) {
+                        vigente = true;
+                        break;
+                    }
+                }
+                pc = (pc != componentes->last())
+                         ? componentes->next(pc)
+                         : nullptr;
+            }
+        }
 
-		if (!vigente) {
-			listaDESettingsComponent->remove(pos);
-			delete s;
-		}
-		pos = siguiente;
-	}
+        if (!vigente) {
+            listaDESettingsComponent->remove(pos);
+            delete s;
+        }
+        pos = siguiente;
+    }
 }
 
 // Reconciliacion completa: reutiliza los paneles vigentes, borra los huerfanos
 // y crea los que falten. Unico punto que incrementa el contador de
 // reconstrucciones (un cambio estructural por vez).
 void SettingsObjectInterface::reconciliarComponentes() {
-	if (!object) return;
-	++reconciliaciones;
-	purgarSettingsHuerfanos();
-	crearSettingsFaltantes();
+    if (!object) return;
+    ++reconciliaciones;
+    purgarSettingsHuerfanos();
+    crearSettingsFaltantes();
 }
 
 void SettingsObjectInterface::loadComponents() {
-	if (!object) return;
-	purgarSettingsHuerfanos();
-	crearSettingsFaltantes();
+    if (!object) return;
+    purgarSettingsHuerfanos();
+    crearSettingsFaltantes();
 }
 
 void SettingsObjectInterface::crearSettingsFaltantes() {
-	if (!object) return;
-	const int creadosAntes = listaDESettingsComponent->tam();
+    if (!object) return;
+    const int creadosAntes = listaDESettingsComponent->tam();
 
-	ContextoPanel contexto;
-	contexto.object = object;
-	contexto.editor = editor;
-	contexto.audio = audioMotor;
-	contexto.dimension = dimensionProyecto();
-	contexto.preview = previewMaterial_;
+    ContextoPanel contexto;
+    contexto.object = object;
+    contexto.editor = editor;
+    contexto.audio = audioMotor;
+    contexto.dimension = dimensionProyecto();
+    contexto.preview = previewMaterial_;
 
-	ListaDE<Component*>* componentes = object->getComponents();
-	if (componentes && !componentes->isEmpty()) {
-		// Se recorre el catalogo (no el orden de insercion en el objeto) para
-		// que el orden de los paneles sea estable y definido en un solo lugar.
-		for (const DescriptorComponente& descriptor :
-		     CatalogoComponentes::instancia().descriptores()) {
-			if (!descriptor.crearPanel) continue;
-			Position<Component*>* posicion = componentes->first();
-			while (posicion != nullptr) {
-				Component* componente = posicion->getElement();
-				if (componente != nullptr &&
-				    demangle(typeid(*componente).name()) == descriptor.nombre &&
-				    !tieneSettingsPara(componente)) {
-					std::unique_ptr<SettingsComponent> panel =
-					    descriptor.crearPanel(componente, object, contexto);
-					if (panel)
-						listaDESettingsComponent->addLast(panel.release());
-				}
-				posicion = (posicion != componentes->last())
-				               ? componentes->next(posicion)
-				               : nullptr;
-			}
-		}
-	}
+    ListaDE<Component*>* componentes = object->getComponents();
+    if (componentes && !componentes->isEmpty()) {
+        // Se recorre el catalogo (no el orden de insercion en el objeto) para
+        // que el orden de los paneles sea estable y definido en un solo lugar.
+        for (const DescriptorComponente& descriptor :
+             CatalogoComponentes::instancia().descriptores()) {
+            if (!descriptor.crearPanel) continue;
+            Position<Component*>* posicion = componentes->first();
+            while (posicion != nullptr) {
+                Component* componente = posicion->getElement();
+                if (componente != nullptr &&
+                    demangle(typeid(*componente).name()) == descriptor.nombre &&
+                    !tieneSettingsPara(componente)) {
+                    std::unique_ptr<SettingsComponent> panel =
+                        descriptor.crearPanel(componente, object, contexto);
+                    if (panel)
+                        listaDESettingsComponent->addLast(panel.release());
+                }
+                posicion = (posicion != componentes->last())
+                               ? componentes->next(posicion)
+                               : nullptr;
+            }
+        }
+    }
 
-	creacionesSettings += static_cast<size_t>(
-	    listaDESettingsComponent->tam() - creadosAntes);
+    creacionesSettings += static_cast<size_t>(
+        listaDESettingsComponent->tam() - creadosAntes);
 }
 
 GameObject* SettingsObjectInterface::getObjectInInspector() { return object; }
 
 SettingsComponent* SettingsObjectInterface::settingsEnIndice(size_t indice) {
-	if (listaDESettingsComponent->isEmpty()) return nullptr;
-	size_t i = 0;
-	Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
-	while (pos != nullptr) {
-		if (i == indice) return pos->getElement();
-		++i;
-		pos = (pos != listaDESettingsComponent->last())
-		          ? listaDESettingsComponent->next(pos)
-		          : nullptr;
-	}
-	return nullptr;
+    if (listaDESettingsComponent->isEmpty()) return nullptr;
+    size_t i = 0;
+    Position<SettingsComponent*>* pos = listaDESettingsComponent->first();
+    while (pos != nullptr) {
+        if (i == indice) return pos->getElement();
+        ++i;
+        pos = (pos != listaDESettingsComponent->last())
+                  ? listaDESettingsComponent->next(pos)
+                  : nullptr;
+    }
+    return nullptr;
 }
 
 void SettingsObjectInterface::setTargetObject(GameObject* newObject) {
@@ -297,8 +297,8 @@ void SettingsObjectInterface::setTargetObject(GameObject* newObject) {
 }
 
 void SettingsObjectInterface::initGUI() {
-	ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
-	ImGui::PushID(object);
+    ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
+    ImGui::PushID(object);
 }
 
 void SettingsObjectInterface::contentGUI() {
@@ -335,301 +335,301 @@ void SettingsObjectInterface::contentGUI() {
     }
     ImGui::Separator();
 
-	// MOSTRAMOS COMPONENTES
-	iterandoComponentes = true;
-	componenteABorrar = nullptr;
+    // MOSTRAMOS COMPONENTES
+    iterandoComponentes = true;
+    componenteABorrar = nullptr;
 
-	// Purga preventiva: elimina settings de componentes que ya no existen
-	// en el objeto (evita punteros colgantes si el evento de estructura
-	// no se proceso a tiempo).
-	purgarSettingsHuerfanos();
+    // Purga preventiva: elimina settings de componentes que ya no existen
+    // en el objeto (evita punteros colgantes si el evento de estructura
+    // no se proceso a tiempo).
+    purgarSettingsHuerfanos();
 
-	if (!listaDESettingsComponent->isEmpty()) {
-		Position<SettingsComponent*>* position =
-		    listaDESettingsComponent->first();
+    if (!listaDESettingsComponent->isEmpty()) {
+        Position<SettingsComponent*>* position =
+            listaDESettingsComponent->first();
 
-		while (position != nullptr && position->getElement() != nullptr) {
-			SettingsComponent* comp = position->getElement();
-			if (!comp) {
-				position = (position != listaDESettingsComponent->last())
-				               ? listaDESettingsComponent->next(position)
-				               : nullptr;
-				continue;
-			}
-			ImGui::PushID(comp);
+        while (position != nullptr && position->getElement() != nullptr) {
+            SettingsComponent* comp = position->getElement();
+            if (!comp) {
+                position = (position != listaDESettingsComponent->last())
+                               ? listaDESettingsComponent->next(position)
+                               : nullptr;
+                continue;
+            }
+            ImGui::PushID(comp);
 
-			// Obtener componente subyacente de forma segura
-			Component* componenteReal = comp->getComponent();
-			if (!componenteReal) {
-				ImGui::PopID();
-				position = (position != listaDESettingsComponent->last())
-				               ? listaDESettingsComponent->next(position)
-				               : nullptr;
-				continue;
-			}
+            // Obtener componente subyacente de forma segura
+            Component* componenteReal = comp->getComponent();
+            if (!componenteReal) {
+                ImGui::PopID();
+                position = (position != listaDESettingsComponent->last())
+                               ? listaDESettingsComponent->next(position)
+                               : nullptr;
+                continue;
+            }
 
-			// Verificacion adicional: el componente debe seguir en el objeto
-			// Usamos el tipo almacenado para no depender de punteros
-			bool componenteValido = false;
-			if (object) {
-				ListaDE<Component*>* componentes = object->getComponents();
-				if (componentes && !componentes->isEmpty()) {
-					const std::string& tipoEsperado = comp->getTipoComponente();
-					if (!tipoEsperado.empty()) {
-						Position<Component*>* pc = componentes->first();
-						while (pc != nullptr) {
-							Component* c = pc->getElement();
-							if (c) {
-								std::string tipoActual = demangle(typeid(*c).name());
-								if (tipoActual == tipoEsperado) {
-									componenteValido = true;
-									break;
-								}
-							}
-							pc = (pc != componentes->last())
-							         ? componentes->next(pc)
-							         : nullptr;
-						}
-					}
-				}
-			}
-			if (!componenteValido) {
-				ImGui::PopID();
-				position = (position != listaDESettingsComponent->last())
-				               ? listaDESettingsComponent->next(position)
-				               : nullptr;
-				continue;
-			}
+            // Verificacion adicional: el componente debe seguir en el objeto
+            // Usamos el tipo almacenado para no depender de punteros
+            bool componenteValido = false;
+            if (object) {
+                ListaDE<Component*>* componentes = object->getComponents();
+                if (componentes && !componentes->isEmpty()) {
+                    const std::string& tipoEsperado = comp->getTipoComponente();
+                    if (!tipoEsperado.empty()) {
+                        Position<Component*>* pc = componentes->first();
+                        while (pc != nullptr) {
+                            Component* c = pc->getElement();
+                            if (c) {
+                                std::string tipoActual = demangle(typeid(*c).name());
+                                if (tipoActual == tipoEsperado) {
+                                    componenteValido = true;
+                                    break;
+                                }
+                            }
+                            pc = (pc != componentes->last())
+                                     ? componentes->next(pc)
+                                     : nullptr;
+                        }
+                    }
+                }
+            }
+            if (!componenteValido) {
+                ImGui::PopID();
+                position = (position != listaDESettingsComponent->last())
+                               ? listaDESettingsComponent->next(position)
+                               : nullptr;
+                continue;
+            }
 
-			std::string compName;
-			if (Script* script = dynamic_cast<Script*>(componenteReal)) {
-				std::string nombreScript = script->nombreParaMostrar();
-				if (nombreScript.empty()) nombreScript = "Script";
-				compName = "Script: " + nombreScript;
-			} else {
-				compName = comp->getTipoComponente();
-				if (compName.empty() && componenteReal) {
-					compName = demangle(typeid(*componenteReal).name());
-				}
-			}
+            std::string compName;
+            if (Script* script = dynamic_cast<Script*>(componenteReal)) {
+                std::string nombreScript = script->nombreParaMostrar();
+                if (nombreScript.empty()) nombreScript = "Script";
+                compName = "Script: " + nombreScript;
+            } else {
+                compName = comp->getTipoComponente();
+                if (compName.empty() && componenteReal) {
+                    compName = demangle(typeid(*componenteReal).name());
+                }
+            }
 
-			// Asegurar que compName no esté vacío
-			if (compName.empty()) compName = "Componente";
+            // Asegurar que compName no esté vacío
+            if (compName.empty()) compName = "Componente";
 
-			// Icono del componente a la izquierda de su nombre. Se dibuja antes
-			// del encabezado (y antes de SetNextItemOpen, que aplica al
-			// encabezado): si se dibujara despues, el popup contextual y el
-			// arrastre quedarian anclados al icono y no al nombre.
-			if (resolutorIconos_) {
-				const ImTextureID icono =
-				    resolutorIconos_->iconoPara(comp->getTipoComponente());
-				if (icono != ImTextureID_Invalid) {
-					ImGui::Image(icono, ImVec2(kTamanoIconoComponente,
-					                          kTamanoIconoComponente));
-					ImGui::SameLine();
-				}
-			}
+            // Icono del componente a la izquierda de su nombre. Se dibuja antes
+            // del encabezado (y antes de SetNextItemOpen, que aplica al
+            // encabezado): si se dibujara despues, el popup contextual y el
+            // arrastre quedarian anclados al icono y no al nombre.
+            if (resolutorIconos_) {
+                const ImTextureID icono =
+                    resolutorIconos_->iconoPara(comp->getTipoComponente());
+                if (icono != ImTextureID_Invalid) {
+                    ImGui::Image(icono, ImVec2(kTamanoIconoComponente,
+                                              kTamanoIconoComponente));
+                    ImGui::SameLine();
+                }
+            }
 
-			SettingsScript* scriptSettings =
-			    dynamic_cast<SettingsScript*>(comp);
-			if (scriptSettings && scriptSettings->estaEditandoNombre())
-				ImGui::SetNextItemOpen(true, ImGuiCond_Always);
-			bool open = ImGui::CollapsingHeader(
-			    compName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+            SettingsScript* scriptSettings =
+                dynamic_cast<SettingsScript*>(comp);
+            if (scriptSettings && scriptSettings->estaEditandoNombre())
+                ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+            bool open = ImGui::CollapsingHeader(
+                compName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
 
-			if (ImGui::BeginPopupContextItem(
-			        "ComponentContext",
-			        ImGuiPopupFlags_MouseButtonRight)) {
-				if (scriptSettings &&
-				    ImGui::MenuItem("Renombrar componente"))
-					scriptSettings->iniciarEdicionNombre();
-				if (ImGui::MenuItem("Eliminar Componente")) {
-					Component* target = comp->getComponent();
-					// Por el gestor: Ctrl+Z restaura el componente quitado.
-					if (target && editor && editor->getGestorComandos())
-						editor->getGestorComandos()->ejecutar(
-						    std::make_unique<QuitarComponenteComando>(
-						        editor, object,
-						        demangle(typeid(*target).name()),
-						        editor->getScene()));
-					else if (editor)
-						editor->removeComponent(object, target);
-					else
-						object->deleteComponent(target);
-					componenteABorrar = comp;
-					ImGui::EndPopup();
-					ImGui::PopID();
-					break;
-				}
-				ImGui::EndPopup();
-			}
+            if (ImGui::BeginPopupContextItem(
+                    "ComponentContext",
+                    ImGuiPopupFlags_MouseButtonRight)) {
+                if (scriptSettings &&
+                    ImGui::MenuItem("Renombrar componente"))
+                    scriptSettings->iniciarEdicionNombre();
+                if (ImGui::MenuItem("Eliminar Componente")) {
+                    Component* target = comp->getComponent();
+                    // Por el gestor: Ctrl+Z restaura el componente quitado.
+                    if (target && editor && editor->getGestorComandos())
+                        editor->getGestorComandos()->ejecutar(
+                            std::make_unique<QuitarComponenteComando>(
+                                editor, object,
+                                demangle(typeid(*target).name()),
+                                editor->getScene()));
+                    else if (editor)
+                        editor->removeComponent(object, target);
+                    else
+                        object->deleteComponent(target);
+                    componenteABorrar = comp;
+                    ImGui::EndPopup();
+                    ImGui::PopID();
+                    break;
+                }
+                ImGui::EndPopup();
+            }
 
-			if (ImGui::BeginDragDropSource(
-			        ImGuiDragDropFlags_SourceNoHoldToOpenOthers)) {
-				ImGui::SetDragDropPayload("COMPONENT_DRAG", &comp,
-				                          sizeof(SettingsComponent*));
-				ImGui::Text("%s", compName.c_str());
-				ImGui::EndDragDropSource();
-			}
+            if (ImGui::BeginDragDropSource(
+                    ImGuiDragDropFlags_SourceNoHoldToOpenOthers)) {
+                ImGui::SetDragDropPayload("COMPONENT_DRAG", &comp,
+                                          sizeof(SettingsComponent*));
+                ImGui::Text("%s", compName.c_str());
+                ImGui::EndDragDropSource();
+            }
 
-			if (ImGui::BeginDragDropTarget()) {
-				if (const ImGuiPayload* payload =
-				        ImGui::AcceptDragDropPayload("COMPONENT_DRAG")) {
-					SettingsComponent* draggedComp =
-					    *(SettingsComponent**)payload->Data;
-					auto posA =
-					    listaDESettingsComponent->whatElementPosition(
-					        draggedComp);
-					auto posB = listaDESettingsComponent->whatElementPosition(
-					    comp);
-					if (posA && posB && posA != posB) {
-						listaDESettingsComponent->swapPositions(posA, posB);
-					}
-				}
-				ImGui::EndDragDropTarget();
-			}
-			// Archivo soltado sobre la cabecera del componente: se aplica al
-			// objeto inspeccionado al terminar el recorrido (agregar un componente
-			// ahora invalidaria la lista que se esta iterando).
-			if (ImGui::BeginDragDropTarget()) {
-				if (const ImGuiPayload* payload =
-				        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
-					if (payload->Data)
-						archivoSoltado_ = static_cast<const char*>(payload->Data);
-				}
-				ImGui::EndDragDropTarget();
-			}
+            if (ImGui::BeginDragDropTarget()) {
+                if (const ImGuiPayload* payload =
+                        ImGui::AcceptDragDropPayload("COMPONENT_DRAG")) {
+                    SettingsComponent* draggedComp =
+                        *(SettingsComponent**)payload->Data;
+                    auto posA =
+                        listaDESettingsComponent->whatElementPosition(
+                            draggedComp);
+                    auto posB = listaDESettingsComponent->whatElementPosition(
+                        comp);
+                    if (posA && posB && posA != posB) {
+                        listaDESettingsComponent->swapPositions(posA, posB);
+                    }
+                }
+                ImGui::EndDragDropTarget();
+            }
+            // Archivo soltado sobre la cabecera del componente: se aplica al
+            // objeto inspeccionado al terminar el recorrido (agregar un componente
+            // ahora invalidaria la lista que se esta iterando).
+            if (ImGui::BeginDragDropTarget()) {
+                if (const ImGuiPayload* payload =
+                        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+                    if (payload->Data)
+                        archivoSoltado_ = static_cast<const char*>(payload->Data);
+                }
+                ImGui::EndDragDropTarget();
+            }
 
-			if (open) {
-				comp->setMostrarVisualesDepuracion(
-				    mostrarVisualesDepuracion_);
-				comp->showDataComponent();
-			}
+            if (open) {
+                comp->setMostrarVisualesDepuracion(
+                    mostrarVisualesDepuracion_);
+                comp->showDataComponent();
+            }
 
-			ImGui::PopID();
-			position = (position != listaDESettingsComponent->last())
-			               ? listaDESettingsComponent->next(position)
-			               : nullptr;
-		}
-	}
+            ImGui::PopID();
+            position = (position != listaDESettingsComponent->last())
+                           ? listaDESettingsComponent->next(position)
+                           : nullptr;
+        }
+    }
 
-	iterandoComponentes = false;
+    iterandoComponentes = false;
 
-	// Toda la ventana es destino de archivos: los campos de cada panel tienen
-	// su propio destino y, como ImGui entrega el payload al destino mas chico
-	// bajo el mouse, este solo recibe lo que se suelta fuera de ellos.
-	if (object) {
-		ImGuiWindow* ventana = ImGui::GetCurrentWindow();
-		if (ImGui::BeginDragDropTargetCustom(ventana->InnerRect,
-		                                     ImGui::GetID("##InspectorDropArchivo"))) {
-			if (const ImGuiPayload* payload =
-			        ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
-				if (payload->Data)
-					archivoSoltado_ = static_cast<const char*>(payload->Data);
-			}
-			ImGui::EndDragDropTarget();
-		}
-	}
-	if (!archivoSoltado_.empty()) {
-		const std::string ruta = std::move(archivoSoltado_);
-		archivoSoltado_.clear();
-		if (object && editor) {
-			const ArrastreArchivos::Resultado r =
-			    ArrastreArchivos::aplicarAObjeto(*editor, *object, ruta);
-			if (!r.ok)
-				std::cerr << "[Inspector] " << ruta << ": " << r.mensaje << std::endl;
-			else if (r.objeto && r.objeto != object)
-				editor->selectObject(r.objeto);
-		}
-	}
+    // Toda la ventana es destino de archivos: los campos de cada panel tienen
+    // su propio destino y, como ImGui entrega el payload al destino mas chico
+    // bajo el mouse, este solo recibe lo que se suelta fuera de ellos.
+    if (object) {
+        ImGuiWindow* ventana = ImGui::GetCurrentWindow();
+        if (ImGui::BeginDragDropTargetCustom(ventana->InnerRect,
+                                             ImGui::GetID("##InspectorDropArchivo"))) {
+            if (const ImGuiPayload* payload =
+                    ImGui::AcceptDragDropPayload("ARCHIVO_PATH")) {
+                if (payload->Data)
+                    archivoSoltado_ = static_cast<const char*>(payload->Data);
+            }
+            ImGui::EndDragDropTarget();
+        }
+    }
+    if (!archivoSoltado_.empty()) {
+        const std::string ruta = std::move(archivoSoltado_);
+        archivoSoltado_.clear();
+        if (object && editor) {
+            const ArrastreArchivos::Resultado r =
+                ArrastreArchivos::aplicarAObjeto(*editor, *object, ruta);
+            if (!r.ok)
+                std::cerr << "[Inspector] " << ruta << ": " << r.mensaje << std::endl;
+            else if (r.objeto && r.objeto != object)
+                editor->selectObject(r.objeto);
+        }
+    }
 
-	// Procesar borrado diferido fuera de la iteracion
-	if (componenteABorrar) {
-		// El componente ya se libero: reconciliar purga el panel huerfano y
-		// crea los que falten, sin descartar el estado del resto de paneles.
-		componenteABorrar = nullptr;
-		reconciliarComponentes();
-	}
+    // Procesar borrado diferido fuera de la iteracion
+    if (componenteABorrar) {
+        // El componente ya se libero: reconciliar purga el panel huerfano y
+        // crea los que falten, sin descartar el estado del resto de paneles.
+        componenteABorrar = nullptr;
+        reconciliarComponentes();
+    }
 
-	// Menu contextual en area vacia del inspector: agregar componente
-	if (ImGui::BeginPopupContextWindow(
-	        "InspectorAddComponentPopup",
-	        ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
-		if (object && editor) {
-			// Alta por el gestor: Ctrl+Z quita el componente agregado.
-			auto agregarViaComando =
-			    [&](std::unique_ptr<Component> componente) {
-				    if (!componente) return;
-				    if (GestorComandos* comandos = editor->getGestorComandos())
-					    comandos->ejecutar(
-					        std::make_unique<AgregarComponenteComando>(
-					            editor, object, std::move(componente),
-					            editor->getScene()));
-				    else
-					    editor->addComponent(object, std::move(componente));
-			    };
+    // Menu contextual en area vacia del inspector: agregar componente
+    if (ImGui::BeginPopupContextWindow(
+            "InspectorAddComponentPopup",
+            ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+        if (object && editor) {
+            // Alta por el gestor: Ctrl+Z quita el componente agregado.
+            auto agregarViaComando =
+                [&](std::unique_ptr<Component> componente) {
+                    if (!componente) return;
+                    if (GestorComandos* comandos = editor->getGestorComandos())
+                        comandos->ejecutar(
+                            std::make_unique<AgregarComponenteComando>(
+                                editor, object, std::move(componente),
+                                editor->getScene()));
+                    else
+                        editor->addComponent(object, std::move(componente));
+                };
 
-			// El catalogo define que componentes existen, en que dimension
-			// aplican, que requisitos piden y en que submenu se agrupan. El
-			// menu solo filtra y dibuja; agregar un componente nuevo no toca
-			// este bloque.
-			const DimensionProyecto dimension = dimensionProyecto();
-			const std::vector<DescriptorComponente>& descriptores =
-			    CatalogoComponentes::instancia().descriptores();
+            // El catalogo define que componentes existen, en que dimension
+            // aplican, que requisitos piden y en que submenu se agrupan. El
+            // menu solo filtra y dibuja; agregar un componente nuevo no toca
+            // este bloque.
+            const DimensionProyecto dimension = dimensionProyecto();
+            const std::vector<DescriptorComponente>& descriptores =
+                CatalogoComponentes::instancia().descriptores();
 
-			auto visible = [&](const DescriptorComponente& d) {
-				if (!dimensionesIncluyen(d.dimensiones, dimension)) return false;
-				if (d.prerequisito && !d.prerequisito(*object)) return false;
-				return true;
-			};
-			auto dibujarItems = [&](const std::string& submenu) {
-				for (const DescriptorComponente& d : descriptores) {
-					if (d.submenu != submenu) continue;
-					if (!visible(d)) continue;
-					if (ImGui::MenuItem(d.etiqueta.c_str())) {
-						if (d.crear) agregarViaComando(d.crear(*object));
-					}
-				}
-			};
+            auto visible = [&](const DescriptorComponente& d) {
+                if (!dimensionesIncluyen(d.dimensiones, dimension)) return false;
+                if (d.prerequisito && !d.prerequisito(*object)) return false;
+                return true;
+            };
+            auto dibujarItems = [&](const std::string& submenu) {
+                for (const DescriptorComponente& d : descriptores) {
+                    if (d.submenu != submenu) continue;
+                    if (!visible(d)) continue;
+                    if (ImGui::MenuItem(d.etiqueta.c_str())) {
+                        if (d.crear) agregarViaComando(d.crear(*object));
+                    }
+                }
+            };
 
-			dibujarItems(std::string());
-			// Submenus en orden de aparicion, omitiendo los que no tienen
-			// ningun item visible para la dimension vigente.
-			std::vector<std::string> submenus;
-			for (const DescriptorComponente& d : descriptores) {
-				if (d.submenu.empty()) continue;
-				if (std::find(submenus.begin(), submenus.end(), d.submenu) ==
-				    submenus.end())
-					submenus.push_back(d.submenu);
-			}
-			for (const std::string& submenu : submenus) {
-				bool hayItemVisible = false;
-				for (const DescriptorComponente& d : descriptores) {
-					if (d.submenu == submenu && visible(d)) {
-						hayItemVisible = true;
-						break;
-					}
-				}
-				if (!hayItemVisible) continue;
-				if (ImGui::BeginMenu(submenu.c_str())) {
-					dibujarItems(submenu);
-					ImGui::EndMenu();
-				}
-			}
-		}
-		ImGui::EndPopup();
-	}
+            dibujarItems(std::string());
+            // Submenus en orden de aparicion, omitiendo los que no tienen
+            // ningun item visible para la dimension vigente.
+            std::vector<std::string> submenus;
+            for (const DescriptorComponente& d : descriptores) {
+                if (d.submenu.empty()) continue;
+                if (std::find(submenus.begin(), submenus.end(), d.submenu) ==
+                    submenus.end())
+                    submenus.push_back(d.submenu);
+            }
+            for (const std::string& submenu : submenus) {
+                bool hayItemVisible = false;
+                for (const DescriptorComponente& d : descriptores) {
+                    if (d.submenu == submenu && visible(d)) {
+                        hayItemVisible = true;
+                        break;
+                    }
+                }
+                if (!hayItemVisible) continue;
+                if (ImGui::BeginMenu(submenu.c_str())) {
+                    dibujarItems(submenu);
+                    ImGui::EndMenu();
+                }
+            }
+        }
+        ImGui::EndPopup();
+    }
 }
 
 void SettingsObjectInterface::endGUI() {
-	ImGui::PopID();
-	ImGui::End();
+    ImGui::PopID();
+    ImGui::End();
 }
 
 void SettingsObjectInterface::printGUI() {
-	if (stateGUI) {
-		initGUI();
-		contentGUI();
-		endGUI();
-	}
+    if (stateGUI) {
+        initGUI();
+        contentGUI();
+        endGUI();
+    }
 }

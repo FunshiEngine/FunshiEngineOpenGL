@@ -23,7 +23,7 @@ using namespace std;
 class EmptyListException : public RuntimeException {
 
 public:
-	EmptyListException(string msg) : RuntimeException(msg + " Lista Vacia", "EmptyListException") {}
+    EmptyListException(string msg) : RuntimeException(msg + " Lista Vacia", "EmptyListException") {}
 };
 
 #endif

@@ -23,10 +23,10 @@
 #include "../../../Objetos/Componentes/Render/Color.h"
 
 class SettingsColor : public SettingsComponent {
-	GameObject* gameObject;
+    GameObject* gameObject;
 public:
-	explicit SettingsColor(GameObject* gameObject);
-	void showDataComponent() override;
-	Component* getComponent() override { return gameObject ? gameObject->getComponent<Color>() : nullptr; }
+    explicit SettingsColor(GameObject* gameObject);
+    void showDataComponent() override;
+    Component* getComponent() override { return gameObject ? gameObject->getComponent<Color>() : nullptr; }
 };
 #endif

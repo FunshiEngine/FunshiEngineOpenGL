@@ -25,16 +25,16 @@
 
 class SettingsColliderMalla : public SettingsComponent {
 protected:
-	SettingsTransform* settingsTransform;
-	MallaCollider* myCollider;
-	float newRadio;
-	EditorController* editor = nullptr;
+    SettingsTransform* settingsTransform;
+    MallaCollider* myCollider;
+    float newRadio;
+    EditorController* editor = nullptr;
 public:
-	explicit SettingsColliderMalla(GameObject* objeto);
-	~SettingsColliderMalla();
+    explicit SettingsColliderMalla(GameObject* objeto);
+    ~SettingsColliderMalla();
 
-	void setEditor(EditorController* editor);
-	void showDataComponent() override;
-	Component* getComponent() override { return myCollider; }
+    void setEditor(EditorController* editor);
+    void showDataComponent() override;
+    Component* getComponent() override { return myCollider; }
 };
 #endif
