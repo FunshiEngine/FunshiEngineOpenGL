@@ -1322,7 +1322,7 @@ add_executable(mods-tests
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
     ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
-    ${FUNSHI_TESTS_CI_DIR}/ModsTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ModsTests.cpp ${FUNSHI_TESTS_CI_DIR}/ModsTests2.cpp ${FUNSHI_TESTS_CI_DIR}/ModsTests3.cpp ${FUNSHI_TESTS_CI_DIR}/ModsTests4.cpp
 )
 target_link_libraries(mods-tests PRIVATE funshi_diagnostics_core funshi_miniz)
 target_include_directories(mods-tests PRIVATE
@@ -1440,7 +1440,7 @@ add_executable(filemanager-tests
     ${SRC_DIR}/FileManager/FileSystemWatcher.cpp
     ${SRC_DIR}/Events/EditorEventBus.cpp
     ${SRC_DIR}/ExcepcionesCPP/RuntimeException.cpp
-    ${FUNSHI_TESTS_CI_DIR}/FileManagerTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/FileManagerTests.cpp ${FUNSHI_TESTS_CI_DIR}/FileManagerTests2.cpp
 )
 target_include_directories(filemanager-tests PRIVATE ${SRC_DIR}/ImGui)
 set_target_properties(filemanager-tests PROPERTIES
@@ -1501,7 +1501,7 @@ add_executable(configuracion-tests
     ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
     ${SRC_DIR}/Configuracion/ConfigPersistence.cpp
     ${SRC_DIR}/Configuracion/EditorConfig.cpp
-    ${FUNSHI_TESTS_CI_DIR}/EditorConfigTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/EditorConfigTests.cpp ${FUNSHI_TESTS_CI_DIR}/EditorConfigTests2.cpp ${FUNSHI_TESTS_CI_DIR}/EditorConfigTests3.cpp ${FUNSHI_TESTS_CI_DIR}/EditorConfigTests4.cpp
 )
 target_link_libraries(configuracion-tests PRIVATE funshi_diagnostics_core)
 target_include_directories(configuracion-tests PRIVATE ${CMAKE_SOURCE_DIR}/External ${SRC_DIR})
@@ -1714,7 +1714,7 @@ add_executable(scripts-tests
     ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
     ${SRC_DIR}/Input/InputScripts.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
-    ${FUNSHI_TESTS_CI_DIR}/ScriptsTests.cpp
+    ${FUNSHI_TESTS_CI_DIR}/ScriptsTests.cpp ${FUNSHI_TESTS_CI_DIR}/ScriptsTests2.cpp ${FUNSHI_TESTS_CI_DIR}/ScriptsTests3.cpp ${FUNSHI_TESTS_CI_DIR}/ScriptsTests4.cpp
 )
 # El contrato de flags con el que se compilan los scripts C++ se verifica en
 # esta suite (headless y en las tres plataformas): el test necesita el mismo
