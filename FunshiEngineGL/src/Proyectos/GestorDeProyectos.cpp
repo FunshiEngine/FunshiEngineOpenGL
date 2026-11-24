@@ -89,7 +89,7 @@ void GestorDeProyectos::guardarProyectoCompleto() {
 }
 
 void GestorDeProyectos::sincronizarProyectoDesdeMenu() {
-    // Sincroniza cambio de nombre de proyecto si se edito en Config Proyect
+    // Sincroniza cambio de nombre de proyecto si se edito en Configurar proyecto
     // (o se eligio una carpeta en el listado del menu). Reconfigura el
     // FileManager y, si aun no habia proyecto, fija el imgui.ini del nuevo
     // proyecto en lugar de quedarse sin ini.

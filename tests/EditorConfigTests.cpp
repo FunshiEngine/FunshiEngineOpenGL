@@ -34,7 +34,7 @@ void seccion01(const std::string& rutaGeneral, const std::string& proyNombreTest
         cfg.cargarProyecto(proyNombreTest, rutaProyecto);
         CHECK(cfg.datos().nombreProyecto.empty(),
               "default nombreProyecto (sin proyecto abierto)");
-        CHECK(cfg.datos().idioma == "Espanol", "default idioma");
+        CHECK(cfg.datos().idioma == "es", "default idioma");
         CHECK(cfg.datos().sensibilidadCamara == 0.15f, "default sensibilidad");
         CHECK(cfg.datos().sensibilidadMovimientoCamara == 1.0f,
               "default sensibilidad de movimiento");
@@ -80,6 +80,8 @@ void seccion02(const std::string& rutaGeneral) {
         cfg.cargarGeneral(rutaGeneral);
         CHECK(cfg.datos().nombreProyecto.empty(),
               "config sin ultimoProyecto -> sin proyecto abierto");
+        CHECK(cfg.datos().idioma == "es",
+              "el idioma guardado por nombre viejo (Espanol) migra al codigo es");
 
         // Con el nombre vacio, guardarGeneral no debe escribir la clave.
         cfg.guardarGeneral(rutaGeneral);
@@ -179,7 +181,7 @@ void seccion05(const std::string& rutaGeneral, const std::string& proyNombreTest
     {
         EditorConfig cfg;
         cfg.datos().nombreProyecto = "MiEscena";
-        cfg.datos().idioma = "English";
+        cfg.datos().idioma = "en";
         cfg.datos().sensibilidadCamara = 2.5f;
         cfg.datos().sensibilidadMovimientoCamara = 1.8f;
         cfg.datos().ventanaCamarasAbierta = false;
@@ -212,7 +214,7 @@ void seccion05(const std::string& rutaGeneral, const std::string& proyNombreTest
         cfg2.cargarGeneral(rutaGeneral);
         cfg2.cargarProyecto(proyNombreTest, rutaProyecto);
         CHECK(cfg2.datos().nombreProyecto == "MiEscena",  "roundtrip nombreProyecto");
-        CHECK(cfg2.datos().idioma == "English",           "roundtrip idioma");
+        CHECK(cfg2.datos().idioma == "en",           "roundtrip idioma");
         CHECK(cfg2.datos().sensibilidadCamara == 2.5f,    "roundtrip sensibilidad");
         CHECK(cfg2.datos().sensibilidadMovimientoCamara == 1.8f,
               "roundtrip sensibilidad de movimiento");
@@ -305,7 +307,7 @@ void seccion07(const fs::path& base, const std::string& rutaGeneral, const std::
         EditorConfig cfg;
         cfg.cargarGeneral(rutaGeneral);
         CHECK(cfg.datos().nombreProyecto.empty(), "corrupto -> defaults");
-        CHECK(cfg.datos().idioma == "Espanol", "corrupto -> defaults idioma");
+        CHECK(cfg.datos().idioma == "es", "corrupto -> defaults idioma");
         CHECK(cfg.datos().modsMotor.empty(), "corrupto -> sin mods");
 
         // 2d. Estado de mods por ambito: los del motor viajan en la config

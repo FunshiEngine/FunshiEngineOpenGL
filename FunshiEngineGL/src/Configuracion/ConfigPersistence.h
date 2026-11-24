@@ -35,7 +35,7 @@ public:
     struct General {
         int version = 2;
         std::string ultimoProyecto;      // vacío = primer arranque
-        std::string idioma = "Espanol";
+        std::string idioma = "es"; // codigo de Localizacion
         float sensibilidadCamara = 0.15f;
         float sensibilidadMovimientoCamara = 1.0f;
         float volumenMaestro = 1.0f; // volumen general de efectos (0.0 - 1.0)

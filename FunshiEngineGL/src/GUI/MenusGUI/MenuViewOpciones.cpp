@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "MenuViewDetalle.h"
+#include "../../Localizacion/Localizacion.h"
 
 void MenuView::renderizarOpciones() {
     // Columna centrada con scroll.
@@ -31,16 +32,19 @@ void MenuView::renderizarOpciones() {
     ImGui::TextUnformatted(model->traducir("opciones").c_str());
     ImGui::Separator();
 
-    // Idioma: afecta a todas las pestañas, por eso vive fuera de ellas.
+    // Idioma: afecta a todas las pestanas, por eso vive fuera de ellas.
     {
         ImGui::TextUnformatted(model->traducir("idioma").c_str());
         const std::vector<std::string>& idiomas = model->getIdiomas();
         const std::string& actual = model->getIdioma();
         ImGui::SetNextItemWidth(-1.0f);
-        if (ImGui::BeginCombo("##idioma", actual.c_str())) {
+        // El modelo guarda codigos ("es"); el combo muestra los nombres.
+        if (ImGui::BeginCombo("##idioma",
+                              Localizacion::nombreIdioma(actual).c_str())) {
             for (const std::string& opcion : idiomas) {
                 const bool seleccionada = (opcion == actual);
-                if (ImGui::Selectable(opcion.c_str(), seleccionada)) {
+                if (ImGui::Selectable(Localizacion::nombreIdioma(opcion).c_str(),
+                                      seleccionada)) {
                     model->setIdioma(opcion);
                 }
                 if (seleccionada) ImGui::SetItemDefaultFocus();

@@ -87,12 +87,21 @@ list(REMOVE_ITEM SOURCES ${SRC_DIR}/WebUI/BackendCef.cpp)
 # del motor sea dueno de la libreria de terceros.
 list(APPEND SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/External/stb_image/stb_image_impl.cpp)
+# Textos en varios idiomas (Localizacion): puro, sin GUI. Lo usan la
+# configuracion (migra el idioma guardado) y los menus, asi que viaja con el
+# nucleo de proyecto y llega a todo target que enlace project/diagnostics core.
+file(GLOB_RECURSE FUNSHI_LOCALIZACION_SOURCES CONFIGURE_DEPENDS
+    ${SRC_DIR}/Localizacion/*.cpp)
+list(REMOVE_ITEM SOURCES ${FUNSHI_LOCALIZACION_SOURCES})
+add_library(funshi_localizacion STATIC ${FUNSHI_LOCALIZACION_SOURCES})
+target_include_directories(funshi_localizacion PUBLIC ${SRC_DIR})
 add_library(funshi_project_core STATIC
     ${SRC_DIR}/Configuracion/ProjectManager.cpp
     ${SRC_DIR}/Configuracion/Proyecto/ArchivoProyecto.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp)
 target_include_directories(funshi_project_core PUBLIC ${SRC_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/External)
+target_link_libraries(funshi_project_core PUBLIC funshi_localizacion)
 
 add_library(funshi_diagnostics_core STATIC
     ${SRC_DIR}/Diagnosticos/RegistroDiagnosticos.cpp
@@ -1559,6 +1568,7 @@ add_executable(menu-tests
     ${FUNSHI_TESTS_CI_DIR}/MenuModelTests.cpp
 )
 target_include_directories(menu-tests PRIVATE ${SRC_DIR})
+target_link_libraries(menu-tests PRIVATE funshi_localizacion)
 set_target_properties(menu-tests PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON

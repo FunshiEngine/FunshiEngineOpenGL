@@ -17,11 +17,12 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "MenuViewDetalle.h"
+#include "../../Localizacion/Localizacion.h"
 
 namespace {
 
 // Posiciona el cursor para el boton de la fila `fila` (0 = "Iniciar Estudio",
-// 1 = "Config Proyect", 2 = "Opciones", 3 = "Exit"), centrado horizontalmente.
+// 1 = "Configurar proyecto", 2 = "Opciones", 3 = "Salir"), centrado horizontalmente.
 void cursorFila(int fila) {
     ImVec2 c = ImGui::GetWindowSize();
     c.x *= 0.5f;
@@ -99,7 +100,7 @@ void MenuView::printGUI() {
 void MenuView::renderizarPrincipal() {
     // Sin proyecto elegido no se puede entrar al editor: "Iniciar Estudio"
     // queda deshabilitado hasta que se seleccione una carpeta de la lista
-    // (o se confirme un proyecto en Config Proyect). Obliga a elegir
+    // (o se confirme un proyecto en Configurar proyecto). Obliga a elegir
     // proyecto antes de abrir el estudio y evita crear "Nuevo Proyecto" solo.
     const bool sinProyectoElegido = model->getNombreProyecto().empty();
     if (sinProyectoElegido) {
@@ -131,7 +132,7 @@ void MenuView::renderizarPrincipal() {
                       ImVec2(kBotonAncho, kBotonAlto))) {
         model->abrirOpciones();
     }
-    etiquetaDerecha(posBoton, model->getIdioma().c_str());
+    etiquetaDerecha(posBoton, Localizacion::nombreIdioma(model->getIdioma()).c_str());
 
     cursorFila(3);
     if (ImGui::Button(etiqueta(model, "salir").c_str(),

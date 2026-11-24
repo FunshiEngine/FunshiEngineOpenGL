@@ -24,6 +24,7 @@
 #include <string>
 
 #include "../FunshiEngineGL/src/GUI/MenusGUI/MenuModel.h"
+#include "../FunshiEngineGL/src/Localizacion/Localizacion.h"
 
 namespace {
 int total = 0;
@@ -44,7 +45,7 @@ int main() {
     // 1. Idiomas disponibles y valor por defecto.
     {
         MenuModel m;
-        CHECK(m.getIdioma() == "Espanol", "idioma por defecto = Espanol");
+        CHECK(m.getIdioma() == "es", "idioma por defecto = es");
         CHECK(m.getIdiomas().size() == 2, "dos idiomas disponibles");
     }
 
@@ -58,7 +59,7 @@ int main() {
         m.setIdioma("English");
         CHECK(m.traducir("iniciar_estudio") == "Start Studio",
               "al cambiar de idioma la etiqueta se traduce");
-        CHECK(m.traducir("config_proyecto") == "Config Project",
+        CHECK(m.traducir("config_proyecto") == "Configure project",
               "traduce config_proyecto");
         CHECK(m.traducir("volver") == "Back", "traduce volver");
 
@@ -124,7 +125,7 @@ int main() {
         m.setOnCampoCambio([&](MenuModel::Campo c) { notificado = c; });
         m.restablecerConfiguracion();
 
-        CHECK(m.getIdioma() == "Espanol", "reset restaura el idioma");
+        CHECK(m.getIdioma() == "es", "reset restaura el idioma");
         CHECK(m.getSensibilidadCamara() == 0.15f, "reset restaura la sensibilidad");
         CHECK(m.getSensibilidadMovimientoCamara() == 1.0f,
               "reset restaura la sensibilidad de movimiento");
@@ -193,8 +194,8 @@ int main() {
     {
         MenuModel m;
         CHECK(m.traducir("proyectos") == "Proyectos", "clave proyectos es");
-        CHECK(m.traducir("sin_proyectos").find("Config Proyect") != std::string::npos,
-              "aviso de lista vacia menciona Config Proyect");
+        CHECK(m.traducir("sin_proyectos").find("Configurar proyecto") != std::string::npos,
+              "aviso de lista vacia menciona Configurar proyecto");
         m.setIdioma("English");
         CHECK(m.traducir("proyectos") == "Projects", "clave proyectos en");
         CHECK(m.traducir("editar_nombre") == "Edit name", "clave editar_nombre en");
@@ -315,6 +316,41 @@ int main() {
         CHECK(m.existeProyecto("miproyecto"),
               "en Windows no distingue mayusculas");
 #endif
+    }
+
+    // Localizacion: el idioma se guarda por codigo, los nombres viejos se
+    // migran y cada idioma tiene su texto (sin claves mezcladas).
+    {
+        CHECK(Localizacion::normalizarIdioma("English") == "en",
+              "el nombre viejo English se normaliza a en");
+        CHECK(Localizacion::normalizarIdioma("Espanol") == "es",
+              "el nombre viejo Espanol se normaliza a es");
+        CHECK(Localizacion::normalizarIdioma("EN") == "en",
+              "el codigo se reconoce sin importar mayusculas");
+        CHECK(Localizacion::normalizarIdioma("klingon") == "es",
+              "un idioma desconocido cae al idioma base");
+        CHECK(Localizacion::nombreIdioma("en") == "English",
+              "el combo muestra el nombre del idioma, no el codigo");
+
+        MenuModel m;
+        m.setIdioma("English");
+        CHECK(m.getIdioma() == "en", "setIdioma guarda el codigo");
+        CHECK(m.traducir("salir") == "Exit", "salir en ingles");
+        m.setIdioma("es");
+        CHECK(m.traducir("salir") == "Salir",
+              "salir en espanol ya no dice Exit");
+        CHECK(Localizacion::texto("fr", "volver") == "Volver",
+              "un idioma sin tabla usa el texto en espanol");
+
+        // Cada idioma disponible responde con texto (propio o de respaldo).
+        for (const auto& idioma : Localizacion::idiomas()) {
+            CHECK(!Localizacion::texto(idioma.codigo, "iniciar_estudio").empty(),
+                  "cada idioma tiene texto para iniciar_estudio");
+        }
+        CHECK(Localizacion::existeClave("config_proyecto"),
+              "la clave config_proyecto existe en el idioma base");
+        CHECK(!Localizacion::existeClave("clave_inexistente"),
+              "una clave inexistente no figura en el idioma base");
     }
 
     std::cout << "Pruebas: " << total << ", fallos: " << fallos << std::endl;

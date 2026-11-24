@@ -111,7 +111,7 @@ void seccion19() {
 
         // Modifica varios campos a valores no default.
         auto& d = cfg.datos();
-        d.idioma = "English";
+        d.idioma = "en";
         d.sensibilidadCamara = 2.5f;
         d.sensibilidadMovimientoCamara = 2.0f;
         d.apariencia.temaClaro = true;
@@ -125,7 +125,7 @@ void seccion19() {
 
         cfg.restablecer();
 
-        CHECK(cfg.datos().idioma == "Espanol", "restablecer vuelve el idioma");
+        CHECK(cfg.datos().idioma == "es", "restablecer vuelve el idioma");
         CHECK(cfg.datos().sensibilidadCamara == 0.15f,
               "restablecer vuelve la sensibilidad");
         CHECK(cfg.datos().sensibilidadMovimientoCamara == 1.0f,
@@ -158,18 +158,18 @@ void seccion20(const fs::path& base) {
         const std::string rutaDif = (base / "ConfiguracionDiferida.json").string();
 
         EditorConfig cfg;
-        cfg.datos().idioma = "Espanol";
+        cfg.datos().idioma = "es";
         cfg.guardarGeneral(rutaDif);
         CHECK(!fs::exists(rutaDif + ".tmp"),
               "no queda el temporal tras una escritura correcta");
 
         // Cambio en vivo dentro del intervalo: queda pendiente, no se escribe.
-        cfg.datos().idioma = "English";
+        cfg.datos().idioma = "en";
         cfg.solicitarGuardadoGeneral(rutaDif);
         cfg.volcarGuardadoGeneral();
         EditorConfig lector1;
         lector1.cargarGeneral(rutaDif);
-        CHECK(lector1.datos().idioma == "Espanol",
+        CHECK(lector1.datos().idioma == "es",
               "dentro del intervalo el guardado diferido no reescribe");
 
         // Vencido el intervalo, el volcado si escribe (una sola vez basta).
@@ -178,16 +178,16 @@ void seccion20(const fs::path& base) {
         cfg.volcarGuardadoGeneral();
         EditorConfig lector2;
         lector2.cargarGeneral(rutaDif);
-        CHECK(lector2.datos().idioma == "English",
+        CHECK(lector2.datos().idioma == "en",
               "vencido el intervalo el volcado persiste el cambio");
 
         // guardarGeneral() no espera al intervalo: vuelca el pendiente.
-        cfg.datos().idioma = "Espanol";
+        cfg.datos().idioma = "es";
         cfg.solicitarGuardadoGeneral(rutaDif);
         cfg.guardarGeneral(rutaDif);
         EditorConfig lector3;
         lector3.cargarGeneral(rutaDif);
-        CHECK(lector3.datos().idioma == "Espanol",
+        CHECK(lector3.datos().idioma == "es",
               "guardarGeneral vuelca el pendiente sin esperar al intervalo");
         CHECK(!fs::exists(rutaDif + ".tmp"),
               "ninguna de las escrituras dejo temporales");

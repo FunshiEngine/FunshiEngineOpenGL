@@ -17,6 +17,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "ConfigPersistence.h"
+#include "../Localizacion/Localizacion.h"
 #include "../Diagnosticos/RegistroDiagnosticos.h"
 
 #include <nlohmann/json.hpp>
@@ -201,7 +202,7 @@ ConfigPersistence::General ConfigPersistence::cargarGeneral(const std::string& r
         if (m.contains("proyecto") && m["proyecto"].is_string())
             g.ultimoProyecto = m["proyecto"].get<std::string>();
         if (m.contains("idioma") && m["idioma"].is_string())
-            g.idioma = m["idioma"].get<std::string>();
+            g.idioma = Localizacion::normalizarIdioma(m["idioma"].get<std::string>());
         if (m.contains("sensibilidadCamara") && m["sensibilidadCamara"].is_number())
             g.sensibilidadCamara = m["sensibilidadCamara"].get<float>();
     }
@@ -211,7 +212,8 @@ ConfigPersistence::General ConfigPersistence::cargarGeneral(const std::string& r
     if (j.contains("ultimoProyecto") && j["ultimoProyecto"].is_string())
         g.ultimoProyecto = j["ultimoProyecto"].get<std::string>();
     if (j.contains("idioma") && j["idioma"].is_string())
-        g.idioma = j["idioma"].get<std::string>();
+        // Versiones viejas guardaban el nombre ("Espanol"); se migra al codigo.
+        g.idioma = Localizacion::normalizarIdioma(j["idioma"].get<std::string>());
     if (j.contains("sensibilidadCamara") && j["sensibilidadCamara"].is_number())
         g.sensibilidadCamara = j["sensibilidadCamara"].get<float>();
     if (j.contains("sensibilidadMovimientoCamara") && j["sensibilidadMovimientoCamara"].is_number())

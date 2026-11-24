@@ -45,7 +45,7 @@ public:
         // uno: si se materializara, guardarGeneral escribe "ultimoProyecto" y
         // sus carpetas se crearian solas al reabrir.
         std::string nombreProyecto = "";
-        std::string idioma = "Espanol";
+        std::string idioma = "es"; // codigo de Localizacion
         float sensibilidadCamara = 0.15f;
         // Sensibilidad de movimiento (WASD) de la camara del editor. Es global
         // (vista Opciones del menu), como sensibilidadCamara; se aplica a la
