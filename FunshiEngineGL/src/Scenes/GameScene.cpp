@@ -66,6 +66,7 @@
 #include "Editor/GizmoController.h"
 #include "../Objetos/Componentes/Juego2D/Tilemap.h"
 #include "Juego/InterfacesJuego.h"
+#include "Juego/OverlayInterfaces.h"
 #include "../Rendering/Render2D/UIRenderer.h"
 #include "../WebUI/WebUIRuntime.h"
 #include <cmath>
@@ -169,7 +170,7 @@ GameScene::~GameScene() {
     if (sceneRenderer) sceneRenderer->setGestorShaders(nullptr);
     // Descarga las vistas web vivas antes de que muera la escena (con un backend
     // real libera sus recursos; con el nulo es no-op).
-    vistasWebUI_.vaciar();
+    overlayInterfaces_.vaciar();
     // Libera las geometrias cacheadas del SceneRenderer (meshes SUV + grilla)
     // si se llegaron a compilar. En el flujo normal main() crea GameScene con
     // new y no la destruye antes de glfwTerminate, asi que esto es higiene
@@ -510,7 +511,7 @@ void GameScene::limpiarRuntimeSimulacion() {
     // Limpia el estado JSON de las interfaces y descarga sus vistas para que
     // una nueva partida no arrastre datos de la anterior.
     estadoInterfaces_.vaciar();
-    vistasWebUI_.vaciar();
+    overlayInterfaces_.vaciar();
 }
 
 bool GameScene::isSimulacionPausada() const noexcept { return simulacionPausada; }
@@ -810,42 +811,12 @@ void GameScene::GUI() {
 }
 
 void GameScene::pintarInterfacesJuego() {
-    // Recoleccion de TODAS las interfaces activas de la escena, ordenadas por z,
-    // tambien en el juego exportado (sin GUI del editor): una escena con varias
-    // no debe ocultar las demas.
-    std::vector<InterfaceComponent*> interfaces =
-        InterfacesJuego::recolectarDeEscena(getGameObjectsScene());
-
-    const ImGuiIO& io = ImGui::GetIO();
-    const int ancho = static_cast<int>(io.DisplaySize.x);
-    const int alto = static_cast<int>(io.DisplaySize.y);
-
-    // Ciclo de vida de las vistas: carga las nuevas, ajusta el area al
-    // contenedor, avanza (actualizar + render) las existentes y descarga las que
-    // ya no estan. Lo hace el runtime web; con el backend nulo no hay motor web
-    // y no se dibuja nada, pero el ciclo corre entero.
-    vistasWebUI_.sincronizar(interfaces, ancho, alto, deltaTime,
-                             &estadoInterfaces_);
-
-    // Composicion del frame: cada vista que ya entrega textura se dibuja sobre
-    // la escena con su handle opaco. La colocacion es provisional (centrada en
-    // el viewport + desplazamiento); el sistema completo de ancla/tamano/z lo
-    // resuelve el lienzo de juego.
-    ImDrawList* dibujo = ImGui::GetForegroundDrawList();
-    for (InterfaceComponent* interfaz : interfaces) {
-        const VistaWebUI* vista = vistasWebUI_.buscar(interfaz);
-        if (!vista || !vista->handleImGui || vista->ancho <= 0 ||
-            vista->alto <= 0)
-            continue;
-        const glm::vec2 desplazamiento = interfaz->getDesplazamiento();
-        const float x =
-            (io.DisplaySize.x - static_cast<float>(vista->ancho)) * 0.5f +
-            desplazamiento.x;
-        const float y = (io.DisplaySize.y - static_cast<float>(vista->alto)) * 0.5f
-                        + desplazamiento.y;
-        dibujo->AddImage(vista->handleImGui, ImVec2(x, y),
-                         ImVec2(x + vista->ancho, y + vista->alto));
-    }
+    // HUD web: en el juego exportado siempre y en el editor durante el modo
+    // juego (Play). La logica vive en OverlayInterfaces. Con el mouse sobre una
+    // ventana del editor la interfaz se dibuja pero no recibe el input.
+    const bool recibeInput = !managerGUI || !ImGui::GetIO().WantCaptureMouse;
+    overlayInterfaces_.pintarHud(getGameObjectsScene(), &estadoInterfaces_, deltaTime,
+                                 recibeInput);
 }
 
 bool GameScene::interfazNativaHabilitada() const noexcept {
@@ -909,94 +880,13 @@ bool GameScene::ratonSobreInterfazNativa() const noexcept {
 }
 
 void GameScene::pintarVistaInterfaz() {
+    // Vista previa en la ventana dockable. En el modo juego el estado de los
+    // scripts lo consume el HUD; fuera de el, la previa lo recibe (asi se ve lo
+    // que fijan los scripts sin entrar en Play).
     GameObject* seleccionado =
         editorController ? editorController->getSelectedObject() : nullptr;
-    InterfaceComponent* interfaz =
-        seleccionado ? seleccionado->getComponent<InterfaceComponent>() : nullptr;
-    if (!seleccionado || !interfaz || interfaz->getRutaHtml().empty()) return;
-
-    // Sincronizar la vista del objeto seleccionado para el preview del editor,
-    // de modo que la textura web este disponible en la ventana dockable.
-    const ImGuiIO& io = ImGui::GetIO();
-    std::vector<InterfaceComponent*> uno{interfaz};
-    vistasWebUI_.sincronizar(uno,
-                             static_cast<int>(io.DisplaySize.x),
-                             static_cast<int>(io.DisplaySize.y),
-                             deltaTime,
-                             nullptr);
-
-    if (!ImGui::Begin(WindowNames::VistaInterfaz)) {
-        ImGui::End();
-        return;
-    }
-
-    const VistaWebUI* vistaSoloLectura = vistasWebUI_.buscar(interfaz);
-    if (!vistaSoloLectura || !vistaSoloLectura->cargada) {
-        ImGui::Text("Cargando %s ...", interfaz->getRutaHtml().c_str());
-        ImGui::End();
-        return;
-    }
-    if (!vistaSoloLectura->error.empty()) {
-        ImGui::Text("Error: %s", vistaSoloLectura->error.c_str());
-        ImGui::End();
-        return;
-    }
-    if (!vistaSoloLectura->handleImGui || vistaSoloLectura->ancho <= 0 ||
-        vistaSoloLectura->alto <= 0) {
-        ImGui::Text("Esperando textura del motor web (%s)...",
-                    interfaz->getRutaHtml().c_str());
-        ImGui::End();
-        return;
-    }
-    const int anchoVista = vistaSoloLectura->ancho;
-    const int altoVista = vistaSoloLectura->alto;
-    void* texturaImGui = vistaSoloLectura->handleImGui;
-
-    const float anchoDisponible = ImGui::GetContentRegionAvail().x;
-    const float escala =
-        anchoDisponible > 0 ? anchoDisponible / static_cast<float>(anchoVista)
-                            : 1.0f;
-    const ImVec2 tamano(anchoDisponible > 0 ? anchoDisponible
-                                            : static_cast<float>(anchoVista),
-                        static_cast<float>(altoVista) * escala);
-    const ImVec2 origen = ImGui::GetCursorScreenPos();
-    ImGui::Image(static_cast<ImTextureID>(
-                     reinterpret_cast<std::intptr_t>(texturaImGui)),
-                 tamano);
-
-    // Input local: el clic/rueda sobre la preview se reenvia a la vista en sus
-    // coordenadas (origen arriba-izquierda). El foco sigue al raton: entrar en
-    // la imagen activa la vista, salir la desactiva.
-    VistaWebUI* vista = vistasWebUI_.buscar(interfaz);
-    if (!vista) {
-        ImGui::End();
-        return;
-    }
-    if (ImGui::IsItemHovered()) {
-        const ImVec2 raton = ImGui::GetIO().MousePos;
-        const int lx = static_cast<int>((raton.x - origen.x) / escala);
-        const int ly = static_cast<int>((raton.y - origen.y) / escala);
-        WebUIRuntime::foco(*vista, true);
-        WebUIRuntime::ratonMover(*vista, lx, ly);
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-            WebUIRuntime::ratonBoton(*vista, 0, true);
-        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-            WebUIRuntime::ratonBoton(*vista, 0, false);
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-            WebUIRuntime::ratonBoton(*vista, 1, true);
-        if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
-            WebUIRuntime::ratonBoton(*vista, 1, false);
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
-            WebUIRuntime::ratonBoton(*vista, 2, true);
-        if (ImGui::IsMouseReleased(ImGuiMouseButton_Middle))
-            WebUIRuntime::ratonBoton(*vista, 2, false);
-        const float rueda = ImGui::GetIO().MouseWheel;
-        if (rueda != 0.0f) WebUIRuntime::ratonRueda(*vista, rueda);
-    } else if (ImGui::IsItemDeactivated()) {
-        WebUIRuntime::foco(*vista, false);
-    }
-
-    ImGui::End();
+    overlayInterfaces_.pintarVistaPrevia(seleccionado, modoJuego ? nullptr : &estadoInterfaces_,
+                                         deltaTime, WindowNames::VistaInterfaz);
 }
 
 void GameScene::pintarViewportsGUI() {
@@ -1352,6 +1242,8 @@ void GameScene::update(float value) {
 
 void GameScene::registrarTeclaScript(int key, int action) {
     inputScripts.onKey(key, action);
+    // La interfaz web con foco (la que esta bajo el mouse) tambien la recibe.
+    overlayInterfaces_.tecla(key, action);
 }
 
 void GameScene::registrarMouseScript(double x, double y) {
@@ -1604,9 +1496,10 @@ void GameScene::gameScene() {
     // exportado (sin GUI del editor). En el editor, cada interfaz se previsualiza
     // unicamente en la ventana dockable "Vista de interfaz" (pintarVistaInterfaz)
     // para no tapar la GUI del editor con un overlay a pantalla completa.
-    if (!managerGUI) {
+    if (!managerGUI || modoJuego)
         pintarInterfacesJuego();
-    }
+    else
+        overlayInterfaces_.descargarHud();
     // El HUD nativo (widgets del motor) se dibuja encima de todo: es la
     // interfaz del juego y no depende de la GUI del editor.
     pintarInterfazNativa();

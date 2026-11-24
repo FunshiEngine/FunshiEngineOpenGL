@@ -39,6 +39,7 @@
 #include "../FunshiEngineGL/src/Objetos/GameObject.h"
 #include "../FunshiEngineGL/src/Objetos/GameObjectFactory.h"
 #include "../FunshiEngineGL/src/Scenes/Juego/InterfacesJuego.h"
+#include "../FunshiEngineGL/src/WebUI/ColocacionInterfaz.h"
 
 int total = 0;
 int fallos = 0;
@@ -144,11 +145,34 @@ void inactivasOSinRutaSeOmiten() {
     }
 }
 
+// Colocacion por ancla: el ancla elige esquina/borde/centro del contenedor y
+// el desplazamiento corre la vista desde ahi (x a la derecha, y hacia abajo).
+void colocacionPorAncla() {
+    using ColocacionInterfaz::calcular;
+    const float W = 800.f, H = 600.f, w = 200.f, h = 100.f;
+    RectInterfaz r = calcular(AnclaInterfaz::ArribaIzquierda, 0.f, 0.f, w, h, W, H);
+    CHECK(r.x == 0.f && r.y == 0.f, "arriba-izquierda apoya la vista en la esquina");
+    r = calcular(AnclaInterfaz::AbajoDerecha, 0.f, 0.f, w, h, W, H);
+    CHECK(r.x == 600.f && r.y == 500.f, "abajo-derecha apoya la vista en la esquina opuesta");
+    r = calcular(AnclaInterfaz::Centro, 10.f, -20.f, w, h, W, H);
+    CHECK(r.x == 310.f && r.y == 230.f,
+          "centro + desplazamiento da lo mismo que la colocacion anterior");
+    r = calcular(AnclaInterfaz::ArribaCentro, 0.f, 15.f, w, h, W, H);
+    CHECK(r.x == 300.f && r.y == 15.f, "arriba-centro centra en X y baja con el desplazamiento");
+    r = calcular(AnclaInterfaz::MedioDerecha, -5.f, 0.f, w, h, W, H);
+    CHECK(r.x == 595.f && r.y == 250.f, "medio-derecha se apoya en el borde derecho");
+    CHECK(r.contiene(600.f, 300.f) && !r.contiene(100.f, 300.f),
+          "el rectangulo sabe si el mouse esta encima");
+    r = calcular(static_cast<AnclaInterfaz>(42), 0.f, 0.f, w, h, W, H);
+    CHECK(r.x == 300.f && r.y == 250.f, "un ancla desconocida (archivo viejo o roto) centra");
+}
+
 int main() {
     listaNulaOVacia();
     sinInterfaces();
     variasInterfacesEnOrdenPorZ();
     inactivasOSinRutaSeOmiten();
+    colocacionPorAncla();
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": " << total
               << " comprobaciones" << std::endl;

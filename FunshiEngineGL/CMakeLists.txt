@@ -1232,9 +1232,6 @@ set_target_properties(iluminacion-tests PROPERTIES
 )
 add_test(NAME iluminacion-tests COMMAND iluminacion-tests)
 
-# Deshabilitada: la suite falla en la rama develop por un fallo preexistente
-# de la interfaz web.
-set_tests_properties(webui-runtime-tests PROPERTIES DISABLED TRUE)
 
 if(WIN32)
     target_link_libraries(manifiesto-assets-tests PRIVATE dbghelp)

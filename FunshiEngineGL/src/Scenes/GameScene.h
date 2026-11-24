@@ -34,8 +34,8 @@
 #include "../Objetos/Componentes/Render/ResolvedorMateriales.h"
 #include "../Particulas/SistemaParticulas.h"
 #include "Editor/OperacionGizmo.h"
-#include "../WebUI/VistasWebUI.h"
 #include "../WebUI/EstadoInterfaces.h"
+#include "Juego/OverlayInterfaces.h"
 class CameraComponent;
 class EditorController;
 class Transform;
@@ -168,12 +168,10 @@ private:
     // gameScene() a su propio modulo. Se construye en el cuerpo del ctor (la
     // seleccion la inyecta GUIManager en el cuerpo) y vive toda la escena.
     std::unique_ptr<GizmoController> gizmoController_;
-    // Vistas web vivas de las interfaces de juego activas (una por interfaz):
-    // pintarInterfacesJuego() las carga/avanza/descarga. La GUI las dibuja con
-    // el handle de textura que entrega el runtime web; el backend nulo no
-    // produce textura, asi que no se dibuja nada hasta que exista un backend
-    // real.
-    VistasWebUI vistasWebUI_;
+    // Interfaces web: HUD del juego y vista previa del editor, cada uno con su
+    // propio conjunto de vistas. El backend nulo no produce textura, asi que
+    // sin backend real (CEF) no se dibuja imagen.
+    OverlayInterfaces overlayInterfaces_;
     // Estado JSON de cada interfaz viva (lo que el motor entrega a la interfaz y
     // lo que esta devuelve). Los scripts lo manipulan via la tabla de servicios;
     // pintarInterfacesJuego() lo sincroniza con las vistas.

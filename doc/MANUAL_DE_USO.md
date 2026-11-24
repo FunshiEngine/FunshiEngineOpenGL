@@ -853,11 +853,21 @@ esta en la seccion 21.
   desde el ancla, **Tamaño automático** (el que fija el CSS del `.html`) o un
   **Tamaño** fijo, y **Z** (orden de apilado entre varias interfaces).
 - La escena reúne las interfaces activas y las ordena por z para el overlay del
-  juego, delante de la camara principal.
+  juego, delante de la camara principal. El overlay se ve en el juego exportado
+  y, en el editor, durante el modo juego (Play).
+- **Colocación**: el **Ancla** elige la esquina, el borde o el centro de la
+  pantalla contra el que se apoya la vista y el **Desplazamiento** la corre
+  desde ahí en píxeles (x hacia la derecha, y hacia abajo). Con **Tamaño
+  automático** la vista ocupa toda la pantalla y el ancla no cambia nada.
+- **Input en el juego**: el ratón (movimiento, botones y rueda) llega a la
+  interfaz de mayor z que está bajo el cursor, en coordenadas de la página, y
+  esa interfaz toma el foco del teclado. En el editor, con el ratón sobre un
+  panel la interfaz no recibe input.
 - La ventana dockable **Vista de interfaz** muestra la vista web de la interfaz
   del objeto seleccionado (preview del editor): ratón y rueda funcionan sobre
-  la preview, el foco sigue al ratón y el teclado llega a los campos de la
-  página. Sin backend web real la ventana avisa que no hay textura.
+  la preview y el foco sigue al ratón. Fuera del modo juego la preview recibe
+  el estado que fijan los scripts. Sin backend web real la ventana avisa que no
+  hay textura.
 - **Recarga en caliente**: al guardar el `.html` en un editor externo, la vista
   se recarga sola en el siguiente frame (por `mtime`), sin tocar el componente.
 - El motor web es CEF (Chromium): se compila con `-DFUNSHI_CEF=ON` (requiere
