@@ -318,7 +318,7 @@ escena con IDs nuevos; el original no se toca.
 
 **Crear un prefab**
 
-1. Selecciona el objeto raiz en la jerarquía (**SelectedObjects**).
+1. Selecciona el objeto raiz en la jerarquía (**Objetos seleccionados**).
 2. Clic derecho sobre el objeto y elige **Crear prefab**.
 3. Escribe el nombre y confirma. El archivo aparece en
    `Prefabs/<nombre>.prefab` dentro de los assets del proyecto y se lista en
@@ -675,7 +675,7 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 
 **Modelos 3D (.obj/.fbx/... que admita Assimp):**
 
-1. En la jerarquia (**SelectedObjects**), selecciona el objeto que llevara el
+1. En la jerarquia (**Objetos seleccionados**), selecciona el objeto que llevara el
    modelo o crealo (clic derecho → **New GameObject**).
 2. **Add Component → Model**: aparece el panel **Model** del Inspector con el
    boton "[Arrastra modelo]".
@@ -688,12 +688,12 @@ menos 4096 bytes, de modo que paths largos no se truncan (el componente
 Importante: soltar un `.obj` (o cualquier asset) sobre **Vista de contenido**
 solo lo mueve o copia entre carpetas del proyecto; **no lo coloca en la
 escena**. Para instanciarlo como modelo 3D usa el panel **Model** del objeto en
-**SelectedObjects** (arriba).
+**Objetos seleccionados** (arriba).
 
 **Instanciar prefab por drag & drop:**
 1. En el explorador, localiza un archivo `.prefab` en la carpeta `Prefabs/`
    de los assets del proyecto.
-2. Arrástralo y suéltalo sobre cualquier objeto del panel **SelectedObjects**
+2. Arrástralo y suéltalo sobre cualquier objeto del panel **Objetos seleccionados**
    (la jerarquía de la escena).
 3. La instancia se crea en la raíz de la escena y se selecciona
    automáticamente.
@@ -1140,9 +1140,9 @@ ejecuta durante Depuración y Juego.
   componente `Transform` los almacene internamente en grados.
 - Hot reload por mtime del fuente: durante la simulación, guardar el `.cpp`/`.java`
   recompila y recarga el comportamiento conservando los valores.
-- La ventana **Estado** muestra el toolchain (compilador C++, javac, libjvm,
+- La ventana **Barra de estado** muestra el toolchain (compilador C++, javac, libjvm,
   cache) y el resultado de compilacion/carga de cada script de la escena.
-- Los errores de carga/compilacion se informan en la ventana **Estado** y en el
+- Los errores de carga/compilacion se informan en la ventana **Barra de estado** y en el
   log del motor (`logs/FunshiEngineGL_*.log` en la carpeta de datos, seccion 2);
   el panel del componente no los repite: queda con el fuente asignado y sus
   SerializeField.
@@ -2127,7 +2127,7 @@ genera el archivo que después se arrastra sobre un emisor.
   existente.
 - Arrastrar un `.json` de perfil sobre la zona de carga de la pestaña lo trae
   de vuelta al editor para retocarlo y regenerarlo.
-- Los **prefabs** se manejan desde **SelectedObjects**: se instancian
+- Los **prefabs** se manejan desde **Objetos seleccionados**: se instancian
   arrastrando su `.prefab` sobre el panel y se guardan con clic derecho sobre
   el objeto (**Crear prefab**). El flujo completo está en el capítulo 4,
   "Prefabs: reutilizar jerarquías completas".

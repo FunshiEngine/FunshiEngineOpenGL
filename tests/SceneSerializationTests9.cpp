@@ -18,6 +18,9 @@
 */
 #include "SceneSerializationTestsDetalle.h"
 #include "../FunshiEngineGL/src/GUI/ObjetosGUI/SettingsComponent.h"
+#include "../FunshiEngineGL/src/GUI/WindowNames.h"
+#include "../FunshiEngineGL/src/Localizacion/Localizacion.h"
+#include <imgui_internal.h>
 
 // Fisica: el paso es fijo (1/60) con subpasos, asi un frame largo avanza su
 // tiempo completo; quitar un cuerpo no reinicia los contactos de los demas; y
@@ -155,9 +158,52 @@ void dosComponentesIgualesTienenPanelPropio() {
           "ningun panel queda apuntando al Color liberado");
 }
 
+// --- Cambiar de idioma no crea otra ventana ---------------------------------
+// El titulo de cada ventana se traduce ("Inspector###Settings"), pero ImGui
+// arma el ID solo con la parte desde "###": la misma ventana sigue viva con
+// otro titulo, y el dock la encuentra por su ID sin importar el idioma.
+void elTituloTraducidoNoCambiaLaVentana() {
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+    io.DisplaySize = ImVec2(1280.0f, 720.0f);
+    io.DeltaTime = 1.0f / 60.0f;
+    io.IniFilename = nullptr;
+
+    auto dibujar = []() {
+        ImGui::NewFrame();
+        ImGui::Begin(WindowNames::titulo(WindowNames::Settings).c_str());
+        ImGui::End();
+        ImGui::EndFrame();
+    };
+
+    Localizacion::fijarIdiomaActual("es");
+    dibujar();
+    ImGuiWindow* enEspanol =
+        ImGui::FindWindowByName(WindowNames::idImGui(WindowNames::Settings).c_str());
+    CHECK(enEspanol != nullptr, "el dock encuentra la ventana por su ID (###Settings)");
+    const int ventanasAntes = ImGui::GetCurrentContext()->Windows.Size;
+
+    Localizacion::fijarIdiomaActual("en");
+    dibujar();
+    ImGuiWindow* enIngles =
+        ImGui::FindWindowByName(WindowNames::idImGui(WindowNames::Settings).c_str());
+    CHECK(enIngles == enEspanol, "cambiar de idioma no crea otra ventana");
+    CHECK(ImGui::GetCurrentContext()->Windows.Size == ventanasAntes,
+          "no aparece una ventana nueva con el titulo traducido");
+    CHECK(WindowNames::parteId(enIngles ? enIngles->Name : "") == WindowNames::Settings,
+          "la clave del dock es el nombre interno, no el titulo");
+    CHECK(WindowNames::titulo(WindowNames::EditorDockSpace) == WindowNames::EditorDockSpace,
+          "una ventana sin titulo traducible conserva su nombre");
+
+    Localizacion::fijarIdiomaActual("es");
+    ImGui::DestroyContext();
+}
+
 int main() {
     fisicaPasoFijoYContactosAlQuitar();
     dosComponentesIgualesTienenPanelPropio();
+    elTituloTraducidoNoCambiaLaVentana();
     nombresPorDefecto();
     roundTripDeEscena();
     tagsCompatiblesConEscenasAnteriores();

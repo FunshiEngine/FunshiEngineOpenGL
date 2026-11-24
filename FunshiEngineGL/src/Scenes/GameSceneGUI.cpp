@@ -18,6 +18,7 @@
 */
 #include "GameSceneDetalle.h"
 #include "../Localizacion/Localizacion.h"
+#include "../GUI/WindowNames.h"
 
 using Localizacion::Texto;
 
@@ -153,9 +154,13 @@ void GameScene::pintarViewportsGUI() {
         // ni pierde la posicion/dock guardados en el imgui.ini del proyecto
         // (antes, "Vista previa: %s" hacia que cada rename mudara el id y la
         // ventana saltara de lugar).
-        std::snprintf(title, sizeof(title), "Vista previa: %s##%d",
+        // El titulo se traduce y el ID ("###vistaPrevia<id>") no depende ni
+        // del idioma ni del nombre de la camara.
+        char visible[80];
+        std::snprintf(visible, sizeof(visible), Localizacion::tr(Texto::VistaPreviaCamara),
                       objeto->inputName[0] != '\0' ? objeto->inputName
-                                                   : "Camara",
+                                                   : Localizacion::tr(Texto::CamaraSinNombre));
+        std::snprintf(title, sizeof(title), "%s###vistaPrevia%d", visible,
                       static_cast<int>(objeto->getId()));
 
         ImGui::SetNextWindowSize(
@@ -201,7 +206,7 @@ void GameScene::pintarViewportsGUI() {
 // eliminar. Ventana de inicio de la Fase 2: con "Agregar camara" aparece
 // automaticamente la vista previa de cada camara.
 void GameScene::pintarVentanaCamaras() {
-    if (!ImGui::Begin(WindowNames::CameraList, &ventanaCamarasAbierta)) {
+    if (!ImGui::Begin(WindowNames::titulo(WindowNames::CameraList).c_str(), &ventanaCamarasAbierta)) {
         ImGui::End();
         return;
     }

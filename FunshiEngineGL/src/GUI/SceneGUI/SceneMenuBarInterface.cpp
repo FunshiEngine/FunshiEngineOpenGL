@@ -73,7 +73,7 @@ void SceneMenuBarInterface::abrirDialogoExportacion() {
 }
 
 void SceneMenuBarInterface::initGUI() {
-    ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
+    ImGui::Begin(WindowNames::titulo(getNameGui()).c_str(), &stateGUI, getFlagGui());
     ImGui::PushID(this);
 
     // El dialogo de exportacion se renderiza aqui y el dueno lo destruye
@@ -87,14 +87,13 @@ void SceneMenuBarInterface::initGUI() {
         }
     }
 }
-// Etiqueta en espanol por WindowName para el menu "Ventanas"; nullptr para las
-// ventanas que no se pueden alternar desde aqui (dock, propia barra, settings).
+// Nombre visible (idioma vigente) de las ventanas que se alternan desde el
+// menu "Ventanas"; nullptr para las demas (dock, propia barra, inspector).
 static const char* etiquetaVentana(const std::string& nombre) {
-    if (nombre == WindowNames::BrowseFile) return "Explorador de archivos";
-    if (nombre == WindowNames::ShowFolder) return "Vista de contenido";
-    if (nombre == WindowNames::SelectedObjects) return "Objetos seleccionados";
-    if (nombre == WindowNames::Status) return "Barra de estado";
-    if (nombre == WindowNames::Terminal) return "Terminal";
+    if (nombre == WindowNames::BrowseFile || nombre == WindowNames::ShowFolder ||
+        nombre == WindowNames::SelectedObjects || nombre == WindowNames::Status ||
+        nombre == WindowNames::Terminal)
+        return WindowNames::nombreVisible(nombre);
     return nullptr;
 }
 

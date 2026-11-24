@@ -1121,10 +1121,19 @@ Todos los textos que muestra el motor viven en un solo archivo,
 Estado: todo texto que el editor pasa directo a ImGui sale de `Textos.inc`
 (menú de inicio, barra de menús, jerarquía, explorador, inspector, barra de
 estado, exportación, partículas, terminal, cámaras). Las listas de los combos
-se arman con `Texto` y se traducen al dibujar. Faltan los textos que viven en
-tablas de datos (nombres, submenús y requisitos del catálogo de componentes;
-caras del skybox) y los títulos de ventana, que también son el ID del dock y
-del `imgui.ini`.
+se arman con `Texto` y se traducen al dibujar. Los nombres de los componentes
+(menú "Agregar componente" y encabezados del inspector) y las caras del skybox
+también. Quedan fuera, a propósito, los mensajes de la API de inspección y de
+los logs.
+
+Títulos de ventana: cada ventana conserva su nombre interno
+(`WindowNames::Settings`), que es la clave del estado guardado, del dock y de
+los mods. `ImGui::Begin` recibe `WindowNames::titulo(nombre)`, que arma
+`"Inspector###Settings"`: ImGui calcula el ID solo con la parte desde `###`,
+así que cambiar de idioma no crea otra ventana ni la mueve. El dock busca y
+ancla con `WindowNames::idImGui(nombre)` (`"###Settings"`). Al pasar a este
+esquema el `imgui.ini` guardado (que usaba `"Settings"` como ID) deja de
+coincidir una vez y las ventanas vuelven a su lugar por defecto.
 
 ### Persistencia
 

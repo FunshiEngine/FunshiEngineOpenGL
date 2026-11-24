@@ -27,6 +27,7 @@
 #include "../../Objetos/Componentes/Interfaz/InterfaceComponent.h"
 #include "../../WebUI/WebUIRuntime.h"
 #include "../../Localizacion/Localizacion.h"
+#include "../../GUI/WindowNames.h"
 
 using Localizacion::Texto;
 
@@ -130,7 +131,7 @@ void OverlayInterfaces::pintarVistaPrevia(GameObject* seleccionado, EstadoInterf
     vistaPrevia_.sincronizar(una, static_cast<int>(io.DisplaySize.x),
                              static_cast<int>(io.DisplaySize.y), deltaTime, estado);
 
-    if (!ImGui::Begin(nombreVentana)) {
+    if (!ImGui::Begin(WindowNames::titulo(nombreVentana).c_str())) {
         ImGui::End();
         return;
     }

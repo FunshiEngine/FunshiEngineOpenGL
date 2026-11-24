@@ -18,13 +18,14 @@
 */
 #include "SettingsObjectInterfaceDetalle.h"
 #include "../../Localizacion/Localizacion.h"
+#include "../WindowNames.h"
 
 #include <cstdio>
 
 using Localizacion::Texto;
 
 void SettingsObjectInterface::initGUI() {
-    ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
+    ImGui::Begin(WindowNames::titulo(getNameGui()).c_str(), &stateGUI, getFlagGui());
     ImGui::PushID(object);
 }
 

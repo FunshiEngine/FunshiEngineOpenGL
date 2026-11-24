@@ -18,6 +18,7 @@
 */
 #include "ContentFolderInterfaceDetalle.h"
 #include "../../Localizacion/Localizacion.h"
+#include "../WindowNames.h"
 
 using Localizacion::Texto;
 
@@ -25,14 +26,14 @@ void ContentFolderInterface::initGUI() {
     FileSelection* sel = fileManager->getSelection();
     // Guard: sel puede ser nullptr si fileManager no esta inicializado
     if (!sel) {
-        ImGui::Begin(getNameGui().c_str(), &dockAlive_, getFlagGui());
+        ImGui::Begin(WindowNames::titulo(getNameGui()).c_str(), &dockAlive_, getFlagGui());
         ImGui::End();
         return;
     }
     // Usa dockAlive_ (siempre true) para que la ventana exista en g.Windows
     // cada frame y ImGui pueda re-aplicar su DockId al restaurar el ini.
     // stateGUI controla solo la visibilidad visual (usuario cierra con X).
-    ImGui::Begin(getNameGui().c_str(), &dockAlive_, getFlagGui());
+    ImGui::Begin(WindowNames::titulo(getNameGui()).c_str(), &dockAlive_, getFlagGui());
 
     // Nota: carpetaActual se valida y re-resuelve en FileManager::refrescar()
     // cuando cambia contadorCambios. Aquí no dereferenciamos carpetaActual

@@ -48,14 +48,14 @@ void DockSpaceInterface::initGUI() {
         // Los nombres vienen de WindowNames para no divergir con los paneles:
         // antes el contenido era "Show Folder " (con espacio) escrito a
         // mano en dos sitios y un rename rompia el anclaje del dock.
-        ImGui::DockBuilderDockWindow(WindowNames::SelectedObjects, left);
-        ImGui::DockBuilderDockWindow(WindowNames::BrowseFile,     leftBottom);
-        ImGui::DockBuilderDockWindow(WindowNames::Settings,       right);
-        ImGui::DockBuilderDockWindow(WindowNames::MenuBar,        top);
-        ImGui::DockBuilderDockWindow(WindowNames::ShowFolder,     bottom);
-        ImGui::DockBuilderDockWindow(WindowNames::Terminal,       bottom);
-        ImGui::DockBuilderDockWindow(WindowNames::Status,       right);
-        ImGui::DockBuilderDockWindow(WindowNames::CameraList,   right);
+        ImGui::DockBuilderDockWindow(WindowNames::idImGui(WindowNames::SelectedObjects).c_str(), left);
+        ImGui::DockBuilderDockWindow(WindowNames::idImGui(WindowNames::BrowseFile).c_str(),     leftBottom);
+        ImGui::DockBuilderDockWindow(WindowNames::idImGui(WindowNames::Settings).c_str(),       right);
+        ImGui::DockBuilderDockWindow(WindowNames::idImGui(WindowNames::MenuBar).c_str(),        top);
+        ImGui::DockBuilderDockWindow(WindowNames::idImGui(WindowNames::ShowFolder).c_str(),     bottom);
+        ImGui::DockBuilderDockWindow(WindowNames::idImGui(WindowNames::Terminal).c_str(),       bottom);
+        ImGui::DockBuilderDockWindow(WindowNames::idImGui(WindowNames::Status).c_str(),       right);
+        ImGui::DockBuilderDockWindow(WindowNames::idImGui(WindowNames::CameraList).c_str(),   right);
 
         ultimoDockValido_[WindowNames::SelectedObjects] = left;
         ultimoDockValido_[WindowNames::BrowseFile] = leftBottom;
@@ -115,17 +115,20 @@ void DockSpaceInterface::repararVentanasFlotantes() {
         WindowNames::Status, WindowNames::Terminal, WindowNames::CameraList};
     std::vector<ImGuiWindow*> ventanas;
     for (const char* nombre : nombres) {
-        if (ImGuiWindow* window = ImGui::FindWindowByName(nombre))
+        if (ImGuiWindow* window =
+                ImGui::FindWindowByName(WindowNames::idImGui(nombre).c_str()))
             ventanas.push_back(window);
     }
     for (ImGuiWindow* window : g.Windows) {
-        if (std::strncmp(window->Name, "Vista previa: ", 14) == 0)
+        if (std::strstr(window->Name, "###vistaPrevia") != nullptr)
             ventanas.push_back(window);
     }
 
     for (ImGuiWindow* window : ventanas) {
         if (window->Flags & ImGuiWindowFlags_NoDocking) continue;
-        const char* nombre = window->Name;
+        // Clave estable: la parte de ID del nombre (el titulo visible cambia
+        // con el idioma; el ID no).
+        const std::string nombre = WindowNames::parteId(window->Name);
 
         ImGuiDockNode* node = window->DockNode;
         if (node && node->IsLeafNode()) {
@@ -146,7 +149,7 @@ void DockSpaceInterface::repararVentanasFlotantes() {
         if (ultimo != ultimoDockValido_.end() &&
             esHojaDelDockspace(ultimo->second))
             destino = ultimo->second;
-        ImGui::DockBuilderDockWindow(nombre, destino);
+        ImGui::DockBuilderDockWindow(window->Name, destino);
         ultimoDockValido_[nombre] = destino;
     }
 }

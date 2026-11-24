@@ -29,6 +29,7 @@
 #include "../../Events/EventBus.h"
 #include "../../Herramientas/IconosGUI/IconosGUI.h"
 #include "../../Localizacion/Localizacion.h"
+#include "../WindowNames.h"
 
 using Localizacion::Texto;
 
@@ -62,7 +63,7 @@ void SceneSelectedInterface::setReturnableEntity(GameObject* object) {
 }
 
 void SceneSelectedInterface::initGUI() {
-    ImGui::Begin(getNameGui().c_str(), &stateGUI, getFlagGui());
+    ImGui::Begin(WindowNames::titulo(getNameGui()).c_str(), &stateGUI, getFlagGui());
     ImGui::PushID(this);
 }
 

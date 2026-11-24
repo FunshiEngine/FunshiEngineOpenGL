@@ -54,7 +54,7 @@ AnimacionesParticulasInterface::AnimacionesParticulasInterface()
                            ImGuiWindowFlags_None) {}
 
 void AnimacionesParticulasInterface::printGUI() {
-    const bool mostrar = ImGui::Begin(nameGUI.c_str(), &stateGUI, flagGUI);
+    const bool mostrar = ImGui::Begin(WindowNames::titulo(nameGUI).c_str(), &stateGUI, flagGUI);
     if (mostrar) contentGUI();
     ImGui::End();
 }
