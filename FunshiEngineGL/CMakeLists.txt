@@ -1706,6 +1706,7 @@ add_test(NAME interfaz-ui-tests COMMAND interfaz-ui-tests)
 # anidados y vectores de grupos) y el round-trip binario del arbol de valores.
 add_executable(scripts-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
+    ${SRC_DIR}/Behaviour/Reflection/BehaviourReflectionValores.cpp
     ${SRC_DIR}/FileManager/Procesos/Proceso.cpp
     ${SRC_DIR}/Input/InputScripts.cpp
     ${SRC_DIR}/Matematicas/StructVec3.cpp
@@ -1732,6 +1733,7 @@ add_test(NAME scripts-tests COMMAND scripts-tests)
 # Windows igual que en Linux (H-14).
 add_executable(scripts-runtime-tests
     ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
+    ${SRC_DIR}/Behaviour/Reflection/BehaviourReflectionValores.cpp
     ${SRC_DIR}/Behaviour/Backends/BackendCpp.cpp
     ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
     ${SRC_DIR}/Configuracion/ProjectPaths.cpp
@@ -1834,6 +1836,7 @@ if(FUNSHI_JAVA)
     find_package(Java QUIET COMPONENTS Development)
     add_executable(scripts-java-tests
         ${SRC_DIR}/Behaviour/Reflection/BehaviourReflection.cpp
+        ${SRC_DIR}/Behaviour/Reflection/BehaviourReflectionValores.cpp
         ${SRC_DIR}/Behaviour/Backends/BackendCpp.cpp
         ${SRC_DIR}/Behaviour/Backends/BackendJava.cpp
         ${SRC_DIR}/Behaviour/ScriptRuntime.cpp
