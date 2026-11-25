@@ -160,15 +160,15 @@ bool SceneRegistry::deleteObject(GameObject* object) {
         return true;
     }
 
-    entitys.deleteNode(position);
-    viewDirty = true;
-    ownedGameObjects.erase(
-        std::remove_if(ownedGameObjects.begin(), ownedGameObjects.end(),
-                       [object](const std::unique_ptr<GameObject>& candidate) {
-                           return candidate.get() == object;
-                       }),
-        ownedGameObjects.end());
-    refreshGameObjectView();
+    // Se borra el subarbol entero. Quitar solo el nodo dejaba a los hijos
+    // registrados: el arbol sube el primer hijo al lugar del borrado y los
+    // descendientes se seguian guardando (colgando de la raiz al recargar).
+    std::vector<std::unique_ptr<GameObject>> subarbol = takeSubtree(object);
+    if (subarbol.empty()) return false;
+    // takeSubtree devuelve el subarbol en preorden (padre antes que hijos): se
+    // destruye de los hijos hacia el padre, que es el orden seguro (un hijo
+    // nunca sobrevive a su padre).
+    while (!subarbol.empty()) subarbol.pop_back();
     return true;
 }
 
